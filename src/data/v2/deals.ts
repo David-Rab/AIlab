@@ -54,7 +54,7 @@ export const PARTNER_TERMS = {
   // within 12 quarters.
   chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, deadlineQ: 12 },
   // Sovereign: a passive cheque of 2.5% of V ($5–25B) (MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E) [R15];
-  // its political cost (security demand +3) went with the government actor (W1d; W5 redoes it). No in-country site (sovereign money was passive; builds were separate deals) [R21 §3].
+  // no political cost (the US government's trust moves only by its own rules, world/usgov.ts). No in-country site (sovereign money was passive; builds were separate deals) [R21 §3].
   sovereign: { equityShareOfV: 0.025, min: 5, max: 25 },
   // Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; the partner is
   // topped up to 30%, with a board seat of two votes and exclusivity [D]; FIN4b: and IP access when the partner has an

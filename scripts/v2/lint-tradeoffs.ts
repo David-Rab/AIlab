@@ -64,6 +64,7 @@ for (const e of EVENTS) {
 const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> = {
   credibility: (k) => k === 'finance.credibility',
   approval: (k) => k === 'public.approval',
+  trust: (k) => k === 'usgov.trust',
   morale: (k) => k.startsWith('morale'),
 };
 const appliedLabel = (id: string, cur: string, day: number) => `action ${id} @day ${day}: its ${cur} line is applied`;

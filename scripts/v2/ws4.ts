@@ -54,8 +54,8 @@ const load = (i: number) => deserialize(fixtures[i]);
   // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
   // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts; W1d cut E12 Clearances, E20
-  // Oversight committee, E22 DPA consolidation and E23 China deal (W5/W6/W7 rebuild them).
-  const want = ['E01', 'E10', 'E19', 'E25', 'E27', 'E30', 'E32'];
+  // Oversight committee, E22 DPA consolidation and E23 China deal; W5 rebuilt E12, E20 and E22 (events/catalog/gov.ts).
+  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E25', 'E27', 'E30', 'E32'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, `E1 catalog: exactly the ${want.length} kept events`, `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
@@ -213,7 +213,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
     acquired: (s) => void (ws4(s).soldControl = true),
     ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster vote
-    nationalized: (s) => void (ws4(s).nationalizedHard = true),
+    nationalized: (s) => void (s.usgov.consolidated = 'nationalized'),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
     rogue: (s) => {

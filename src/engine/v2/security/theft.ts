@@ -9,6 +9,7 @@ import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
 import { adopted } from '../models/paradigms';
 import { stolenModelG } from '../production/diffusion';
+import { usgovTheftDetected } from '../world/usgov';
 
 /** China's posture rung (0 coexistence … 6 war footing; research/10 §1.4). W1d stand-in until W6: the start value 0,
  *  so China's weight theft stays off (theftMinRung 2) exactly as at the start of today's game. */
@@ -93,6 +94,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     const pDetect = clamp(0.5 + 0.1 * (sec.wsl - 2) + 0.3 * sec.counterIntel, 0, 1);
     if (ctx.rng('security').chance(pDetect)) {
       sec.detectedThefts.push(v.id);
+      usgovTheftDetected(s, ctx, 'player');
       ctx.log('alert', `Security detects that the weights of ${v.name} were stolen.`, 5, v.id);
       request(s, 'E10', { versionId: v.id });
     }
@@ -110,6 +112,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });
     if (ctx.rng('security').chance(0.5)) {
       ctx.log('rival', `${r.core.name} reports that its model weights were stolen.`, 4, victim);
+      usgovTheftDetected(s, ctx, victim);
     }
   }
 }

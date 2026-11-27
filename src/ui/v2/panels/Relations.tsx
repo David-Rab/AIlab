@@ -4,14 +4,33 @@
 // (ends the game) stands apart behind a confirm.
 import { useState } from 'react';
 import { RELATION_ACTION_META } from '../../../data/v2/actions';
-import { activeRivals, dateOf, fmtDate, keptShare } from '../../../engine/v2';
+import { activeRivals, dateOf, fmtDate, keptShare, usgovView } from '../../../engine/v2';
+import { lawName } from '../../../data/v2/laws';
 import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Gate, pct, Section, Seg, Term, Tip, TipCard } from '../ui';
 import { PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
-const GROUPS: Record<string, string> = { A: 'Testing & transparency', B: 'Government', C: 'Rivals', F: 'Public' };
-const ACT_GROUPS = ['A', 'B', 'C', 'F'] as const;
+const GROUPS: Record<string, string> = { A: 'Testing & transparency', C: 'Rivals', F: 'Public' };
+const ACT_GROUPS = ['A', 'C', 'F'] as const;
+/** Glossary term of each law id. */
+const LAW_TERM: Record<string, string> = { licensing: 'lawLicensing', relief: 'lawRelief', ubi: 'lawUbi', hitl: 'lawHitl', sez: 'lawSez', fdaFastTrack: 'lawFda', sb243: 'lawSb243' };
+const CONSOLIDATED: Record<string, string> = { none: 'none', dpa: 'the frontier labs are pooled under the DPA', nationalized: 'your lab was taken over' };
+
+/** The US government: its security stage, trust in you, the laws it passed, oversight and consolidation, and briefing. */
+function UsGov({ s }: { s: GameStateV2 }) {
+  const g = usgovView(s);
+  return (
+    <Section title="US government" right={<Tip content={() => <TipCard title={<Term id="govTrust">Government trust</Term>} value={F.idx(g.trust)}>How much Washington trusts your lab, 0–100.</TipCard>}><span className="small"><Term id="govTrust">Trust</Term> <b className="num">{F.idx(g.trust)}</b></span></Tip>}>
+      <div className="obl-row"><span><Term id="securityStage">Security stage</Term></span><span className="small">{g.stage} · {g.stageName}</span></div>
+      {g.stage > 0 && !g.applies && <div className="dim small">Its requirements do not apply to you: your lab is not prominent enough.</div>}
+      <div className="obl-row"><span><Term id="oversight">Oversight committee</Term></span><span className="small">{g.oversight ? 'accepted' : 'none'}</span></div>
+      <div className="obl-row"><span><Term id="consolidation">Consolidation</Term></span><span className="small">{g.dpaAccepted ? 'the American labs pool their compute into yours' : CONSOLIDATED[g.consolidated]}</span></div>
+      <div className="obl-row"><span className="dim">Laws in force</span><span className="small">{g.laws.length ? g.laws.map((id, i) => <span key={id}>{i ? ', ' : ''}{LAW_TERM[id] ? <Term id={LAW_TERM[id]}>{lawName(id)}</Term> : lawName(id)}</span>) : 'none'}</span></div>
+      <div className="cat-card"><ActBtn id="B7" testId="B7" label="Brief officials" /></div>
+    </Section>
+  );
+}
 export function Relations({ s }: { s: GameStateV2 }) {
   const [grp, setGrp] = useState<string>('A');
   const [retire, setRetire] = useState(false);
@@ -32,6 +51,8 @@ export function Relations({ s }: { s: GameStateV2 }) {
           {!s.commitments.length && <div className="dim small">No commitments yet</div>}
         </Gate>
       </Section>
+
+      <UsGov s={s} />
 
       <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'lab', tab: 'security' }}>Lab › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'blueprint', tab: 'data' }}>Training › Data</Ref></span>}>
         <div className="rel-groups" data-test="rel-groups"><Seg value={grp} options={ACT_GROUPS.map((x) => ({ v: x, label: GROUPS[x] }))} onChange={setGrp} /></div>

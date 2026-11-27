@@ -769,8 +769,8 @@ const METHOD_POLICY: ActionDef = {
 };
 
 // ───────── Pledges that sign a commitment (research/17 §1.4; ids A1, A3, A6 kept from the relations catalog) ─────────
-// The trust, credibility and bloc effects they had went with the relation stocks (W1c); W4/W5 add approval and
-// government trust.
+// The trust, credibility and bloc effects they had went with the relation stocks (W1c). Pre-deploy testing lets the US
+// government see the tested internal model (world/observe.ts govMilestones); approval moves on a broken pledge.
 
 const PREDEPLOY_TESTING: ActionDef = simpleAction({
   id: 'A1', verb: 'policy', system: 'relations', title: 'Pre-deploy testing',

@@ -35,6 +35,7 @@ import { footholdsStep } from './footholdDetection';
 import { backdoorReach, lineageOf } from './footholds';
 import { controlStep } from './control';
 import { lawsInForce } from '../../../data/v2/laws';
+import { trustPush, USGOV } from '../world/usgov';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -345,6 +346,7 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
   if (row.source === 'misuse' && sev === 5) {
     setFlag(s, 'sev5MisuseDay', ctx.day);
     setFlag(s, 'sev5MisuseKind', row.domain === 'BIO' ? 'bio' : 'cyber');
+    trustPush(s, ctx, USGOV.misuseSev5, 'Severe misuse of your model');
   }
 }
 

@@ -130,9 +130,37 @@ export interface GameStateV2 {
   ws4?: Ws4State;
   /** W4 (world/public.ts): concern about AI (0..100, Pew's question) and the public's approval of the player's lab (-100..100). */
   public: PublicState;
+  /** W5 (world/usgov.ts): the US government (security stage, trust in the player, oversight, consolidation, laws it passed). */
+  usgov: UsGovState;
 }
 
 export interface PublicState { concern: number; approval: number; lastProtestDay?: number }
+
+/** The US government's conditional laws (data/v2/laws.ts COND_LAWS). */
+export type CondLawId = 'exportStrict' | 'licensing' | 'relief' | 'ubi' | 'hitl' | 'sez' | 'fdaFastTrack';
+
+/** W5: the US government (design/world/OUTSIDE-WORLD.md §6). */
+export interface UsGovState {
+  /** Security stage, world level: 0 business as usual, 1 security expectations, 2 clearances, 3 oversight committee, 4 consolidation. */
+  stage: 0 | 1 | 2 | 3 | 4;
+  /** Day each stage was reached (key = stage). */
+  stageDay: Partial<Record<1 | 2 | 3 | 4, Day>>;
+  /** Trust in the player's lab, 0..100. */
+  trust: number;
+  /** The player accepted the oversight committee (E20). */
+  oversight: boolean;
+  /** Stage 4: 'dpa' the frontier labs consolidated under the DPA (with the player only if it accepted E22),
+   *  'nationalized' the player's lab taken (the hard path). */
+  consolidated: 'none' | 'dpa' | 'nationalized';
+  /** Consecutive days each condition has held (concern for stage 4, low trust, frontier licensing). */
+  holdDays: Record<string, number>;
+  /** Conditional laws in force: the day each went into force. */
+  laws: Partial<Record<CondLawId, Day>>;
+  /** Days of the detected thefts from US labs (all of them China's). */
+  thefts: Day[];
+  /** The day each government decision was put to the player (E12, E20, E22; each once). */
+  asked: Partial<Record<'E12' | 'E20' | 'E22', Day>>;
+}
 
 /** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
  *  a kind share it; heads in labs (E) and outside (U = P - E) are derived each week. */
@@ -2372,7 +2400,7 @@ export interface EngineSystem {
 
 /** Currencies used to express every lever's cost/gain/exposure (§3.9.1, §2.7). */
 export type Currency =
-  | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'credibility' | 'approval' // approval: public approval of the lab (world/public.ts); credibility: the player's investor credibility (finance/promises.ts)
+  | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'credibility' | 'approval' | 'trust' // trust: the US government's trust in the lab (world/usgov.ts); approval: public approval of the lab (world/public.ts); credibility: the player's investor credibility (finance/promises.ts)
   | 'morale' | 'boardConf' | 'security' | 'monitorability'
   | 'alignment' | 'freedom' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
 
@@ -2498,10 +2526,12 @@ export interface Ws4State {
   spyMult: number;
   /** Days China/rival distillation inflow has exceeded the E06 threshold. */
   distillDays: number;
-  /** Player DPA-consolidation acceptance (government-held lab). Nothing sets it until W5 rebuilds the US government. */
+  /** The player accepted DPA consolidation (E22, world/usgov.ts). */
   dpaAccepted: boolean;
-  /** The hard nationalisation path (the 'nationalized' ending). Nothing sets it until W5. */
+  /** The hard nationalisation path was taken (world/usgov.ts; the 'nationalized' ending). */
   nationalizedHard: boolean;
+  /** Day an internal safety memo leaked to the press (E19): the misalignment leak the US government reacts to. */
+  misalignLeakDay?: Day;
   soldControl: boolean;
   retired: boolean;
   /** Disclosure record: disclosed vs leaked/covered incidents and findings. */

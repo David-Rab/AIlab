@@ -227,7 +227,7 @@ function Tiles({ v }: { v: View }) {
   const e = w.economy;
   const g = w.geopolitics;
   const co = w.company;
-  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' ? 'neu' : 'bad';
+  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' || co.status === 'under committee' ? 'neu' : 'bad';
   const taiwanTone = g.taiwan === 'calm' ? 'good' : g.taiwan === 'recovered' ? 'neu' : g.taiwan === 'disrupted' ? 'warn' : 'bad';
   const own = [...co.ownership].sort((a, b) => Number(b.you) - Number(a.you));
   const lagLine = g.chinaLagDays === 0 ? `China${RSQ}s lab was level with the best US lab.` : g.chinaLagDays > 0 ? `China${RSQ}s lab was ${F.days(g.chinaLagDays)} behind the best US lab.` : `China${RSQ}s lab was ${F.days(-g.chinaLagDays)} ahead of the best US lab.`;

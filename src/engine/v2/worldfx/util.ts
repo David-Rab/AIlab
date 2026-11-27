@@ -1,6 +1,5 @@
 // Shared helpers of the outside-world systems (world-tech ramps, small math). Owner: WS5.
-// (Was worldfx/policy.ts; its policy flags went with the government actor, W1d: W5 re-adds what it needs through the
-// laws table, data/v2/laws.ts.)
+// (Was worldfx/policy.ts; the policy flags are now laws in the one laws table, data/v2/laws.ts.)
 import type { GameStateV2 } from '../types';
 
 /** Impact ramp 0..1 of a world technology (0 until discovered). */

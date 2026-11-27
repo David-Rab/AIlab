@@ -17,6 +17,8 @@ import type { DomainId, GameStateV2, SystemCtx, TimelineWorld } from '../types';
 import { worldMix, type WorldMix } from './mix';
 import { sigmoid, techRamp } from './util';
 import { robotAvail } from './robots';
+import { lawsInForce } from '../../../data/v2/laws';
+import { USGOV } from '../world/usgov';
 
 export { techRamp };
 
@@ -57,7 +59,7 @@ export function playerScience(s: GameStateV2, techId: string): number {
  *  message shows the gate on the measured domain scale (techGateLevels). */
 export function techBlocker(s: GameStateV2, t: WorldTechDef, g: Record<DomainId, number>): string | undefined {
   for (const p of t.prereqs) if (s.world.techs[p]?.discoveredDay === undefined) return `needs ${TECH_BY_ID[p]?.name ?? p}`;
-  if (t.needs === 'sez' && !s.world.robots.sezOpen) return 'needs Special Economic Zones'; // nothing opens them until W5 (W1d)
+  if (t.needs === 'sez' && !s.world.robots.sezOpen) return 'needs Special Economic Zones'; // opened by the US SEZ law (world/usgov.ts)
   if (t.needs === 'findings' && s.knowledge.publishedFindings.length < 3) return 'needs 3 published safety findings';
   const w = s.hidden.timeline;
   for (const [d, min] of GATES[t.id]) if (g[d] < gOfV2Level(w, d, min)) return `${d} ${fmtGate(levelOfG(w, gOfV2Level(w, d, min)))}`;
@@ -94,6 +96,7 @@ function gateLevels(s: GameStateV2, techId: string, best: Record<DomainId, numbe
 export function effectiveLag(s: GameStateV2, t: WorldTechDef): number {
   let lag = t.lag;
   if (t.lagChannel === 'health') {
+    if (lawsInForce(s).fdaFastTrack) lag *= USGOV.fdaLagMult;
     if (['W06', 'W07', 'W08', 'W09'].includes(t.id)) lag *= 1 - 0.5 * techRamp(s, 'W05');
   }
   if (t.lagChannel === 'physical' && s.world.robots.sezOpen) lag *= 0.3;

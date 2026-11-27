@@ -14,6 +14,7 @@ import { WORLD_START } from '../../../data/world';
 import { decimalYear } from '../core/time';
 import type { GameStateV2, RegionId, SectorId, SystemCtx } from '../types';
 import { techRamp } from './util';
+import { lawsInForce } from '../../../data/v2/laws';
 
 export const ROBOT = {
   stock0: 1.5e6,
@@ -64,8 +65,15 @@ export function advanceRobots(s: GameStateV2, ctx: SystemCtx): void {
   const dt = 1 / 365;
   const econ = ADOPTION;
 
-  // SEZs open → car-plant conversion (100k/month, → 1M/month within ~a year) [A27]. The government's SEZ policy went
-  // with the government actor (W1d): nothing opens them until W5 (fx.sezProd at ROBOT.sezOpenRate, fx.sezDay = today).
+  // SEZs open (the US special-economic-zones law, world/usgov.ts) → car-plant conversion (100k/month, → 1M/month within
+  // ~a year) [A27].
+  const sez = lawsInForce(s).sez;
+  if (sez && !R.sezOpen) {
+    R.sezOpen = true;
+    fx.sezProd = Math.max(fx.sezProd, ROBOT.sezOpenRate);
+    if (fx.sezDay < 0) fx.sezDay = ctx.day;
+  }
+  if (!sez && R.sezOpen) R.sezOpen = false;
   const sezAge = fx.sezDay >= 0 ? (ctx.day - fx.sezDay) / 365 : -1;
   const conv = R.sezOpen && sezAge >= 0 && sezAge < ROBOT.sezRampYears ? ROBOT.sezRampPerYear * dt : 0;
 

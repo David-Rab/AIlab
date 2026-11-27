@@ -6,6 +6,19 @@ import { defineParams, type Param } from '../schema';
 type Meta = Omit<Param, 'id' | 'ref' | 'value' | 'unit'>;
 type Val = number | number[] | string;
 const WFX = 'src/engine/v2/worldfx/';
+
+/** world/usgov.ts USGOV, every key (registry-lint checks each value against the module). */
+const USGOV_VALUES: Record<string, number> = {
+  trustStart: 55, lagDays: 90, consolidateAfterDays: 180, consolidateConcern: 75, attentionMin: 0.5, securityMet: 1.5, securityMissed: -1,
+  briefingFull: 0.5, coverupExposed: -6, theftFromYou: -5, misuseSev5: -8, clearMorale: -10, clearSecurity: 0.3, clearTrust: 10,
+  resistTrust: -15, resistMorale: 3, oversightTrust: 10, refuseTrust: -10, reviewDays: 30, softTrust: 60, declineTrust: -10,
+  dpaShare: 0.5, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
+  licensingFriction: 0.1, reliefRise: 1, reliefOffRise: 0.5, ubiHoldDays: 182, reliefRetrain: 0.2, ubiExitMult: 3, scareHeat: 6,
+  hitlOn: 75, hitlOff: 55, hitlAlphaCap: 0.5, companionFactor: 0.8, sezOn: 60, sezOff: 70, fdaLagMult: 0.5, governmentTrust: 40,
+  concernShift: 0,
+};
+/** USGOV keys that keep a value of the government actor deleted in W1d. */
+const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'licensingFriction', 'reliefRetrain', 'ubiExitMult', 'fdaLagMult', 'governmentTrust']);
 const W = { area: 'worldfx', layer: 'world' } as const;
 
 /** An exported constant (or a key of one), `file` under src/engine/v2/worldfx/. */
@@ -211,12 +224,12 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:314',
     notes: 'Re-employment rate multiplier of the displaced pool.',
   }),
-  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25;', 0.25, '1/yr', {
-    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts header "exit 0.25/yr" (the ×3 with UBI went with the government actor, W1d)',
+  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25 *', 0.25, '1/yr', {
+    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts header "exit 0.25/yr" (× USGOV.ubiExitMult under the basic-income law, world/usgov.ts)',
   }),
   inl('sectors.retrainPer10B', 'sectors.ts', '(0.1 * s.player.policies.transitionFund) / 10', 0.1, 'Retrain per $10B/yr', {
     ...W, kind: 'sourced', evidence: 'sectors.ts:227 "Player transition-fund + government training → Retrain (each $10B/yr +0.1, cap +0.5; R16 §1A.2 step 9)"',
-    source: 'research/16 §1A.2 step 9', notes: 'Cap 0.5 and jobTraining +0.2 are in the same expression.',
+    source: 'research/16 §1A.2 step 9', notes: 'Cap 0.5 and the worker-relief law (USGOV.reliefRetrain) are in the same expression.',
   }),
   inl('sectors.friendCeiling', 'sectors.ts', 'const friendStar = 0.03 + 0.18 * v2LevelGate(', 0.18, 'share of adults', {
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:382 (the start value 0.03 at :215 is "[D, R16 N3a]")',
@@ -275,6 +288,24 @@ export const PARAMS_WORLDFX = defineParams([
     ...(k === 'base'
       ? { kind: 'sourced' as const, source: 'Pew CNCEXC, Jun 2025: 50% more concerned than excited (design/world/SOURCES.md 3.1)', evidence: 'public.ts PUBLIC "[sourced]"; SOURCES 3.1 plateau 50-52 through 2025' }
       : { kind: 'designer' as const, evidence: 'public.ts PUBLIC "[D]"; design/world/OUTSIDE-WORLD.md 5', notes: k === 'milestoneStep' ? 'Bounded by the Pew 2022-23 step (+14 in under 8 months).' : 'Fits the shape checks (S3 frozen world holds 50).' }),
+  } as Param)),
+
+  // ---------------------------------------------------------------- world/usgov.ts (W5: the US government, spec 6)
+  ...Object.entries(USGOV_VALUES).map(([k, value]): Param => ({
+    id: `wfx.USGOV.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/usgov.ts', symbol: 'USGOV', path: [k] },
+    value,
+    unit: k.endsWith('Days') ? 'days' : /Trust$|^trust/.test(k) ? 'trust points (0-100)' : /Concern$|On$|Off$|^concernShift$/.test(k) ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'all',
+    ...(USGOV_OLD.has(k)
+      ? { kind: 'designer' as const, evidence: 'usgov.ts USGOV "the old rule\'s value"; the government actor before W1d (git 2219e5b4^)', notes: 'Kept from the deleted government actor.' }
+      : k === 'lagDays'
+        ? { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/SOURCES.md 10: AI 2027 stage steps 3 to 5 months after the matching capability', notes: 'The reaction-speed setup value (no picker).' }
+        : k === 'dpaShare'
+          ? { kind: 'designer' as const, evidence: 'design/world/SOURCES.md 10: AI 2027 Aug 2027 DPA proposal moved 20% to 50% of compute', notes: 'Share of each US NPC lab pooled into the player under E22.' }
+          : k === 'reliefRise'
+            ? { kind: 'designer' as const, evidence: 'design/world/SOURCES.md 10: +1 pt over 12 months (AI 2027 Oct 2027 footnote); real 2023-26 rises stayed under 1 pt', notes: 'Shape check S4.' }
+            : { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/OUTSIDE-WORLD.md 6', notes: 'Designer stand-in, to fit to the shape checks (OUTSIDE-WORLD 11).' }),
   } as Param)),
 
   // ---------------------------------------------------------------- world/observe.ts (W2: the shared inputs, spec 3.2-3.3)

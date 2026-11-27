@@ -8,9 +8,9 @@ import { COMMUNITY } from '../../../../data/v2/deals';
 import { reactiveUnblockOdds } from '../../compute/sites';
 import type { GameStateV2, Site } from '../../types';
 
-/** The courts' check on the executive 0..100 (the odds a suit wins). W1d stand-in until W5: the government's start
- *  value 40. */
-const JUDICIAL_CHECK = 40;
+/** The odds a suit against a local block wins [D] (the old courts' check at its start value 40; the US government has
+ *  no courts meter, design/world/OUTSIDE-WORLD.md §6.3 "Deleted"). */
+const SUIT_WIN_ODDS = 0.4;
 
 /** E27 reactive package: ≈ 15% of the blocked site's capex [D] (at least $0.1B). */
 /** The blocked site E27 is about (the first one not yet decided). */
@@ -54,11 +54,11 @@ export const COMPANY_EVENTS: EventDefV2[] = [
           x.stageEndDay = ctx.day + 365;
         }
       }),
-      ch('Sue', ['fight'], () => ({ costs: [L('cash', 0.05)], gains: [L('leadDays', 90, undefined, { probability: JUDICIAL_CHECK / 100 })], exposure: [] }), (s, ctx, d) => {
+      ch('Sue', ['fight'], () => ({ costs: [L('cash', 0.05)], gains: [L('leadDays', 90, undefined, { probability: SUIT_WIN_ODDS })], exposure: [] }), (s, ctx, d) => {
         const x = s.player.sites.find((y) => y.id === d.site);
         s.flags[`ws4:site:${d.site}`] = true;
         cash(s, ctx, -0.05, 'E27 suit');
-        if (x && ctx.rng('events').chance(JUDICIAL_CHECK / 100)) {
+        if (x && ctx.rng('events').chance(SUIT_WIN_ODDS)) {
           x.stage = 'permitting';
           x.stageEndDay = ctx.day + 60;
         }

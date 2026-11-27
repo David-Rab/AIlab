@@ -35,11 +35,11 @@ import { securitySystem } from '../security/security';
 import { rivalsChinaSystem } from '../actors/rivals';
 import { actorsDailySystem } from '../actors/daily';
 import { publicDailySystem } from '../world/public';
+import { BRIEF_OFFICIALS, usgovDailySystem } from '../world/usgov';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
 import { npcQSystem } from '../actors/rivals';
 import { copyrightQSystem } from '../finance/observe';
-import { BRIEF_OFFICIALS } from '../actors/actions';
 import { SECURITY_ACTIONS } from '../security/actions';
 import { POACH } from '../departments/poach';
 import { OPEN_WEIGHTS } from '../models/openWeights';
@@ -48,6 +48,7 @@ import { COMPANY_EVENTS } from '../events/catalog/company';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
+import { GOV_EVENTS } from '../events/catalog/gov';
 // WS5
 import { revenueSystem } from '../worldfx/revenue';
 import { autoSplitSystem } from '../departments/autoSplit';
@@ -76,6 +77,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   worldDailySystem, // 110 WS5 daily
   actorsDailySystem, // 120 WS4 daily
   publicDailySystem, // 121 WS4 daily (W4: concern and approval)
+  usgovDailySystem, // 122 WS4 daily (W5: the US government)
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily
@@ -99,7 +101,7 @@ export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, PO
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS,
+  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...GOV_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));
