@@ -156,6 +156,40 @@ export const OM_RATE = 0.03;
 /** Transformers: 8–10 q lead (120–128 weeks); pre-order 20% deposit [R15]; $0.25B per GW [D]. */
 export const TRANSFORMER = { costPerGW: 0.25, depositShare: 0.2 };
 
+// ---- DC data block (DATACENTERS.md §2–§5): the new sources, levers and waits. The old tables above go in DC-3. ----
+export type SiteSource = 'rent' | 'grid' | 'gas';
+/** Building = facility $10B + network $4B per GW (Epoch May 2026: $11.4B/GW IT facility + $4.9B network). */
+export const BUILDING_PER_GW = FACILITY_PER_GW + NETWORK_PER_GW; // 14
+export interface SourceDef { permitQ: number; buildQ: number; maxMW: number; upfrontPerGW: number;
+  extraPerGW: number; powerCostMult: number; blockBase: number; delayBase: number }
+export const SOURCES: Record<SiteSource, SourceDef> = {
+  // rent: hall in a colo/neocloud campus; you pay the network ($4B/GW); landlord builds; no opposition
+  rent: { permitQ: 0, buildQ: 0, maxMW: 1000, upfrontPerGW: NETWORK_PER_GW, extraPerGW: 0, powerCostMult: 1, blockBase: 0, delayBase: 0 },
+  // grid: building + utility upgrades $0.2B/GW [unverified, range 0.05–0.3]; EIA tariff 1.0×; largest live grid sites ≤ ~1 GW (Epoch hub)
+  grid: { permitQ: 1, buildQ: 8, maxMW: 1000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 0.2, powerCostMult: 1, blockBase: 0.05, delayBase: 0.2 },
+  // gas: building + turbines $3B/GW ($1.7–2.0k/kW × 1.4–1.6 overbuild, SemiAnalysis); fuel+upkeep 0.5× grid [needs a gas-price source]; campuses 2.3–5.2 GW
+  gas: { permitQ: 2, buildQ: 8, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
+};
+export const SITE_MIN_MW = 100;
+/** Speed-ups (DATACENTERS §5). */
+export const LEVERS = {
+  crash: { buildQ: 4, buildingShare: 0.35, oddsMult: 1.5 },      // Colossus 2 in ~4 q (Epoch); premium, odds [design]
+  rushGrid: { waitMult: 0.75, perGW: 0.3 },                         // self-built substation (LBNL Speed to Power 2026) [design]
+  rushGas: { waitQ: 4, turbineShare: 0.3 },                         // used/refurbished turbines < 12 months (SemiAnalysis) [design]
+  fastTrack: { permitQ: 1, buildingShare: 0.05 },                   // EO 14318 FAST-41 for > 100 MW [design price]
+  community: { perGW: 1.0, blockMult: 0.5 },                        // NY Community Investment Framework $1M/MW (Sep 2026); effect [design]
+} as const;
+/** Rent ≈ $150/kW-month = $1.8B per GW-year (CBRE H1 2026 $139–185; Applied Digital leases); 5-year lease. */
+export const RENT = { perGWYear: 1.8, years: 5 } as const;
+/** Waits with the player building nothing (DATACENTERS §4), quarters, at 1 January of each year [D-3]. */
+export const WAIT_REF = { years: [2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030],
+  grid: [12, 16, 18, 20, 20, 20, 18, 16], gas: [4, 6, 8, 9, 9, 8, 7, 6], rent: [1, 2, 3, 4, 4, 4, 4, 4] } as const;
+/** What clears each queue, GW per year in 2026 and growth per year [D-2, design]. */
+export const WAIT_RATE: Record<SiteSource, { gwPerYear2026: number; growth: number }> = {
+  grid: { gwPerYear2026: 30, growth: 1.1 }, gas: { gwPerYear2026: 60, growth: 1.12 }, rent: { gwPerYear2026: 6, growth: 1.3 } };
+/** Opposition: public mood = pub.dcNimby ÷ 50; caps [D-6]. */
+export const OPPOSITION = { moodRef: 50, blockMax: 0.5, delayMax: 0.9, delayQ: [1, 3] } as const;
+
 /** Supplier components (R15 §1.2). L = quarters from decision to output. */
 export const COMPONENTS = {
   pkg: { L: 4, g0: 1.3, beta: 1.5, gmin: 1.0, gmax: 2.5 },
