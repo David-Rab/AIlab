@@ -23,6 +23,7 @@ import { CONTROL_DOMAINS } from '../worldfx/control';
 import type { ControlDomainId, EndingId, GameStateV2, LabId, PowerOutcome, SafetyLatents } from '../types';
 import { epilogueLost, misOf, otherContain, playerContain, resolveAsi } from './epilogue';
 import { COMPANY_LOSS, SCORE_KEYS, scoreTerms, termSum, type ScoreKey, type ScoreTerm } from './scoring';
+import { TALKS_NAMES, TENSION_NAMES } from '../world/chinagov';
 
 // ───────────────────────────── types ─────────────────────────────
 
@@ -120,6 +121,8 @@ export interface EndingView {
     };
     geopolitics: {
       taiwan: 'calm' | 'disrupted' | 'recovered' | 'war'; taiwanLabel: string;
+      /** China's tension rung (0-4) and its name; the talks step's name (world/chinagov.ts). */
+      tension: number; tensionName: string; treaty: 'none' | 'restraint' | 'verified'; treatyLabel: string;
       /** Days China trails the best US lab (negative = China ahead). */
       chinaLagDays: number;
     };
@@ -158,6 +161,8 @@ export interface EndingView {
 
 const PROJECTED_IDS: EndingId[] = [...COMPANY_LOSS, 'overtaken', 'retired'];
 const ASI_IDS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover'];
+/** The treaty line of the aftermath text, by talks step (world/chinagov.ts). */
+const TREATY_LINE = ['no treaty between them', 'only talks toward a treaty', 'a restraint pact no one can verify', 'a verified treaty between them'] as const;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOMAIN_NAME: Record<ControlDomainId, string> = { ECON: 'Economy', GOV: 'Government', MIL: 'Military', INFRA: 'Infrastructure' };
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
@@ -314,7 +319,7 @@ export function endingView(s: GameStateV2): EndingView | null {
     ratio: ratioText(exposureOfWhy, why?.tolerance ?? lossThreshold(s)),
     nearLine: nearLineOf(near),
     systems: `${word(1 + near.length)} systems, ${countries.size === 1 ? 'one country' : `${word(countries.size)} countries`}`,
-    treatyLine: 'no treaty between them', // W1d stand-in until W6 (the treaty track went with the China actor)
+    treatyLine: TREATY_LINE[s.chinagov.talks],
     nearest: nearest ? `${nearest.ref.name}, the nearest rival, is ${lagText(nearest.lag)} behind` : 'No other lab is still racing',
     gov: pct(gov), infra: pct(infra),
     usLab: us?.name ?? 'No American lab', usLag: us ? lagText(lagDays(s, us.id, 'china')) : 'far',
@@ -515,7 +520,7 @@ export function endingView(s: GameStateV2): EndingView | null {
     world: {
       power: powerTiles,
       economy: { gdpChange: r3(gdpChange), gdpSince: shortMonth(s, 0), gdpIndex, unemployment: r3(s.world.unemployment.US), unemploymentChange: r3(s.world.unemployment.US - (S.unemp[0] ?? s.world.unemployment.US)), aiIncomeShare: r3(fin(s.world.aiIncomeShare)) },
-      geopolitics: { taiwan, taiwanLabel: TAIWAN_LABEL[taiwan], chinaLagDays: Math.round(chinaVsUs) },
+      geopolitics: { taiwan, taiwanLabel: TAIWAN_LABEL[taiwan], tension: s.chinagov.tension, tensionName: TENSION_NAMES[s.chinagov.tension], treaty: s.chinagov.treaty, treatyLabel: TALKS_NAMES[s.chinagov.talks], chinaLagDays: Math.round(chinaVsUs) },
       company: {
         name: s.player.name, valuation: r3(valuation), multiple: r3(valuation / Math.max(1e-9, v0)), valuationHistory: sampleIdx(S.valuation.length).map((i) => r3(S.valuation[i])),
         status,

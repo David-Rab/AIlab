@@ -1,10 +1,12 @@
-// Event catalog: China decisions (V2-SPEC §4.2: E10; E23 deleted in W1d). Owner: WS4.
-// The trust, scrutiny, talent-pull and bloc effects went with the relation stocks (W1c); the public rally, the US
-// retaliation and the China meters went with the government, public and China actors (W1d); W6/W7 redo them.
+// Event catalog: China decisions (design/world/OUTSIDE-WORLD.md §8.2: E10 Weights stolen, E23 Treaty). Owner: WS4.
+// E10 is requested by a detected theft (security/theft.ts); E23 by world/chinagov.ts when talks reach restraint and
+// Washington pays the player attention. Each default is the neutral choice.
 import type { EventDefV2 } from '../../types';
-import { morale } from '../../actors/fx';
+import { morale, pv } from '../../actors/fx';
 import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
 import { ws4 } from '../../actors/state';
+import { approvalPush, approvalScaled } from '../../world/public';
+import { CHINAGOV, provokeChina, resolveTreaty } from '../../world/chinagov';
 import { L, P, ch, ev, requestOnly } from '../kit';
 
 export const CHINA_EVENTS: EventDefV2[] = [
@@ -13,8 +15,11 @@ export const CHINA_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s, d) => `Security confirms that the weights of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your best model'} were stolen, almost certainly by Chinese intelligence.`,
     choices: [
-      ch('Go public', ['hawk', 'disclose'], P([]), (s) => {
+      // Going public: the public rallies a little; Beijing takes it as a provocation (world/chinagov.ts provokeChina).
+      ch('Go public', ['hawk', 'disclose'], (s) => pv([], [L('approval', approvalScaled(s, CHINAGOV.goPublicApproval), 'the public rallies')]), (s, ctx) => {
         ws4(s).disclosed++;
+        approvalPush(s, ctx, CHINAGOV.goPublicApproval, 'Went public about the weight theft');
+        provokeChina(s, ctx.day);
       }),
       ch('Quiet hardening', ['quiet', 'security'], P([L('cash', 0.5, 'WSL target +1')], [L('security', 1)]), (s) => {
         const sec = s.player.security;
@@ -27,6 +32,15 @@ export const CHINA_EVENTS: EventDefV2[] = [
         s.flags['ws4:purged'] = true;
         morale(ctx, -15, 'E10 purge');
       }),
+    ],
+  }),
+  ev({
+    id: 'E23', title: 'Treaty', icon: 'china', crisis: false, deadlineDays: 30, defaultChoice: 0,
+    when: requestOnly,
+    text: () => 'Washington and Beijing have a restraint pact on frontier AI within reach, and officials want your lab behind it. Backed, it can become a verified treaty that caps every lab’s AI R&D compute at its level on the day it is signed.',
+    choices: [
+      ch('Back it', ['comply', 'gov', 'safety'], P([], []), (s, ctx) => resolveTreaty(s, ctx, true)),
+      ch('Oppose it', ['resist', 'decline'], P([], []), (s, ctx) => resolveTreaty(s, ctx, false)),
     ],
   }),
 ];

@@ -21,7 +21,7 @@ import { blockingCommitments, measuredDomain, signCommitment } from '../../src/e
 import { refreshFramework, worldHighL } from '../../src/engine/v2/safety/framework';
 import { FRAMEWORK_CRITICAL_L } from '../../src/data/v2/framework';
 import { deployGate } from '../../src/engine/v2/models/deployments';
-import { WS4_TUNING } from '../../src/engine/v2/actors/tuning';
+import { CHINAGOV } from '../../src/engine/v2/world/chinagov';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { EVENTS } from '../../src/engine/v2/core/registry';
@@ -208,7 +208,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 {
   const W = (seed: number) => newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
   const BAD: TraitVector = Object.fromEntries(TRAIT_IDS.map((t) => [t, t === 'HONEST' || t === 'CORRIG' ? 0 : 1])) as TraitVector;
-  // 'war' is unreachable until W6 re-adds it from China's tension (the China ladder went in W1d).
+  // 'war' is a quarterly roll at China tension 4 (world/chinagov.ts); scripts/v2/worldChina.ts covers it.
   const setups: Partial<Record<EndingId, (s: GameStateV2) => void>> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
     acquired: (s) => void (ws4(s).soldControl = true),
@@ -295,8 +295,8 @@ const load = (i: number) => deserialize(fixtures[i]);
   const leads0: number[] = [];
   const pre: number[] = [];
   const post: number[] = [];
-  const minRung = WS4_TUNING.theftMinRung;
-  WS4_TUNING.theftMinRung = 99; // no theft: the lead must stay in band
+  const minRung = CHINAGOV.theftRung;
+  CHINAGOV.theftRung = 99; // no theft: the lead must stay in band
   for (let seed = 1; seed <= T3_SEEDS; seed++) {
     const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
     tick(s, { skip: ['endings'] });
@@ -310,7 +310,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     tick(s, { skip: ['endings'] });
     post.push(leadBetween(s, 'player', 'china'));
   }
-  WS4_TUNING.theftMinRung = minRung;
+  CHINAGOV.theftRung = minRung;
   return { leads0, pre, post };
   });
   const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);

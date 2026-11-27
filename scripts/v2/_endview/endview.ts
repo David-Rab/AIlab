@@ -48,7 +48,7 @@ const CASES: Record<EndingId, (s: GameStateV2) => void> = {
   overtaken: (s) => { delete s.player.milestoneDays[4]; delete s.player.milestoneDays[5]; rival(s).core.milestoneDays[5] = s.time.day; run(s); },
   catastropheBio: (s) => endGame(s, makeCtx(s), 'catastropheBio', 'none'),
   catastropheCyber: (s) => endGame(s, makeCtx(s), 'catastropheCyber', 'none'),
-  war: (s) => endGame(s, makeCtx(s), 'war', 'none'), // unreachable in play until W6 (W1d); the view still renders
+  war: (s) => endGame(s, makeCtx(s), 'war', 'none'), // in play: a quarterly roll at China tension 4 (world/chinagov.ts)
   rogue: (s) => {
     const v = bestPlayerVersion(s)!;
     ws4(s).loose = { day: s.time.day - 45, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };

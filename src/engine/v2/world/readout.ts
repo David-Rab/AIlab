@@ -39,6 +39,8 @@ export interface WorldReadout {
   public: { concern: number; approval: number };
   /** W5 (usgov.ts): the security stage, trust in the player, oversight, consolidation and the conditional laws in force (id to day). */
   usgov: { stage: number; stageDay: Partial<Record<number, number>>; trust: number; oversight: boolean; consolidated: string; laws: Partial<Record<string, number>> };
+  /** W6 (chinagov.ts): China's tension rung, talks step, the treaty, the national collective, and China's lab compute (H100e). */
+  chinagov: { tension: number; talks: number; treaty: string; centralised: boolean; labCompute: number };
   /** Every law in force (dated and conditional; export controls apart) and the export policy. */
   laws: { inForce: string[]; exportPolicy: string };
   economy: { unemploymentUS: number; youthUnemployment: number; gdpGrowthUS: number; aiIncomeShare: number; automationUS: number };
@@ -84,6 +86,7 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     observe: { frontierHolder: pf.lab, publicMilestones: publicMilestones(s), govMilestones: govMilestones(s), incidentHeat: fin(incidentHeat(s))!, usLeadOverChinaMonths: usLead === null ? null : fin(usLead) },
     public: { concern: fin(s.public.concern)!, approval: fin(s.public.approval)! },
     usgov: { stage: s.usgov.stage, stageDay: { ...s.usgov.stageDay }, trust: fin(s.usgov.trust)!, oversight: s.usgov.oversight, consolidated: s.usgov.consolidated, laws: { ...s.usgov.laws } },
+    chinagov: { tension: s.chinagov.tension, talks: s.chinagov.talks, treaty: s.chinagov.treaty, centralised: s.chinagov.centralised, labCompute: fin(s.china.lab.core.computeOnline)! },
     laws: { inForce: lawIdsInForce(s), exportPolicy: L.exportPolicy },
     economy: { unemploymentUS: fin(w.unemployment.US)!, youthUnemployment: fin(w.youthUnemployment)!, gdpGrowthUS: fin(w.macro.US.g)!, aiIncomeShare: fin(w.aiIncomeShare)!, automationUS: fin(automationShare(s, 'US'))! },
     geopolitics: { taiwanDisrupted: ws4r(s).taiwanDisrupted, chinaGapMonths: chinaGap },

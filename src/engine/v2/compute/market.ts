@@ -7,6 +7,7 @@ import { decimalYear, START_DATE } from '../core/time';
 import { lawsInForce } from '../../../data/v2/laws';
 import { FORCING } from '../core/forcing';
 import { ws4 } from '../actors/state';
+import { CHINAGOV } from '../world/chinagov';
 import { clamp } from '../../rng';
 import type { ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
@@ -131,7 +132,7 @@ export function exoRefQ(s: GameStateV2, q: number): number {
   const y = q / 4;
   const playerRef = Math.max(0, refTotalAt(s, y + 0.25) - refTotalAt(s, y));
   let rivals = 0;
-  for (const r of s.rivals) if (r.core.status === 'active') rivals += r.core.computeOnline * RIVAL_GROWTH_Q; // every lab plans 2.25x a year
+  for (const r of [...s.rivals, s.china.lab]) if (r.core.status === 'active') rivals += r.core.computeOnline * RIVAL_GROWTH_Q; // every lab plans 2.25x a year (China's lab too, W6)
   return Math.max(0.2 * globalRefQ(q), globalRefQ(q) - playerRef - rivals);
 }
 
@@ -193,16 +194,15 @@ export function setExportPolicy(s: GameStateV2, policy: ChipMarket['exportPolicy
   s.market.exportPolicy = policy;
 }
 
-/** Cross-strait tension 0..1. W1d stand-in until W6: China's start value 0.4 (China's tension comes back with W6). */
+/** Cross-strait tension 0..1 at the start (R15's start value) [R15]. */
 const TAIWAN_TENSION = 0.4;
-/** Share of people naming AI the top problem (%). Kept at the start value 1 (no salience term) until W6 decides China's side. */
-const AI_SALIENCE = 1;
 
-/** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension) × (1 + 2·salience), cap 3% [R15 Design]. */
-export function taiwanHazardQ(_s: GameStateV2): number {
-  const tension = TAIWAN_TENSION;
-  const salience = Math.min(1, Math.max(0, (AI_SALIENCE - 1) / 2));
-  return Math.min(0.03, 0.0025 * (1 + 4 * tension) * (1 + 2 * salience));
+/** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension), cap 3% [R15 Design], × China's factor 1 +
+ *  CHINAGOV.taiwanPerRung × its tension rung, plus CHINAGOV.taiwanCoercion from coercion over Taiwan (rung 3) on
+ *  (world/chinagov.ts). */
+export function taiwanHazardQ(s: GameStateV2): number {
+  const t = s.chinagov.tension;
+  return Math.min(0.03, 0.0025 * (1 + 4 * TAIWAN_TENSION)) * (1 + CHINAGOV.taiwanPerRung * t) + (t >= 3 ? CHINAGOV.taiwanCoercion : 0);
 }
 /** Korea HBM disruption probability 0.1%/q [R15 Design]. */
 export const KOREA_HAZARD_Q = 0.001;
@@ -427,7 +427,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   w.playerWeight = orderWeight(s, false, 0.3);
   repriceCancellableCloud(s);
   w.labOrders = w.labOrders.filter((o) => o.qty - o.delivered > 1);
-  // China's compute is WS4's (china.computeAbs, npc/china.ts); exports to China only reduce the supply here.
+  // China's lab orders here like every NPC lab (W6, actors/rivals.ts); the licensed exports above are China's other buyers.
 
   // 7. Bookkeeping: global production and stock, backlog signal, supplier expansion.
   const shipped = Math.min(S, outside + claims.reduce((a, c) => a + c.got, 0)) + toChina;
@@ -541,9 +541,8 @@ export const geoShocksQSystem: EngineSystem = {
   run(s, ctx) {
     const w = ws4(s);
     const r = ctx.rng('china');
-    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience). W1d stand-in until W6: the China
-    // factor (its preset's Taiwan propensity) is 1 and the China-ladder add (rung 5) is 0. Applied through WS3's
-    // taiwanShock (supply, prices, chips in transit); WS3's marketQ decays it.
+    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard × China's tension factor (world/chinagov.ts). Applied
+    // through WS3's taiwanShock (supply, prices, chips in transit); WS3's marketQ decays it.
     const day = ctx.day;
     if (w.taiwanDisrupted && s.market.disruptTW === 0) {
       w.taiwanDisrupted = false;

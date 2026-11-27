@@ -138,6 +138,7 @@ export { ownedOnline, rentedOnline, poolsOf, siteLiveMW } from './compute/power'
 export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
 export { liveCommitments, keptShare } from './actors/commitments';
 export { usgovView } from './world/usgov';
+export { chinagovView } from './world/chinagov';
 export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';
 export { techBlocker, techBlockerAtLevels, techGateLevels } from './worldfx/techtree';

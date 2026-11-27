@@ -128,7 +128,7 @@ const clearMilestones = (s: GameStateV2) => {
   step(s, 85);
   check(s.usgov.consolidated === 'none', 'hard path: not before 90 days of low trust', `${s.usgov.consolidated}, trust ${s.usgov.trust.toFixed(1)}`);
   step(s, 10);
-  check(s.usgov.consolidated === 'nationalized' && s.usgov.stage === 4 && ws4(s).nationalizedHard, 'hard path: trust 15 held 90 days at stage 3 -> nationalized', `${s.usgov.consolidated}, stage ${s.usgov.stage}`);
+  check(s.usgov.consolidated === 'nationalized' && (s.usgov.stage as number) === 4 && ws4(s).nationalizedHard, 'hard path: trust 15 held 90 days at stage 3 -> nationalized', `${s.usgov.consolidated}, stage ${s.usgov.stage}`);
   endingsSystem.run(s, makeCtx(s));
   check(s.ending?.id === 'nationalized', 'hard path: the nationalized ending', String(s.ending?.id));
 }

@@ -26,9 +26,10 @@ export const SPILL_DAYS = 7;
 
 // ───────────────────────────── the reference clock and positions ─────────────────────────────
 
-/** The year on the reference clock (what every lab reads): the calendar year. (The verified-treaty slowdown went with
- *  the government actors, W1d; W6 re-adds a treaty as a compute cap.) */
-export const refYear = (s: GameStateV2) => decimalYear(s);
+/** The year on the reference clock (what every NPC lab reads in place of the calendar year): decimalYear less the days a
+ *  verified treaty has held the clock back (world/chinagov.ts: it runs at CHINAGOV.treatyClockRate while the treaty holds;
+ *  the NPC labs' side of the treaty's compute cap). */
+export const refYear = (s: GameStateV2) => decimalYear(s) - (s.chinagov?.clockLostDays ?? 0) / 365.25;
 
 /** The lag (days behind the reference) of a lab whose model would be at G; undefined when G is not on the reference run. */
 export function posOf(s: GameStateV2, G: number): number | undefined {

@@ -794,8 +794,8 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
   },
   {
     id: 'sfe.security.spyRate',
-    ref: { kind: 'inline', file: SEC, anchor: '(CHINA_RUNG >= 2 ? 0.01 : 0.005)' },
-    value: [0.005, 0.01], unit: 'spies per privileged staffer (base, China rung >= 2)',
+    ref: { kind: 'inline', file: SEC, anchor: '(s.chinagov.tension >= 2 ? 0.01 : 0.005)' },
+    value: [0.005, 0.01], unit: 'spies per privileged staffer (base, China tension >= 2)',
     area: 'security', layer: 'world', kind: 'sourced',
     evidence: 'security.ts:34 "Spy rate per privileged staffer: 0.005, rising to 0.01 at China rung ≥ 2 (R11 verified)."',
     source: 'research/11 (R11, "verified")',
@@ -826,8 +826,8 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
   },
   {
     id: 'sfe.theft.attackerLevel',
-    ref: { kind: 'inline', file: THEFT, anchor: '4 + (CHINA_RUNG >= 3 ? 1 : 0) + 0.5 * Math.min(1, CHINA_THEFT_INTENT / 50)' },
-    value: [4, 1, 0.5, 50, 5], unit: 'base level; rung >= 3 bonus; intent bonus; intent scale; cap',
+    ref: { kind: 'inline', file: THEFT, anchor: '4 + (s.chinagov.tension >= 3 ? 1 : 0) + 0.5 * Math.min(1, theftIntent(s) / 50)' },
+    value: [4, 1, 0.5, 50, 5], unit: 'base level; tension >= 3 bonus; intent bonus; intent scale; cap',
     area: 'security', layer: 'world', kind: 'sourced',
     evidence: 'theft.ts:19 "Attacker level a = 4 + [China rung ≥ 3] + 0.5·min(1, theftIntent/50), capped at 5 (R11 #24)."',
     source: 'research/11 #24 (R11 #24)',

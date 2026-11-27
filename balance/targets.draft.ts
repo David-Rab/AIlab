@@ -270,7 +270,7 @@ export const TARGETS_DRAFT = defineTargets([
     id: 'T3.china.meanLead',
     statement: "China's mean lead stays 150-200 days until a theft.",
     type: 'trajectory',
-    metric: 'scripts/v2/ws4.ts T3: mean of the daily leadBetween(player, china) over days 30-540, RefBot, 8 seeds, theft disabled (theftMinRung 99); p10-p90 within 75-275 d is printed (INFO)',
+    metric: 'scripts/v2/ws4.ts T3: mean of the daily leadBetween(player, china) over days 30-540, RefBot, 8 seeds, theft disabled (CHINAGOV.theftRung 99); p10-p90 within 75-275 d is printed (INFO)',
     presets: ['ai2027'],
     policy: 'ref',
     value: { lo: 150, hi: 200, unit: 'days' },

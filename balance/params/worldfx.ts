@@ -19,6 +19,15 @@ const USGOV_VALUES: Record<string, number> = {
 };
 /** USGOV keys that keep a value of the government actor deleted in W1d. */
 const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'licensingFriction', 'reliefRetrain', 'ubiExitMult', 'fdaLagMult', 'governmentTrust']);
+/** world/chinagov.ts CHINAGOV, every key (registry-lint checks each value against the module). */
+const CHINAGOV_VALUES: Record<string, number> = {
+  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, lead2: 9, coerceAfterDays: 365, provokeDays: 180, provokeHold: 30,
+  centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 1,
+  theftIntentBase: 20, theftIntentPerRung: 20, taiwanPerRung: 0.5, taiwanCoercion: 0.15, warPerQuarter: 0.25, warShock: 0.05,
+  safetyBase: 30, safetyPerTalks: 10, safetyPerRung: -5, goPublicApproval: 2, treatyClockRate: 0.65,
+};
+/** CHINAGOV keys that keep a value of the China actor deleted in W1d (git 2219e5b4^). */
+const CHINAGOV_OLD = new Set(['taiwanCoercion', 'warPerQuarter', 'warShock', 'safetyBase', 'treatyClockRate', 'theftIntentBase']);
 const W = { area: 'worldfx', layer: 'world' } as const;
 
 /** An exported constant (or a key of one), `file` under src/engine/v2/worldfx/. */
@@ -306,6 +315,22 @@ export const PARAMS_WORLDFX = defineParams([
           : k === 'reliefRise'
             ? { kind: 'designer' as const, evidence: 'design/world/SOURCES.md 10: +1 pt over 12 months (AI 2027 Oct 2027 footnote); real 2023-26 rises stayed under 1 pt', notes: 'Shape check S4.' }
             : { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/OUTSIDE-WORLD.md 6', notes: 'Designer stand-in, to fit to the shape checks (OUTSIDE-WORLD 11).' }),
+  } as Param)),
+
+  // ---------------------------------------------------------------- world/chinagov.ts (W6: the China government, spec 7)
+  ...Object.entries(CHINAGOV_VALUES).map(([k, value]): Param => ({
+    id: `wfx.CHINAGOV.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/chinagov.ts', symbol: 'CHINAGOV', path: [k] },
+    value,
+    unit: /Days$/.test(k) ? 'days' : /^lead|^talksLead$/.test(k) ? 'months of US lead' : k === 'overrideConcern' ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'china',
+    ...(CHINAGOV_OLD.has(k)
+      ? { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "the old ... value"; the China actor before W1d (git 2219e5b4^)', notes: 'Kept from the deleted China actor.' }
+      : k === 'centralMult'
+        ? { kind: 'sourced' as const, evidence: 'chinagov.ts CHINAGOV: AGI share 0.4 to 0.9 (AI 2027 compute forecast, research/11 #16; the old deepCentCompute rule)', source: 'research/11 #16 (AI 2027 compute forecast)' }
+        : k === 'aggression' || k === 'bargaining'
+          ? { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "Setup"; design/world/OUTSIDE-WORLD.md 7.2 (two setup parameters)', notes: 'Setup value (no picker), default 1.' }
+          : { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "[D]"; design/world/OUTSIDE-WORLD.md 7', notes: 'Designer stand-in, to fit to the shape checks S5, S6 (OUTSIDE-WORLD 11).' }),
   } as Param)),
 
   // ---------------------------------------------------------------- world/observe.ts (W2: the shared inputs, spec 3.2-3.3)

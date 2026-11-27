@@ -228,6 +228,7 @@ function Tiles({ v }: { v: View }) {
   const g = w.geopolitics;
   const co = w.company;
   const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' || co.status === 'under committee' ? 'neu' : 'bad';
+  const tensionTone = g.tension === 0 ? 'good' : g.tension <= 2 ? 'warn' : 'bad';
   const taiwanTone = g.taiwan === 'calm' ? 'good' : g.taiwan === 'recovered' ? 'neu' : g.taiwan === 'disrupted' ? 'warn' : 'bad';
   const own = [...co.ownership].sort((a, b) => Number(b.you) - Number(a.you));
   const lagLine = g.chinaLagDays === 0 ? `China${RSQ}s lab was level with the best US lab.` : g.chinaLagDays > 0 ? `China${RSQ}s lab was ${F.days(g.chinaLagDays)} behind the best US lab.` : `China${RSQ}s lab was ${F.days(-g.chinaLagDays)} ahead of the best US lab.`;
@@ -279,6 +280,8 @@ function Tiles({ v }: { v: View }) {
           <div className="es-t3">China&apos;s lab</div>
           <div className="es-rungname">{lagLine}</div>
           <div className="es-gap" />
+          <KV k={<><ICON.china size={14} /><Term id="chinaTension">Tension</Term></>} tip={termCard('chinaTension', g.tensionName)}><span className={`es-tag ${tensionTone}`}>{g.tensionName}</span></KV>
+          <KV k={<><ICON.commitment size={14} /><Term id="treaty">Treaty</Term></>} tip={termCard('treaty', g.treatyLabel)}><span className={`es-tag ${g.treaty === 'verified' ? 'good' : 'neu'}`}>{g.treatyLabel}</span></KV>
           <KV k={<><ICON.taiwan size={14} /><Term id="taiwanStatus">Taiwan</Term></>} tip={termCard('taiwanStatus', g.taiwanLabel)}><span className={`es-tag ${taiwanTone}`}>{g.taiwanLabel}</span></KV>
         </div>
 
