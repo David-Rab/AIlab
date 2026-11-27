@@ -531,7 +531,7 @@ export type { LabOrder };
 
 /** geoShocksQ (441, quarterly): Taiwan and Korea disruption rolls. */
 export const geoShocksQSystem: EngineSystem = {
-  id: 'geoShocksQ', owner: 'WS3', cadence: 'quarterly', order: 441, system: 'compute',
+  id: 'geoShocksQ', owner: 'WS4', cadence: 'quarterly', order: 441, system: 'compute',
   run(s, ctx) {
     const w = ws4(s);
     const r = ctx.rng('china');

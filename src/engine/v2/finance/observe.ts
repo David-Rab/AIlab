@@ -160,7 +160,7 @@ export const leadEstimate = (s: GameStateV2, lab: LabId): number => leadDays(s, 
 
 /** copyrightQ (442, quarterly): the copyright-suit roll (exposure above). */
 export const copyrightQSystem: EngineSystem = {
-  id: 'copyrightQ', owner: 'WS3', cadence: 'quarterly', order: 442, system: 'finance',
+  id: 'copyrightQ', owner: 'WS4', cadence: 'quarterly', order: 442, system: 'finance',
   run(s, ctx) {
     const day = ctx.day;
     // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
