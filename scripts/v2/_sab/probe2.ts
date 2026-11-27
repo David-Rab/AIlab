@@ -1,0 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { deserialize } from '../../../src/engine/v2/core/save';
+import { workContext } from '../../../src/engine/v2/departments/workfit';
+const s: any = deserialize(readFileSync(process.argv[2], 'utf8'));
+const ver = s.player.models.versions;
+const last = ver[ver.length - 1];
+const slotV = workContext(s).slots.SWE.versionId;
+const v = ver.find((x: any) => x.id === slotV);
+console.log('day', s.time.day, 'econ', s.setup.econ, 'slot SWE ver', v.name, 'G', v.G, 'domains', JSON.stringify(v.domains), 'traits', JSON.stringify(v.traitsTrue));
+console.log('player keys', Object.keys(s.player).join(','));
+console.log('compute', JSON.stringify(s.player.compute ?? s.player.sites ?? null).slice(0, 700));
+console.log('headcount/depts', JSON.stringify(Object.fromEntries(Object.entries(workContext(s).slots).map(([k, x]: any) => [k, { H: x.H, L: x.L, ver: x.versionId, mult: x.mult ?? undefined }]))));
+console.log('safety keys', Object.keys(s.player.safety).join(','), 'controls', JSON.stringify(s.player.safety.controls ?? s.player.safety.safeguards ?? null).slice(0, 500));
