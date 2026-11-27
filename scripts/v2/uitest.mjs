@@ -1636,6 +1636,34 @@ await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.a
   ok('DC-9: no Sites tab; one row per site under the chart', !r.sitesTab && r.rows === r.sites && r.sites > 0, `${r.rows} rows, ${r.sites} sites`);
   ok('DC-9: the Sites header shows the live power of the live buildings', Math.abs(r.shown - r.live) <= (/GW/.test(r.txt) ? 50 : 0.5), `${r.txt} vs ${Math.round(r.live)} MW`);
 }
+// DC-10a: the build card. With Gas, 1 GW, Buildings 5 the Grid tile shows the campus cut to fit (1 × 1 GW); choosing Grid
+// makes it so (Buildings reads 1; 3 and 5 are locked) and the tile's date is the engine's for one 1 GW grid building.
+{
+  const P = '[data-panel=compute]';
+  await nav('compute');
+  await tabTo('overview');
+  await page.click(`${P} [data-opt="path-gas"]`);
+  await page.click(`${P} [data-opt="site-campus"]`);
+  await page.click(`${P} [data-test=site-buildings] [data-opt="5"]`);
+  await wait(150);
+  const grid = () => page.evaluate(() => document.querySelector('[data-panel=compute] [data-opt="path-grid"]')?.textContent ?? '');
+  const cutShown = /1 × 1\.0 GW/.test(await grid());
+  await page.click(`${P} [data-opt="path-grid"]`);
+  await wait(200);
+  const r = await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const sd = new Date(`${s.time.startDate}T00:00:00Z`), d = new Date(sd.getTime() + s.time.day * 86400000);
+    const q = (x) => x.getUTCFullYear() * 4 + Math.floor(x.getUTCMonth() / 3);
+    const L = window.ai27v2Views.actionView(s, 'cmp.newSite', { path: 'grid', mw: 1000, buildings: 1, pay: 'cash' }).gains[0].lagDays / 91;
+    const t = q(d) + L;
+    return { want: `Q${(t % 4) + 1} ${String(Math.floor(t / 4)).slice(2)}`, active: document.querySelector('[data-panel=compute] [data-test=site-buildings] .seg-btn.active')?.textContent?.trim() ?? '',
+      locked: ['3', '5'].every((k) => document.querySelector(`[data-panel=compute] [data-test=site-buildings] [data-opt="${k}"]`)?.hasAttribute('disabled')) };
+  });
+  const after = await grid();
+  ok('DC-10a: with Gas 5 × 1 GW the Grid tile shows the campus cut to 1 × 1 GW', cutShown);
+  ok('DC-10a: choosing Grid sets Buildings to 1 and locks 3 and 5', r.active === '1' && r.locked, `active ${r.active}, locked ${r.locked}`);
+  ok("DC-10a: the Grid tile's date is the engine's for one 1 GW grid building", after.includes(r.want), `${after.slice(0, 30)} vs ${r.want}`);
+}
 // J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
 // (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
 const tipCov = { tipped: 0, n: 0, miss: [] };
