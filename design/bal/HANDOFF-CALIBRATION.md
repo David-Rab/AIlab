@@ -59,8 +59,13 @@ Written 2026-11-27 by the session that built this (branch `bal`, worktree `C:\Us
   - the scenarios and timelines (§3);
   - the round 1–3 mechanics changes: taste ceiling (fix A), taste mixture (fix B), shared safety code, compute split matching real labs, research pools from the AIFM stock, additive scale-dependence plus the duplicate removed, P24 as a line, and per-game AIFM draws;
   - the matched speed-up metric and by-phase scoring.
-- **In flight at writing: R3.3**, AI coverage of research work before the coder from the AIFM automation path. The game is about 4% by 2027 vs the AIFM's about 65%. If its result isn't in `git log`, check `design/BAL-TASKS.md` ROUND 3.
+- **R3.3 done** (committed). AI coverage now follows each drawn AIFM run's automation logistic: per-world `covS`/`covTop` on the `tl-*` worlds, a clean translation (`FIXC-TRANSLATION.md` §8).
+  - **New open problem, a mechanism decision for the designer:** in central and slow, higher coverage *lowers* the matched speed-up (`spdM` 0.3–0.9 instead of rising; fast reaches the AIFM's 1.2–1.5).
+  - **Hypothesis, untested:** the game's labour CES (ρc = −2, complements) has no optimal choice, so when AI copies are few relative to humans, automating work reduces effective labour (L < H). The AIFM's optimal CES never lets automation lower labour. Candidate fix: a `max(H, L)` or optimal-allocation rule (humans keep doing what AI can't staff).
+  - Run `balance/runs/r33check`.
+  - **Test this before M3:** a small counterfactual probe, then a proposal to the designer.
 - **Next steps:**
+  0. **Resolve the R3.3 labour-CES problem above** (probe, then a designer decision).
   1. **M3 measurement:** forced run, `--world tl-fast,tl-central,tl-slow`, policy `reflines`, about 8+ seeds per timeline (draws vary, so use many seeds), read on the dashboard.
   2. **Fit the residuals within the source ranges** (the SC threshold, the P24 line strength `[D]`, and the takeoff if still short).
   3. If takeoff still runs short, take the mechanism suspects to the designer: the CES-free ideation channel and the experiment-share ramp.

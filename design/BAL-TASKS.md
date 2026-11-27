@@ -156,8 +156,8 @@ This replaces the scattered round-2 notes above as the working list. No new inve
 ## ROUND 3 (approved 2026-11-26), then ONE measurement (M3)
 | # | Change | Type | Status |
 |---|---|---|---|
-| R3.1 | **Per-game joint parameter draws:** each game in a timeline draws one actual AIFM parameter set from that timeline's SAR group (~290), translated to game terms. New world presets `tl-fast` / `tl-central` / `tl-slow`; existing presets unchanged. | source-derived | running |
-| R3.2 | **Matched speed-up definition:** a recorded game quantity at the AIFM's reference resources (2026.578), counting AI's contribution only. Scoring by phase (relative to SC/AC) as well as by date; dashboard and s1compare. | comparison | running |
-| R3.3 | Pre-SC AI coverage from the AIFM automation-fraction path (game ~4% vs AIFM ~65% by 2027) | source-derived | after R3.1 |
+| R3.1 | **Per-game joint parameter draws:** each game in a timeline draws one actual AIFM parameter set from that timeline's SAR group (~290), translated to game terms. New world presets `tl-fast` / `tl-central` / `tl-slow`; existing presets unchanged. | source-derived | done |
+| R3.2 | **Matched speed-up definition:** a recorded game quantity at the AIFM's reference resources (2026.578), counting AI's contribution only. Scoring by phase (relative to SC/AC) as well as by date; dashboard and s1compare. | comparison | done |
+| R3.3 | Pre-SC AI coverage from the AIFM automation-fraction path | source-derived | **done**; open: labour-CES problem (spdM falls), see HANDOFF-CALIBRATION §2 |
 | M3 | One measurement with R3.1–R3.3, on the dashboard | measure | after |
 Only if takeoff still runs short after M3: the untested mechanism suspects (the CES-free ideation channel, the experiment-share ramp) go to the designer.
