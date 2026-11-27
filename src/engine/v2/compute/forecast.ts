@@ -1,6 +1,5 @@
 // Compute capacity and fleet forecast for the Compute panel (design/ux/COMPUTE.md). Read-only; uses only state the
 // player can see (schedules, stages, odds), never a future roll. Owner: WS3.
-import { BUILD_Q, SITE_PATHS } from '../../../data/v2/deals';
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { EngineSystem, GameStateV2, Site } from '../types';
 import { siteCapacityH } from './power';
@@ -30,24 +29,46 @@ export function chipFit(s: GameStateV2): ChipFit {
   return { installed, installing, idle: waiting - installing, free: free - installing };
 }
 
-/** Expected quarter a site goes live, and whether that date is still an estimate (permitting or power stage). */
+/** Expected quarter a site goes live, and whether that date is firm (the opposition roll is done). Permits end, then
+ *  live = max(construction, power) later (DATACENTERS §3); after the roll the planned go-live day is stored. */
 export function siteLiveQ(s: GameStateV2, x: Site): { q: number; firm: boolean } | undefined {
   const start = s.time.startDate;
   const q0 = quarterIndex(start, s.time.day);
   if (x.stage === 'blocked') return undefined;
   if (x.stage === 'live') return { q: Math.min(q0, quarterIndex(start, x.ws3.liveDay ?? 0)), firm: true };
+  const firm = x.ws3.rolled;
   const endQ = Math.max(q0, quarterIndex(start, x.stageEndDay));
-  if (x.stage === 'building') return { q: endQ, firm: true };
-  const p = SITE_PATHS[x.path];
-  const gw = x.mw / 1000;
-  const build = x.ws3.buildQ ?? (x.crash ? BUILD_Q.crash : BUILD_Q.normal);
-  const gate = p.needsTransformers && s.power.ws3.transformersGW < gw ? s.power.transformerLeadQ : 0;
-  const buildQ = Math.max(build, gate);
-  if (x.stage === 'power') return { q: Math.max(endQ, q0 + 1) + buildQ, firm: false };
-  // permitting: mode power lead beyond the overlap, minus grid-queue credit
-  const credit = x.ws3.queuedDay !== undefined && p.usesGridPool ? Math.max(0, Math.floor((x.stageEndDay - x.ws3.queuedDay) / 91)) : 0;
-  const extra = Math.max(0, p.powerQ[1] - p.overlapQ - credit);
-  return { q: endQ + extra + buildQ, firm: false };
+  if (x.path === 'rent') return { q: endQ, firm };
+  if (x.stage === 'permitting') return { q: endQ + Math.max(x.ws3.buildQ, x.ws3.powerQ), firm };
+  const liveAt = x.ws3.liveAt;
+  if (liveAt !== undefined) return { q: Math.max(q0, quarterIndex(start, liveAt)), firm };
+  // a start site with no stored schedule: building ends at stageEndDay; a power stage is followed by construction
+  return { q: x.stage === 'building' ? endQ : endQ + x.ws3.buildQ, firm };
+}
+
+/** A site's bars on the Sites rows (quarter indices): permits, power wait and construction, planned by the same rules
+ *  as siteLiveQ. Undefined for a blocked site. */
+export interface SiteBars { permits?: [number, number]; power?: [number, number]; construction?: [number, number]; liveQ: number; firm: boolean }
+export function siteBars(s: GameStateV2, x: Site): SiteBars | undefined {
+  const l = siteLiveQ(s, x);
+  if (!l) return undefined;
+  const start = s.time.startDate;
+  const qi = (d: number) => quarterIndex(start, d);
+  const w = x.ws3;
+  const startQ = qi(w.startDay);
+  const out: SiteBars = { liveQ: l.q, firm: l.firm };
+  if (x.path === 'rent') {
+    if (l.q > startQ) out.power = [startQ, l.q];
+    return out;
+  }
+  const permitEnd = x.stage === 'permitting' ? Math.max(qi(s.time.day), qi(x.stageEndDay)) : w.powerDay !== undefined ? qi(w.powerDay) - w.powerQ : undefined;
+  if (permitEnd !== undefined) {
+    if (permitEnd > startQ) out.permits = [startQ, permitEnd];
+    if (w.powerQ > 0) out.power = [permitEnd, permitEnd + w.powerQ];
+  }
+  const buildFrom = (x.stage === 'building' || x.stage === 'live') && w.buildStartDay !== undefined ? qi(w.buildStartDay) : x.stage === 'live' ? undefined : l.q - w.buildQ;
+  if (buildFrom !== undefined && w.buildQ > 0) out.construction = [buildFrom, l.q];
+  return out;
 }
 
 export type ForecastEvent =

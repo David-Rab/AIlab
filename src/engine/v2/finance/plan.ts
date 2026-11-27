@@ -5,7 +5,7 @@
 // `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (leased while a lessor will
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
-import { PARTNERS, SITE_PATHS } from '../../../data/v2/deals';
+import { PARTNERS, SOURCES } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
@@ -211,22 +211,21 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     let gap = needMW - mwBy(s, day);
     let n = 0;
     while (gap > 100 && n++ < 12) {
-      // Brownfield crash builds while pre-ordered transformers last, else on-site gas (Stargate pattern, R15 §1.3).
-      const path = s.power.ws3.transformersGW >= Math.min(1, gap / 1000) ? 'brownfield' : 'gas';
-      const mw = Math.min(SITE_PATHS[path].maxMW, Math.max(500, gap), path === 'brownfield' ? s.power.ws3.transformersGW * 1000 : Infinity);
+      // On-site gas crash builds (Stargate pattern, R15 §1.3).
+      const path = 'gas';
+      const mw = Math.min(SOURCES[path].maxMW, Math.max(500, gap));
       if (!tryAct('cmp.newSite', { path, mw, crash: true, pay: o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash', community: true })) break;
       gap -= mw;
       if (o.guard && (runwayOf(s).q < guardQ || budgetRoom(s) < 0)) break;
     }
-    if (s.power.ws3.transformersGW < 2) tryAct('cmp.preorderTransformers', { gw: 3 });
   }
 
   // Leases (≤ 2 quarters) when MW will be short.
   const day2 = dayOfQuarter(s.time.startDate, q + 2);
   const shortMW = target(s, o, day2 - s.time.day) - baseCloudAt(s, day2) - siteCapacityH(s, mwBy(s, day2, false)) / Math.pow(0.944, 2);
   if (shortMW > 0.05e6 && prudent && o.offBalance) {
-    const leaseMW = Math.min(s.market.ws3.leasePoolGW * 1000, (shortMW * kWAt(s, 2)) / 1000);
-    if (leaseMW >= 100) tryAct('cmp.newSite', { path: 'lease', mw: leaseMW });
+    const leaseMW = Math.min(SOURCES.rent.maxMW, (shortMW * kWAt(s, 2)) / 1000);
+    if (leaseMW >= 100) tryAct('cmp.newSite', { path: 'rent', mw: leaseMW });
   }
 
   // Chips: fill MW expected 3 quarters out, up to the target net of long-term cloud.

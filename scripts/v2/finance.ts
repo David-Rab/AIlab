@@ -300,11 +300,10 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
 // ───────────────────────────── F10: sites ─────────────────────────────
 {
   const s = newGame(defaultSetupV2({ seed: 11 }));
-  s.power.ws3.transformersGW = 1e4;
   const ctx = makeCtx(s);
   const N = 400;
   const ids = new Set<string>();
-  for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'brownfield', mw: 500 }).id);
+  for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'gas', mw: 500 }).id);
   s.player.finance.cash = 1e6; // isolate the stage machine from money
   // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at its start value for the site rolls.
   const nimby0 = s.pub.dcNimby;

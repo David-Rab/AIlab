@@ -30,9 +30,8 @@ export function outsideGW(src: SiteSource, year: number): number {
   return refWaitQ(src, year) * rateGWPerYear(src, year) / 4;
 }
 
-/** The player's sites as queue sites. The cast is needed only until DC-3 adds `powerDay` and `rush` to SiteWS3 (TypeScript
- *  rejects a type with no property in common with the all-optional ws3 shape); until then both read as undefined. */
-const queueSites = (s: GameStateV2) => s.player.sites as unknown as readonly (QueueSite & { name: string })[];
+/** The player's sites as queue sites. */
+const queueSites = (s: GameStateV2): readonly (QueueSite & { name: string })[] => s.player.sites;
 
 /** Is this site in its source's queue on `day`? Rent: every rent site not live (blocked ones drop out). Grid and gas:
  *  until the site's power is ready (`powerDay`); rushed gas sites use used turbines and are not in the backlog [D-5]. */

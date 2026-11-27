@@ -29,6 +29,7 @@
 //    unless the name ends in PerDay. Progress `p*` = years of 2024-pace progress (research/11 unit).
 
 import type { DataDraw } from './production/data';
+import type { SiteSource } from '../../data/v2/deals';
 
 // ───────────────────────────── Ids ─────────────────────────────
 
@@ -1711,7 +1712,8 @@ export interface CloudContract { id: string; provider: string; h100e: H100e; cos
 
 export interface Site {
   id: string; name: string; region: 'US' | 'Gulf' | 'other';
-  path: 'lease' | 'brownfield' | 'gas' | 'grid' | 'nuclear';
+  /** Power source (DATACENTERS §2): a rented hall, a grid connection or on-site gas turbines. */
+  path: SiteSource;
   mw: number; // facility MW capacity when live
   stage: 'permitting' | 'power' | 'building' | 'live' | 'blocked';
   stageEndDay: Day;
@@ -1725,13 +1727,10 @@ export interface Site {
 }
 
 export interface PowerGrid {
-  poolGWPerQ: number; // new US large-load grid capacity per quarter
-  queue: { siteId: string; gw: number }[];
-  capacityPrice: number; // κ_region uplift 0..0.15
   kWPerH100e: number;
-  transformerLeadQ: number;
-  /** WS3 grid-pool bookkeeping. */
-  ws3: PowerWS3;
+  /** Today's grid, turbine and rent waits (quarters, rounded to 0.1), one value per quarter since the start (sitesQ;
+   *  the build card's sparkline). */
+  waitHist: Record<SiteSource, number[]>;
 }
 
 export interface CapitalMarkets {
@@ -1937,15 +1936,6 @@ export interface MarketWS3 {
   /** Player's fill share of last quarter's orders and the reason weights (UI "your allocation"). */
   playerFill: number;
   playerWeight: number;
-  /** Lease (colocation) capacity available to labs this quarter, GW of facility power. */
-  leasePoolGW: number;
-}
-
-export interface PowerWS3 {
-  /** Grid pool still available to labs this quarter (GW). */
-  poolLeftGW: number;
-  /** Pre-ordered transformer capacity not yet assigned to a site (GW). */
-  transformersGW: number;
 }
 
 export interface CapitalWS3 {
@@ -1976,10 +1966,19 @@ export interface SiteWS3 {
   /** Opposition roll done (once, at the end of permitting). */
   rolled: boolean;
   delayedQ: number;
-  /** Day the grid interconnection request was filed (queue credit). */
-  queuedDay?: Day;
-  /** Planned building quarters (8 default, 4 crash; lease 1–3). */
+  /** Planned construction quarters (8; 4 with crash construction; rent 0). */
   buildQ: number;
+  /** Power wait in whole quarters, fixed at commitment from that day's world wait (DC-TASKS [D-4]); counted from the
+   *  end of permits (rent: from commitment). */
+  powerQ: number;
+  /** Rush power: self-built substation (grid wait × 0.75) or used turbines (gas: at most 4 q, not in the backlog). */
+  rush?: boolean;
+  /** Fast-track permits (permits − 1 q). */
+  fastTrack?: boolean;
+  /** Day the site's power is ready (set when permits end; rent: at commitment). */
+  powerDay?: Day;
+  /** Planned go-live day (set when permits end; rent: at commitment). */
+  liveAt?: Day;
   /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
    *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
   lease?: { rate: number; funded: Money };

@@ -39,8 +39,8 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
       const capex = parent ? (mw / 1000) * BROWNFIELD_PER_GW : 0;
       sites.push({
         ...base, id: `S${i + 1}`, name: parent ? ['Parent campus West', 'Parent campus East'][i] : 'Colocation North', region: 'US',
-        path: parent ? 'brownfield' : 'lease', mw, capex, capexPaid: capex, installed: h,
-        ws3: { rolled: true, delayedQ: 0, buildQ: parent ? 8 : 2, startDay: -500 },
+        path: parent ? 'grid' : 'rent', mw, capex, capexPaid: capex, installed: h,
+        ws3: { rolled: true, delayedQ: 0, buildQ: parent ? 8 : 2, powerQ: 0, startDay: -500 },
       });
       if (!parent) ledger.push({ id: `L-lease-S${i + 1}`, payee: 'Colocation lease', kind: 'lease', perQuarter: ((mw / 1000) * LEASE_PER_GW_Y) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 });
     }

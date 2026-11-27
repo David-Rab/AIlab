@@ -314,7 +314,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     relations: { ...initialRelations(rivals.map((r) => r.core.id)), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
-    power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
+    power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
     knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },

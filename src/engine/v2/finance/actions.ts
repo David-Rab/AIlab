@@ -1,7 +1,7 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
 // Every preview shows what apply() does (§2.7 preview truth). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
-import { CAPEX_LEASE, COMMUNITY, DEBT_SIZING, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, SITE_PATHS, TRANSFORMER, type PartnerSupply } from '../../../data/v2/deals';
+import { CAPEX_LEASE, COMMUNITY, DEBT_SIZING, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, SOURCES, type PartnerSupply } from '../../../data/v2/deals';
 import { dateOfDay, dayOfQuarter } from '../core/time';
 import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
 import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, siteSchedule, type SiteOpts } from '../compute/sites';
@@ -16,7 +16,7 @@ import { anchorPartners, dealVote as firstVote, dealVotes, partnerOffers, partne
 import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
-import { ensureWs3, yearStats } from './ext';
+import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
@@ -627,12 +627,12 @@ const rentCompute: ActionDef = {
 // ───────────────────────────── Compute: sites (spec §4 payment options) ─────────────────────────────
 
 function siteOpts(s: GameStateV2, p: P): SiteOpts {
-  const path = str(p, 'path', 'brownfield') as Site['path'];
-  const def = SITE_PATHS[path] ?? SITE_PATHS.brownfield;
-  const pay = str(p, 'pay', 'cash') === 'lease' && path !== 'lease' ? 'lease' : 'cash';
+  const path = str(p, 'path', 'gas') as Site['path'];
+  const def = SOURCES[path] ?? SOURCES.gas;
+  const pay = str(p, 'pay', 'cash') === 'lease' && path !== 'rent' ? 'lease' : 'cash';
   const rate = pay === 'lease' ? leaseRate(s) : undefined;
   return {
-    path: SITE_PATHS[path] ? path : 'brownfield', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'),
+    path: SOURCES[path] ? path : 'gas', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'),
     community: bool(p, 'community', s.player.policies.communityBenefits), pay, ...(rate !== undefined ? { leaseRate: rate } : {}),
   };
 }
@@ -648,7 +648,7 @@ const site: ActionDef = {
     const H = (o.mw * 1000) / s.power.kWPerH100e;
     const exposure: CostLine[] = [];
     let costs: CostLine[];
-    if (o.path === 'lease') costs = [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'colocation rent per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }];
+    if (o.path === 'rent') costs = [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'colocation rent per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }];
     else if (o.pay === 'lease') {
       const opt = payOptions(s, capex, 'site', siteSchedule(s, o)).find((x) => x.id === 'lease')!;
       costs = [{ currency: 'cash', amount: -opt.now, lagDays: eta, target: `capex, your ${Math.round((1 - CAPEX_LEASE.siteShare) * 100)}% share` }, { currency: 'cash', amount: -opt.perYear, lagDays: eta, target: `lease per year × ${opt.years} y from go-live (${((opt.rate ?? 0) * 100).toFixed(0)}%)` }];
@@ -656,23 +656,17 @@ const site: ActionDef = {
     } else costs = [{ currency: 'cash', amount: -capex, lagDays: eta, target: 'capex on the build schedule' }];
     if (odds.block > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.block * 100) / 100, target: 'blocked by local opposition' });
     if (odds.delay > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.delay * 100) / 100, lagDays: 182, target: 'delayed 1–3 quarters' });
-    if (o.path === 'lease' && s.market.ws3 && o.mw / 1000 > s.market.ws3.leasePoolGW) exposure.push({ currency: 'compute', amount: -H, target: 'lease pool exhausted this quarter' });
     return { costs, gains: [{ currency: 'compute', amount: H, lagDays: eta, target: 'MW to install chips' }], exposure };
   },
   apply(s, ctx, p) {
     const o = siteOpts(s, p);
     if (o.pay === 'lease' && o.leaseRate === undefined) return leaseAvailable(s) as string;
-    if (o.path === 'lease') o.mw = Math.min(o.mw, s.market.ws3.leasePoolGW * 1000);
-    if (o.mw < 50) {
-      ctx.log('finance', 'No colocation capacity left this quarter.');
-      return 'No colocation capacity left this quarter';
-    }
     newSite(s, ctx, o);
   },
 };
 
 /** Sites still able to take an upfront community package (in permitting, not yet rolled, not colocation). */
-const packageable = (s: GameStateV2) => s.player.sites.filter((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease');
+const packageable = (s: GameStateV2) => s.player.sites.filter((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'rent');
 
 /** Community package (spec §4; merges F1 and the per-site deal): with `siteId`, the upfront package for that site (≈ 3%
  *  of its capex, block odds × 0.5); without, the company default: every site still permitting gets it now and every
@@ -710,23 +704,6 @@ const community: ActionDef = {
       ctx.bump('pub.dcNimby', -10, 'community package policy');
     }
     for (const x of packageable(s)) addCommunityPackage(x);
-  },
-};
-
-const transformers: ActionDef = {
-  id: 'cmp.preorderTransformers', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Transformers',
-  available: notInsolvent,
-  preview(s, p) {
-    const gw = Math.max(0.1, num(p, 'gw', 2));
-    return { costs: [{ currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * TRANSFORMER.depositShare, target: '20% deposit' }, { currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * 0.8, lagDays: s.power.transformerLeadQ * 91 }], gains: [{ currency: 'leadDays', amount: (s.power.transformerLeadQ - 8) * 91 + 91, target: 'no transformer wait for new sites' }], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    ensureWs3(s);
-    const gw = Math.max(0.1, num(p, 'gw', 2));
-    const cost = gw * TRANSFORMER.costPerGW;
-    s.power.ws3.transformersGW += gw;
-    bookCash(s, ctx, -cost, 'compute', 'transformer pre-order', `${gw.toFixed(1)} GW`);
-    yearStats(s).capexSites += cost;
   },
 };
 
@@ -857,7 +834,7 @@ const pickCancellable = (s: GameStateV2, id: string) => {
 
 export const FINANCE_ACTIONS: ActionDef[] = [
   raise, ipo, partner, draw, repay, recap, refuseRecap, critics,
-  buyChips, rentCompute, site, community, transformers,
+  buyChips, rentCompute, site, community,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];
 

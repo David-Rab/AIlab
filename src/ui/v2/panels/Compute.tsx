@@ -13,7 +13,7 @@ const leaseLimit = (s: GameStateV2) => {
   const g = leaseGuarantor(s);
   return r === undefined ? `no lease at ${s.player.finance.rating}` : `lease ${F.pct(r)} at ${s.player.finance.rating}${g ? ` · ${g} guarantee` : ''}`;
 };
-import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
+import { CHIP_TIERS, SITE_TIERS, SOURCES } from '../../../data/v2/deals';
 import { store } from '../store';
 import { act as engineAct, runwayOf } from '../../../engine/v2';
 import type { CostLine } from '../../../engine/v2';
@@ -26,8 +26,8 @@ import './compute.css';
 import { payOptionsPV } from '../../../engine/v2/finance/pv';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
-  { id: 'lease', label: 'Colo', term: 'colo', icon: ICON.pathLease }, { id: 'brownfield', label: 'Brownfield', term: 'brownfield', icon: ICON.pathBrownfield },
-  { id: 'gas', label: 'Gas', term: 'gasPower', icon: ICON.pathGas }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid }, { id: 'nuclear', label: 'Nuclear', term: 'nuclearPower', icon: ICON.pathNuclear },
+  { id: 'rent', label: 'Rent', term: 'colo', icon: ICON.pathLease }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid },
+  { id: 'gas', label: 'Gas', term: 'gasPower', icon: ICON.pathGas },
 ];
 const STAGE_COLOR: Record<Site['stage'], string> = { permitting: '#8a9bb0', power: C.watch, building: C.you, live: C.good, blocked: C.bad };
 const STAGE_LABEL: Record<Site['stage'], string> = { permitting: 'permitting', power: 'power', building: 'construction', live: 'live', blocked: 'blocked' };
@@ -408,13 +408,13 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const [pay, setPay] = useState<PayOption['id']>('cash');
   const [open, setOpen] = useState(false);
   const community = communityIn ?? s.player.policies.communityBenefits;
-  const max = SITE_PATHS[path].maxMW;
+  const max = SOURCES[path].maxMW;
   const fits = (i: number) => SITE_TIERS[i].mw <= max;
   const t = fits(tier) ? tier : SITE_TIERS.reduce((a, x, i) => (x.mw <= max ? i : a), 0);
   const mw = SITE_TIERS[t].mw;
   const kW = s.power.kWPerH100e;
   const eta = siteEtaQ(s, { path, mw, crash });
-  const colo = path === 'lease';
+  const colo = path === 'rent';
   const sched = siteSchedule(s, { path, mw, crash });
   const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', sched);
   const payNow = colo || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
@@ -422,7 +422,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const liveQ = qOf(s) + eta;
   const pickPath = (p: Site['path']) => {
     setPath(p);
-    if (SITE_TIERS[tier].mw > SITE_PATHS[p].maxMW) setTier(SITE_TIERS.reduce((a, x, i) => (x.mw <= SITE_PATHS[p].maxMW ? i : a), 0));
+    if (SITE_TIERS[tier].mw > SOURCES[p].maxMW) setTier(SITE_TIERS.reduce((a, x, i) => (x.mw <= SOURCES[p].maxMW ? i : a), 0));
   };
   return (
     <Card title={<span className="row-i"><ICON.sites size={14} />Build data centre</span>} className="cac" id="ctl-sites"
@@ -436,15 +436,15 @@ function BuildCard({ s }: { s: GameStateV2 }) {
       <div className="cac-lbl">Power</div>
       <div className="cac-tiles c5">
         {PATHS.map((p) => {
-          const q = siteEtaQ(s, { path: p.id, mw: Math.min(mw, SITE_PATHS[p.id].maxMW), crash });
+          const q = siteEtaQ(s, { path: p.id, mw: Math.min(mw, SOURCES[p.id].maxMW), crash });
           return (
-            <OptionTile key={p.id} label={p.label} icon={p.icon} glyphs={<span>{p.id === 'lease' ? '1–3q' : `${q}q`}</span>} active={path === p.id} onClick={() => pickPath(p.id)} testId={`path-${p.id}`}
-              tip={() => <TipCard title={<Term id={p.term}>{p.label}</Term>} rows={[{ label: 'Live in', value: p.id === 'lease' ? '1–3 quarters' : `≈ ${q} quarters` }, { label: 'Largest', value: F.power(SITE_PATHS[p.id].maxMW) }, { label: 'Power price', value: `×${SITE_PATHS[p.id].powerCostMult}` }]} />} />
+            <OptionTile key={p.id} label={p.label} icon={p.icon} glyphs={<span>{`${q}q`}</span>} active={path === p.id} onClick={() => pickPath(p.id)} testId={`path-${p.id}`}
+              tip={() => <TipCard title={<Term id={p.term}>{p.label}</Term>} rows={[{ label: 'Live in', value: `≈ ${q} quarters` }, { label: 'Largest', value: F.power(SOURCES[p.id].maxMW) }, { label: 'Power price', value: `×${SOURCES[p.id].powerCostMult}` }]} />} />
           );
         })}
       </div>
       {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" asset="site" timing={{ site: sched }} /></>}
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); return <Limit id="site.mw" tone="quiet">{F.power(z.min)}–{F.power(z.max)}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
       {open && (
         <div className="cac-opts">
           <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />
@@ -577,7 +577,7 @@ function SiteTimeline({ s }: { s: GameStateV2 }) {
               <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">until {fmtMonth(dateOf(s, x.stageEndDay))} · live ≈ {qLabel(s, qOf(s, live))}</span></>}</span>
               <span className="stl-act">
                 {x.stage === 'permitting' && odds.block > 0.005 && <Pill kind={odds.block > 0.1 ? 'bad' : 'warn'} title="chance local opposition blocks the site">block {F.pct(odds.block)}</Pill>}
-                {x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease' && <ActBtn id="cmp.community" params={{ siteId: x.id }} label="Community package" />}
+                {x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'rent' && <ActBtn id="cmp.community" params={{ siteId: x.id }} label="Community package" />}
               </span>
             </div>
           </Tip>
@@ -598,17 +598,12 @@ function SitesTab({ s }: { s: GameStateV2 }) {
   const mwCap = live.reduce((a, x) => a + x.mw, 0);
   const mwUsed = live.reduce((a, x) => a + Math.min(x.mw, (x.installed * kW) / 1000), 0);
   const full = chipFit(s).idle > 0;
-  const pw = s.power.ws3;
   return (
     <Card title={<Term id="site">Sites & power</Term>} className="cmp-sites"
       right={<span className="row-i small"><span className="dim">MW used / cap</span><HBar v={mwUsed} max={Math.max(1, mwCap)} w={110} h={8} color={full ? C.bad : mwUsed > mwCap * 0.95 ? C.watch : C.good} /><Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(mwUsed) }, { label: 'Live capacity', value: F.power(mwCap) }]}>Power of your live sites and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed">{F.power(mwUsed)} / {F.power(mwCap)}</b></Tip></span>}>
       <SiteTimeline s={s} />
       <div className="cmp-power">
-        <KV k="Grid pool left" term="gridPool">{F.power(pw.poolLeftGW * 1000)}</KV>
-        <KV k="Spare transformers" term="transformers">{F.power(pw.transformersGW * 1000)}</KV>
-        <KV k="Transformer lead time" term="transformers">{s.power.transformerLeadQ}q</KV>
         <KV k="kW per H100e" term="kwPerH100e">{kW.toFixed(2)}</KV>
-        <Gate s={s} k="compute"><ActBtn id="cmp.preorderTransformers" params={{ gw: 2 }} label="Pre-order 2 GW transformers" icon={ICON.power} /></Gate>
       </div>
     </Card>
   );
