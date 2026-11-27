@@ -24,7 +24,7 @@ the merge wave.
 | N2b-2 | Race pressure, misalignment m (M_world), incidents (spec §4, §7) | Sonnet high | N2b-1 | done, merged |
 | N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | done, merged (tool build time set to 120 d by the lead) |
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | done, merged |
-| N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | running |
+| N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | done, merged |
 | N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b (funding option 1) | superseded by N8b (designer: NPC money is display-only) |
 | N8b | Simple NPC money: one compute growth 2.25×/yr through the chip market, money display-only, failure only through the bust; keeps N8's LEADER_ID removal and order top-up | Sonnet high | — | done, merged |
 | N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | done, merged |
@@ -48,3 +48,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N2b-1 | accepted (lead re-ran tsc and scripts/v2/npcLabs.ts after the merge: all ok) | 2 h 20 min (over budget; stopped during the whole-game comparison) | SCHEMA_REV 113, no migration: ws4/control/products crash on stale fixtures (expected; regenerate). Open: private labs cannot fund their compute appetite (Marenth 111 d behind by day 900; Lanternworks, Zorvane distressed ~mid-2027) — designer decision. Leftover worktree AI27-npc-n2b1-base for the designer to remove. |
 | N5 | accepted | ~15 min | Rule 7 already read npc.m; projectedMisAtAsi = npcM at max(ASI G, internal G); projectLabMis deleted; otherContain 0.2 × safety emphasis. Moves calibration: maybe (epilogue). |
 | N8b | accepted | ~5 min | Plan = start × 2.25/yr for all (China: meter); cash never limits orders; shortfalls top back up; distress only via the bust. Stale: scripts/v2/finance.ts FIN5b checks (~1750-1850), glossary npcAppetite (N12). |
+| N6 | accepted (short test passes, tsc clean) | ~50 min | shocks.ts: theft = min(d, victim + 60 d); publish 0.05 / open weights 0.3 of the way; IP access 10%/yr; spillover 7 d, Track-2 2 d (lead to confirm); joint evals +0.05 safety; treaty clock x0.65; absorb in exitRival. Stale for N12: productOps releaseOpen preview rival line; scripts finance.ts, leadreaders.ts, rivals.ts. |
