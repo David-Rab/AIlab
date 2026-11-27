@@ -1,14 +1,19 @@
 // World dashboard (design/world/OUTSIDE-WORLD.md section 17). Reads observer runs (balrun --observer) from balance/runs/<name>/games.jsonl
 // and writes one self-contained balance/dash/world.html (data inlined, vanilla JS + SVG, no network).
 //   npm run world:dash -- --runs obs-smoke[,obs-dev] [--out file.html]
-// Look: reuses scripts/v2/baldash-assets/style.css (read only). Page code: scripts/v2/worlddash-assets/ (template.html, extra.css, prep.js, client.js).
+// Look: reuses scripts/v2/baldash-assets/style.css (read only). Page code: scripts/v2/worlddash-assets/ (template.html, extra.css, prep.js, prep-actors.js, client.js).
 // Real series: balance/world-history.ts. AIFM bands: balance/scenarios.ts. Parameters: balance/params registry.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param } from '../../balance/schema';
 import { CHECKPOINTS } from '../../balance/scenarios';
-import { EXPORT_CONTROL_STEPS, LAW_DATES, REAL_SERIES } from '../../balance/world-history';
+import { dy, EXPORT_CONTROL_STEPS, LAW_DATES, REAL_SERIES } from '../../balance/world-history';
+import { COND_LAWS, LAWS, lawsInForce } from '../../src/data/v2/laws';
+import { START_DATE } from '../../src/engine/v2/core/time';
+import { MILESTONE_NAMES } from '../../src/engine/v2/models/capability';
+import { STAGE_NAMES, USGOV } from '../../src/engine/v2/world/usgov';
+import { TALKS_NAMES, TENSION_NAMES } from '../../src/engine/v2/world/chinagov';
 import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -48,7 +53,8 @@ function readObserverRecords(name: string): Rec[] {
       // Keep what the page reads; milestone days only on the last sample (the dashboard reads the final state).
       const series = r.series.map((s: Record<string, unknown>, i) => ({
         day: s.day, year: s.year, frontier: s.frontier, laws: s.laws, economy: s.economy, geopolitics: s.geopolitics, robotsPerMonth: s.robotsPerMonth, techsDiscovered: s.techsDiscovered,
-        labs: (s.labs as { id: string; kind: string; monthsBehind: number | null; milestoneDays: Record<string, number> }[]).map((l) => ({ id: l.id, kind: l.kind, monthsBehind: l.monthsBehind, ...(i === n - 1 ? { milestoneDays: l.milestoneDays } : {}) })),
+        public: s.public, usgov: s.usgov, chinagov: s.chinagov, observe: s.observe,
+        labs: (s.labs as { id: string; kind: string; monthsBehind: number | null; attention: number; milestoneDays: Record<string, number> }[]).map((l) => ({ id: l.id, kind: l.kind, monthsBehind: l.monthsBehind, attention: l.attention, ...(i === n - 1 ? { milestoneDays: l.milestoneDays } : {}) })),
       }));
       out.push({ run: name, seed: r.seed, world: r.world, endDay: r.endDay, endReason: r.endReason, ending: r.ending, milestones: r.milestones, series });
     } catch { /* a half-written last line */ }
@@ -74,14 +80,26 @@ async function main() {
   if (!records.length) { console.error('no observer records in ' + runs.join(', ')); process.exit(1); }
   const real = { series: REAL_SERIES, laws: LAW_DATES, exports: EXPORT_CONTROL_STEPS };
   const scenarios = { checkpoints: CHECKPOINTS.filter((c) => c.layer === 'timeline' && c.quantity === 'milestone') };
-  const names = { ending: Object.fromEntries(Object.entries(ENDING_TEXT).map(([id, t]) => [id, t[0]])) };
+  // The dated laws: the game's own first day in force (lawsInForce) against the real date (balance/world-history.ts).
+  const clock = { time: { day: 0, startDate: START_DATE } };
+  const gameDay = (id: string) => { for (let d = 0; d < 3000; d++) if ((lawsInForce(clock, d) as unknown as Record<string, unknown>)[id]) return d; return null; };
+  const day0 = dy(2025, 7, 1);
+  const lawTable = LAWS.map((l) => {
+    const real = LAW_DATES.find((e) => e.gameKey === l.id);
+    return { id: l.id, name: l.name, from: l.from, gameDay: gameDay(l.id), realLabel: real?.label ?? null, realDay: real ? Math.round((real.date - day0) * 365) : null };
+  });
+  const names = {
+    ending: Object.fromEntries(Object.entries(ENDING_TEXT).map(([id, t]) => [id, t[0]])),
+    milestones: [...MILESTONE_NAMES], stages: [...STAGE_NAMES], tension: [...TENSION_NAMES], talks: [...TALKS_NAMES], attentionMin: USGOV.attentionMin, startDate: START_DATE, lawTable,
+    laws: Object.fromEntries([...LAWS, ...COND_LAWS].map((l) => [l.id, l.name])),
+  };
   const data = { generated: new Date().toISOString(), runNames: runs, records, real, scenarios, names, params: await loadParams() };
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c'); // no string can close the <script> tag
   const read = (dir: string, f: string) => readFileSync(join(dir, f), 'utf8');
   const html = read(ASSETS, 'template.html')
     .replace('/*__CSS__*/', () => read(BAL_ASSETS, 'style.css') + '\n' + read(ASSETS, 'extra.css'))
-    .replace('/*__JS__*/', () => [read(ASSETS, 'prep.js'), read(ASSETS, 'client.js')].join('\n').replace(/<\/script/gi, '<\/script'))
+    .replace('/*__JS__*/', () => [read(ASSETS, 'prep.js'), read(ASSETS, 'prep-actors.js'), read(ASSETS, 'client.js')].join('\n').replace(/<\/script/gi, '<\/script'))
     .replace('/*__DATA__*/', () => json);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
