@@ -14,7 +14,7 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
   CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
-  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, sizeScrutiny,
+  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
@@ -47,7 +47,7 @@ import {
   continueFData, continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, longTasksHorizonMult, rlGains, rlWeights, fptOfDesign,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
-import { internalVersion, otherLabs, uniqueVersionName, versionById } from './labs';
+import { internalVersion, uniqueVersionName, versionById } from './labs';
 import { baseLabel, continuedName, nextMinor, reserveBaseName, studentName, versionLabel } from './naming';
 import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
@@ -174,17 +174,6 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
-/** RD-T11: the largest non-player training run: the training FLOP of the biggest internal model of any active lab (China included). */
-export function rivalRunFlop(s: GameStateV2): number {
-  let best = 0;
-  for (const r of otherLabs(s)) if (r.core.status === 'active') best = Math.max(best, r.internal.flop ?? 0);
-  return best;
-}
-/** Public scrutiny of a base run of `flop` (RD-T11): its FLOP over the largest rival run. */
-export const runScrutiny = (s: GameStateV2, flop: number) => {
-  const ref = rivalRunFlop(s);
-  return ref > 0 ? sizeScrutiny(flop / ref) : 0;
-};
 
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
 export interface BaseLimits {
@@ -208,8 +197,6 @@ export interface BaseLimits {
   servingFlop: number;
   /** Compute-equivalent cost of the run's FLOP at today's TCO ($B; the pool is already paid for). */
   computeCost: number;
-  /** Public scrutiny of a run above the frontier. */
-  scrutiny: number;
   /** Pretraining effective compute and its parts (OOM); gain over the lab's best base (OOM). */
   gPre: GPreParts;
   gGain: number;
@@ -561,7 +548,7 @@ function pretrainSourceOfRun(s: GameStateV2, run: TrainingRun): PretrainSource |
 interface Pretrained {
   flopNeeded: number;
   cash: number;
-  /** Scale vs the frontier run (public scrutiny); new and continued bases only. */
+  /** The run's training FLOP; new and continued bases only. */
   flop: number;
   params: number;
   tokens: number;
@@ -686,7 +673,7 @@ function planPretrain(s: GameStateV2, p: LaunchRunParams, rate: number): ActPlan
     const best = Math.max(-Infinity, ...s.player.models.bases.map((b) => b.gPre));
     limits = {
       params: pre.params, tpp: src.design.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
-      servingFlop: servingFlop(pre.params), computeCost: flopCost(s, pre.flopNeeded), scrutiny: runScrutiny(s, pre.flopNeeded), gPre: bg.parts,
+      servingFlop: servingFlop(pre.params), computeCost: flopCost(s, pre.flopNeeded), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
   }
@@ -804,8 +791,6 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   m.runs.push(run);
   run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
-  const scrutiny = p.kind === 'base' && p.base ? runScrutiny(s, plan.flopNeeded) : 0;
-  if (scrutiny >= 0.5) ctx.bump('relations.scrutiny', Math.round(scrutiny * 10) / 10, 'base run above the largest rival run', run.name); // §3.4.3
   ctx.log('research', `Run launched: ${run.name} (ETA ${plan.etaDays} d).`, 1, run.id);
   return run;
 }

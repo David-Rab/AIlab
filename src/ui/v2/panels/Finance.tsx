@@ -798,7 +798,7 @@ function Strings({ s, partner, strings, years, politics, asic, ipName }: { s: Ga
       {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' && !ip.trust ? ' Capability-threshold models stay out of the licence (the trust did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
       {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
       {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
-      {politics && <Pill kind="bad" title={`Foreign money: scrutiny +${politics.scrutiny}, Congress trust ${politics.congress}, government security demand +${politics.securityDemand}.`}>Washington notices</Pill>}
+      {politics && <Pill kind="bad" title={`Foreign money: government security demand +${politics.securityDemand}.`}>Washington notices</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
     </>
   );

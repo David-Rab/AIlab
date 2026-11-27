@@ -1360,11 +1360,9 @@ async function d4Check(where, act, stepOk = true) {
       await nav('blueprint'); await tabTo('data');
       await check(`D4 ${where}: the default teacher ends the job`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.selectOption(dv('[data-test=data-teacher]'), ''));
     }
-    // Usage policy → broad: 50% kept, Civil Liberties approval moves.
-    const a0 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
+    // Usage policy → broad: 50% kept.
     await check(`D4 ${where}: usage policy → broad`, 's.player.dataPortfolio.usageShare', () => page.click(dv('[data-act="data.usagePolicy.broad"]')));
-    const a1 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
-    ok(`D4 ${where}: broad usage keeps 50% and moves Civil Liberties approval`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5 && (a1 !== a0 || Math.abs(a1) === 100), `${a0} → ${a1}`);
+    ok(`D4 ${where}: broad usage keeps 50%`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5);
     await shot(`d4-${tag}-data-after`);
   }
   // Training › Next run: the Data mix row's drawn mix (L2); the mix control changes the drawn shares and the specialisation.
@@ -1842,7 +1840,7 @@ await nav('relations');
 ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=retire-open]')) && !(await page.$('.catalog [data-act=RETIRE]')));
 ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
 // D4: the data actions moved from Relations to Models › Data (one home per control); Relations links there.
-await page.click('[data-test=rel-groups] [data-opt=D]'); await wait(80);
+await page.click('[data-test=rel-groups] [data-opt=A]'); await wait(80);
 ok('D4 Relations: no data actions in the catalogue, a link to Training › Data, old "License data" (D3) gone', !(await page.$('[data-panel=relations] [data-act^="data."]')) && !(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-panel=relations] [data-ref=dataPortfolio]')) && !(await page.$('[data-act=D3]')));
 await check('D4 Relations: the data link opens Training › Data', "store.panel + ':' + (store.tab.blueprint || '')", () => page.click('[data-panel=relations] [data-ref=dataPortfolio]'));
 await nav('relations');

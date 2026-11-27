@@ -236,6 +236,6 @@ export const DEFAULT_MIXED: MixedBotSettings = {
   govBriefing: 2,
   securityStep: 0.6,
   mergerChoice: { cushion: 20, maxStake: 0.1 },
-  acts: { every: 15, ids: ['A1', 'A2', 'A6', 'C1', 'E1', 'E2', 'A4'] },
+  acts: { every: 15, ids: ['A1', 'A6'] },
   autopilot: REF_AUTOPILOT,
 };

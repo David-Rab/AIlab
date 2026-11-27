@@ -1795,15 +1795,6 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'runDesign.ts:121-123 "... its period (RD-T03, DD-05) ... [D: weekly, the old tracking cadence]."',
   },
   {
-    id: 'cap.runDesign.sizeScrutiny.perTriple',
-    ref: { kind: 'inline', file: 'src/data/v2/runDesign.ts', anchor: '(5 * Math.log(ratio)) / Math.log(3)' },
-    value: 5,
-    unit: 'scrutiny per x3 of FLOP',
-    area: 'worldfx', layer: 'world',
-    kind: 'untagged',
-    evidence: 'no tag; runDesign.ts:141-142 "0 at or below it, +5 per ×3 above." (RD-T11)',
-  },
-  {
     id: 'cap.BASE_DATA.weights',
     ref: { kind: 'export', module: 'src/data/v2/runDesign.ts', symbol: 'BASE_DATA', path: ['*', 'weights', '*'] },
     unit: 'token-share multiplier',
@@ -2297,15 +2288,6 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'dataAssets.ts:51-52 "$1B + $0.005B per unlicensed T (270T → $2.35B, v2\'s numbers [D])"',
   },
   {
-    id: 'cap.WEB_LICENCE.creatives',
-    ref: { kind: 'export', module: 'src/data/v2/dataAssets.ts', symbol: 'WEB_LICENCE', path: ['creatives'] },
-    value: 10,
-    unit: 'approval points',
-    area: 'worldfx', layer: 'world',
-    kind: 'untagged',
-    evidence: 'no tag; dataAssets.ts:53 "The creatives bloc approves (+10, v2)."',
-  },
-  {
     id: 'cap.SYN_OVERGEN',
     ref: { kind: 'export', module: 'src/data/v2/dataAssets.ts', symbol: 'SYN_OVERGEN' },
     value: 4.33,
@@ -2409,14 +2391,6 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'designer',
     evidence: 'dataAssets.ts:103-104 "the share of eligible output tokens kept as training data per level [D]: none 0, standard 0.2 (USAGE_POLICY_SHARE ...), broad 0.5"',
-  },
-  {
-    id: 'cap.USAGE_LEVELS.civlib',
-    ref: { kind: 'export', module: 'src/data/v2/dataAssets.ts', symbol: 'USAGE_LEVELS', path: ['*', 'civlib'] },
-    unit: 'approval points',
-    area: 'worldfx', layer: 'world',
-    kind: 'designer',
-    evidence: 'dataAssets.ts:106-108 "approval per level, applied as the difference on a change [D, small: B2\'s limits / unrestricted defense terms move it ±6–8]"',
   },
   {
     id: 'cap.USAGE_QUALITY',

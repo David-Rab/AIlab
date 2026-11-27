@@ -4,7 +4,6 @@ import { BASELINES } from '../../../data/world';
 import { clamp } from '../../rng';
 import { dayOfDate } from '../core/time';
 import type { BaselineId, GameStateV2, PublicActor, SystemCtx } from '../types';
-import { initialBlocs } from './blocs';
 import { drift } from './fx';
 import { ws4 } from './state';
 
@@ -19,7 +18,6 @@ export function initialPublic(presetId: string, baseline: BaselineId): PublicAct
     concern: b.concern, approval: b.approval, awareness: 55, jobAnxiety: b.jobAnxiety, xrisk: b.xrisk,
     regDemand: 80, salience: 1, activism: 8, dcNimby: 45, companionship: 2,
     rung: 0,
-    blocs: initialBlocs(),
   };
 }
 

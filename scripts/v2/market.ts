@@ -4,7 +4,7 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { ALPHA, EPS, F0_PER_MONTH, INFLOW, P0, PAY_RENEWAL_YEARS, W0 } from '../../src/data/v2/labourMarket';
 import { TEAM_SIZE } from '../../src/data/v2/teams';
 import {
-  labHeads, marketWage, marketWeek, MU_REF_V, openPositions, outsideHeads, playerHeads, repriceWeek, weeklyHires,
+  labHeads, marketWage, marketWeek, MU_REF_V, openPositions, outsideHeads, playerHeads, pullOf, repriceWeek, weeklyHires,
 } from '../../src/engine/v2/departments/market';
 import { changeHeads, fillWeeks, payrollOf } from '../../src/engine/v2/departments/teams';
 import type { GameStateV2, TeamRole } from '../../src/engine/v2/types';
@@ -17,8 +17,8 @@ const check = (ok: boolean, label: string, detail = '') => {
 const kinds: TeamRole[] = ['eng', 're', 'sci'];
 const fresh = () => newGame(defaultSetupV2({ seed: 1 } as never));
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol * Math.abs(b);
-/** Neutral pull and morale (talent pull 0, morale 50: both multipliers 1). */
-const neutral = (s: GameStateV2) => { s.relations.talentPull = 0; s.player.morale.overall = 50; s.player.morale.safety = 50; };
+/** Neutral morale (50: multiplier 1). Talent pull is the start type's anchor (pullOf); checks scale by it. */
+const neutral = (s: GameStateV2) => { s.player.morale.overall = 50; s.player.morale.safety = 50; };
 const fmt = (x: number, d = 4) => x.toFixed(d);
 
 // 1. Inflow: P += I/52 per week.
@@ -58,10 +58,10 @@ const fmt = (x: number, d = 4) => x.toFixed(d);
     const V = openPositions(p, k);
     const f = (weeklyHires(s, k) * 52) / 12 / V;
     parts.push(`${k} V ${V0}->${V} f ${fmt(f)}`);
-    ok &&= V0 === 0 && V === MU_REF_V[k] && MU_REF_V[k] === TEAM_SIZE[k] && near(f, F0_PER_MONTH, 0.01);
+    ok &&= V0 === 0 && V === MU_REF_V[k] && MU_REF_V[k] === TEAM_SIZE[k] && near(f, F0_PER_MONTH * pullOf(s), 0.01);
     p.hiring.targets[key] -= 1;
   }
-  check(ok, `fill rate at the start with V = one team = F0 ${F0_PER_MONTH}/month within 1%`, parts.join('; '));
+  check(ok, `fill rate at the start with V = one team = F0 ${F0_PER_MONTH}/month × the start type's talent pull within 1%`, parts.join('; '));
 }
 
 // 4. Hires fall as U falls (deplete U artificially), as U^α.
@@ -107,7 +107,6 @@ const fmt = (x: number, d = 4) => x.toFixed(d);
 // 7. Nobody leaves: with no hiring open, a lab's heads (and E) hold through weeks of the market.
 {
   const s = fresh();
-  s.relations.talentPull = -50;
   s.player.morale.overall = 0; // morale's only effect is hiring speed: even at zero nobody quits
   const E = kinds.map((k) => labHeads(s, k));
   for (let w = 0; w < 52; w++) marketWeek(s, undefined);
@@ -158,7 +157,7 @@ const fmt = (x: number, d = 4) => x.toFixed(d);
   check(fell === 0 && partial === 0, 'target held 2 years: heads never fall, no team below full', `${fell} falls, ${partial} part-team weeks`);
 }
 
-// 7c. changeHeads moves whole teams (events: C4, E16, E22, E32 call it).
+// 7c. changeHeads moves whole teams (C4, E22 and E32 call it).
 {
   const s = fresh();
   const p = s.player;

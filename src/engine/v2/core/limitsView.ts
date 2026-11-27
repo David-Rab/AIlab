@@ -15,7 +15,6 @@ import { SECTOR_CHANNELS } from '../worldfx/mix';
 import { SECTORS } from '../../../data/v2/sectors';
 import { idleChips } from '../compute/forecast';
 import { idleTeams } from '../models/tree';
-import { outsidersWithAccess } from '../safety/incidents';
 import type { Deployment, DomainId, GameStateV2, ModelVersion } from '../types';
 
 export interface SpeedLimitLine {
@@ -76,10 +75,10 @@ export function incidentBoardHit(s: GameStateV2): { raw: number; capped: number;
 }
 
 /** Why an incident's public timer is what it is (LIMITS incident.publicTimer). */
-export function publicTimerRules(s: GameStateV2): { sb53: boolean; raise: boolean; outsiders: number; maxDays: number } {
+export function publicTimerRules(s: GameStateV2): { sb53: boolean; raise: boolean; maxDays: number } {
   const sb53 = !!s.gov.statutes.sb53;
   const raise = !!s.gov.statutes.raise;
-  return { sb53, raise, outsiders: outsidersWithAccess(s).length, maxDays: raise ? 3 : sb53 ? 15 : 60 };
+  return { sb53, raise, maxDays: raise ? 3 : sb53 ? 15 : 60 };
 }
 
 /** Spot rental headroom this quarter (LIMITS rent.spotCap). */

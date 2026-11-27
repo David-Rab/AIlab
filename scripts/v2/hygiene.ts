@@ -150,7 +150,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
   ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
   ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440], ['geoShocksQ', 'WS3', 'quarterly', 441], ['copyrightQ', 'WS3', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
-  ['index', 'WS4', 'semiannual', 500], ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
+  ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
 ];
 for (const [id, owner, cadence, order] of SPEC) {
   const s = SYSTEMS.find((x) => x.id === id);
@@ -200,7 +200,6 @@ for (const setup of setups) {
   }
   // NPC labs start at their cast lag behind the reference frontier (design/npc/NPC-LABS.md §4).
   check(s.rivals.every((r) => !!r.npc && r.npc.d0 >= 0 && Math.abs(r.npc.d - r.npc.d0) < 1e-9), `${tag}: NPC labs start at their cast lag`, s.rivals.map((r) => Math.round(r.npc?.d0 ?? -1)).join(', '));
-  check(Object.keys(s.relations.stocks).length === 7 + 15, `${tag}: relation counterparties`);
   tick(s);
   check(s.time.day === 1, `${tag}: first tick advances to day 1`);
 }
@@ -267,8 +266,6 @@ const STREAM_OWNER: Record<StreamId, WorkstreamId> = {
 };
 /** [system id, stream, why] — a hook owned by the stream's workstream, called from another workstream's system. */
 const CROSS_HOOKS: [string, StreamId, string][] = [
-  ['actorsDaily', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
-  ['intel', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
   ['director', 'safety', 'WS2 hooks in WS4 event choices'],
   ['runs', 'safety', 'WS2 applyBaseToLineage / applyRunToTraits (WS1 run completion)'],
   ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
@@ -364,11 +361,11 @@ const ctx = makeCtx(ls);
 const before = ls.pub.approval;
 const applied = ctx.bump('pub.approval', 500, 'test', 'clamp');
 check(ls.pub.approval === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
-ctx.bump('trust:exec', -5, 'test');
+ctx.bump('player.morale.overall', -5, 'test');
 ctx.bump('cash', 2, 'test');
 ctx.cause('player.finance.cash', 1, 'other');
 const strip = causeStrip(ls, 'cash');
-check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey['trust:exec']?.length === 1, 'causes: ledger keys canonical and strip sorted');
+check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 1 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
 let bad = false;
 try {
   ctx.bump('pub.nope', 1, 'test');

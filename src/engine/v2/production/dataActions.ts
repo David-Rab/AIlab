@@ -7,8 +7,8 @@
 //                     synTokensPerH100eDay, quality from the teacher's G, the asset inherits the teacher's traits);
 //                     days 0 stops the job. The rest of the pool keeps the default teacher (the internal research model)
 //   (no expert-data purchase: expert data is only a suite input, bought by "Build suite" in models/suites.ts, DD-07)
-//   data.usagePolicy  none / standard / broad: the share of eligible product output kept as usage data, against the
-//                     Civil Liberties bloc's approval
+//   data.usagePolicy  none / standard / broad: the share of eligible product output kept as usage data (its privacy
+//                     side, the Civil Liberties bloc's approval, went with the blocs, W1c)
 // Every preview shows the Blueprint's data readouts before → after (dataDelta: U, the domain's share of the stock and
 // its specialisation, the latest base design's epochs).
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
@@ -16,7 +16,7 @@ import {
   LICENCE_DELIVERY_DAYS, LICENCE_SIZE_T, LICENCE_TIERS, SYN_JOB, USAGE_LEVELS, USAGE_MIX, WEB_LICENCE,
   type LicenceTier, type UsageLevel,
 } from '../../../data/v2/dataAssets';
-import { bloc, L, pv } from '../actors/fx';
+import { L, pv } from '../actors/fx';
 import { bookCash } from '../finance/ledger';
 import { gOfBuild } from '../models/capability';
 import { versionById } from '../models/labs';
@@ -59,7 +59,7 @@ const LICENSE: ActionDef = {
   preview(s, p) {
     const t = licenceTerms(s, p);
     if (t.web) {
-      return pv([L('cash', -r2(t.cashB), `licence on ${unlicensedPublicT(s.player.dataPortfolio).toFixed(0)}T crawled tokens`)], [L('approval', WEB_LICENCE.creatives, 'bloc:creatives')], [L('cash', 0, 'copyright-suit hazard → 0')]);
+      return pv([L('cash', -r2(t.cashB), `licence on ${unlicensedPublicT(s.player.dataPortfolio).toFixed(0)}T crawled tokens`)], [], [L('cash', 0, 'copyright-suit hazard → 0')]);
     }
     const tier = LICENCE_TIERS[t.tier];
     const d = dataDelta(s, (x) => addAsset(x, licenceAsset(t.domain, t.tier, t.tokensT, s.time.day)), t.domain);
@@ -75,13 +75,10 @@ const LICENSE: ActionDef = {
     bookCash(s, ctx, -t.cashB, 'training', t.web ? 'licence on the web crawl' : 'data licence', t.web ? 'web' : t.domain);
     if (t.web) {
       publicUse(s.player.dataPortfolio)!.licensed = true;
-      s.relations.dataLicences.push('web');
-      bloc(s, ctx, 'creatives', WEB_LICENCE.creatives, 0, 'data.license web');
       ctx.log('company', 'You licensed the crawled web text from publishers and authors: no more copyright suits over it.', 2);
       return;
     }
     queueData(s.player.dataPortfolio, licenceAsset(t.domain, t.tier, t.tokensT, s.time.day + LICENCE_DELIVERY_DAYS), s.time.day + LICENCE_DELIVERY_DAYS);
-    s.relations.dataLicences.push(`${t.domain}:${t.tier}`);
     ctx.log('company', `Data licence signed: ${fmtTok(t.tokensT)} tokens of ${t.domain} data (${LICENCE_TIERS[t.tier].label.toLowerCase()}), delivered in ${LICENCE_DELIVERY_DAYS} days.`, 1, t.domain);
   },
 };
@@ -156,7 +153,6 @@ const USAGE: ActionDef = {
     const cur = usageLevelOf(s.player.dataPortfolio.usageShare);
     const now = usageRateAt(s, USAGE_LEVELS[cur].share);
     const next = usageRateAt(s, USAGE_LEVELS[lvl].share);
-    const dApp = USAGE_LEVELS[lvl].civlib - USAGE_LEVELS[cur].civlib;
     const yearT = 365 * (next - now);
     const d = dataDelta(s, (x: DataPortfolio) => {
       const a = x.assets.find((y) => y.kind === 'usage');
@@ -164,9 +160,8 @@ const USAGE: ActionDef = {
       else if (yearT > 0) addAsset(x, { id: 'usage', kind: 'usage', tokensT: yearT, mix: { ...(USAGE_MIX.consumer ?? {}) }, quality: 0.5 });
     }, USAGE_DOMAIN);
     const usageLine = L('progress', r2(d.u[1] - d.u[0]), `usage data ${(now * 1000).toFixed(1)} → ${(next * 1000).toFixed(1)}B tokens/day (a year at today's traffic: ${dataDeltaText(d)})`, { unit: `${UNIQUE_T} a year` });
-    const appLine = L('approval', Math.abs(dApp), 'bloc:civlib');
     if (lvl === cur) return pv([L('progress', 0, `already ${USAGE_LEVELS[lvl].label.toLowerCase()}`, { unit: UNIQUE_T })]);
-    return dApp < 0 ? pv([appLine], [usageLine], []) : pv([{ ...usageLine, amount: -Math.abs(usageLine.amount) }], [appLine]);
+    return next > now ? pv([], [usageLine]) : pv([{ ...usageLine, amount: -Math.abs(usageLine.amount) }]);
   },
   apply(s, ctx, p) {
     const lvl = levelParam(s, p);
@@ -174,7 +169,6 @@ const USAGE: ActionDef = {
     const cur = usageLevelOf(pf.usageShare);
     if (lvl === cur) throw new Error(`Already ${USAGE_LEVELS[lvl].label.toLowerCase()}`);
     pf.usageShare = USAGE_LEVELS[lvl].share;
-    bloc(s, ctx, 'civlib', USAGE_LEVELS[lvl].civlib - USAGE_LEVELS[cur].civlib, 0, 'usage-data policy');
     ctx.log('company', `Usage-data policy: ${USAGE_LEVELS[lvl].label.toLowerCase()} (${Math.round(USAGE_LEVELS[lvl].share * 100)}% of eligible chats kept for training).`, 1);
   },
 };

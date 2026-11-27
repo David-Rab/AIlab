@@ -15,8 +15,6 @@ import { Rng, clamp } from '../../rng';
 import { initialChina } from '../actors/china';
 import { initialGov } from '../actors/gov';
 import { initialPublic } from '../actors/public';
-import { initialRelations } from '../actors/relations';
-import { initialResearchBodies } from '../actors/researchBodies';
 import { FIN } from '../actors/rivals';
 import { initialNpcLab, castOf, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -351,8 +349,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     china,
     gov: initialGov(hidden.actorPresets.gov),
     pub: initialPublic(hidden.actorPresets.public, setup.baseline),
-    researchBodies: initialResearchBodies(),
-    relations: { ...initialRelations(), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
     power: initialPower(),

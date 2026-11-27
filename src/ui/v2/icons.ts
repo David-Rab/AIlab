@@ -1,9 +1,9 @@
 // One icon per concept (DESIGN-SYSTEM §1). Panels never pick their own lucide icon for a concept in this map.
 import {
   Armchair, Atom, Award, BadgeCheck, Banknote, Binary, Biohazard, BookOpen, Bot, Boxes, Brain, Bug, Building2, Cctv, Check, ChevronRight,
-  ChevronsRight, CircleHelp, ClipboardCheck, ClipboardX, ClockAlert, Cloud, CodeXml, Copy, CopyX, Cpu, Crown, Database, Dna, Drama, Eye, EyeOff,
+  ChevronsRight, CircleHelp, ClipboardCheck, ClipboardX, ClockAlert, Cloud, CodeXml, Copy, CopyX, Cpu, Crown, Database, Dna, Drama, EyeOff,
   Factory, FastForward, FileSearch, Flame, FlaskConical, Flag, Fuel, Funnel, Gamepad2, Gauge, Gem, Ghost, GitFork, Glasses, Globe, GraduationCap, Hand,
-  ChevronLeft, HandCoins, Handshake, HeartHandshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
+  ChevronLeft, HandCoins, Handshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
   MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
   Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
   Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Truck, Turtle, UserPlus, Users, UsersRound, UtilityPole, VenetianMask, Vote, Wallet, Warehouse, Workflow, Zap, ZapOff,
@@ -18,7 +18,7 @@ export const ICON = {
   // spheres / departments
   capabilities: Brain, safety: Microscope, security: Shield, product: Boxes, ops: Settings2, agents: Bot, experiments: FlaskConical, run: Rocket,
   // race and top meters
-  L: Brain, U: Microscope, blind: EyeOff, risk: Skull, lead: Timer, scrutiny: Eye, M: Gauge, control: Joystick, foothold: Anchor, danger: Radiation, trust: HeartHandshake,
+  L: Brain, U: Microscope, blind: EyeOff, risk: Skull, lead: Timer, M: Gauge, control: Joystick, foothold: Anchor, danger: Radiation,
   credibility: Award, approval: Vote, wsl: Lock,
   // events
   decision: Split, incident: Siren, finding: FileSearch, milestone: Milestone, headline: Newspaper, securityEvent: ShieldAlert, theft: KeyRound,

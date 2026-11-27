@@ -123,16 +123,11 @@ export function distillLift(s: GameStateV2, lab: LabId, ownG: number, params: nu
 // stolen model's G. Every site and its preview reads these functions.
 /** Share of the recipe gap each recipe / secrets leak moves, per event type. */
 export const RECIPE_LEAK_SHARE = {
-  /** A4 publish [D]: a paper discloses about one of the ~20 techniques that make up a recipe lead. */
-  publish: 0.05,
   /** C6 / any open-weights release [D]: weights reveal architecture, size and tokenizer, not the data mix or training
    *  code, so a minority of the recipe gap. */
   openWeights: 0.3,
-  /** E1 Track-2 dialogue [D]: a slip in a few conversations, a tenth of the AI 2027 SSL test bound (≤ 1 KB of the
-   *  month's most important 10 KB, research/RD-X04r T3). */
-  track2: 0.01,
 } as const;
-/** C4 poach / E16 let go [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning, not the
+/** C4 poach [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning, not the
  *  hire's own reuse; the transfer is this × the movers' share of the source's research staff × the recipe gap. */
 export const TACIT_FIRM_SHARE = 0.5;
 /** Weight theft [P, research/RD-X04r T5]: in AI 2027 China goes from about 6 to 2 months behind on stealing Agent-2, so

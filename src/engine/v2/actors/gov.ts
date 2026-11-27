@@ -5,14 +5,18 @@ import { dateOf, dayOfDate } from '../core/time';
 import { gOfLevel, gV0 } from '../models/capability';
 import { bestG, internalVersion } from '../models/labs';
 import { versionMilestones } from '../departments/workfit';
-import { wslFloor } from '../security/security';
 import { POLICY_FLAGS } from '../worldfx/policy';
 import { unemploymentChange12m } from '../worldfx/readouts';
 import type { GameStateV2, GovActor, MilestoneIdx, SystemCtx } from '../types';
-import { policyPressure } from './blocs';
 import { leadDays } from './intel';
-import { drift, trust } from './fx';
+import { drift } from './fx';
 import { request, ws4 } from './state';
+
+/** W1c stand-in until W5: the executive's trust in the player at its start value (the relation stocks are gone). */
+const EXEC_TRUST = 55;
+/** W1c stand-in until W5: net interest-bloc pressure on every policy (the blocs are gone), so the bloc-driven law
+ *  rules and the reg stance stay at their quiet values. */
+const BLOC_PRESSURE = 0;
 
 export const govPresetOf = (id: string) => GOV_PRESETS.find((p) => p.id === id) ?? GOV_PRESETS[0];
 
@@ -44,22 +48,21 @@ export function claimedL(s: GameStateV2): number {
   return L;
 }
 
-/** What the government sees (§3.10.1): max(announced, leaked, evaluator-reported, briefed), never truth. */
+/** What the government sees (§3.10.1): max(announced, leaked, briefed), never truth. */
 export function govSeenL(s: GameStateV2): number {
   const w = ws4(s);
   const measured = internalVersion(s)?.evals.measuredL ?? 0;
   const b = s.player.policies.govBriefing;
   const briefed = b >= 2 ? measured : b === 1 ? measured - 1 : 0;
-  const evalSeen = s.relations.stocks.evalGov.access >= 3 ? measured : 0;
-  return Math.max(w.claimedL, w.leakedL, w.evalL, briefed, evalSeen);
+  return Math.max(w.claimedL, w.leakedL, briefed);
 }
 
 /** Whether the government knows the player has met milestone i (RD-L04: the one work-type predicate, never a display
- *  level): the player's evaluations show it (milestoneDays) and the government sees those evaluations (briefing 2+ or
- *  evaluator rung 3+), or a deployed version meets it (anyone can evaluate a public model). */
+ *  level): the player's evaluations show it (milestoneDays) and the government sees those evaluations (briefing 2+),
+ *  or a deployed version meets it (anyone can evaluate a public model). */
 export function govSeesMilestone(s: GameStateV2, i: MilestoneIdx): boolean {
   if (s.player.milestoneDays[i] === undefined) return false;
-  if (s.player.policies.govBriefing >= 2 || s.relations.stocks.evalGov.access >= 3) return true;
+  if (s.player.policies.govBriefing >= 2) return true;
   return s.player.models.versions.some((v) => v.status === 'deployed' && versionMilestones(s, v)[i]);
 }
 
@@ -122,7 +125,7 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   const hawkT = clamp(50 * pre.hawk * (1 + 0.1 * s.china.rung) + 10 * detectedThefts(s), 0, 100);
   drift(s, G, 'hawkishness', (hawkT - g.hawkishness) * 0.005, 0, 100, 'gov.hawkishness');
   // Nationalisation pressure: builds at G-SEC ≥ 4 when trust is low or a misalignment leak meets public concern.
-  const tr = s.relations.stocks.exec.trust;
+  const tr = EXEC_TRUST;
   let dNat = -0.01;
   if (g.rungSec >= 4) dNat = 0.03 * (1 + (60 - tr) / 40);
   if (w.misalignmentLeak && s.pub.concern > 65) dNat += 0.05;
@@ -191,12 +194,6 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   }
   // Monthly policy fights (G-REG), driven by bloc pressure (research/08 §1.0).
   if (dateOf(s, day).getUTCDate() === 1) govMonthly(s, ctx);
-
-  // Rung 1–2 demands met → trust (§3.6 last para); unmet → −trust (research/07 rung 1).
-  if (g.rungSec >= 1 && day % 30 === 0) {
-    const met = s.player.security.wsl >= wslFloor((day / 365) + 0.5) + 0.3;
-    trust(s, ctx, 'exec', met ? 1.5 : -1, met ? 'security clauses met' : 'security clauses unmet');
-  }
 }
 
 function govMonthly(s: GameStateV2, ctx: SystemCtx) {
@@ -212,22 +209,21 @@ function govMonthly(s: GameStateV2, ctx: SystemCtx) {
       g.statutes.preemption = true;
       ctx.log('gov', 'Courts uphold federal preemption of state AI laws.', 2);
     } else ctx.log('gov', 'Courts block the federal preemption push.', 2);
-  } else if (due === undefined && !g.statutes.preemption && pre.id !== 'regulator' && g.stateRegPressure > 50 && policyPressure(s, 'preemption', 'exec') > 0) {
+  } else if (due === undefined && !g.statutes.preemption && pre.id !== 'regulator' && g.stateRegPressure > 50 && BLOC_PRESSURE > 0) {
     g.holdDays.preemptSuit = day + Math.round(r.range(90, 180));
     ctx.log('gov', 'The Justice Department sues to preempt state AI laws.', 2);
   }
   // Federal licensing: Congress activism ≥ 70 and positive pressure → floor fight; presidential veto unless
   // Cautious Regulator, or Populist with concern > 70.
-  if (!g.statutes.federalLicensing && g.congressActivism >= 70 && policyPressure(s, 'licensing', 'congress') > 0) {
+  if (!g.statutes.federalLicensing && g.congressActivism >= 70 && BLOC_PRESSURE > 0) {
     const veto = !(pre.id === 'regulator' || (pre.id === 'populist' && s.pub.concern > 70));
     if (!veto && r.chance(0.3)) {
       g.statutes.federalLicensing = true;
       ctx.log('gov', 'Congress passes federal frontier-AI licensing.', 3);
-      ctx.bump('relations.scrutiny', 10, 'licensing law');
     }
   }
   // Reg stance follows net bloc pressure on evals/licensing vs preemption.
-  const net = policyPressure(s, 'evals', 'exec') + policyPressure(s, 'licensing', 'exec') - policyPressure(s, 'preemption', 'exec');
+  const net = BLOC_PRESSURE;
   const target = clamp(-60 + 0.3 * net * pre.reg, -100, 100);
   const d = (target - g.regStance) * 0.1;
   g.regStance = clamp(g.regStance + d, -100, 100);
@@ -265,7 +261,7 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
   const dU = unemploymentChange12m(s);
   const veto = !(pre.id === 'regulator' || (pre.id === 'populist' && p.concern > 70)); // R07 G-REG veto rule
   const discovered = (id: string) => s.world.techs[id]?.discoveredDay !== undefined;
-  const trustExec = s.relations.stocks.exec.trust;
+  const trustExec = EXEC_TRUST;
 
   // Worker relief (R07 G-REG): JobAnxiety > 75 → job training and UI expansion (AI 2027 Aug 2027). Off below 65 [D].
   setPolicy(s, ctx, F.jobTraining, p.jobAnxiety > 75, p.jobAnxiety < 65,
@@ -305,7 +301,7 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
     ['The Pentagon drops the human-judgment rule for AI weapons.', 'Human judgment over AI weapons is restored.']);
   // Economy-wide human-in-the-loop mandate (R16 §2.3 safety lever; R08 P31 usage red lines) [D]: a public misalignment
   // scare or mass protest, concern > 75, net bloc support, and no presidential veto. Off when concern < 55.
-  setPolicy(s, ctx, F.humanInLoop, (w.misalignmentLeak || p.rung >= 3) && p.concern > 75 && policyPressure(s, 'avBan', 'congress') > 0 && !veto, p.concern < 55,
+  setPolicy(s, ctx, F.humanInLoop, (w.misalignmentLeak || p.rung >= 3) && p.concern > 75 && BLOC_PRESSURE > 0 && !veto, p.concern < 55,
     ['Congress mandates a human in the loop for consequential AI decisions.', 'The human-in-the-loop mandate is relaxed.']);
   // Multi-vendor rule for government AI (R16 §2.3 "broad access") [D]: under the oversight committee, or once one
   // lineage holds > 50% of GOV or MIL and the security state is up (G-SEC ≥ 3). Off when neither holds and no lineage
@@ -330,12 +326,12 @@ function policyMonthly(s: GameStateV2, ctx: SystemCtx) {
     ['The FDA fast-tracks AI-designed drugs.', 'The FDA ends its AI fast track.']);
   // Bloc bans (R08 agendas). AV ban (P31, labor) [D]: AVs at scale (W19), net support, JobAnxiety > 75; off below 65
   // or when support turns negative.
-  const avP = policyPressure(s, 'avBan', 'congress');
+  const avP = BLOC_PRESSURE;
   setPolicy(s, ctx, F.avBan, discovered('W19') && avP > 0 && p.jobAnxiety > 75, p.jobAnxiety < 65 || avP < 0,
     ['Driverless trucks are banned to protect driving jobs.', 'The ban on driverless trucks is lifted.']);
   // Companion / child-safety ban (P22, parents) [D]: AI-friend share > 10% with clear net support (> 15). Off only
   // when support turns negative (the ban itself shrinks the friend share).
-  const kidsP = policyPressure(s, 'childSafety', 'congress');
+  const kidsP = BLOC_PRESSURE;
   setPolicy(s, ctx, F.companionBan, p.companionship > 10 && kidsP > 15, kidsP < 0,
     ['AI companion apps are banned for minors.', 'The AI companion ban is struck down.']);
   // "AI in schools" ban [D]: on top of the companion ban when concern > 70; off when concern < 55 or that ban ends.

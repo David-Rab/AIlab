@@ -1,4 +1,4 @@
-// WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Owner: WS4.
+// WS4 working state (timers, cover-ups, event requests, ladder bookkeeping). Owner: WS4.
 //
 // Ws4State lives in types.ts (`GameStateV2.ws4`, folded at M2). Created lazily by `ws4(s)`; plain JSON.
 import type { Day, Ws4State } from '../types';
@@ -7,11 +7,10 @@ export type { Coverup, RivalIncident, Ws4State } from '../types';
 
 export function initialWs4(): Ws4State {
   return {
-    govSeenL: 0, leakedL: 0, evalL: 0, claimedL: 0,
+    govSeenL: 0, leakedL: 0, claimedL: 0,
     coverups: [], redFlags: 0, theftAttempts: 0,
     overtakenDays: {},
     taiwanDisrupted: false, taiwanUntil: -1,
-    accessCap: { exec: 1, evalGov: 1 },
     actionDay: {},
     postureDelta: {},
     goalposts: {},
@@ -20,7 +19,6 @@ export function initialWs4(): Ws4State {
     internalDay: {},
     spyMult: 1,
     distillDays: 0,
-    crunchDays: 0,
     misalignmentLeak: false,
     lastTheftOrCyberDay: 0,
     usProposedTalks: false,
@@ -29,12 +27,9 @@ export function initialWs4(): Ws4State {
     nationalizedHard: false,
     soldControl: false,
     retired: false,
-    unrestrictedDefense: false,
-    defenseContract: 'none',
-    disclosed: 0, leaked: 0, papers: 0,
+    disclosed: 0, leaked: 0,
     gdp0: 0,
     drift: {},
-    evalReports: [], reportedVersions: [],
     chinaLeadHist: [],
     absorbedCompute: 0,
     storyNoise: 1,

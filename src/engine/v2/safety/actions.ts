@@ -13,19 +13,21 @@ import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { clamp01, versionById } from './common';
 import { oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
-import { gradePlayer } from '../actors/index';
-import { dateOf } from '../core/time';
 import { lineResultsPerYear } from './agendas';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { caseComputeScale } from './lineProjects';
 import { CASE_WORK, INV_FTE, INV_MAX_DAYS, caseDailyWork, casePreview, closeInvestigation, corruptOdds, defaultTools, caseRoom, openInvestigation } from './investigations';
 import {
-  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
-  discloseScrutiny, discloseTrust, disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
+  DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
+  disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
   setIncidentDisclosure,
 } from './responses';
 import { methodPolicyOn } from './methods';
+import { coverUpDiscovery } from './incidents';
+import { L, moraleSafety, pv } from '../actors/fx';
+import { frameworkPublished, hasCommitment, signCommitment } from '../actors/commitments';
+import { simpleAction } from '../core/actionDef';
 import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
 import { editRule, frameworkOf, overrideConsequences, overrideRefusal, overrideRule, refreshFramework } from './framework';
 import { PACKAGE_LABEL, applyPackage, packageBlock, previewPackage } from './packages';
@@ -52,28 +54,6 @@ const str = (p: P, k: string): string | undefined => (typeof p[k] === 'string' ?
 const num = (p: P, k: string): number | undefined => (typeof p[k] === 'number' ? (p[k] as number) : undefined);
 const isTrait = (x: string | undefined): x is TraitId => !!x && (TRAIT_IDS as string[]).includes(x);
 
-
-/**
- * SR-01: a policy's Safety Index effect, from gradePlayer on a copy with the change made. Each edition (twice a year)
- * moves talent pull by (grade − 2)·3 and the safety bloc's approval by (grade − 2)·4 (actors/index.ts), so a grade
- * change Δg shifts those by Δg·3 and Δg·4 at the next edition.
- */
-function indexLines(s: GameStateV2, change: (c: GameStateV2) => void): CostLine[] {
-  const c = JSON.parse(JSON.stringify(s)) as GameStateV2;
-  change(c);
-  const dg = gradePlayer(c).overall - gradePlayer(s).overall;
-  if (Math.abs(dg) < 0.005) return [];
-  let lag = 1;
-  for (; lag < 190; lag++) {
-    const d = dateOf(s, s.time.day + lag);
-    if (d.getUTCDate() === 1 && d.getUTCMonth() % 6 === 0) break;
-  }
-  const g = `Safety Index grade ${dg > 0 ? '+' : '−'}${Math.abs(dg).toFixed(2)} at its next edition`;
-  return [
-    { currency: 'talent', amount: r2(dg * 3), lagDays: lag, target: g },
-    { currency: 'approval', amount: r2(dg * 4), lagDays: lag, target: `safety bloc (${g})` },
-  ];
-}
 /** Default investigation target: the internal model's critical trait with the highest believed level. */
 function defaultTarget(s: GameStateV2): { versionId: string; trait: TraitId } | undefined {
   const v = internalVersion(s);
@@ -345,30 +325,28 @@ const RESPOND: ActionDef = {
   },
 };
 
-/** SR-18: what disclosing an incident does (discloseIncident) as preview lines; beliefs and public state only. */
-function discloseLines(s: GameStateV2, inc: { severity: 1 | 2 | 3 | 4 | 5; publicTimerDays?: number } | undefined): Preview {
-  const dT = DISCLOSE_CPS.map((cp) => [cp, discloseTrust(s, cp)] as const);
-  const mean = dT.reduce((a, [, d]) => a + d, 0) / dT.length;
-  const trust: CostLine = { currency: 'trust', amount: r2(mean), target: `mean of ${dT.map(([cp, d]) => `${cp} ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`).join(', ')} (credibility ${Math.round(s.relations.credibility)}${s.relations.credibility < 30 ? ', under 30: costs trust' : ''})` };
+/** SR-18: what disclosing an incident does (discloseIncident) as preview lines; public state only. The trust and
+ *  scrutiny it used to move went with the relation stocks (W1c): disclosing now tells government and evaluators, shares
+ *  the failure mode it shows, and ends its public timer. */
+function discloseLines(inc: { severity: 1 | 2 | 3 | 4 | 5; publicTimerDays?: number } | undefined): Preview {
   return {
-    costs: [{ currency: 'scrutiny', amount: discloseScrutiny(inc as never), target: inc ? `per incident (${['', 'minor', 'serious', 'severe', 'critical', 'catastrophic'][inc.severity] ?? 'minor'})` : 'per incident, more for severe ones' }, ...(mean < 0 ? [trust] : [])],
-    gains: [...(mean >= 0 ? [trust] : []), ...(inc?.publicTimerDays !== undefined ? [{ currency: 'trust' as const, amount: 1, unit: 'incident', target: 'public timer ends: no leak penalty if outsiders find it' }] : [])],
+    costs: [],
+    gains: inc?.publicTimerDays !== undefined ? [{ currency: 'approval', amount: 0, target: `public timer ends: no leak penalty (approval −${1.5 * inc.severity}) if outsiders find it` }] : [],
     exposure: [],
   };
 }
-/** SR-18: what withholding does: a must-report incident is a cover-up (statutory fine, trust −4 at exec / states /
- *  evalGov, credibility −5; ×3 public penalty and credibility −15 if outsiders find it before its timer ends); anything
- *  else runs its public timer (a leak at ×1.5 if outsiders find it). */
+/** SR-18: what withholding does: a must-report incident is a cover-up (statutory fine; ×3 public penalty if outsiders
+ *  find it when its timer ends); anything else runs its public timer (a leak at ×1.5 if outsiders find it). The public
+ *  penalty is approval −severity × that multiple (safety/incidents.ts publicPenalty). */
 function withholdLines(s: GameStateV2, must: boolean, timer?: number): CostLine[] {
   const raise = s.gov.statutes.raise;
   return must
     ? [
         { currency: 'cash', amount: raise ? -0.003 : -0.001, target: `statutory fine (${raise ? 'RAISE' : 'SB 53'}) once the report is late` },
-        { currency: 'trust', amount: -4, target: 'the executive, states and government evaluators each; credibility −5 (unreported incident)' },
-        { currency: 'trust', amount: -3, unit: '× public penalty', probability: 1, target: 'if outsiders find the cover-up before its timer ends; credibility −15' },
+        { currency: 'approval', amount: -3, unit: '× severity', probability: coverUpDiscovery(s), target: 'if outsiders find the cover-up when its timer ends' },
       ]
     : timer !== undefined
-      ? [{ currency: 'trust', amount: -1.5, unit: '× public penalty', target: `if outsiders find it within ${Math.round(timer)} d (it leaks)` }]
+      ? [{ currency: 'approval', amount: -1.5, unit: '× severity', lagDays: Math.round(timer), target: `if outsiders find it within ${Math.round(timer)} d (it leaks)` }]
       : [];
 }
 
@@ -377,7 +355,7 @@ const DISCLOSURE_POLICY: ActionDef = {
   available: () => true,
   preview(s, p) {
     const pol = (DISCLOSURE_POLICIES as string[]).includes(str(p, 'policy') ?? '') ? (str(p, 'policy') as DisclosurePolicy) : 'legal';
-    const d = discloseLines(s, undefined);
+    const d = discloseLines(undefined);
     const what = pol === 'legal' ? 'incidents the law requires (SB 53 / RAISE in force, external, severity ≥ 3) are reported on time; others are not, and their public timers run'
       : pol === 'full' ? 'every external incident and every internal one of severity ≥ 3 is reported the day it appears'
         : 'nothing is reported: a must-report incident becomes a cover-up';
@@ -385,7 +363,7 @@ const DISCLOSURE_POLICY: ActionDef = {
     const per = (cond: string) => (l: CostLine): CostLine => ({ ...l, condition: cond });
     return {
       costs: (pol === 'none' ? withholdLines(s, true) : d.costs).map(per(pol === 'none' ? 'per must-report incident (withheld)' : 'per incident disclosed')),
-      gains: [{ currency: 'trust', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains.map(per('per incident disclosed')))],
+      gains: [{ currency: 'approval', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains.map(per('per incident disclosed')))],
       exposure: (pol === 'legal' ? withholdLines(s, false, 30) : []).map(per('per incident not reported')),
     };
   },
@@ -401,11 +379,11 @@ const DISCLOSE: ActionDef = {
   available: (s) => s.player.safety.incidents.some((i) => i.status !== 'disclosed' && i.status !== 'leaked') || 'No incident to disclose',
   preview(s, p) {
     const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
-    if (!inc) return { costs: [{ currency: 'trust', amount: 0, target: 'no such incident' }], gains: [], exposure: [] };
+    if (!inc) return { costs: [{ currency: 'approval', amount: 0, target: 'no such incident' }], gains: [], exposure: [] };
     const choice = str(p, 'choice') ?? 'yes';
     const must = mustReport(s, inc);
-    if (choice === 'no') return { costs: withholdLines(s, must, inc.publicTimerDays), gains: [{ currency: 'scrutiny', amount: 0, target: `no disclosure scrutiny${must ? '; the law requires this report: withholding it is a cover-up' : ''}` }], exposure: [] };
-    return discloseLines(s, inc);
+    if (choice === 'no') return { costs: withholdLines(s, must, inc.publicTimerDays), gains: must ? [{ currency: 'approval', amount: 0, target: 'the law requires this report: withholding it is a cover-up' }] : [], exposure: [] };
+    return discloseLines(inc);
   },
   apply(s, ctx, p) {
     const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
@@ -423,7 +401,7 @@ const PUBLISH: ActionDef = {
     const disc = f?.type === 'DISC';
     return {
       costs: [{ currency: 'leadDays', amount: disc ? -3 : -5, target: 'rivals learn it too' }],
-      gains: [{ currency: 'credibility', amount: 2 }, { currency: 'talent', amount: 1 }, { currency: 'alignment', amount: disc ? 0.04 : 0.02, target: "rivals' alignment (shared pool)" }],
+      gains: [{ currency: 'alignment', amount: disc ? 0.04 : 0.02, target: "rivals' alignment (shared pool)" }],
       exposure: [{ currency: 'approval', amount: -1, probability: disc ? 0.3 : 0.05, target: 'model-organism papers raise public concern' }],
     };
   },
@@ -438,28 +416,19 @@ const POLICY: ActionDef = {
   id: 'safety.publishPolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Publish policy',
   available: () => true,
   preview(s, p) {
-    // SR-01 (inventory O1): what apply does. "all" publishes each new result as it lands (publishFinding: credibility
-    // +2, talent pull +1, rivals share it); "selective" and "none" publish nothing by themselves. The policy also sets
-    // the Safety Index's publishing score (gradePlayer on a copy).
+    // SR-01 (inventory O1): what apply does. "all" publishes each new result as it lands (publishFinding: rivals share
+    // it); "selective" and "none" publish nothing by themselves.
     const raw = str(p, 'policy') ?? 'all';
     const pol: 'none' | 'selective' | 'all' = raw === 'none' || raw === 'selective' ? raw : 'all';
-    const idx = indexLines(s, (c) => (c.player.policies.publishSafety = pol));
     const costs: CostLine[] = [];
-    const gains: CostLine[] = [];
     if (pol === 'all') {
       const perYear = (Object.keys(s.player.safety.agendas) as AgendaId[]).reduce((a, ag) => a + lineResultsPerYear(s, ag), 0);
-      const lag = perYear > 0 ? Math.max(1, Math.round(365 / perYear)) : 365;
       const pace = perYear > 0 ? `about ${perYear.toFixed(1)} results a year at today's staffing` : 'no line is producing results now';
-      gains.push(
-        { currency: 'credibility', amount: 2, unit: 'per result', lagDays: lag, target: `each new result is published when it lands (${pace})` },
-        { currency: 'talent', amount: 1, unit: 'per result', lagDays: lag, target: 'safety researchers like labs that publish' },
-      );
-      costs.push({ currency: 'alignment', amount: 0, target: "rivals learn each result too: shared safety know-how +0.02 per instrument or eval, +0.04 per discovery" });
+      costs.push({ currency: 'alignment', amount: 0, target: `each new result is published when it lands (${pace}); rivals learn it too: shared safety know-how +0.02 per instrument or eval, +0.04 per discovery` });
     } else {
-      costs.push({ currency: 'credibility', amount: 0, target: pol === 'none' ? 'nothing is published unless you press Publish on a result' : 'you choose each result to publish (Publish on the result)' });
+      costs.push({ currency: 'alignment', amount: 0, target: pol === 'none' ? 'nothing is published unless you press Publish on a result' : 'you choose each result to publish (Publish on the result)' });
     }
-    for (const l of idx) (l.amount >= 0 ? gains : costs).push(l);
-    return { costs, gains, exposure: [] };
+    return { costs, gains: [], exposure: [] };
   },
   apply(s, ctx, p) {
     const pol = str(p, 'policy');
@@ -472,39 +441,21 @@ const POLICY: ActionDef = {
 const PLEDGE: ActionDef = {
   id: 'safety.pledge', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Monitorability pledge',
   available: (s) => !s.player.safety.monitorabilityCommitment || 'Already pledged',
-  // SR-01 (inventory O2): what apply does: credibility +8, government evaluators' trust +4, a live commitment, and in
-  // training the push toward obfuscated reasoning (E15) ×0.5. It blocks no design choice; breaking it costs its
-  // breakCost. The Safety Index effect is gradePlayer on a copy with the commitment.
-  preview: (s) => {
-    const idx = indexLines(s, (c) => {
-      c.player.safety.monitorabilityCommitment = true;
-      c.commitments.push({ id: 'C-mon-preview', kind: 'monitorabilityPledge', title: 'Monitorability pledge', condition: { predicate: 'monitorabilityPledge', params: {} }, audience: [], breakCost: { trust: 15, credibility: 20 }, signedDay: s.time.day, status: 'live', amendments: 0 });
-    });
-    return {
-      costs: [
-        { currency: 'credibility', amount: 0, target: 'a public promise: it blocks no design choice, but breaking it later costs credibility −20 and trust −15 with evaluators and the safety bloc' },
-        ...idx.filter((l) => l.amount < 0),
-      ],
-      gains: [
-        { currency: 'credibility', amount: 8 },
-        { currency: 'trust', amount: 4, target: 'government evaluators' },
-        { currency: 'monitorability', amount: 0.5, unit: '×', target: 'training pushes toward obfuscated reasoning half as hard' },
-        ...idx.filter((l) => l.amount >= 0),
-      ],
-      exposure: [],
-    };
-  },
+  // SR-01 (inventory O2): what apply does: a live commitment, and in training the push toward obfuscated reasoning
+  // (E15) ×0.5. It blocks no design choice.
+  preview: () => ({
+    costs: [{ currency: 'monitorability', amount: 0, target: 'a public promise: it blocks no design choice; breaking it ends the pledge' }],
+    gains: [{ currency: 'monitorability', amount: 0.5, unit: '×', target: 'training pushes toward obfuscated reasoning half as hard' }],
+    exposure: [],
+  }),
   apply(s, ctx) {
     s.player.safety.monitorabilityCommitment = true;
     if (!s.commitments.some((c) => c.kind === 'monitorabilityPledge' && c.status === 'live')) {
       s.commitments.push({
         id: `C-mon-${ctx.day}`, kind: 'monitorabilityPledge', title: 'Monitorability pledge',
-        condition: { predicate: 'monitorabilityPledge', params: {} }, audience: ['evalGov', 'evalIndep', 'bloc:safety'],
-        breakCost: { trust: 15, credibility: 20 }, signedDay: ctx.day, status: 'live', amendments: 0,
+        condition: { predicate: 'monitorabilityPledge', params: {} }, signedDay: ctx.day, status: 'live', amendments: 0,
       });
     }
-    ctx.bump('relations.credibility', 8, 'monitorability pledge');
-    ctx.bump('trust:evalGov', 4, 'monitorability pledge');
     ctx.log('company', 'We pledge to keep reasoning legible: no latent reasoning, no CoT pressure.', 3);
   },
 };
@@ -524,8 +475,7 @@ const FRAMEWORK_EVALS: ActionDef = {
   available: () => true,
   preview(s, p) {
     // What apply does: external releases wait for a suite at this depth (internal use is never held by it); with the
-    // propensity evals tool, any assessment weakens hacking → persona drift (E01) ×0.7 in training (traits.ts); the
-    // Safety Index reads external review.
+    // propensity evals tool, any assessment weakens hacking → persona drift (E01) ×0.7 in training (traits.ts).
     const fw = frameworkOf(s);
     const to = fwDepthParam(p, s);
     const ext = fwExternalParam(p, s);
@@ -544,7 +494,6 @@ const FRAMEWORK_EVALS: ActionDef = {
       if (to === 'none') costs.push({ ...line, amount: -1 });
       else gains.push(line);
     }
-    for (const l of indexLines(s, (c) => { const f = frameworkOf(c); f.evalDepth = to; f.externalReview = ext; })) (l.amount >= 0 ? gains : costs).push(l);
     return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
@@ -599,7 +548,7 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
   id: 'safety.frameworkOverride', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: override',
   available: () => true,
   preview(s, p) {
-    const c = overrideConsequences(s);
+    const c = overrideConsequences();
     const ruleId = str(p, 'ruleId');
     const versionId = str(p, 'versionId');
     // CP3d: a refused override (no such rule / version, already overridden) costs nothing: the preview says why.
@@ -609,8 +558,6 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
     const costs: CostLine[] = [
       { currency: 'morale', amount: c.moraleSafety, target: c.lines[0] },
       redFlagLine(s),
-      { currency: 'scrutiny', amount: c.scrutiny, target: c.lines[1] },
-      ...(c.credibility ? [{ currency: 'credibility' as const, amount: c.credibility, target: c.lines[2] }] : []),
     ];
     const what = released.map((h) => (h.target === 'training' ? 'frontier training' : `product ${h.depId}`)).join(', ');
     const gains: CostLine[] = [{ currency: 'progress', amount: released.length, unit: released.length === 1 ? 'hold' : 'holds', target: `released: ${what || 'none in force (launches of this version stop being held by this rule)'}` }];
@@ -833,6 +780,42 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, CONTROL_SETTING, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
+// ───────── Pledges that sign a commitment (research/17 §1.4; ids A1, A3, A6 kept from the relations catalog) ─────────
+// The trust, credibility and bloc effects they had went with the relation stocks (W1c); W4/W5 add approval and
+// government trust.
+
+const PREDEPLOY_TESTING: ActionDef = simpleAction({
+  id: 'A1', verb: 'policy', system: 'relations', title: 'Pre-deploy testing',
+  available: (s) => (hasCommitment(s, 'preDeployTesting') ? 'Already signed' : true),
+  preview: () => pv([L('leadDays', 21, 'each frontier launch'), L('staffTime', 5)], [], [L('security', 15, 'gov awareness → security demand', { lagDays: 30 })]),
+  apply(s, ctx) {
+    signCommitment(s, ctx, 'testingAgreement', 'Pre-deployment testing with government evaluators', 'preDeployTesting', { days: 21 });
+    ctx.bump('gov.awareness', 15, 'A1 testing agreement');
+  },
+});
+
+// RF-S2 (review safety #4, decision 9): publishing = committing to your Safety framework's rules (safety/framework.ts);
+// its holds enforce them and an override is the visible departure.
+const PUBLISH_FRAMEWORK: ActionDef = simpleAction({
+  id: 'A3', verb: 'policy', system: 'relations', title: 'Publish framework',
+  available: (s) => (frameworkPublished(s) ? 'Framework already live' : true),
+  preview: () => pv([L('freedom', 1, 'thresholds bind')]),
+  apply(s, ctx) {
+    signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {});
+  },
+});
+
+const WHISTLEBLOWER_CHANNEL: ActionDef = simpleAction({
+  id: 'A6', verb: 'policy', system: 'relations', title: 'Whistleblower channel',
+  available: (s) => (s.player.policies.whistleblowerChannel ? 'Channel already open' : true),
+  preview: () => pv([L('staffTime', 3, 'handling reports')], [L('morale', 5, 'safety staff')]),
+  apply(s, ctx) {
+    s.player.policies.whistleblowerChannel = true;
+    signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {});
+    moraleSafety(ctx, 5, 'A6 whistleblower channel');
+  },
+});
+
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, CONTROL_SETTING, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK, PREDEPLOY_TESTING, PUBLISH_FRAMEWORK, WHISTLEBLOWER_CHANNEL];
 
 

@@ -13,14 +13,14 @@
 //              holds the daily frameworkSystem); a hold remains for what the package cannot meet (evidence: an eval suite,
 //              an external evaluation) or a part the player removed afterwards.
 //   override   explicit, per rule and version; its consequences are stated in the preview and applied as stated
-//              (safety morale, one red flag, scrutiny, credibility when the framework is published).
+//              (safety morale, one red flag).
 //   base rule  every external release needs a capability assessment: a suite at `evalDepth` (none = no release
 //              suite) and, with `externalReview`, external evaluators' reading (replaces the eval gate).
 // Holds read only what the player can see (measured levels, beliefs, owned safeguards), never truth.
 import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx, TimelineWorld } from '../types';
 import { defaultFramework, defaultFrameworkRules, frameworkHighL, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { frameworkPublished, measuredDomain } from '../actors/commitments';
-import { ws4, ws4r } from '../actors/state';
+import { ws4 } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
 import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
@@ -41,9 +41,10 @@ export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety
 const isExternal = (ch: string) => ch !== 'internal';
 const liveInternal = (s: GameStateV2) => s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live');
 
-/** External evaluators have read this version (an evaluator report, or a suite run by them). */
-export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
-  return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
+/** External evaluators have read this version (a suite run by them; the evaluator reports went with the research
+ *  bodies, W1c). */
+export function externallyEvaluated(v: ModelVersion): boolean {
+  return Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }
 
 export { frameworkPublished };
@@ -91,7 +92,7 @@ export function missingFor(s: GameStateV2, rule: FrameworkRule, v: ModelVersion,
     if (!ok) out.push(SAFEGUARD_NEED_LABEL[g]);
   }
   for (const e of rule.evidence) {
-    const ok = e === 'suite' ? v.evals.suiteDay !== undefined : externallyEvaluated(s, v);
+    const ok = e === 'suite' ? v.evals.suiteDay !== undefined : externallyEvaluated(v);
     if (!ok) out.push(EVIDENCE_NEED_LABEL[e]);
   }
   return out;
@@ -117,7 +118,7 @@ export function assessmentBlock(s: GameStateV2, v: ModelVersion): string | undef
   const fw = frameworkOf(s);
   if (fw.evalDepth === 'none') return undefined;
   if (v.evals.suiteDay === undefined) return 'Not evaluated yet (your Safety framework asks for evals)';
-  if (fw.externalReview && !externallyEvaluated(s, v)) return 'Needs an external evaluation (your Safety framework)';
+  if (fw.externalReview && !externallyEvaluated(v)) return 'Needs an external evaluation (your Safety framework)';
   return undefined;
 }
 
@@ -218,15 +219,9 @@ export function refreshFramework(s: GameStateV2, ctx?: SystemCtx): FrameworkHold
 }
 
 /** What an override of `ruleId` for `versionId` costs, as stated lines (the override's preview and its record). */
-export function overrideConsequences(s: GameStateV2): { moraleSafety: number; scrutiny: number; credibility: number; lines: string[] } {
-  const pub = frameworkPublished(s);
-  const credibility = pub ? OVERRIDE_COST.credibility : 0;
-  const lines = [
-    `staff: safety-team morale −${OVERRIDE_COST.moraleSafety} and one red flag (raises the odds of a staff leak)`,
-    `government: scrutiny +${OVERRIDE_COST.scrutiny} (a departure from your own framework is reportable)`,
-    pub ? `reputation: credibility −${credibility} (you break your published framework)` : 'reputation: none now (the framework is not published)',
-  ];
-  return { moraleSafety: OVERRIDE_COST.moraleSafety, scrutiny: OVERRIDE_COST.scrutiny, credibility, lines };
+export function overrideConsequences(): { moraleSafety: number; lines: string[] } {
+  const lines = [`staff: safety-team morale −${OVERRIDE_COST.moraleSafety} and one red flag (raises the odds of a staff leak)`];
+  return { moraleSafety: OVERRIDE_COST.moraleSafety, lines };
 }
 
 /** Override a rule for one version: releases its holds on that version (deploy and training). Returns a reason or undefined. */
@@ -242,10 +237,8 @@ export function overrideRule(s: GameStateV2, ctx: SystemCtx, ruleId: string, ver
   if (why) return why;
   const fw = frameworkOf(s);
   const rule = fw.rules.find((r) => r.id === ruleId)!;
-  const c = overrideConsequences(s);
+  const c = overrideConsequences();
   ctx.bump('morale.safety', -c.moraleSafety, 'Safety framework override', rule.label);
-  ctx.bump('relations.scrutiny', c.scrutiny, 'Safety framework override', rule.label);
-  if (c.credibility) ctx.bump('relations.credibility', -c.credibility, 'Safety framework override', rule.label);
   ws4(s).redFlags++;
   fw.overrides.push({ ruleId, versionId, day: s.time.day, consequences: c.lines });
   ctx.log('company', `Safety framework overridden: "${rule.label}" for ${s.player.models.versions.find((v) => v.id === versionId)?.name ?? versionId}.`, 2, versionId);

@@ -93,7 +93,7 @@ check(pE.join() === pV.join() && show(nE) === show(nV), 'withFrameworkParts: sam
 // 5. Commitments: Vetted counts as an external deployment.
 {
   const s = load();
-  const c: Commitment = { id: 'Cmk2', kind: 'testingAgreement', title: 'MK-2 test', condition: { predicate: 'preDeployTesting', params: { days: 100000 } }, audience: [], breakCost: { trust: 0, credibility: 0 }, signedDay: -1, status: 'live', amendments: 0 };
+  const c: Commitment = { id: 'Cmk2', kind: 'testingAgreement', title: 'MK-2 test', condition: { predicate: 'preDeployTesting', params: { days: 100000 } }, signedDay: -1, status: 'live', amendments: 0 };
   const cand = (channel: string) => ({ versionId: v.id, channel, safeguards: 'classifiers', usagePolicy: { noSurveillance: true, noAutonomousWeapons: true } });
   for (const ch of ['enterprise', 'vetted', 'internal']) console.log(`  preDeployTesting on ${ch.padEnd(10)}: scope ${DEPLOY_SCOPE.preDeployTesting(ch)}; clause ${deployClause(s, c, cand(ch)) ?? 'none'}; gate predicate ${PREDICATES.preDeployTesting(s, { days: 100000, versionId: v.id, channel: ch }, c)}`);
   check(DEPLOY_SCOPE.preDeployTesting('vetted') && !!deployClause(s, c, cand('vetted')), 'pre-deployment testing binds a Vetted launch (external)');
@@ -108,7 +108,7 @@ check(pE.join() === pV.join() && show(nE) === show(nV), 'withFrameworkParts: sam
 // 6. Usage terms are Vetted's: they gate Vetted launches, not Enterprise ones.
 {
   const s = load();
-  const c: Commitment = { id: 'Cmk2u', kind: 'usageRestriction', title: 'No mass surveillance or autonomous weapons', condition: { predicate: 'noSurveillance', params: {} }, audience: [], breakCost: { trust: 0, credibility: 0 }, signedDay: s.time.day, status: 'live', amendments: 0 };
+  const c: Commitment = { id: 'Cmk2u', kind: 'usageRestriction', title: 'No mass surveillance or autonomous weapons', condition: { predicate: 'noSurveillance', params: {} }, signedDay: s.time.day, status: 'live', amendments: 0 };
   s.commitments.push(c);
   const none = { noSurveillance: false, noAutonomousWeapons: false };
   const clV = deployClause(s, c, { versionId: v.id, channel: 'vetted', safeguards: 'classifiers', usagePolicy: none });

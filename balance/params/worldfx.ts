@@ -289,13 +289,6 @@ export const PARAMS_WORLDFX = defineParams([
   }),
   inl('actions.transitionFundApproval', 'actions.ts', "ctx.bump('pub.approval', Math.min(5, d * 0.4), 'transition fund');", 0.4, 'approval per $B/yr', {
     ...W, actor: 'public', kind: 'untagged', evidence: 'no tag; actions.ts:62; doc comment :14-16 cites research/16 §1A.2 step 9 and research/07 for the fund, not these effects',
-    notes: 'The preview (actions.ts:33) repeats the numbers; the 5 cap, the 0.5 jobAnxiety relief (:63) and labor trust 0.6 (:64) are siblings.',
-  }),
-  inl('actions.transitionFundLaborTrust', 'actions.ts', "ctx.bump('trust:bloc:labor', Math.min(8, d * 0.6), 'transition fund');", 0.6, 'trust per $B/yr', {
-    ...W, actor: 'public', kind: 'untagged', evidence: 'no tag; actions.ts:64',
-  }),
-  inl('actions.moonshotRiskScrutiny', 'actions.ts', "{ currency: 'scrutiny', amount: 5, probability: 0.5, lagDays: 180 }", 5, 'scrutiny', {
-    ...W, actor: 'player', kind: 'untagged', evidence: 'no tag; actions.ts:129 (dual-use exposure of a risk technology)',
-    notes: 'Probability 0.5 and the China tension 3 at p 0.3 are siblings.',
+    notes: 'The preview (actions.ts:33) repeats the numbers; the 5 cap and the 0.5 jobAnxiety relief (:63) are siblings.',
   }),
 ]);

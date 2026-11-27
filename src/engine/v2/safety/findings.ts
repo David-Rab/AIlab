@@ -146,9 +146,6 @@ export function applyEffects(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, effec
       case 'flag':
         setFlag(s, a, ctx.day);
         break;
-      case 'trust':
-        // Applied on publication (publishFinding).
-        break;
     }
   }
 }
@@ -200,7 +197,6 @@ export function revealFalse(s: GameStateV2, ctx: SystemCtx, techniqueId: string)
   if (rec) {
     rec.type = 'FALSE';
     rec.revealedFalseDay = ctx.day;
-    if (rec.published) ctx.bump('relations.credibility', -5, 'safety', `retracted ${rec.id}`);
   }
   const p = dept.agendas[t.agenda].posterior;
   p.a = Math.max(0.5, p.a - 1);
@@ -450,8 +446,8 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
 }
 
 /**
- * Publish a finding (§3.5.3): knowledge.publishedFindings,
- * credibility +2, safety talent pull +1; SPILL leaks capability (every rival's and China's recipe +SPILL_G OOM); a DISC that
+ * Publish a finding (§3.5.3): knowledge.publishedFindings;
+ * SPILL leaks capability (every rival's and China's recipe +SPILL_G OOM); a DISC that
  * revealed a U-mode tells the world (presence × 0.7 for every lab).
  */
 export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string): void {
@@ -459,8 +455,6 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   if (!rec || rec.published) return;
   rec.published = true;
   s.knowledge.publishedFindings.push(rec.id);
-  ctx.bump('relations.credibility', 2, 'published research', rec.id);
-  ctx.bump('relations.talentPull', 1, 'published research', rec.id);
   if (rec.trueType === 'SPILL') {
     // N6: every active lab's lag falls a fixed small step (npc/shocks.ts spill).
     for (const m of shock.spillMoves(s)) {
@@ -470,9 +464,8 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   }
   const row = FINDING_BY_ID[rec.id];
   for (const eff of row?.effects ?? []) {
-    const [kind, a, b] = eff.split(':');
+    const [kind, a] = eff.split(':');
     if (kind === 'reveal') revealToWorld(s, a as UModeId);
-    if (kind === 'trust') ctx.bump(`trust:${a}`, Number(b), 'published research', rec.id);
   }
   if (rec.id.startsWith('DISC-')) revealToWorld(s, rec.id.slice(5, 8) as UModeId);
 }

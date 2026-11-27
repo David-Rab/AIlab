@@ -58,7 +58,7 @@ export interface StartDef {
   lagMonths: number;
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
   imported?: boolean;
-  /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10).
+  /** Modifiers (research/18 §6). talentPull: the start type's hiring pull (departments/market.ts pullOf; leader 10).
    *  (FIN2 removed patientQ with the board's revenue plan.) */
   mods: { talentPull: number };
 }

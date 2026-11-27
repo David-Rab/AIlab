@@ -8,7 +8,6 @@ const DET = 'src/engine/v2/safety/detection.ts';
 const AEV = 'src/engine/v2/safety/alignmentEvals.ts';
 const COMMON = 'src/engine/v2/safety/common.ts';
 const FIND = 'src/engine/v2/safety/findings.ts';
-const ACT = 'src/engine/v2/safety/actions.ts';
 const INC = 'src/engine/v2/safety/incidents.ts';
 const INV = 'src/engine/v2/safety/investigations.ts';
 const LOSS = 'src/engine/v2/safety/lossRisk.ts';
@@ -740,28 +739,6 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
     notes: 'Array order = DEAD factor, NEG base, NEG false-tool, DISC present, DISC absent, DISC rows, SPILL (DISC rows and SPILL also repeated at findings.ts:411-413).',
   },
   {
-    id: 'sfe.findings.publishCredibility',
-    ref: { kind: 'inline', file: FIND, anchor: "ctx.bump('relations.credibility', 2, 'published research', rec.id);" },
-    value: [2, 1], unit: 'credibility pts; talent pull pts per published result',
-    area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; findings.ts:465-466 (credibility +2, talentPull +1)',
-  },
-  {
-    id: 'sfe.actions.pledgeCredibility',
-    ref: { kind: 'inline', file: ACT, anchor: "ctx.bump('relations.credibility', 8, 'monitorability pledge');" },
-    value: [8, 4], unit: 'credibility pts; evaluator trust pts',
-    area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; actions.ts:478-479 "SR-01 (inventory O2): what apply does: credibility +8, government evaluators\' trust +4"',
-    notes: 'Array = [credibility +8, evalGov trust +4]; the preview repeats them (actions.ts:493-494).',
-  },
-  {
-    id: 'sfe.actions.pledgeBreakCost',
-    ref: { kind: 'inline', file: ACT, anchor: "breakCost: { trust: 15, credibility: 20 }, signedDay: ctx.day" },
-    value: [15, 20], unit: 'trust pts; credibility pts lost on breaking',
-    area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; actions.ts:506',
-  },
-  {
     id: 'sfe.incidents.dispositionExponent',
     ref: { kind: 'inline', file: INC, anchor: 'Math.pow(Math.max(0, x), 1.5)' },
     value: 1.5, unit: 'exponent',
@@ -779,18 +756,18 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
   {
     id: 'sfe.incidents.publicTimer',
     ref: { kind: 'inline', file: INC, anchor: 'let t = Math.round(rng.range(14, 60));' },
-    value: [14, 60, 15, 3, 0.1], unit: 'days (lo, hi, SB 53 cap, RAISE cap); share per outsider',
+    value: [14, 60, 15, 3], unit: 'days (lo, hi, SB 53 cap, RAISE cap)',
     area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; incidents.ts:287 "Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d; fewer with outsiders."',
-    notes: 'Array = [14, 60, SB 53 15, RAISE 3, outsider cut 0.1 each].',
+    evidence: 'no tag; incidents.ts "Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d."',
+    notes: 'Array = [14, 60, SB 53 15, RAISE 3]. The outsider cut (0.1 each) went with the relation stocks (W1c).',
   },
   {
     id: 'sfe.incidents.coverUpDiscovery',
-    ref: { kind: 'inline', file: INC, anchor: 'clamp01(0.05 + 0.25 * pp)' },
-    value: [0.05, 0.25], unit: 'per-outsider discovery odds: base, per publish pressure',
+    ref: { kind: 'inline', file: INC, anchor: 'return s.player.policies.whistleblowerChannel ? 0.05 : 0.1;' },
+    value: [0.05, 0.1], unit: 'discovery odds of a covered-up incident: with / without a whistleblower channel',
     area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; incidents.ts:365 "Discovery odds of a covered-up incident (§3.9.3): 1 − Π(1 − p_k), p_k = 0.05 + 0.25·publishPressure."',
-    notes: 'Also whistleblower-channel factor 0.95 / 0.9 on the next lines (overflow).',
+    evidence: 'no tag; incidents.ts "Discovery odds of a covered-up incident (§3.9.3): insiders only, 0.1 (0.05 with a whistleblower channel)."',
+    notes: 'W1c: the outsider terms (0.05 + 0.25 × publish pressure per outsider with access) went with the relation stocks; insiders 0.9 / 0.95 miss kept.',
   },
   {
     id: 'sfe.investigations.outcomeWeights',

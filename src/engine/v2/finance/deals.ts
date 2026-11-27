@@ -203,7 +203,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
     return { ...base, tranches, supply, strings: strings(), years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * ST.exclusiveBump } } };
   }
   const t = PARTNER_TERMS.sovereign;
-  return { ...base, equityNow: Math.max(t.min, Math.min(t.max, t.equityShareOfV * V)), politics: { scrutiny: t.scrutiny, congress: t.congress, securityDemand: t.securityDemand } };
+  return { ...base, equityNow: Math.max(t.min, Math.min(t.max, t.equityShareOfV * V)), politics: { securityDemand: t.securityDemand } };
 }
 /** Take-or-pay payments due in the first four quarters of a deal's supply, with any part of the first delivery prepaid at
  *  signing (FIN5a) ($B): the board's commitments test (§7.3). */
@@ -287,8 +287,6 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
     }
   }
   if (t.politics) {
-    ctx.bump('relations.scrutiny', t.politics.scrutiny, `${partner} cheque`);
-    ctx.bump('trust:congress', t.politics.congress, `${partner} cheque`);
     ctx.bump('gov.securityDemand', t.politics.securityDemand, `${partner} cheque`);
   }
   s.capital.ws3.anchors[partner] = 'player';

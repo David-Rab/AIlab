@@ -69,7 +69,6 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
     : lossLike ? { label: 'Odds the labs still racing keep control', value: epilogueSurvival(s) } : { label: 'This ending', value: 50 }];
   // Freedom
   const freedom: ScoreTerm[] = [power !== 'none' ? { label: `Power held by ${POWER_LABEL[power]}`, value: FREEDOM_BASE[power] } : { label: 'This ending', value: FREEDOM_NONE[id] ?? FREEDOM_BASE.none }];
-  if (w.unrestrictedDefense) freedom.push({ label: 'Unrestricted defense contract', value: -10 });
   if ((s.world.control.MIL?.tiers[3] ?? 0) > 0.1) freedom.push({ label: 'AI makes military decisions', value: -10 });
   const kept = transparencyKept(s);
   if (kept) freedom.push({ label: `Transparency commitments kept (${kept})`, value: Math.min(15, 5 * kept) });

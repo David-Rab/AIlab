@@ -693,8 +693,6 @@ for (const a of FINANCE_ACTIONS) {
     check(m.inc === 2 && m.behind === 0 && m.res === 0.5 && m.set === 1 && fi.inc === 0.5 && fi.behind === 1.5 && fi.res === 1.5 && fi.set === 1 && MOOD_WEIGHTS.setbacks.independent === 1.5, 'FIN3a mood weights by seat kind (financial / mission / independent: promises 1.5/0.5/1, setbacks 1/1/1.5, behind 1.5/0/0.5, incidents 0.5/2/1)');
     const g = newGame(defaultSetupV2({ seed: 3 }));
     while (g.time.day < 400) {
-      const gr = g.researchBodies.index.grades;
-      if (gr.player) gr.player.letter = 'A';
       tick(g, { skip: ['endings'] });
     }
     const srcs = new Set((g.causes.byKey['board.confidence'] ?? []).map((e) => e.source));
@@ -923,7 +921,6 @@ for (const a of FINANCE_ACTIONS) {
     const pv = E32.choices[i].preview(s, d);
     const f = s.player.finance;
     const cash0 = f.cash;
-    const scr0 = s.relations.scrutiny;
     const cap0 = s.player.staff.cap;
     const n0 = f.ledger.length;
     const heads = Math.round(r.core.staff.cap * 0.7) + Math.round(r.core.staff.saf * 0.7);
@@ -933,8 +930,8 @@ for (const a of FINANCE_ACTIONS) {
     const priceLine = pv.costs.find((c) => c.currency === 'cash')!;
     const obl = pv.exposure.filter((c) => c.currency === 'cash').map((c) => -c.amount);
     const staffLine = pv.gains.find((c) => c.currency === 'staffTime')!;
-    check(!err && Math.abs(cash0 - f.cash - t.price) < 1e-6 && f.ledger.length === n0 + 1 && !!e && e.perQuarter === t.obligations.perQ && e.cancellableNoticeQ === null && Math.abs(e.endDay - s.time.day - 730) <= 1 && !!debt && debt.drawn === 3 && r.core.status === 'merged' && s.relations.scrutiny > scr0 && s.player.staff.cap > cap0, 'FIN3c paying cash: the price leaves cash, its contracts become one firm ledger entry over 8 quarters, its debt drawn debt (no cash moves), its staff join, antitrust scrutiny rises, the lab is gone', `${err ?? ''} cash −$${f1(cash0 - f.cash)}B · entry $${f1(e?.perQuarter ?? 0)}B/q to day ${e?.endDay} · debt $${f1(debt?.drawn ?? 0)}B at ${debt ? debtRatePct(s, debt).toFixed(1) : '?'}%`);
-    check(Math.abs(priceLine.amount - Math.round(t.price * 10) / 10) < 1e-9 && Math.abs(obl[0] - Math.round(t.obligations.total * 10) / 10) < 1e-9 && Math.abs(obl[1] - 3) < 1e-9 && staffLine.amount === heads && pv.costs.some((c) => c.currency === 'scrutiny' && c.amount === 20), 'FIN3c the offer preview matches the effects: price, contracts and debt taken on, staff gained, antitrust scrutiny', `$${priceLine.amount}B · $${obl.join('B + $')}B · +${staffLine.amount} staff`);
+    check(!err && Math.abs(cash0 - f.cash - t.price) < 1e-6 && f.ledger.length === n0 + 1 && !!e && e.perQuarter === t.obligations.perQ && e.cancellableNoticeQ === null && Math.abs(e.endDay - s.time.day - 730) <= 1 && !!debt && debt.drawn === 3 && r.core.status === 'merged' && s.player.staff.cap > cap0, 'FIN3c paying cash: the price leaves cash, its contracts become one firm ledger entry over 8 quarters, its debt drawn debt (no cash moves), its staff join, the lab is gone', `${err ?? ''} cash −$${f1(cash0 - f.cash)}B · entry $${f1(e?.perQuarter ?? 0)}B/q to day ${e?.endDay} · debt $${f1(debt?.drawn ?? 0)}B at ${debt ? debtRatePct(s, debt).toFixed(1) : '?'}%`);
+    check(Math.abs(priceLine.amount - Math.round(t.price * 10) / 10) < 1e-9 && Math.abs(obl[0] - Math.round(t.obligations.total * 10) / 10) < 1e-9 && Math.abs(obl[1] - 3) < 1e-9 && staffLine.amount === heads, 'FIN3c the offer preview matches the effects: price, contracts and debt taken on, staff gained', `$${priceLine.amount}B · $${obl.join('B + $')}B · +${staffLine.amount} staff`);
   }
   // Pay in stock: new shares to its holders at your valuation; cash untouched.
   {
@@ -1115,11 +1112,11 @@ for (const a of FINANCE_ACTIONS) {
     // Sovereign: a passive cheque with the political cost and no in-country site.
     const s = fx();
     const sites0 = s.player.sites.length;
-    const scr0 = s.relations.scrutiny;
+    const sd0 = s.gov.securityDemand;
     const t = partnerTerms(s, 'Gulf Sovereign Fund');
     const err = signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
     const d = dealWith(s, 'Gulf Sovereign Fund');
-    check(!err && s.player.sites.length === sites0 && s.relations.scrutiny > scr0 && !!t.politics && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque with its political cost (scrutiny, Congress, security demand) and no in-country site', `$${f1(t.equityNow)}B · scrutiny ${f1(scr0)} → ${f1(s.relations.scrutiny)}`);
+    check(!err && s.player.sites.length === sites0 && s.gov.securityDemand > sd0 && !!t.politics && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque with its political cost (security demand) and no in-country site', `$${f1(t.equityNow)}B · security demand ${f1(sd0)} → ${f1(s.gov.securityDemand)}`);
   }
   {
     // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.

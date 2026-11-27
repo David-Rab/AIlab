@@ -10,9 +10,8 @@ import { RELEASE_CADENCE_DAYS } from '../../../data/v2/npcLabs';
 import { distillFit, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
 import { licensedModel } from '../finance/observe';
 import { CHINA_ID, PLAYER_ID, activeRivals, bestG, versionById } from '../models/labs';
-import { ws4 } from '../actors/state';
 import { decimalYear } from '../core/time';
-import { clockOfGAt, persOf } from './lab';
+import { clockOfGAt } from './lab';
 import type { GameStateV2, LabId, RivalLab } from '../types';
 
 // ───────────────────────────── parameters (N6; listed in design/archive/npc/N6-RESULT.md) ─────────────────────────────
@@ -23,13 +22,9 @@ import type { GameStateV2, LabId, RivalLab } from '../types';
 export const THEFT_INTEGRATION_DAYS = 60;
 /** Treaty: the reference clock's speed under a verified treaty (the former research-rate multiplier) [D]. */
 export const TREATY_CLOCK_RATE = 0.65;
-/** Joint evals: one step of the partners' safety emphasis (the step of the posture's evalRigor today, C3) [D]. */
-export const JOINT_EVAL_STEP = 0.05;
 /** Safety spillover (a spilling safety finding published): the fixed step every lab's lag falls, days [D]: SPILL_G's
  *  0.024 OOM at the reference's early pace of about 1.2 OOM a year. */
 export const SPILL_DAYS = 7;
-/** Track-2 dialogue (E1): the fixed step China's lag falls, days [D]: the former 1% share of its ~200-day gap. */
-export const TRACK2_DAYS = 2;
 
 // ───────────────────────────── the reference clock and positions ─────────────────────────────
 
@@ -83,10 +78,6 @@ export function theft(s: GameStateV2, stolenG: number): number {
   return move(cn, Math.max(0, cn.npc.d - (pos + THEFT_INTEGRATION_DAYS)));
 }
 
-/** PUBLISH (A4): every lab behind the player's best model moves RECIPE_LEAK_SHARE.publish of the way to it. */
-export const publishMoves = (s: GameStateV2): Move[] => pulls(s, playerPos(s), RECIPE_LEAK_SHARE.publish);
-export const publish = (s: GameStateV2) => apply(publishMoves(s));
-
 /** OPEN WEIGHTS (C6 and any open release; `releaser` = the lab's id or 'player'): above the open frontier, every other lab
  *  behind the released model moves RECIPE_LEAK_SHARE.openWeights of the way to it. */
 export const openWeightsMoves = (s: GameStateV2, releaser: LabId, G: number): Move[] =>
@@ -126,32 +117,14 @@ export function poachInDays(s: GameStateV2, r: RivalLab, moved: number): number 
   return Math.max(0, tacitShare(moved, r.core.staff.cap) * (pp - r.npc.d));
 }
 export const poachIn = (s: GameStateV2, r: RivalLab, moved: number) => move(r, -poachInDays(s, r, moved));
-/** LET GO (E16): `moved` of the player's `staff` heads join the rival; its lag falls by the tacit share moved of the days it
- *  trails the player. */
-export const letGoDays = (s: GameStateV2, r: RivalLab, moved: number, staff: number) => pullDays(r, playerPos(s), tacitShare(moved, staff));
-export const letGo = (s: GameStateV2, r: RivalLab, moved: number, staff: number) => move(r, letGoDays(s, r, moved, staff));
 
-/** JOINT EVALS (C3): the partner's safety emphasis rises one step (kept as a personality override on the lab, and in the
- *  posture the safety readers still take through postureOf until N2b-2's adapter goes). */
-export function jointEvals(s: GameStateV2, r: RivalLab): number {
-  if (!r.npc) return 0;
-  const was = persOf(r.npc).safetyEmphasis;
-  const now = Math.min(1, was + JOINT_EVAL_STEP);
-  r.npc.pers = { ...persOf(r.npc), safetyEmphasis: now };
-  const pd = (ws4(s).postureDelta[r.core.id] ??= {});
-  pd.safetyInvestment = (pd.safetyInvestment ?? 0) + (now - was);
-  return now - was;
-}
-
-/** SAFETY SPILLOVER (a SPILL finding published) and TRACK-2 (E1): a fixed small step down the lag, not past the player. */
+/** SAFETY SPILLOVER (a SPILL finding published): a fixed small step down the lag, not past the player. */
 const stepMoves = (s: GameStateV2, rs: RivalLab[], days: number): Move[] => {
   const pp = playerPos(s);
   return rs.map((lab) => ({ lab, days: Math.min(days, pullDays(lab, pp, 1)) })).filter((m) => m.days > 0);
 };
 export const spillMoves = (s: GameStateV2): Move[] => stepMoves(s, labs(s), SPILL_DAYS);
 export const spill = (s: GameStateV2) => apply(spillMoves(s));
-export const track2Moves = (s: GameStateV2): Move[] => (s.china.lab.core.status === 'active' ? stepMoves(s, [s.china.lab], TRACK2_DAYS) : []);
-export const track2 = (s: GameStateV2) => apply(track2Moves(s));
 
 /** CHINA'S SECRETS LEAK: a daily pull toward the player's position by the channel's strength `share` (a fraction of the gap
  *  a day; security/theft.ts secretsLeakDaily: spies × weak security). Returns the days gained. */

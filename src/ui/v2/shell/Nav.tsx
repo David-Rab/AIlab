@@ -21,7 +21,7 @@ export const NAV: NavItem[] = [
   { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: lineup, tools, price, safeguards (all live), and serving.', group: 'R&D' },
   { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Traits, safety research, instruments, safeguards, incidents and cases.', group: 'R&D' },
   { id: 'finance', label: 'Finance', icon: ICON.finance, desc: 'Cash flow, raising, contracts, debt, board and markets.', group: 'COMPANY & WORLD' },
-  { id: 'relations', label: 'Relations', icon: ICON.relations, desc: 'Government, public, rivals, China, evaluators; commitments.', group: 'COMPANY & WORLD' },
+  { id: 'relations', label: 'Relations', icon: ICON.relations, desc: 'Government, public, China; commitments.', group: 'COMPANY & WORLD' },
   { id: 'world', label: 'World', icon: ICON.world, desc: 'World risk (rival labs, China, misuse, theft, war), AI at work by sector, jobs, control index, technologies.', group: 'COMPANY & WORLD' },
   { id: 'codex', label: 'Codex', icon: ICON.codex, desc: 'How the game works (the core loop), every limit, term, trait, idea, benchmark and event.' },
 ];
