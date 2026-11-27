@@ -9,8 +9,10 @@
 //   assist     win rate w = Φ((F_w − F^med)/S_WIN); human speed-up 1/(M + R + (1 − w)) when > 1 (GDPval)
 //   AI labour  FTE = compute × 8766 h ÷ (H100e-hours per work-hour) ÷ 2000 h; H100e-hours per work-hour = 2·N_active ×
 //              (200k uncached input ÷ 0.35 + 40k output ÷ 0.07) ÷ 1e15 ÷ 3600 (physical: FLOP per token, utilisation)
-//   labour     L_w = [(1 − a)^(1−ρc)·(H·assist)^ρc + a^(1−ρc)·AI^ρc]^(1/ρc) (AI Futures coding CES); m_w = L_w / H multiplies
-//              every allocation of the role's teams (agents add capacity to the same allocations, MODEL-V3 §5.6)
+//   labour     optimal human/AI task split (production/ces.ts optimalLabour; LABOUR-ROUND §1). h = H·assist: AI scarce
+//              (AI ≤ a·(h + AI)): L = h + AI; else AI takes every covered task: L = [(1 − a)^(1−ρc)·h^ρc + a^(1−ρc)·AI^ρc]^(1/ρc)
+//              (AI Futures coding CES); m_w = L_w / H multiplies every allocation of the role's teams (agents add capacity
+//              to the same allocations, MODEL-V3 §5.6). λ is applied by the caller to the total, not inside the split
 //   taste      sd_AI = 3.09·(F_IDEAS − F^med_IDEAS)/Δ_bm; a team's taste E[max(T_team, F_AI)] on the AIFM distribution
 //   safety     SAF_EXP / SAF_IDEAS on the safety package through the same functions; Trusted to AI t is the share of
 //              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
@@ -26,7 +28,7 @@ import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
-import { Lrel, Phi, tasteSigma } from '../production/ces';
+import { optimalLabour, Phi, tasteSigma } from '../production/ces';
 import { domainRefShift, gOfLevel, h50Of, h50Ratio, versionDomainG } from '../models/capability';
 import { measuredDomainOf } from '../models/labs';
 import { believedProd } from '../production/believed';
@@ -160,12 +162,22 @@ export function costPerWorkHour(s: GameStateV2, fpt: number): { ai: number; huma
 
 // ───────────────────────────── effective labour ─────────────────────────────
 
-/** Effective labour L_w (team-equivalents) of H human team-equivalents and AI team-equivalents at coverage a, with the
- *  assist speed-up on the human share: the AI Futures coding CES (research/13 §1.3, ρc and λ from the preset). */
-export function effLabour(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): number {
+/** The optimal human/AI task split of H human team-equivalents (with the assist speed-up on them) and AI team-equivalents
+ *  at coverage a (production/ces.ts optimalLabour; LABOUR-ROUND.md §1): L, AI's share of the tasks, and the humans' share
+ *  of the margin wH (h ÷ L when AI and humans share the covered tasks, since ∂L/∂h = 1; the CES weight when AI takes every
+ *  covered task). ρc from the preset; λ is not applied here (callers apply it once to the total). */
+export function labourSplit(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): { L: number; wH: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
   const h = Math.max(1e-12, H * assist);
-  if (a <= 1e-9) return h;
-  return Lrel({ rc: P.rc } as Pick<ProdParams, 'rc' | 'u' | 'v' | 'rho' | 'zeta' | 'lam'>, Math.min(1, a), h, Math.max(1e-12, AI));
+  if (a <= 1e-9) return { L: h, wH: 1, aiTaskShare: 0, regime: 'shared' };
+  const r = optimalLabour(P.rc, a, h, Math.max(1e-12, AI));
+  const wH = r.regime === 'shared' ? h / r.L : (Math.pow(1 - a, 1 - P.rc) * Math.pow(h, P.rc)) / Math.pow(r.L, P.rc);
+  return { ...r, wH };
+}
+
+/** Effective labour L_w (team-equivalents) of H human team-equivalents and AI team-equivalents at coverage a, with the
+ *  assist speed-up on the human share: the optimal task split (labourSplit; ρc from the preset). */
+export function effLabour(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): number {
+  return labourSplit(P, a, H, AI, assist).L;
 }
 
 // ───────────────────────────── taste ─────────────────────────────
@@ -346,9 +358,7 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
   const H = humansOf(s, slot) * (scale.h ?? 1);
   const AI = aiFte / def.heads;
   const P = s.hidden.timeline.prod;
-  const L = effLabour(P, fit.a, H, AI, fit.assist);
-  const hh = Math.max(1e-12, H * fit.assist);
-  const wH = fit.a >= 1 - 1e-12 ? 0 : fit.a <= 1e-9 ? 1 : (Math.pow(1 - fit.a, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
+  const { L, wH } = labourSplit(P, fit.a, H, AI, fit.assist);
   return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, t: 1, A: fit.a, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH, sAI: aiFte > 0 ? aiIdeasShare(H, fit.assist, L) : 0 };
 }
 
@@ -362,9 +372,7 @@ export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H:
   if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1 };
   const A = tt * Math.max(0, Math.min(1, a));
   const as = tt >= 1 ? assist : A >= 1 - 1e-12 ? assist : (1 - A) / (1 - tt + (tt * (1 - Math.min(1, a))) / assist);
-  const L = effLabour(P, A, H, AI, as);
-  const hh = Math.max(1e-12, H * as);
-  const wH = A >= 1 - 1e-12 ? 0 : A <= 1e-9 ? 1 : (Math.pow(1 - A, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
+  const { L, wH } = labourSplit(P, A, H, AI, as);
   return { L, m: L / H, wH, A, assist: as };
 }
 
