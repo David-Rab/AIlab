@@ -10,7 +10,7 @@ export const TARGETS = defineTargets([
     statement: 'The best RefBot model\'s effective-compute path G, as a least-squares line, stays within 0.2 G of five frontier anchors from 2025-08-15 to 2026-10-15 (28.0, 28.4, 28.7, 29.0, 29.4, shifted by the overtraining factor), about 1.1-1.3 G a year.',
     type: 'trajectory',
     metric: 'scripts/v2/calib.ts (line ~447): worst |least-squares line through RefBot\'s best-model G path minus anchor| over G_ANCHORS, seed 2027, ai2027 only',
-    presets: ['tl-fast', 'tl-central', 'tl-slow'], // shared measured history: every timeline,
+    presets: ['tl-fast', 'tl-central', 'tl-slow'], // shared measured history: every timeline
     policy: 'ref',
     value: { lo: 1.1, hi: 1.3, unit: 'G per year' },
     tolerance: '±0.2 G at each anchor; the 1.1-1.3 G/yr slope is printed, not checked',
@@ -36,7 +36,7 @@ export const TARGETS = defineTargets([
     statement: "The reference lab's pretraining stack grows about 0.48 OOM a year in its first year (Ho et al., before automation, ±30%).",
     type: 'rate',
     metric: 'scripts/v2/calib.ts --fit-lines: bisects LINE_FIT.mu so the pretraining stack grows HO_RATE OOM over the first year, ai2027; the "V2.8 stacks before SC" lines print the rate for every preset (no check)',
-    presets: ['tl-fast', 'tl-central', 'tl-slow'], // shared measured history: every timeline,
+    presets: ['tl-fast', 'tl-central', 'tl-slow'], // shared measured history: every timeline
     policy: 'ref',
     value: { p50: 0.48, lo: 0.336, hi: 0.624, unit: 'OOM/yr' },
     tolerance: '±30% (printed, not checked)',
