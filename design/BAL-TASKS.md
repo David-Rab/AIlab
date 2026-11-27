@@ -217,3 +217,9 @@ All of C1–C7 and every open-question recommendation are approved (Q3: stars at
 - **Designer: keep it simple → option C chosen.** No hiring queue: a new team appears at once with empty seats and works with whoever is in it (task on lab-noqueue, SCHEMA_REV 114).
 - **Superseded by the designer (2026-11-27): teams are whole chunks.** Hires build toward the next full team; no vacancies, no queue, no player leavers. Morale keeps only its effect on hiring speed. Poaching = with a premium, a share 1 − (1+π)^−ε of your hires come from rivals (who shrink). Staff-moving events move whole teams. Task on lab-chunks (SCHEMA_REV 114). The sourced 15.6%/yr separation is no longer used for the player.
 - Master moved (2026-11-27): the data-centre work (dc, 47ee6fc6) is on master; SCHEMA_REV 113 there; it moves calibration (design/dc/CALIBRATION-NOTE.md). **Merge master into bal after lab-chunks lands and BEFORE the CP/M4**, so M4 measures master + labour; renumber our SCHEMA_REV above master's.
+
+## Labour round merged to master (2026-11-27): master = 6f1448b6
+- Contents: L1–L19, teams as whole chunks (no vacancies/queue/leavers), master's data-centre work merged in, SCHEMA_REV 115.
+- Regressions found at CP and fixed: eval suites unstaffed and investigations blocked (cause: start safety RE 100 → 50 with REVIEW_STAFF set for 100 → REVIEW_STAFF 5 → 2.5 [D, lead's change, designer to confirm]; needs claim by order via needRoom); the successor AI-share floor (labourSplit min 1e-12 → 0).
+- CP results: UI 713 pass / 17 fail (20 before the round); quick-test failures otherwise expected-value shifts. Remaining vs master: none new in footholds/successor/safety.
+- Open for the designer: FOOTHOLD.removal staff sizes 10/5/10/5 (src/data/v2/danger.ts:239) were set for 100-head teams; a 10-head removal can't be staffed at day 400 with the default need order. M4 was stopped (0.1 games/min under load); rerun alone later.
