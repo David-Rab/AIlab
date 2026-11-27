@@ -10,18 +10,12 @@ import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
-import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
-import { LEADER_LAB_NAME } from '../../src/data/v2/names';
-import { postureOf } from '../../src/engine/v2/actors/rivals';
+import { cadencesDue } from '../../src/engine/v2/core/time';
 import { gV0 } from '../../src/engine/v2/models/capability';
-import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
-import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
-import { LEADER_ID } from '../../src/engine/v2/models/labs';
-import { hRef, refTotal } from '../../src/engine/v2/production/ces';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -173,43 +167,13 @@ const setups: SetupV2[] = [
   defaultSetupV2({ seed: 3, world: 'tl-central', baseline: 'reality', governance: 'founder', alignment: 'hard' }),
   defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy', gov: 'hawk', china: 'gambler' }),
   defaultSetupV2({ seed: 5, world: 'tl-fast', governance: 'nonprofitPBC', tutorial: false }),
-  defaultSetupV2({ seed: 6 }), // R2: the simulated leader lab
+  defaultSetupV2({ seed: 6 }), // the default cast
   defaultSetupV2({ seed: 7, world: 'tl-fast' }),
   // R9: every start type (the leader lab follows the start, D1).
   defaultSetupV2({ seed: 12, start: 'challenger' }),
   defaultSetupV2({ seed: 13, start: 'bigtech', world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
   defaultSetupV2({ seed: 14, start: 'spinout', baseline: 'reality' }),
 ];
-/** R2 leader lab: appended last with the fixed id at reference inputs; the 'world' draws and everything sampled from
- *  them (hidden world, sampled rivals, China, the player) are the same as with the flag off. */
-function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
-  const L = s.rivals[s.rivals.length - 1];
-  const yr = decimalYear(s);
-  check(L?.core.id === LEADER_ID && L.archetype === 'leader' && L.core.name === LEADER_LAB_NAME, `${tag}: leader lab appended last (${LEADER_ID})`);
-  if (!L) return;
-  const v0G = gV0(s.hidden.timeline); // the reference start model (= the leader start's V0)
-  // Model v3 F1: the start recipe is solved so the leader's start version on its start base is V0 (rivalModel.ts), and
-  // it is the leader's day-0 recipe (e ≈ 0: B0's dates make its recipe stale by B0's age; today's is the zero of e).
-  const e0 = recipeOf(s, L);
-  const g0 = L.internal.G;
-  check(Math.abs(g0 - v0G) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, L.phys.rec) >= g0,
-    `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `G ${g0} vs ${v0G}; e ${e0.toFixed(4)}`);
-  check(L.phys.eff === 1, `${tag}: leader research efficiency = 1 (no per-lab factor)`, String(L.phys.eff));
-  check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9 && L.core.tasteHire === 1, `${tag}: leader compute = refTotal, staff = hRef`);
-  check(postureOf(s, L.core.id).bindingness <= 0.3, `${tag}: leader bindingness ≤ 0.3`, postureOf(s, L.core.id).bindingness.toFixed(2));
-  const off = newGame({ ...setup });
-  const strip = (x: GameStateV2) => {
-    const h = { ...x.hidden, actorPresets: { ...x.hidden.actorPresets, rivals: { ...x.hidden.actorPresets.rivals } }, rivalPostures: { ...x.hidden.rivalPostures } };
-    delete h.actorPresets.rivals[LEADER_ID];
-    delete h.rivalPostures[LEADER_ID];
-    // FIN5b: a private rival's start valuation is its share of the story split, which the leader lab (a private lab)
-    // is part of, so the marked valuation, share and pool part are left out; everything drawn or set up is compared.
-    const rivals = x.rivals.filter((r) => r.core.id !== LEADER_ID).map((r) => ({ ...r, finance: { ...r.finance, valuation: 0, mark: 0, poolQ: 0 } }));
-    return JSON.stringify([h, x.rng.world, rivals, x.china, stacksGEquiv(x), x.player.models]);
-  };
-  check(strip(s) === strip(off), `${tag}: 'world' draws, rivals, China and the player unchanged by the leader lab`);
-}
-
 for (const setup of setups) {
   const s = newGame(setup);
   const errs = validateJson(s);
@@ -225,10 +189,9 @@ for (const setup of setups) {
   const division = def.board === 'parent';
   check(s.player.computeOnline > 0 && s.player.finance.cash > 0 && (division ? s.player.finance.valuation === 0 : s.player.finance.valuation > 0), `${tag}: finance/compute start`, `cash ${s.player.finance.cash} V ${s.player.finance.valuation.toFixed(0)} C ${s.player.computeOnline}`);
   if (setup.start !== 'leader') {
-    // R9 start data: leader lab on (D1), teams, owned/rented compute, known nodes, products and features, board, lag.
+    // R9 start data: teams, owned/rented compute, known nodes, products and features, board, lag.
     const ref = gV0(s.hidden.timeline);
     const nTeams = Object.values(def.teams).reduce((a, b) => a + b, 0);
-    check(s.rivals.some((r) => r.core.id === LEADER_ID), `${tag}: leader lab in the world (D1)`);
     check(s.player.teams.length === nTeams && Math.abs(ownedOnline(s) - def.owned) < 1 && Math.abs(rentedOnline(s) - def.rented) < 1, `${tag}: teams and compute owned / rented`, `${s.player.teams.length} teams, ${ownedOnline(s)} / ${rentedOnline(s)}`);
     check(def.known.every((id) => nodeKnown(s, id)) && def.features.every((f) => s.player.features.includes(f)), `${tag}: known nodes and built features`);
     const prods = s.player.deployments.filter((d) => d.channel !== 'internal').map((d) => d.channel).join(',');
@@ -239,8 +202,7 @@ for (const setup of setups) {
   const leads = s.rivals.map((r) => Math.round(((gV0(s.hidden.timeline) - r.internal.G) / (1.25 * PRE_GAME_G_PER_YEAR)) * 12 * 10) / 10);
   // v1 archetype gap ranges (≤ 1.1 y); the tighter 3–9 month target is WS4's acceptance test T4.
   check(leads.every((m) => m >= 0 && m <= 13.5), `${tag}: rival gaps within v1 ranges (months)`, leads.join(', '));
-  if (setup.start !== 'leader') leaderChecks(s, setup, tag);
-  check(Object.keys(s.relations.stocks).length === 7 + nRivals + 15, `${tag}: relation counterparties`);
+  check(Object.keys(s.relations.stocks).length === 7 + 15, `${tag}: relation counterparties`);
   tick(s);
   check(s.time.day === 1, `${tag}: first tick advances to day 1`);
 }
@@ -443,36 +405,6 @@ function perfRun(setup: SetupV2, opts?: Parameters<typeof tick>[1]): { daily: nu
 const perfOff = perfRun(defaultSetupV2({ seed: 9 }));
 check(perfOff.daily <= 1.5, 'performance: daily tick average', `${(perfOff.daily * 1000).toFixed(0)} µs`);
 check(perfOff.worstQ <= 8, 'performance: worst quarter tick', `${perfOff.worstQ.toFixed(2)} ms`);
-// R2: the same game with the leader lab (one more simulated lab), endings skipped (the passive player is overtaken
-// by the leader, and an ended game ticks for free). Absolute budget as above. The lab's own cost is measured on one
-// day-200 state ticked 300 days with and without the leader (paired, alternated, so machine load and the diverging
-// world cancel out); BUILD-PLAN §3 asks for ~10%.
-const perfOn = perfRun(defaultSetupV2({ seed: 9 }), { skip: ['endings'] });
-check(perfOn.daily <= 1.5, 'performance (leader lab): daily tick average', `${(perfOn.daily * 1000).toFixed(0)} µs`);
-check(perfOn.worstQ <= 8, 'performance (leader lab): worst quarter tick', `${perfOn.worstQ.toFixed(2)} ms`);
-{
-  const s0 = newGame(defaultSetupV2({ seed: 9 }));
-  for (let d = 0; d < 200; d++) tick(s0, { skip: ['endings'] });
-  const snap = JSON.stringify(s0);
-  const ratios: number[] = [];
-  const us = { with: 0, without: 0 };
-  for (let r = 0; r < 4; r++) {
-    const t: number[] = [];
-    for (const drop of [false, true]) {
-      const s = JSON.parse(snap) as GameStateV2;
-      if (drop) s.rivals = s.rivals.filter((x) => x.core.id !== LEADER_ID);
-      const t0 = performance.now();
-      for (let d = 0; d < 300; d++) tick(s, { skip: ['endings'] });
-      t.push((performance.now() - t0) / 300);
-    }
-    if (r === 0) continue; // warm-up pair
-    ratios.push(t[0] / t[1]);
-    us.with += (t[0] * 1000) / 3;
-    us.without += (t[1] * 1000) / 3;
-  }
-  const med = [...ratios].sort((a, b) => a - b)[1];
-  check(med <= 1.2, 'performance (leader lab): its own cost ≤ +20% of a tick (target ~10%)', `+${(100 * (med - 1)).toFixed(1)}% (paired median; ${us.with.toFixed(0)} vs ${us.without.toFixed(0)} µs/day)`);
-}
 } // section 8
 
 finish('hygiene');

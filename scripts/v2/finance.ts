@@ -23,15 +23,15 @@ import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions
 import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
-import { bustTarget, exitBuyer, markRivals, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
-import { addRivalKnowledge, recipeOf } from '../../src/engine/v2/actors/rivalModel';
+import { bustTarget, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
+import { ipAccessDays } from '../../src/engine/v2/npc/shocks';
 import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, ipAccessDaily, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
+import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
 import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
@@ -124,7 +124,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
       const cloud = s.player.cloud.reduce((a, c) => a + (c.startDay <= s.time.day && c.endDay > s.time.day ? c.h100e : 0), 0);
       gw2026 = liveMW / 1000 + (cloud * s.power.kWPerH100e) / 1e6;
       v2026 = s.player.finance.valuation;
-      rivals2026 = s.rivals.filter((r) => private0.includes(r.core.id)).map((r) => ({ id: r.core.id, arch: r.archetype, status: r.core.status, V: r.finance.valuation, R: r.finance.revenueRun, cash: r.finance.cash }));
+      rivals2026 = s.rivals.filter((r) => private0.includes(r.core.id)).map((r) => ({ id: r.core.id, arch: r.npc.kind, status: r.core.status, V: r.finance.valuation, R: r.finance.revenueRun, cash: r.finance.cash }));
     }
   }
   return { s, q, firstDistress, gw2026, v2026, held: [...held], heldDays, pbcDays, rivals2026, private0 };
@@ -1162,8 +1162,8 @@ for (const a of FINANCE_ACTIONS) {
   const ST = PARTNER_TERMS.strings;
   /** day400 has no big-tech rival: give the hyperscalers in-house labs (Northwind the first, Azimuth the second). */
   const withLabs = (s: GameStateV2) => {
-    s.rivals[1].archetype = 'bigtech';
-    s.rivals[2].archetype = 'bigtech';
+    s.rivals[1].npc.kind = 'bigtech';
+    s.rivals[2].npc.kind = 'bigtech';
     return s;
   };
   {
@@ -1217,15 +1217,10 @@ for (const a of FINANCE_ACTIONS) {
     const b = structuredClone(s);
     signPartner(a, makeCtx(a), 'Azimuth', { ipAccess: true });
     signPartner(b, makeCtx(b), 'Azimuth');
-    const want = ipAccessDaily(a, lab.core.id);
-    const gap = licensedGap(a, lab.core.id);
-    const pa = (x: GameStateV2) => recipeOf(x, x.rivals.find((r) => r.core.id === lab.core.id)!); // FINM: the recipe (OOM), was know-how pa
-    const d0 = pa(a) - pa(b);
-    tick(a, { skip: ['endings'] });
-    tick(b, { skip: ['endings'] });
-    const got = pa(a) - pa(b) - d0;
-    check(gap > 0 && near(want, (ST.ipCloseYr * gap) / 365) && ipAccessDaily(b, lab.core.id) === 0 && near(got, want, 0.05) && partnerCosts(a)[0].ip?.lab === lab.core.id,
-      'FIN4b a signed IP access closes 10% a year of the gap: the affiliated lab gains 0.1 × gap (G) / 365 in its recipe a day (through the rivals\' daily step); none without it', `gap ${gap.toFixed(3)} · ${want.toExponential(2)}/day · one tick ${got.toExponential(2)}`);
+    const labOf = (x: GameStateV2) => x.rivals.find((r) => r.core.id === lab.core.id)!;
+    const want = ipAccessDays(a, labOf(a)); // N6: the days its lag falls a day (a share of the way to the licensed model)
+    check(want > 0 && ipAccessDays(b, labOf(b)) === 0 && partnerCosts(a)[0].ip?.lab === lab.core.id,
+      'FIN4b a signed IP access moves the affiliated lab lag a share of the way to the licensed model each day (npc/shocks.ts ipAccessDays); none without it', `${want.toExponential(2)} d a day`);
   }
   {
     // PBC + trust (§7.2): IP access that would license a capability-threshold model needs the trust's transfer vote
@@ -1749,13 +1744,6 @@ for (const a of FINANCE_ACTIONS) {
   const fx = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
   const priv = (s: GameStateV2) => s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0 && !parentFunded(r));
-  /** The fixture with its first private rival turned into a big-tech lab (the fixture has none). */
-  const withBigTech = (s: GameStateV2) => {
-    const b = s.rivals.find((r) => r.core.status === 'active' && r.finance.valuation > 0)!;
-    b.archetype = 'bigtech';
-    b.finance.valuation = 0;
-    return b;
-  };
   {
     // Marks: each private rival's share moves half-way to today's story share (the player's rule), valuation = S × that
     // share at most its cap (team value + multiple × run-rate); the Story card's labs carry the same valuation and cap.
@@ -1793,85 +1781,6 @@ for (const a of FINANCE_ACTIONS) {
     check(up.mult === 1 && down.mult === 0.9 && halved.mult === 0.7 && w.cred === halved.mult && w.rung === 'Doubted' && w.gov === rivalGov(r) && govs.join(',') === '1,1.1,1.1,0.9' && near(w.weight, w.cred * w.gov * Math.exp(w.z / STORY.tau), 1e-12), 'FIN5b a rival\'s credibility comes from one rule (revenue up over four quarters: Credible ×1, down: Unproven ×0.9, halved: Doubted ×0.7) and its governance from its kind (safety PBC + trust ×1, maverick and upstart founder ×1.1, leader lab nonprofit PBC ×0.9), both in its weight', `growth ×${up.growth.toFixed(1)} ${up.id} · ×${down.growth.toFixed(2)} ${down.id} · ×${halved.growth.toFixed(2)} ${halved.id}`);
   }
   {
-    // The pool: rivals' parts follow their valuations, scaled so theirs and the player's never exceed the pool; unused
-    // money carries 50%.
-    const s = fx();
-    for (const r of priv(s)) r.finance.poolQ = 4;
-    s.capital.ws3.playerShare = 0.97;
-    markRivals(s, storyNow(s));
-    const fresh = priv(s).reduce((a, r) => a + r.finance.poolQ! - STORY.carry * 4, 0);
-    const Q = s.capital.poolAnnual / 4;
-    check(fresh > 0 && fresh <= (1 - 0.97) * Q * (1 + 1e-9), 'FIN5b rivals\' parts of the investor pool follow their valuations and, with yours, never exceed the pool; unused money carries 50%', `rivals' new money $${f1(fresh)}B this quarter of $${f1(Q)}B (yours 97%)`);
-  }
-  {
-    // Raising: under half a year of spend it raises at its valuation, at most d_max of it and within its pool part.
-    const s = fx();
-    const r = priv(s)[0];
-    const f = r.finance;
-    const spend = rivalSpend(r);
-    f.cash = 0.1;
-    f.poolQ = 1e6;
-    f.raised = 10;
-    const V0 = f.valuation;
-    const amt = (RIVAL.dMax * V0) / (1 - RIVAL.dMax);
-    const n0 = s.log.length;
-    rivalMoneyQ(s, makeCtx(s), r);
-    const ok1 = near(f.cash, 0.1 + (f.revenueRun - spend) / 4 + amt, 1e-9) && near(f.valuation, V0 + amt, 1e-9) && near(f.raised!, 10 + amt, 1e-9) && s.log.slice(n0).some((e) => /raises/.test(e.text));
-    const s2 = fx();
-    const r2 = priv(s2)[0];
-    r2.finance.cash = 0.1;
-    r2.finance.poolQ = 2;
-    r2.finance.raised = 10;
-    rivalMoneyQ(s2, makeCtx(s2), r2);
-    const s3 = fx();
-    const r3 = priv(s3)[0];
-    r3.finance.cash = 10 * rivalSpend(r3);
-    r3.finance.poolQ = 1e6;
-    const V3 = r3.finance.valuation;
-    rivalMoneyQ(s3, makeCtx(s3), r3);
-    check(ok1 && near(r2.finance.raised!, 12, 1e-9) && r3.finance.valuation === V3, 'FIN5b a rival raises when its cash is under half a year of spend, at its valuation, at most d_max (8%) of it and its part of the pool; the round is logged; a funded rival raises nothing', `$${f1(amt)}B at $${f1(V0)}B (spend $${f1(spend)}B a year)`);
-  }
-  {
-    // Distress: out of cash after raising → offered to you (E32); still failing next quarter → license-and-hired by the
-    // largest big-tech rival (compute, 70% of its team, its know-how licensed; investors ≈ 1.25× back, logged); the
-    // E32 Decline preview names the same buyer.
-    const s = fx();
-    const big = withBigTech(s);
-    const r = priv(s)[0];
-    const f = r.finance;
-    f.cash = -50;
-    f.poolQ = 0;
-    f.raised = 20;
-    addRivalKnowledge(r, recipeOf(s, big) - recipeOf(s, r) + 0.1); // FINM: the seller's recipe 0.1 OOM ahead (was pa)
-    const ctx = makeCtx(s);
-    rivalMoneyQ(s, ctx, r);
-    const requested = ws4Of(s).requests.some((q) => q.id === 'E32' && q.data.lab === r.core.id);
-    const declinePv = EVENT_BY_ID.get('E32')!.choices[2].preview(s, { lab: r.core.id });
-    const names = declinePv.costs.some((c) => String(c.target).includes(exitBuyer(s, r)!.core.name));
-    const c0 = big.core.computeOnline, h0 = big.core.staff.cap, rc = r.core.computeOnline, rh = r.core.staff.cap;
-    const n0 = s.log.length;
-    rivalMoneyQ(s, ctx, r);
-    const line = s.log.slice(n0).find((e) => /licenses/.test(e.text));
-    check(requested && f.distress && names && r.core.status === 'merged' && r.core.mergedInto === big.core.id && near(big.core.computeOnline, c0 + rc, 1e-9) && big.core.staff.cap === h0 + Math.round(rh * RIVAL.exitStaff) && near(recipeOf(s, big), recipeOf(s, r), 1e-9) && !!line && /\$25B back \(1\.25×/.test(line.text), 'FIN5b a private rival out of money is offered to you first (E32); still failing next quarter, the largest big-tech rival licenses its models and hires most of its team (its compute moves too); investors get ≈ 1.25× back, logged in plain words; E32\'s Decline names that buyer', line?.text ?? 'no log');
-  }
-  {
-    // No big-tech rival: bankruptcy, logged. A parent-funded lab never raises or reaches distress.
-    const s = fx();
-    const r = priv(s)[0];
-    r.finance.cash = -50;
-    r.finance.poolQ = 0;
-    const ctx = makeCtx(s);
-    rivalMoneyQ(s, ctx, r);
-    const n0 = s.log.length;
-    rivalMoneyQ(s, ctx, r);
-    const bankrupt = r.core.status === 'bankrupt' && s.log.slice(n0).some((e) => /goes bankrupt/.test(e.text));
-    const s2 = fx();
-    const big = withBigTech(s2);
-    big.finance.cash = -100;
-    rivalMoneyQ(s2, makeCtx(s2), big);
-    check(bankrupt && !exitBuyer(s) && big.finance.cash >= rivalSpend(big) / 2 - 1e-9 && !big.finance.distress && big.finance.valuation === 0, 'FIN5b without a big-tech rival a failing lab goes bankrupt (logged); a parent-funded lab never raises or reaches distress', `${r.core.name}: ${r.core.status}`);
-  }
-  {
     // The bust's push (FIN3c gap): the most over-committed private rival raises nothing that quarter, is in distress
     // and is offered to you (E32), even with cash in the bank; it recovers next quarter if it has cash again.
     const s = fx();
@@ -1901,7 +1810,7 @@ for (const a of FINANCE_ACTIONS) {
     const all = ref.flatMap((r) => r.private0);
     const alive = ref.flatMap((r) => r.rivals2026.filter((x) => x.status === 'active'));
     const show = (k: string) => { const xs = alive.filter((x) => x.arch === k); return xs.length ? `${k} ${xs.length}: V $${f1(median(xs.map((x) => x.V)))}B on $${f1(median(xs.map((x) => x.R)))}B (${f1(median(xs.map((x) => x.V / Math.max(0.1, x.R))))}×)` : `${k} 0`; };
-    check(all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'maverick', 'upstart'].map(show).join(' · ')}`);
+    check(all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'racer', 'upstart'].map(show).join(' · ')}`);
   }
 }
 // ───────────────────────────── FIN6a: calibration (FINANCE-V3 §14) ─────────────────────────────

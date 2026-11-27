@@ -7,17 +7,13 @@
 //       (V3_CAL): fit them with `npx tsx scripts/v2/calscan.ts t1 <preset> --gsc … --dbm … --sd …` (the same median over
 //       the same seeds) and take the middle of the passing window. (The old `--fit-v3` and `--fit-tree`
 //       went with the golden days of the removed presets.)
-//   T1L Leader lab (setup.leaderLab, BUILD-PLAN R2) with a passive player: the simulated leader's milestone days hit
-//       the same golden days and tolerances, on the median over the same seeds. The leader has no per-lab knob
-//       (RF-R1 deleted LEADER_CAL): it runs the aggregate research function as is.
-//   T2  Copies × speed in Mar 2027 (tl-central RefBot) ≈ 200k at ~30× (±30%).
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
 //   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
 // Every game goes through the simulation cache (simcache.ts; the fit modes do not). Modes:
 //   (default)  everything above.
-//   --cal      T1, T1L and T4 only (test:cal).
-//   --smoke    (test:quick) T1 and T1L on tl-central, seed 2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026
+//   --cal      T1 and T4 only (test:cal).
+//   --smoke    (test:quick) T1 on tl-central, seed 2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026
 //              G-path reads, so those run at full strength); the milestone checks print SMOKE (the binding basis is the
 //              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs, T2 and T3 are skipped.
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
@@ -28,7 +24,6 @@ import { speedOfCopy, workContext } from '../../src/engine/v2/departments/workfi
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { START_DATE, dayOfDate, decimalYearOf } from '../../src/engine/v2/core/time';
 import { trueLeadDays } from '../../src/engine/v2/models/capability';
-import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { newGame } from '../../src/engine/v2/core/init';
@@ -46,7 +41,7 @@ import { REF_TPP } from '../../src/data/v2/runDesign';
 import { fOver } from '../../src/engine/v2/models/effective';
 
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
-/** Model v3 F4: T1 and T1L bind on the MEDIAN over CAL_SEEDS (SEED plus 19 others, calseeds.ts), per milestone; SEED's
+/** Model v3 F4: T1 binds on the MEDIAN over CAL_SEEDS (SEED plus 19 others, calseeds.ts), per milestone; SEED's
  *  run also gives the R5, G-path, M and METR reads. Every seed's run is cached. */
 const SEED = CAL_SEED;
 /** The golden days (CAL-T: slow SC is its sourced 2034–2035 range, lib.ts calGolden / calTol). */
@@ -82,16 +77,6 @@ const lastIdx = (p: T1Preset): MilestoneIdx => (p === 'tl-slow' ? 3 : 6);
 if (process.env.V3_SD) for (const p of T1_PRESETS) V3_CAL[p].sdSC = Number(process.env.V3_SD);
 // Experiments with the global ASI gap (AIFM ASI 12–15 SD = 0.9–1.85 best-to-median gaps beyond SIAR): V3_ASI=1.3.
 if (process.env.V3_ASI) ASI_EXTRA.gaps = Number(process.env.V3_ASI);
-// ---------- T1L helpers: the simulated leader lab with a passive player ----------
-/** New game with the leader lab on, ticked with no player actions (endings skipped) until
- *  the leader records milestone `stopAt`. Returns the leader's milestone days. */
-function runT1L(preset: T1Preset, stopAt: MilestoneIdx, seed = SEED, maxDays = 365 * 16): Partial<Record<MilestoneIdx, number>> {
-  const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false }));
-  const L = s.rivals.find((r) => r.core.id === LEADER_ID);
-  if (!L) throw new Error('T1L: no leader lab');
-  while (s.time.day < maxDays && L.core.milestoneDays[stopAt] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
-  return L.core.milestoneDays;
-}
 // ---------- --fit-lines (model v3 V3, V3 notes derivation 1): the lines' start effect LINE_FIT.mu ----------
 // The pools' start state n₀ comes from the start effect per idea μ₁ = effect.mean × LINE_FIT.mu ("set from the start
 // rate"). The fit bisects LINE_FIT.mu so the reference lab's pretraining stack grows HO_RATE OOM/yr over its first year
@@ -180,10 +165,6 @@ function t1SeedRec(preset: T1Preset, seed: number): Partial<Record<MilestoneIdx,
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
   return cached('calib-t1s', { preset, cal, sdSC: V3_CAL[preset].sdSC, seed, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => runT1(preset, cal, seed, lastIdx(preset), MAX_DAYS).player.milestoneDays);
 }
-/** T1L leader-lab milestone days for a preset and seed (cached). */
-function t1lRec(preset: T1Preset, seed = SEED) {
-  return cached('calib-t1l', { preset, stopAt: lastIdx(preset), seed, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lastIdx(preset), seed, MAX_DAYS));
-}
 /** T1 integrated RefBot record for a preset (cached): milestone days, worst R5 wait, final cash and finance state. */
 function intRec(preset: T1Preset) {
   return cached('calib-integrated', { preset, seed: SEED, stopAt: lastIdx(preset), maxDays: 365 * 16, env: ENV }, ME, () => {
@@ -227,15 +208,13 @@ function t3Rec() {
   });
 }
 // The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
-/** Seeds of the binding T1 / T1L medians (smoke: SEED only, cut at SMOKE_DAYS, informational). T1 needs all 20: RefBot's
+/** Seeds of the binding T1 median (smoke: SEED only, cut at SMOKE_DAYS, informational). T1 needs all 20: RefBot's
  *  dates are multimodal and every smaller subset of CAL_SEEDS tried (first 5, 8, 10, 12) moved some median out of
- *  tolerance. The aggregate leader lab is near-deterministic (p10–p90 ≤ 0.1 y on 20 seeds; the first five seeds' medians
- *  sit within 0.02 y of the 20-seed medians), so T1L reads the first five, which keeps test:cal's cold run down (F4). */
+ *  tolerance. (F4). */
 const T1_SEEDS = SMOKE ? [SEED] : CAL_SEEDS;
-const T1L_SEEDS = SMOKE ? [SEED] : CAL_SEEDS.slice(0, 5);
 prefill([
   // slow (the longest runs) first.
-  ...[...PRESETS].reverse().flatMap((p) => [() => t1Rec(p), ...T1_SEEDS.filter((x) => x !== SEED).map((x) => () => t1SeedRec(p, x)), ...T1L_SEEDS.map((x) => () => t1lRec(p, x))]),
+  ...[...PRESETS].reverse().flatMap((p) => [() => t1Rec(p), ...T1_SEEDS.filter((x) => x !== SEED).map((x) => () => t1SeedRec(p, x))]),
   ...(SMOKE || CAL_ONLY || process.argv.includes('--no-integrated') ? [] : T1_PRESETS.map((p) => () => intRec(p))),
   ...(SMOKE || CAL_ONLY ? [] : [() => t2Rec(), () => t3Rec()]),
 ]);
@@ -250,9 +229,9 @@ const seedRow = (preset: T1Preset, md: MsDays, from: number) => {
     return [`${n} ${got === undefined ? '—' : `${yearOf(got).toFixed(3)} (${sgn((got - g[n]) / 365)})`}`];
   }).join('  ');
 };
-/** F4: the binding T1 / T1L checks on the median over the seed set, milestone `from` … last; the spread (p10, p90, seeds
+/** F4: the binding T1 checks on the median over the seed set, milestone `from` … last; the spread (p10, p90, seeds
  *  within tolerance) is printed with them. Under --smoke (SEED only, cut at SMOKE_DAYS) they print SMOKE. */
-function medianChecks(test: 'T1' | 'T1L', preset: T1Preset, mds: MsDays[], from: number) {
+function medianChecks(test: 'T1', preset: T1Preset, mds: MsDays[], from: number) {
   const g = golden.presets[preset].days;
   const cells: string[] = [];
   const spread: string[] = [];
@@ -329,19 +308,6 @@ console.log('\nV2.8 stacks before SC (Ho et al. ≈ 0.48 OOM/yr pretraining befo
 for (const r of stackRates) console.log('  ' + r);
 console.log('V3.7 checks:');
 for (const r of v3checks) console.log('  ' + r);
-
-// ---------- T1L: the leader lab (passive player) hits the golden days; SC and later bind, A1/A2 informational ----------
-{
-  const tableL: string[] = [];
-  for (const preset of PRESETS) {
-    const t0 = performance.now();
-    const mds = T1L_SEEDS.map((x) => t1lRec(preset, x));
-    const { row, spread } = medianChecks('T1L', preset, mds, 3);
-    tableL.push(`${preset.padEnd(12)} median ${row}  [${(performance.now() - t0).toFixed(0)} ms]`, ...spread.map((x) => `${' '.repeat(14)}${x}`), `${' '.repeat(14)}seed ${SEED}: ${seedRow(preset, t1lRec(preset), 1)}`);
-  }
-  console.log(`\nT1L leader lab milestone years (passive player), median over ${T1L_SEEDS.length} seeds (Δ vs golden, years; SC and later bind):`);
-  for (const r of tableL) console.log('  ' + r);
-}
 
 // ---------- T1 integrated (M2, informational): RefBot with real compute, finance and revenue ----------
 // Same RefBot model policy, but compute is bought by WS3's autopilot under real cash, revenue is WS5's and every system

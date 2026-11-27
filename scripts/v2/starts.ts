@@ -15,7 +15,6 @@ import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { raceBot } from '../../src/engine/v2/bots/race';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import type { BotPolicy, GameStateV2, StartType } from '../../src/engine/v2/types';
 import { engine } from '../../src/engine/v2';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
@@ -36,7 +35,7 @@ interface Game { start: StartType; bot: string; seed: number; ending: string; ve
 function play(start: StartType, botName: string, seed: number): Game {
   const bot = BOTS[botName];
   const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'tl-fast' : 'tl-central', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
-  const L = s.rivals.find((r) => r.core.id === LEADER_ID)!;
+  const L = s.rivals.find((r) => r.npc.kind === 'leader')!;
   const lPm: number[] = [L.internal.G];
   const rate0 = PRE_GAME_G_PER_YEAR; // G a year: the stated pre-game pace (RD-L03)
   // Months behind at day d for a model at G x: d − (first day the leader reached x).

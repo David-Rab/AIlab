@@ -21,10 +21,8 @@ import {
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, researchG, stackAt, stacksGEquiv,
+  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, publicBase, researchG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
-import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
-import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
 import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
 import { projectEta } from '../../src/engine/v2/models/tree';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
@@ -571,28 +569,7 @@ if (process.argv.includes('--rd-a03')) {
   const dRate = rate(ad) - rate(ref);
   check(Math.abs(dRate - x / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its whole effect (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
 
-  // Theft and A4 compare at one F on the same parts: a player recipe equal to China's has no gap, whatever its base or
-  // training-throughput stack; a bigger base leaves the secrets-leak gap unchanged.
-  const eq = clone(s);
-  const cn = eq.china.lab.phys.rec;
-  const st = eq.player.research.stacks;
-  for (const [k, v] of [['pre', cn.pre], ['rlMid', cn.mid], ['rlCeil', cn.ceil], ['train', 0.3]] as const) st[k] = { base: v, buckets: [], n: 0, est: 0, estVar: 0 };
-  const eqLast = eq.player.models.bases[eq.player.models.bases.length - 1];
-  eq.player.models.bases.push({ ...eqLast, id: `${eqLast.id}-rdb16`, flop: eqLast.flop * 30 });
-  const gapEq = playerRecipeG(eq) - recipeOf(eq, eq.china.lab);
-  // A China 1 OOM behind (so there is a gap to leak) and spies at work, with and without the bigger base.
-  const leaky = (x: GameStateV2) => {
-    const y = clone(x);
-    y.china.lab.phys.rec.pre -= 1;
-    y.player.security.spies = Math.max(1, y.player.security.spies);
-    y.player.security.ssl = Math.min(2, y.player.security.ssl);
-    return secretsLeakDaily(y);
-  };
-  const leakRef = leaky(s);
-  const leakBig = leaky(big);
-  check(Math.abs(gapEq) < 1e-12 && playerRecipeG(s) === recipeG(playerRecipe(s, RECIPE_F), RECIPE_F) && recipeOf(s, s.china.lab) === recipeG(s.china.lab.phys.rec, RECIPE_F) && leakRef > 0 && leakBig === leakRef,
-    'RD-B16: theft and leaks compare recipes in one unit (recipeG at RECIPE_F, same parts): equal recipes have no gap, and a bigger base leaves the leak unchanged',
-    `gap at equal recipes ${gapEq.toExponential(1)}; leak ${leakRef.toExponential(3)} → ${leakBig.toExponential(3)} OOM/day; player ${playerRecipeG(s).toFixed(3)} vs China ${recipeOf(s, s.china.lab).toFixed(3)} OOM`);
+  // (The RD-B16 check that theft and leaks compare recipes in one unit went with the old China recipe state: an NPC lab's recipe is one number, npc/lab.ts npcRecipe.)
 
   // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
   // change of the stacks' G at the latest base) reads far faster.

@@ -9,7 +9,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { labMilestones, milestonesOf, referenceProfileModel, versionMilestones, flopPerToken } from '../../src/engine/v2/departments/workfit';
 import { levelOfG, milestonesSystem, otherLabMilestones } from '../../src/engine/v2/models/capability';
-import { rivalServeFpt } from '../../src/engine/v2/actors/rivalModel';
+import { npcServeFpt } from '../../src/engine/v2/npc/model';
 import type { GameStateV2, MilestoneIdx, RivalLab } from '../../src/engine/v2/types';
 import { HERE, check, finish } from './lib';
 
@@ -36,7 +36,6 @@ const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g };
 {
   const s = fresh();
   const r = s.rivals.find((x) => x.core.status === 'active')!;
-  r.phys.serve = 0;
   const v0 = s.player.models.versions[0];
   const fpt = flopPerToken(s, v0);
   let same = true; let fallback = true; let detail = '';
@@ -74,7 +73,7 @@ const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g };
   s.time.day = 10;
   milestonesSystem.run(s, makeCtx(s));
   check(r.core.milestoneDays[4] === 10 && r.core.milestoneDays[3] === 10, 'rival credited SAR on its fit (SC then SAR, same day)', `λ ${levelOfG(w, r.internal.G).toFixed(2)} rec ${JSON.stringify(r.core.milestoneDays)}`);
-  check(q.core.milestoneDays[3] === undefined && q.core.milestoneDays[4] === undefined, 'rival at display level 13 failing the cost criterion: no SC / SAR', `λ ${levelOfG(w, q.internal.G).toFixed(2)} fpt ${rivalServeFpt(q, q.internal).toExponential(1)} rec ${JSON.stringify(q.core.milestoneDays)}`);
+  check(q.core.milestoneDays[3] === undefined && q.core.milestoneDays[4] === undefined, 'rival at display level 13 failing the cost criterion: no SC / SAR', `λ ${levelOfG(w, q.internal.G).toFixed(2)} fpt ${npcServeFpt(s, q.internal).toExponential(1)} rec ${JSON.stringify(q.core.milestoneDays)}`);
 }
 
 // 4. Player notice and China's flags come from the predicate: the player's version pushed to SC by G gets the record,

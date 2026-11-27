@@ -5,16 +5,15 @@
 // (runEvals, stream, run forecast, A4 / E16 / C6). Owner: WS4 (seeded by WS1).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ACTIONS, ACTION_BY_ID, EVENTS, EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { ACTIONS, ACTION_BY_ID, EVENTS } from '../../src/engine/v2/core/registry';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { measuredSd } from '../../src/engine/v2/models/benchmarks';
 import { evalDepthView, openEval } from '../../src/engine/v2/models/evals';
 import { externallyEvaluated } from '../../src/engine/v2/models/deployments';
-import { activeRivals, internalVersion } from '../../src/engine/v2/models/labs';
+import { internalVersion } from '../../src/engine/v2/models/labs';
 import { runForecast, streamPeriodGain } from '../../src/engine/v2/models/runs';
 import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
-import { ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
 import { STREAM_POOL_SHARE } from '../../src/data/v2/runDesign';
 import type { CostLine, GameStateV2, SystemCtx } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, KNOWN, check, finish } from './lib';
@@ -208,45 +207,6 @@ const iv = internalVersion(s4)!;
     && !linesOf(sp).some((l) => l.currency === 'monitorability'),
     'RD-B19 / RD-T03 stream: the gain line is what a period of FLOP buys, costs as charged, no invented monitorability / alignment lines; stopping keeps the version',
     `${e ?? ''}${e2 ?? ''} gap ${gap} absorbed ${absorbed} stop ${JSON.stringify(sp.costs[0])} left ${left}`);
-}
-{
-  // B40: the A4, E16 and C6 lead lines are the recipe their apply adds, in days of the recipient's own progress.
-  const labs = (s: GameStateV2) => [...activeRivals(s), s.china.lab];
-  const recs = (s: GameStateV2) => new Map(labs(s).map((r) => [r.core.id, r.phys.rec.pre] as const));
-  const days = (pv: Pv) => pv.costs.filter((l) => l.currency === 'leadDays').map((l) => l.amount);
-  const ownDays = (s: GameStateV2, before: Map<string, number>, id: string) => ownProgressDays(s, id, (recs(s).get(id) ?? 0) - (before.get(id) ?? 0));
-  const cn = s4.china.lab.core.id;
-  // A4
-  const a = clone(s4);
-  const pa = pvOf(a, 'A4');
-  const ra = recs(a);
-  const wantA = new Map(labs(a).map((r) => [r.core.id, publishLeakG(a, r.core.id)] as const));
-  const ea = act(a, 'A4');
-  const moved = labs(a).filter((r) => r.phys.rec.pre - (ra.get(r.core.id) ?? 0) > 0);
-  const maxA = Math.round(Math.max(0, ...moved.map((r) => ownDays(a, ra, r.core.id))));
-  check(!ea && moved.every((r) => near(r.phys.rec.pre - ra.get(r.core.id)!, wantA.get(r.core.id)!, 1e-9)) && near(days(pa)[0], maxA, 0.5),
-    'RD-B19 A4: the lead line is the recipe publishing adds to the labs behind you, in their own days', `${ea ?? ''} preview ${days(pa)} applied ${maxA} labs ${moved.length}`);
-  // E16 "Let go"
-  const letGo = EVENT_BY_ID.get('E16')!.choices.find((ch) => ch.label === 'Let go')!;
-  const b = clone(s4);
-  const lab = activeRivals(b)[0].core.id;
-  const pb = letGo.preview(b, { lab });
-  const rb = recs(b);
-  const wantB = poachLeakG(b, lab, Math.round(b.player.staff.cap * 0.03));
-  letGo.apply(b, makeCtx(b), { lab });
-  const dB = (recs(b).get(lab) ?? 0) - (rb.get(lab) ?? 0);
-  check(near(dB, wantB, 1e-9) && near(days(pb)[0], Math.round(ownProgressDays(b, lab, dB)), 0.5),
-    'RD-B19 E16 let go: the lead line is the recipe that rival takes, in its own days', `preview ${days(pb)} applied ${ownProgressDays(b, lab, dB)}`);
-  // C6
-  const o = clone(s4);
-  const po = pvOf(o, 'C6', { behind: 1 });
-  const ro = recs(o);
-  const eo = act(o, 'C6', { behind: 1 });
-  const maxR = Math.round(Math.max(0, ...activeRivals(o).map((r) => ownDays(o, ro, r.core.id))));
-  check(!eo && days(po).length === 2 && near(days(po)[0], maxR, 0.5) && near(days(po)[1], ownDays(o, ro, cn), 1)
-    && !linesOf(po).some((l) => l.currency === 'chinaTension'),
-    'RD-B19 C6: the lead lines are the rivals\' recipe and China\'s absorbed progress as applied; no unapplied China-tension line',
-    `${eo ?? ''} preview ${days(po)} rivals ${maxR} China ${ownDays(o, ro, cn)}`);
 }
 
 console.log(`lint-tradeoffs: ${ACTIONS.length} actions, ${EVENTS.length} events, ${n} previews checked, ${nApplied} applied-effect checks`);

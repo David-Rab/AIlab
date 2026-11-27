@@ -59,13 +59,12 @@ import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
 import { DISTILL, DISTILL_TPP } from '../../src/data/v2/runDesign';
 import { distillGap } from '../../src/engine/v2/models/effective';
-import { fptOfBase, makeBase } from '../../src/engine/v2/actors/rivalModel';
+import { baseParams, fptOfParams, npcDecodeU, npcServeFpt, npcServeOom } from '../../src/engine/v2/npc/model';
 import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL, type WorkTypeId } from '../../src/data/v2/workTypes';
-import { SERVE_RATE0 } from '../../src/data/v2/rivalModel';
+import { SERVE_RATE0 } from '../../src/data/v2/npcLabs';
 import { addPublic, decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
 import { serveTechMult } from '../../src/engine/v2/models/runs';
 import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2/departments/workfit';
-import { rivalDecodeU, rivalServeFpt } from '../../src/engine/v2/actors/rivalModel';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
@@ -135,7 +134,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   void g0;
   // Model v3 F1: a rival serves its own base: 10× the training FLOP at the same tokens per parameter is √10 × the active
   // parameters and FLOP per token (N = √(FLOP/(6·tpp))), whatever its recipe.
-  const rb = (flop: number, e: number) => fptOfBase(makeBase(2, 0, flop, e));
+  const rb = (flop: number, _e = 0) => fptOfParams(baseParams(flop));
   check(near(rb(3e27, 0) / rb(3e26, 0), Math.sqrt(10)) && rb(3e26, 0) === rb(3e26, 2), 'S1 rivals: FLOP per token from their own base (×√10 per 10× training FLOP, not from G)', `${(rb(3e27, 0) / rb(3e26, 0)).toFixed(3)}×`);
 }
 
@@ -686,11 +685,10 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
       const teacher = versionById(s, c.versionId)!;
       const tau = tokEff(teacher); // a student reasons like its teacher (it learns from its traces)
       const ud = decodeUtilNow(s);
-      const rivals = [...s.rivals, s.china.lab].filter((r) => r.core.status === 'active');
       const snap: Snap = {
         t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, tau, ud, rate: serveDollarsPerHour(s), markup: MARKUP.standard,
         task: perTask(c.fpt, tau, ud, MARKUP.standard), price: perM(c.fpt, tau, ud, MARKUP.standard), serve: serveNow(s),
-        rivalServe: rivals.reduce((x, r) => x + r.phys.serve, 0) / Math.max(1, rivals.length),
+        rivalServe: npcServeOom(s.time.day),
       };
       snaps.push(snap);
       const mix = worldMix(s);
@@ -831,14 +829,13 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   let n = 0;
   for (const p of mix.providers) {
     if (p.lab === 'player' || !p.model) continue;
-    const r = p.lab === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === p.lab)!;
     n++;
-    if (!(p.ud === rivalDecodeU(r) && p.fpt === rivalServeFpt(r, p.model as never) && p.ud >= U_DECODE)) bad++;
+    if (!(p.ud === npcDecodeU(s) && p.fpt === npcServeFpt(s, p.model as never) && (p.ud ?? 0) >= U_DECODE)) bad++;
   }
   const r0 = s.rivals[0];
   const ok = near(agentFptEq(2e12, 0.5, 0.1) / 2e12, (TOKENS_PER_WORK_HOUR.input / U_PREFILL + (TOKENS_PER_WORK_HOUR.output * 0.5) / 0.1) / (TOKENS_PER_WORK_HOUR.input / U_PREFILL + TOKENS_PER_WORK_HOUR.output / U_DECODE));
-  check(n > 0 && bad === 0 && ok, 'V4 rivals and China serve at their own decode utilisation and serving-stack FLOP part (RivalPhys.serve), their internal agents too (agentFptEq)',
-    `${n} providers; ${r0.core.id} serving stack ${r0.phys.serve.toFixed(3)} OOM, U_decode ${rivalDecodeU(r0).toFixed(3)}, rlG ${(r0.internal.rlG ?? 0).toFixed(3)} → τ ${tokEff(r0.internal).toFixed(3)}`);
+  check(n > 0 && bad === 0 && ok, 'V4 rivals and China serve at their own decode utilisation and serving-stack FLOP part (npc/model.ts npcServeOom), their internal agents too (agentFptEq)',
+    `${n} providers; ${r0.core.id} serving stack ${npcServeOom(s.time.day).toFixed(3)} OOM, U_decode ${npcDecodeU(s).toFixed(3)}, rlG ${(r0.internal.rlG ?? 0).toFixed(3)} → τ ${tokEff(r0.internal).toFixed(3)}`);
 }
 
 // ───────── D1–D5 demand ceiling on agent work (task A4; research/16 §1A.2 step 7: E = E0·(1 − D)(1 + η·CR)) ─────────

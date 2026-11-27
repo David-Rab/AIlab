@@ -98,7 +98,7 @@ ok('Other campaigns greyed', (await page.$$('.campaign.locked')).length === 3);
 await shot('00-start');
 await page.click('[data-test=new-game]');
 ok('Setup screen', !!(await page.$('[data-test=setup]')));
-for (const [k, v] of [['baseline', 'reality'], ['world', 'tl-fast'], ['alignment', 'hard'], ['econ', 'gate'], ['governance', 'founder'], ['storyteller', 'chaotic'], ['gov', 'hawk'], ['public', 'doomer'], ['china', 'bargainer'], ['rivals', 'safety'], ['rivalCount', '3'], ['tutorial', 'false']]) {
+for (const [k, v] of [['baseline', 'reality'], ['world', 'tl-fast'], ['alignment', 'hard'], ['econ', 'gate'], ['governance', 'founder'], ['storyteller', 'chaotic'], ['gov', 'hawk'], ['public', 'doomer'], ['china', 'bargainer'], ['tutorial', 'false']]) {
   await check(`Setup ${k}=${v}`, `store.draftSetup.${k}`, () => page.click(`[data-picker=${k}] [data-opt="${v}"]`), 30);
 }
 await page.fill('[data-test=company]', 'Meridian');
@@ -107,20 +107,20 @@ ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (a
 // R9: start picker (four starts with difficulty labels); a non-leader start turns the leader lab on and fixes the board.
 ok('Setup: four starts with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 4);
 await check('Setup start=spinout', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="spinout"]'), 30);
-ok('Setup: spinout turns the leader lab on and sets the board', (await get('store.draftSetup.leaderLab')) === 'true' && (await get('store.draftSetup.governance')) === '"founder"' && !!(await page.$('[data-test=start-board]')));
+ok('Setup: spinout sets the board', (await get('store.draftSetup.governance')) === '"founder"' && !!(await page.$('[data-test=start-board]')));
 await check('Setup start=bigtech', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
 await page.hover('[data-picker=start] [data-opt="bigtech"]');
 await wait(300);
 ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
 await clearTips();
 await check('Setup start=leader', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
-ok('Setup: leader start has no leader lab and a Governance picker', (await get('store.draftSetup.leaderLab')) === 'false' && !!(await page.$('[data-picker=governance]')));
+ok('Setup: leader start has a Governance picker', !!(await page.$('[data-picker=governance]')));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
 await clearTips(); // a start card's tooltip can lock while the mouse rests on it (slow machines)
 // Game A: defaults with tutorial ON (act locks, coach cards).
-for (const [k, v] of [['baseline', 'classic'], ['world', 'tl-central'], ['alignment', 'medium'], ['econ', 'ai2027'], ['governance', 'legacyNonprofit'], ['storyteller', 'rising'], ['gov', 'realistic'], ['public', 'realistic'], ['china', 'realistic'], ['rivals', 'realistic'], ['rivalCount', '4'], ['tutorial', 'true']]) {
+for (const [k, v] of [['baseline', 'classic'], ['world', 'tl-central'], ['alignment', 'medium'], ['econ', 'ai2027'], ['governance', 'legacyNonprofit'], ['storyteller', 'rising'], ['gov', 'realistic'], ['public', 'realistic'], ['china', 'realistic'], ['tutorial', 'true']]) {
   await page.click(`[data-picker=${k}] [data-opt="${v}"]`);
 }
 await page.click('[data-test=start-game]');
@@ -2324,29 +2324,14 @@ ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .
 await shot('31-day400-running');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
-// ───────────────────────── R2: the simulated leader lab (setup.leaderLab) ─────────────────────────
-await closeModals();
-await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4243, companyName: 'OpenBrain', leaderLab: true }); });
-await wait(150);
-await page.evaluate(() => window.ai27v2.step(30));
-await closeModals();
-await nav('overview');
-ok('Leader lab: Overview race lane', !!(await page.$('[data-home=leadTrack] [data-lane="rL"]')));
-await shot('50-leader-overview');
-await nav('relations');
-if (await page.$('[data-test=rel-all-cp]')) { await page.click('[data-test=rel-all-cp]'); await wait(60); } // J1 RL1: top 4 by default
-ok('Leader lab: Relations lists it', (await page.locator('[data-panel=relations]').innerText()).includes('Polaris AI'));
-await shot('51-leader-relations');
-await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
-
 // ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
 const ia9 = iaIssues.length;
 await closeModals();
-await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', leaderLab: true, governance: 'parent' }); });
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', governance: 'parent' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(5));
 await closeModals();
-ok('Big tech: a division with the leader lab', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.board.preset')) === '"parent"' && (await get('s.rivals.some((r) => r.core.id === "rL")')) === 'true');
+ok('Big tech: a division', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.board.preset')) === '"parent"');
 await nav('finance');
 ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
 ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));

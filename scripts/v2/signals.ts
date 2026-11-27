@@ -14,7 +14,7 @@ import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suit
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
   aiDataShare, applyRunToTraits, basePrior, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, imitatedStart, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
-  labPosture, playerEnv, prefShare, RHO_REF, rivalSignals, runOmega, sameBaseFamily, stepTraits, synTeachers, syntheticShare, type Signals,
+  playerEnv, prefShare, RHO_REF, runOmega, sameBaseFamily, stepTraits, synTeachers, syntheticShare, type Signals,
 } from '../../src/engine/v2/safety/traits';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign, TrainingRun, TraitVector } from '../../src/engine/v2/types';
@@ -100,12 +100,10 @@ const sgSyn = baseSignals(syn, bq(s0, syn));
 const sBig = game();
 (sBig.player.dataPortfolio.assets.find((a) => a.kind === 'synthetic') as OwnedDataAsset).tokensT *= 20;
 const sgBig = baseSignals(syn, bq(sBig, syn));
-const rv = s0.rivals[0];
-const rvS6 = rv ? rivalSignals(s0, rv, labPosture(s0, rv), false).S6 : 0;
-check(syntheticShare(playerDraw(s0, syn)) > syntheticShare(dR) && sgSyn.S6 === 0 && sgBig.S6 === 0 && ref.S6 === 0 && distillSignals().S6 === 0 && rvS6 === 0
+check(syntheticShare(playerDraw(s0, syn)) > syntheticShare(dR) && sgSyn.S6 === 0 && sgBig.S6 === 0 && ref.S6 === 0 && distillSignals().S6 === 0
   && EDGES.filter((e) => (e.from as string[]).includes('S6')).map((e) => e.id).join() === 'E05',
   'S6 (narrow harmful fine-tunes, E05\'s only driver) is 0 in every run kind: a base of any mix, a post run, a distillation, a rival\'s post run',
-  `synthetic share ref ${(syntheticShare(dR) * 100).toFixed(1)}%, synthetic-heavy ${(syntheticShare(playerDraw(s0, syn)) * 100).toFixed(1)}%, ×20 stock ${(syntheticShare(playerDraw(sBig, syn)) * 100).toFixed(1)}%: S6 ${sgSyn.S6} / ${sgBig.S6}; post ${ref.S6}, distill ${distillSignals().S6}, rival ${rvS6}`);
+  `synthetic share ref ${(syntheticShare(dR) * 100).toFixed(1)}%, synthetic-heavy ${(syntheticShare(playerDraw(s0, syn)) * 100).toFixed(1)}%, ×20 stock ${(syntheticShare(playerDraw(sBig, syn)) * 100).toFixed(1)}%: S6 ${sgSyn.S6} / ${sgBig.S6}; post ${ref.S6}, distill ${distillSignals().S6}`);
 
 function distillTo(sameFamily: boolean, withTeacher = true): TraitVector {
   const s = game();

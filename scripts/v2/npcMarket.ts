@@ -3,7 +3,7 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID } from '../../src/data/v2/tools';
 import { h50Of } from '../../src/engine/v2/models/capability';
-import { rivalDecodeU, rivalServe } from '../../src/engine/v2/actors/rivalModel';
+import { npcDecodeU, npcServeOom } from '../../src/engine/v2/npc/model';
 import { setNpcModel } from '../../src/engine/v2/npc/lab';
 import { npcBuildDays, npcDomainDg, rivalToolStep, toolInFocus } from '../../src/engine/v2/npc/market';
 import { decimalYear } from '../../src/engine/v2/core/time';
@@ -83,7 +83,7 @@ try {
   }
 } catch (e) { err = e; console.log(e); }
 check(!err && s.time.day === 900, '(c) 900-day tl-central game ran without errors');
-check(labs(s).every((r) => rivalServe(r) > 0 && rivalDecodeU(r) > 0.07), '(c) serving efficiency non-zero', `${rivalServe(s.rivals[0]).toFixed(3)} OOM at day 900`);
+check(npcServeOom(s.time.day) > 0 && npcDecodeU(s) > 0.07, '(c) serving efficiency non-zero', `${npcServeOom(s.time.day).toFixed(3)} OOM at day 900`);
 check(releases > 0 && lineupOk, `(c) lineup tiers present on every release (${releases} releases)`, lineupMsg);
 check(labs(s).every((r) => (r.lineup ?? []).length > 0), '(c) every lab has lineup tiers at day 900', labs(s).map((r) => `${r.core.name} ${(r.lineup ?? []).length}`).join(', '));
 console.log('     tool arrivals: ' + (toolDays.join('; ') || 'none'));
