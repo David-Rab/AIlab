@@ -6,7 +6,7 @@ import type { GameStateV2, RngLike, StreamId } from '../types';
 
 export const STREAMS: readonly StreamId[] = [
   'world', 'prod', 'runs', 'safety', 'incidents', 'security', 'market', 'finance',
-  'actors', 'rivals', 'china', 'worldfx', 'events', 'endings',
+  'actors', 'rivals', 'china', 'worldfx', 'events', 'endings', 'labour',
 ];
 
 /** 32-bit FNV-1a of `${seed}:${name}` followed by a murmur3 finaliser. Never returns 0. */

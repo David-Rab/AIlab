@@ -60,7 +60,7 @@ export function startTeams(baseline: BaselineId, start: StartType = 'leader'): {
   const leader = start === 'leader';
   const counts = leader ? START_TEAMS[baseline] : def.teams;
   const specs = leader ? START_SPECIALTIES : def.specialties;
-  const hiring: TeamHiring = { targets: { ...counts }, filling: [], nextId: 1 };
+  const hiring: TeamHiring = { targets: { ...counts }, filling: [], nextId: 1, premium: { eng: 0, re: 0, sci: 0 } };
   const teams: Team[] = [];
   const spec: Record<TeamDept, number> = { cap: 0, saf: 0 };
   for (const k of TEAM_KEYS) {
