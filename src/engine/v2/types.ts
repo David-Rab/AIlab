@@ -1411,7 +1411,7 @@ export interface Team {
   dept: TeamDept;
   /** Fixed size per role (data/v2/teams.ts TEAM_SIZE: 100 / 50 / 20). */
   size: number;
-  /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
+  /** People on the team: always the full size (teams arrive whole, nobody leaves on their own; only the player letting a team go or an event removes whole teams). */
   heads: number;
   specialty?: Column;
   name?: string;
@@ -1426,8 +1426,9 @@ export interface Team {
 export interface TeamHiring {
   /** "Keep hiring to N teams" per key (a policy: it hires, it never lays off). */
   targets: Record<TeamKey, number>;
-  /** Teams being filled, in order; one hiring lane per department. A team arrives when its heads reach its size. */
-  filling: Team[];
+  /** Hires toward the next team of each kind (teams come as whole chunks: no vacancies, no queue). key = the team key the next
+   *  team will be (the one furthest behind its target, re-chosen each week); heads < the kind's TEAM_SIZE. */
+  progress: Record<TeamRole, { key: TeamKey; heads: number }>;
   /** Counter for team ids. */
   nextId: number;
   /** The pay premium over the market wage per kind, a step of data/v2/labourMarket.ts PREMIUM_STEPS (default 0). */

@@ -40,7 +40,7 @@ export { baseLabel, namingChoice } from '../models/naming';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';
 export { teamGain } from '../departments/teamActions';
-export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey } from '../departments/teams';
+export { aiShareByRole, buildCapacity, fillWeeks, fullTeamPayroll, keyOf, payrollOf, playerH, teamLabel, teamPayroll, teamsOfKey } from '../departments/teams';
 export { labHeads, marketWage, offerOf, openPositions, outsideHeads, weeklyHires } from '../departments/market';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
 export { AGAINST, FOLDED_METHODS, METHOD_BY_ID, METHODS, againstOptions, defaultMethods, methodPolicyOn, ownedMethods } from '../safety/methods';

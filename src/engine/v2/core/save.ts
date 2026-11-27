@@ -8,9 +8,10 @@ import type { GameStateV2 } from '../types';
  */
 // 113: the data-centre redesign (master); old saves invalid, no migration.
 // 114: labour round (market, pools, stars, team sizes, no tiers); old saves invalid, no migration (MIN_SCHEMA_REV = 114).
-export const SCHEMA_REV = 114;
+// 115: teams are whole chunks (hiring.progress replaces hiring.filling); old saves invalid, no migration.
+export const SCHEMA_REV = 115;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
-export const MIN_SCHEMA_REV = 114;
+export const MIN_SCHEMA_REV = 115;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
 export const OLD_SAVE_MESSAGE = 'This save is from an older version of the game and can no longer be loaded.';
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';

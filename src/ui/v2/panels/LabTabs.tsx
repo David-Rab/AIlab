@@ -5,7 +5,7 @@
 // higher level costs, the budget and the security log. Reads facts, beliefs and measurements only.
 import { useState, type ReactNode } from 'react';
 import {
-  believedTheftChance, dateOf, engAllocView, fillWeeks, fmtDate, fullTeamPayroll, payrollOf, queuedOfKey, reAllocView, safReAllocView,
+  believedTheftChance, dateOf, engAllocView, fillWeeks, fmtDate, fullTeamPayroll, payrollOf, reAllocView, safReAllocView,
   securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
 } from '../../../engine/v2';
 import { privilegedOf } from '../../../engine/v2/security/security';
@@ -13,7 +13,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
 import { P0, PREMIUM_STEPS, STAR_POACH_COOPERATION, W0 } from '../../../data/v2/labourMarket';
 import { humanTasteMean } from '../../../engine/v2/departments/workfit';
-import { offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf } from '../../../engine/v2/departments/market';
+import { nextKeyOf, offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf, teamGap } from '../../../engine/v2/departments/market';
 import { DEFAULT_POACH_STEP, askingPay, hirableStars, humanTasteWith, playerStars, premiumOf as starPremiumOf, starTopShare } from '../../../engine/v2/departments/stars';
 import type { Column, GameStateV2, Star, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
@@ -36,17 +36,17 @@ const deptOf = (k: TeamKey): TeamDept => (k === 'eng' ? 'cap' : (k.split('.')[1]
 const teamTitle = (t: Pick<Team, 'role' | 'dept'>) => (t.role === 'eng' ? 'Engineers' : t.role === 're' ? (t.dept === 'saf' ? 'Safety research engineers' : 'Research engineers') : t.dept === 'saf' ? 'Safety scientists' : 'Scientists');
 const t1 = (x: number) => (x >= 10 ? F.count(x) : x.toFixed(1).replace(/\.0$/, ''));
 
-/** One tile per team; a filling team is hatched up to its share hired. */
+/** One tile per team; the next team (hires so far, not yet a team) is hatched up to its share hired. */
 function TeamTile({ s, t, filling }: { s: GameStateV2; t: Team; filling?: boolean }) {
-  const wk = filling ? fillWeeks(s, t) : 0;
+  const wk = filling ? fillWeeks(s, t.role) : 0;
   const Ic = t.role === 'sci' && t.specialty ? COL_ICON[t.specialty] : ROLE_ICON[t.role];
   return (
     <Tip content={() => <TipCard title={<span className="row-i"><Ic size={13} />{teamTitle(t)}{t.specialty ? ` · ${COLUMN_LABEL[t.specialty]}` : ''}</span>} rows={[
       { label: 'People', value: `${F.count(t.heads)} of ${t.size}` },
       { label: <Term id="payroll">Payroll</Term>, value: F.money(teamPayroll(s.player, t), { perYear: true }) },
       ...(t.role === 'sci' ? [{ label: 'Programme', value: t.projectId ? (PROJECT_BY_ID[t.projectId]?.name ?? t.projectId) : 'none (idle)' }] : []),
-      ...(filling ? [{ label: 'Full in', value: Number.isFinite(wk) ? `${wk} weeks` : 'stalled' }] : []),
-    ]}>{filling ? 'Being hired at the weekly hiring speed.' : 'A team on staff.'}</TipCard>}>
+      ...(filling ? [{ label: 'Next team in', value: Number.isFinite(wk) ? `~${wk} wk` : 'stalled' }] : []),
+    ]}>{filling ? 'People hired so far toward the next team. The team arrives whole, when it is full.' : 'A team on staff.'}</TipCard>}>
       <span className={`lh-tile ${filling ? 'filling' : ''}`} data-team={t.id}>
         {filling ? <i className="fillp" style={{ width: `${(t.heads / Math.max(1, t.size)) * 100}%` }} /> : null}
       </span>
@@ -93,13 +93,14 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
   const role = roleOf(k);
   const Ic = ROLE_ICON[role];
   const ts = teamsOfKey(p, k);
-  const fills = queuedOfKey(p, k);
+  const prog = p.hiring.progress[role];
+  const pending = teamGap(p, k) > 0 && nextKeyOf(p, role) === k; // the next team of this kind is this key's
+  const next: Team = { id: 'next', role, dept: deptOf(k), size: TEAM_SIZE[role], heads: pending ? prog.heads : 0 };
   const people = ts.reduce((a, t) => a + t.heads, 0);
   const target = p.hiring.targets[k] ?? 0;
   const perTeam = fullTeamPayroll(s, role);
   const pay = ts.reduce((a, t) => a + teamPayroll(p, t), 0);
-  const f0 = fills[0];
-  const f0wk = f0 ? fillWeeks(s, f0) : 0;
+  const nextWk = pending ? fillWeeks(s, role) : Infinity;
   const buys = nextTeamBuys(s, k);
   const newest = ts[ts.length - 1];
   return (
@@ -108,7 +109,7 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
         <span className="lh-ic"><Ic size={16} /></span>
         <div>
           <b><Term id={KEY_TERM[k]}>{KEY_NAME[k]}</Term></b>
-          <Tip content={() => <TipCard title={KEY_FULL[k]} rows={[{ label: 'People', value: F.count(people) }, { label: 'Teams', value: String(ts.length) }, { label: 'Open positions', value: F.count(ts.reduce((a, t) => a + t.size - t.heads, 0)) }]}>People on these teams now.</TipCard>}>
+          <Tip content={() => <TipCard title={KEY_FULL[k]} rows={[{ label: 'People', value: F.count(people) }, { label: 'Teams', value: String(ts.length) }]}>People on these teams now.</TipCard>}>
             <div className="small dim"><span className="num">{F.count(people)}</span> people · {ts.length} team{ts.length === 1 ? '' : 's'}</div>
           </Tip>
         </div>
@@ -116,19 +117,19 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
       <div className="lh-tiles-w">
         <div className="lh-tiles">
           {ts.map((t) => <TeamTile key={t.id} s={s} t={t} />)}
-          {fills.map((t) => <TeamTile key={t.id} s={s} t={t} filling />)}
+          {pending && <TeamTile s={s} t={next} filling />}
           {newest && <span className="lh-acts"><ActBtn id="teams.release" testId={`teams.release.${k}`} params={{ team: newest.id }} icon={ICON.release} label="" ariaLabel={`Let go the newest ${KEY_FULL[k].toLowerCase()} team`} />{role === 're' && <ActBtn id="teams.move" testId={`teams.move.${k}`} params={{ team: newest.id }} icon={ICON.move} label="" ariaLabel="Move the newest team to the other department" />}</span>}
         </div>
-        {f0 && (
-          <Tip content={() => <TipCard title="Filling" rows={[{ label: 'People', value: `${F.count(f0.heads)} of ${f0.size}` }, { label: 'Full in', value: Number.isFinite(f0wk) ? `${f0wk} weeks` : 'stalled' }]}>At today&apos;s hiring speed.</TipCard>}>
-            <div className="small dim lh-fill" data-test={`filling.${k}`}><ICON.hiring size={11} /> <span className="num">{F.count(f0.heads)}</span> of {f0.size} · {Number.isFinite(f0wk) ? `${f0wk} wk left` : 'stalled'}{fills.length > 1 ? ` · +${fills.length - 1} more` : ''}<ActBtn id="teams.release" testId="teams.cancel" params={{ team: f0.id }} icon={ICON.release} label="" ariaLabel="Stop hiring this team" /></div>
+        {pending && (
+          <Tip content={() => <TipCard title={<Term id="nextTeam">Next team</Term>} rows={[{ label: 'People hired so far', value: `${F.count(next.heads)} of ${next.size}` }, { label: 'Next team in', value: Number.isFinite(nextWk) ? `~${nextWk} weeks` : 'stalled' }]}>Hires add up; the team arrives whole when it is full.</TipCard>}>
+            <div className="small dim lh-fill" data-test={`next.${k}`}><ICON.hiring size={11} /> <span className="num">{F.count(next.heads)}</span> of {next.size} · next team in {Number.isFinite(nextWk) ? `~${nextWk} wk` : 'a while (stalled)'}</div>
           </Tip>
         )}
       </div>
       <div className="lh-target">
         <span className="stepper">
           <ActBtn id="teams.target" testId={`teams.target.down.${k}`} params={{ key: k, n: Math.max(0, target - 1) }} icon={ICON.minus} label="" block={target <= 0 ? 'Already 0' : undefined} ariaLabel="Lower the hiring target" />
-          <Tip content={() => <TipCard title={<Term id="keepHiring">Hiring target</Term>} value={`${target} teams`} rows={[{ label: 'Teams now', value: String(ts.length) }, { label: 'Filling', value: String(fills.length) }]}>Keep-hiring opens a team whenever you have fewer than the target.</TipCard>}><b className="num" data-test={`target-${k}`}>{target}</b></Tip>
+          <Tip content={() => <TipCard title={<Term id="keepHiring">Hiring target</Term>} value={`${target} teams`} rows={[{ label: 'Teams now', value: String(ts.length) }, { label: 'Still to hire', value: String(Math.max(0, target - ts.length)) }]}>Keep-hiring hires toward a new whole team whenever you have fewer than the target.</TipCard>}><b className="num" data-test={`target-${k}`}>{target}</b></Tip>
           <ActBtn id="teams.target" testId={`teams.target.up.${k}`} params={{ key: k, n: target + 1 }} icon={ICON.plus} label="" ariaLabel="Raise the hiring target" />
         </span>
         <Tip content={() => <TipCard title="Cost of a team" value={F.money(perTeam, { perYear: true })}>A full team&apos;s yearly pay.</TipCard>}><div className="small dim"><span className="num">{F.money(perTeam)}</span>/yr a team</div></Tip>
@@ -189,7 +190,7 @@ function LabourRow({ s, k }: { s: GameStateV2; k: TeamRole }) {
   const rivals = otherLabHeads(s, k) - china;
   const V = openPositions(p, k);
   const hires = weeklyHires(s, k);
-  const wk = fillWeeks(s, { role: k, dept: 'cap', size: TEAM_SIZE[k], heads: 0 });
+  const wk = fillWeeks(s, k);
   const dTone = dShare < -0.005 ? 'tone-neg' : dShare > 0.005 ? 'tone-pos' : 'dim';
   const wageTip = () => (
     <TipCard title={<Term id="marketWage">Market wage</Term>} value={`${wageM(w)} a person-year`} rows={[
@@ -216,11 +217,11 @@ function LabourRow({ s, k }: { s: GameStateV2; k: TeamRole }) {
   const speedTip = () => (
     <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} value={V > 0 ? `${t1(hires)} people a week` : 'no open positions'} rows={[
       { label: 'Open positions', value: F.count(V) },
-      { label: `A new team of ${TEAM_SIZE[k]}`, value: Number.isFinite(wk) ? `about ${wk} weeks` : 'never at current rates' },
+      { label: `Next team of ${TEAM_SIZE[k]}`, value: Number.isFinite(wk) ? `about ${wk} weeks` : 'none open' },
       { label: <Term id="talentPull">Talent pull</Term>, value: F.num(s.relations.talentPull, 0, true) },
       { label: <Term id="premiumPay">Pay premium</Term>, value: premLabel(pi) },
     ]}>
-      People you hire this week for your open positions. More openings, talent pull, morale and a premium raise it; a thinner pool slows it. Vacancies fill first, then teams being hired.
+      People you hire this week for your open positions. More openings, talent pull, morale and a premium raise it; a thinner pool slows it. Hires add up and a team arrives whole, when it is full.
     </TipCard>
   );
   return (
@@ -244,13 +245,13 @@ function LabourRow({ s, k }: { s: GameStateV2; k: TeamRole }) {
       <Tip content={speedTip}>
         <div className="lm-cell" data-test={`lm-speed.${k}`}>
           {V > 0 ? <span><b className="num lm-big">{t1(hires)}</b> <span className="dim small">a week</span></span> : <span className="dim">no open positions</span>}
-          <span className="small dim">{Number.isFinite(wk) ? `~${wk} wk for a team` : 'a team: never at this rate'}</span>
+          <span className="small dim" data-test={`lm-next.${k}`}>{Number.isFinite(wk) ? `next team in ~${wk} wk` : 'no team being hired'}</span>
         </div>
       </Tip>
       <div className="lm-cell lm-prem" data-test={`lm-premium.${k}`}>
         <span className="seg-row">
           {PREMIUM_STEPS.map((x) => (Math.abs(x - pi) < 1e-9
-            ? <Tip key={x} content={() => <TipCard title={<Term id="premiumPay">Pay premium</Term>} value={premLabel(x)} rows={[{ label: 'Your offer', value: `${wageM(offer)} a person-year` }, { label: <Term id="poaching">Poaching</Term>, value: x > 0 ? `${F.pct(poachShare(x))} of rivals' leavers join you` : 'none' }]}>Your current premium on the market wage for {KIND_NAME_L[k].toLowerCase()}.</TipCard>}><span className="seg-on" data-test={`premium.${k}.${x}`}>{premLabel(x)}</span></Tip>
+            ? <Tip key={x} content={() => <TipCard title={<Term id="premiumPay">Pay premium</Term>} value={premLabel(x)} rows={[{ label: 'Your offer', value: `${wageM(offer)} a person-year` }, { label: <Term id="poaching">Poaching</Term>, value: x > 0 ? `${F.pct(poachShare(x))} of your hires come from rivals` : 'none' }]}>Your current premium on the market wage for {KIND_NAME_L[k].toLowerCase()}.</TipCard>}><span className="seg-on" data-test={`premium.${k}.${x}`}>{premLabel(x)}</span></Tip>
             : <ActBtn key={x} id="hiring.premium" testId={`premium.${k}.${x}`} params={{ kind: k, step: x }} label={premLabel(x)} />))}
         </span>
         <span className="small dim">{pi > 0 ? <>offering <b className="num">{wageM(offer)}</b>, poaching from rivals</> : 'pay at the market wage'}</span>
@@ -374,7 +375,7 @@ function PayrollCard({ s }: { s: GameStateV2 }) {
   const total = payrollOf(s);
   const starPay = playerStars(s).reduce((a, x) => a + x.pay, 0) / 1000;
   const byKey: { k: TeamKey | 'stars'; v: number }[] = [...PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(p, t), 0) })), { k: 'stars', v: starPay }];
-  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: x.k === 'stars' ? 'Stars' : KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(p, t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
+  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: x.k === 'stars' ? 'Stars' : KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Hired toward the next teams', value: F.money(payrollOf(s) - starPay - byKey.reduce((a, x) => a + (x.k === 'stars' ? 0 : x.v), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
   return (
     <Card home="payroll" className="lh-paycard" title={<span className="row-i"><ICON.cash size={15} /><Term id="payroll">Payroll</Term></span>}
       right={<Tip content={payTip}><span><b className="num lh-big">{F.money(total)}</b> <span className="dim small">/yr</span></span></Tip>}>

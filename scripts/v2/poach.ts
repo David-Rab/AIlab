@@ -3,9 +3,9 @@
 // Run: npx tsx scripts/v2/poach.ts   (PASS/FAIL lines, exit 1 on any failure)
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { act } from '../../src/engine/v2/core/loop';
-import { EPS, LABOUR_KINDS, PREMIUM_STEPS, SEPARATION } from '../../src/data/v2/labourMarket';
+import { EPS, LABOUR_KINDS, PREMIUM_STEPS } from '../../src/data/v2/labourMarket';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE } from '../../src/data/v2/teams';
-import { labHeads, marketWeek, openPositions, otherLabHeads, playerHeads, poachFromRivals, poachShare } from '../../src/engine/v2/departments/market';
+import { labHeads, marketWeek, otherLabHeads, playerHeads, poachFromRivals, poachShare, weeklyHires } from '../../src/engine/v2/departments/market';
 import type { GameStateV2, TeamRole } from '../../src/engine/v2/types';
 
 let fails = 0;
@@ -42,53 +42,55 @@ const chinaTotal = (s: GameStateV2) => s.china.lab.core.staff.cap + s.china.lab.
   s.player.hiring.targets['re.cap'] += 6;
   const r0 = rivalTotal(s);
   for (let w = 0; w < 10; w++) marketWeek(s, undefined);
-  check(rivalTotal(s) === r0 && poachShare(0) === 0 && poachFromRivals(s, 're', 1e9) === 0, 'no poaching at pi = 0: rival staff unchanged after 10 weeks with open positions');
+  check(rivalTotal(s) === r0 && poachShare(0) === 0, 'no poaching at pi = 0: rival staff unchanged after 10 weeks with open positions');
 }
 
-// 3. At pi = +100% the poached share is 1 - 2^(-eps) of the rivals' leavers; rival staff falls by it; China is untouched.
+// 3. poachFromRivals takes exactly n heads from the rivals (never China); capped by what they have.
 {
   const s = fresh();
-  s.player.hiring.premium.re = 1;
-  const heads0 = rivalHeads(s, 're');
   const tot0 = rivalTotal(s);
   const cn0 = chinaTotal(s);
-  const n = poachFromRivals(s, 're', 1e9);
-  const leavers = (heads0 * SEPARATION) / 52;
-  const share = 1 - Math.pow(2, -EPS);
-  check(Math.abs(share - 0.69) < 0.01, 'share at +100% is about 69% at eps = 1.7', fmt(share));
-  check(near(n, leavers * share, 1e-9), 'poached = (1 - 2^(-eps)) x rivals leavers (heads x SEPARATION / 52)', `${fmt(n, 3)} of ${fmt(leavers, 3)} leavers`);
-  check(near(tot0 - rivalTotal(s), n, 1e-9), 'rival staff (cap + saf) falls by the poached number', `-${fmt(tot0 - rivalTotal(s), 3)}`);
+  const n = poachFromRivals(s, 're', 12.5);
+  check(near(n, 12.5, 1e-12) && near(tot0 - rivalTotal(s), 12.5, 1e-9), 'poachFromRivals(n) returns n and the rivals fall by exactly n', `-${fmt(tot0 - rivalTotal(s), 3)}`);
   check(chinaTotal(s) === cn0, 'China is never poached');
+  check(poachFromRivals(s, 're', 0) === 0 && poachFromRivals(s, 're', -3) === 0, 'nothing asked, nothing poached');
+  const all = rivalHeads(s, 're');
+  const big = poachFromRivals(s, 're', 1e9);
+  check(near(big, all, 1e-9), 'capped by what the rivals have (their heads of the kind)', `${fmt(big, 1)} of ${fmt(all, 1)}`);
 }
 
-// 4. Capped by the room (V left after the normal hires).
+// 4. (c) At pi = +100% a share 1 - 2^(-eps) of the player's weekly hires comes from the rivals; the rivals fall by that number.
+{
+  const share = 1 - Math.pow(2, -EPS);
+  check(Math.abs(share - 0.69) < 0.01 && near(poachShare(1), share, 1e-12), 'share at +100% is about 69% at eps = 1.7', fmt(share));
+  const week = (premium: number) => {
+    const s = fresh();
+    s.player.hiring.premium.re = premium;
+    s.player.hiring.targets['re.cap'] += 6;
+    const heads0 = playerHeads(s.player, 're');
+    const tot0 = rivalTotal(s);
+    const cn0 = chinaTotal(s);
+    const hires = weeklyHires(s, 're');
+    marketWeek(s, undefined);
+    return { hires, gained: playerHeads(s.player, 're') - heads0, rFall: tot0 - rivalTotal(s), china: chinaTotal(s) === cn0 };
+  };
+  const a = week(0);
+  const b = week(1);
+  check(a.rFall === 0, 'pi = 0: no hire comes from rivals', `${fmt(a.hires, 2)} hires, rivals -${fmt(a.rFall, 3)}`);
+  check(near(b.gained, b.hires, 1e-3) && near(b.rFall, b.gained * share, 1e-9) && b.china,
+    'pi = +100%: 1 - 2^(-eps) of the hires come from rivals and the rivals fall by that number', `${fmt(b.hires, 2)} hires, rivals -${fmt(b.rFall, 3)} = ${fmt(b.rFall / b.hires, 4)} x hires (${fmt(share, 4)})`);
+}
+
+// 5. Many weeks: the rivals' total fall is the share of everything the player hired.
 {
   const s = fresh();
-  s.player.hiring.premium.re = 1;
-  const r0 = rivalTotal(s);
-  const room = 0.5;
-  const n = poachFromRivals(s, 're', room);
-  check(near(n, room, 1e-12) && near(r0 - rivalTotal(s), room, 1e-9), 'capped by the room left: poached = room, rivals fall by it', `${fmt(n)} of ${fmt(room)}`);
-  check(poachFromRivals(s, 're', 0) === 0 && poachFromRivals(s, 're', -3) === 0, 'no room, no poaching');
-}
-
-// 5. In marketWeek the player gains them: pull 0 means no matching hires, so the poached are all that comes.
-{
-  const run = (premium: number) => {
-    const s = fresh();
-    s.relations.talentPull = -50;
-    s.player.hiring.premium.re = premium;
-    s.player.hiring.targets['re.cap'] += 3;
-    const heads0 = playerHeads(s.player, 're');
-    const rv0 = rivalHeads(s, 're');
-    const V = openPositions(s.player, 're');
-    marketWeek(s, undefined);
-    return { gained: playerHeads(s.player, 're') - heads0, V, expected: ((rv0 * SEPARATION) / 52) * poachShare(premium) };
-  };
-  const a = run(0);
-  const b = run(1);
-  check(b.gained > a.gained && near(b.gained - a.gained, b.expected, 0.02), 'in marketWeek the player gains the poached heads on top of no matching hires',
-    `poached ~${fmt(b.expected, 3)} (open ${b.V}), gained ${fmt(b.gained, 3)} vs ${fmt(a.gained, 3)} at pi = 0`);
+  s.player.hiring.premium.eng = 1;
+  s.player.hiring.targets['eng'] += 4;
+  const heads0 = playerHeads(s.player, 'eng');
+  const tot0 = rivalTotal(s);
+  for (let w = 0; w < 20; w++) marketWeek(s, undefined);
+  const hired = playerHeads(s.player, 'eng') - heads0;
+  check(hired > 0 && near(tot0 - rivalTotal(s), hired * (1 - Math.pow(2, -EPS)), 1e-6), 'over 20 weeks the rivals lose the share of all heads hired', `hired ${fmt(hired, 1)}, rivals -${fmt(tot0 - rivalTotal(s), 2)}`);
 }
 
 // 6. L14: China's and the rivals' heads are in E, follow their staff paths, and are not touched by wages or the pool.

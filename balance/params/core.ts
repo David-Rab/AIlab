@@ -770,13 +770,6 @@ export const PARAMS_CORE = defineParams([
     evidence: 'teams.ts:34 "Hiring multiplier from morale (0.5 at 0, 1 at 50, 1.5 at 100) [D]."',
   },
   {
-    id: 'core.teams.attritionMorale',
-    ref: { kind: 'inline', file: 'src/engine/v2/departments/teams.ts', anchor: 'Math.max(0.2, 1.5 - moraleOf(p, dept) / 100)' },
-    value: [0.2, 1.5], unit: 'attrition multiplier (floor, intercept at morale 0)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; teams.ts attritionMorale "Leavers multiplier from morale: max(0.2, 1.5 − morale/100) (V2-SPEC §3.4.1), on SEPARATION"',
-    notes: 'L12: the base is SEPARATION (15.6%/yr) in data/v2/labourMarket.ts; teams.ts attritionMorale is the one home of this factor (departments/market.ts reads it).',
-  },
-  {
     id: 'core.workfit.silo',
     ref: { kind: 'inline', file: 'src/engine/v2/departments/workfit.ts', anchor: 'let mods = 1 - 0.05 * p.security.siloing;' },
     value: 0.05, unit: 'speed loss per siloing level', area: 'core', layer: 'world', actor: 'player', kind: 'designer',

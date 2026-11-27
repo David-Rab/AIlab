@@ -26,7 +26,7 @@ const near = (a: number, b: number, tol = 1e-12) => Math.abs(a - b) <= tol * Mat
 
 const fresh = (): GameStateV2 => newGame(defaultSetupV2({ seed: 1 } as never));
 const sciHeads = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap').reduce((a, t) => a + t.heads, 0);
-const teamsSaf = (s: GameStateV2) => s.player.teams.filter((t) => t.dept === 'saf').concat(s.player.hiring.filling.filter((t) => t.dept === 'saf')).reduce((a, t) => a + (t.heads * s.player.pay[t.role]) / 1000, 0);
+const teamsSaf = (s: GameStateV2) => s.player.teams.filter((t) => t.dept === 'saf').reduce((a, t) => a + (t.heads * s.player.pay[t.role]) / 1000, 0);
 const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'player');
 
 // 1. T_h = (S b + sum T_star) / (S + n), b the teams' base taste (s.labour.teamTaste), computed independently, for 0, 1 and 7 stars.
