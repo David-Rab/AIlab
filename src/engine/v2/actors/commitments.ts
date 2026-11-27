@@ -1,8 +1,9 @@
 // Commitments: predicates, signing, breaks, amendments, statutory floors (V2-SPEC §3.9.4). Owner: WS4.
 //
 // A predicate returns TRUE when the commitment currently BINDS against the player's state: something the player
-// did (or is doing) would violate it. The director raises E30 (Honour / Amend / Break) for live commitments whose
-// predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
+// did (or is doing) would violate it. A binding pledge shows "binding now" on the Relations commitments list with Honour /
+// Amend / Break (CMT_* actions, commitmentActions.ts); left alone it has no effect of its own, the deploy gate
+// (commitmentDeployBlock) already refuses what it forbids. Other workstreams can call `blockingCommitments` before an action to telegraph the cost.
 import type { Commitment, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
 import { cash } from './fx';
 import { lawsInForce } from '../../../data/v2/laws';
@@ -193,7 +194,7 @@ export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   approvalPush(s, ctx, PUBLIC.pledgeBroken, `Pledge broken: ${c.title}`);
 }
 
-/** Amend ("moving goalposts", E30); after the trigger fired it is a break. */
+/** Amend ("moving goalposts"; CMT_AMEND); after the trigger fired it is a break. */
 export function amendCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, triggered: boolean) {
   if (triggered) return breakCommitment(s, ctx, c);
   c.status = 'amended';

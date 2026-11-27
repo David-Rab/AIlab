@@ -45,7 +45,8 @@ import { SECURITY_ACTIONS } from '../security/actions';
 import { POACH } from '../departments/poach';
 import { OPEN_WEIGHTS } from '../models/openWeights';
 import { RETIRE } from '../endings/retire';
-import { COMPANY_EVENTS } from '../events/catalog/company';
+import { SITE_BLOCK_ACTIONS } from '../compute/siteBlock';
+import { COMMITMENT_ACTIONS } from '../actors/commitmentActions';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
@@ -99,11 +100,11 @@ export const SYSTEMS: readonly EngineSystem[] = [
 ];
 
 /** Player-callable levers, all spheres (§2.7 preview-truth lint runs over these). */
-export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, POACH, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...SECURITY_ACTIONS, BRIEF_OFFICIALS, RETIRE, ...WORLD_ACTIONS];
+export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, POACH, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...SECURITY_ACTIONS, BRIEF_OFFICIALS, RETIRE, ...WORLD_ACTIONS, ...COMMITMENT_ACTIONS, ...SITE_BLOCK_ACTIONS];
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...GOV_EVENTS,
+  ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...GOV_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));

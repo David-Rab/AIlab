@@ -136,7 +136,7 @@ export { chipFit, computeForecast, computeHistory, idleChips, siteBars, siteBuil
 export type { ChipFit, ForecastEvent, ForecastQ, SiteBars, SiteBuildingsView } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf, siteLiveMW } from './compute/power';
 export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
-export { liveCommitments, keptShare } from './actors/commitments';
+export { liveCommitments, keptShare, blockingCommitments } from './actors/commitments';
 export { usgovView } from './world/usgov';
 export { chinagovView } from './world/chinagov';
 export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';

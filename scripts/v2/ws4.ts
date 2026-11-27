@@ -55,7 +55,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
   // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts; W1d cut E12 Clearances, E20
   // Oversight committee, E22 DPA consolidation and E23 China deal; W5 rebuilt E12, E20 and E22 (events/catalog/gov.ts).
-  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E25', 'E27', 'E30', 'E32'];
+  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E23', 'E25', 'E32'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, `E1 catalog: exactly the ${want.length} kept events`, `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
@@ -354,7 +354,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   check(!!v, 'C1 fixture has a deployable full version');
   if (v) {
     check(deployGate(s, v, 'api') === true, 'C1 baseline: the version can launch on the API');
-    // B1: a breached whistleblower pledge binds (E30) but has nothing to do with launches.
+    // B1: a breached whistleblower pledge binds but has nothing to do with launches.
     signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {});
     ws4(s).internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
     check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
@@ -379,7 +379,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       dep.versionId = v.id;
       dep.safeguards = 'standard';
       refreshFramework(s);
-      check(!!dep.held && dep.held.includes('BIO'), 'C1 the standing breach is held by the framework (RF-S2: no E30 card)', String(dep.held));
+      check(!!dep.held && dep.held.includes('BIO'), 'C1 the standing breach is held by the framework (RF-S2)', String(dep.held));
       const other = s.player.models.versions.find((x) => x.id !== v.id && x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed') && measuredDomain(x, 'BIO') < 10);
       if (other) check(deployGate(s, other, 'enterprise') === true, 'C1 (B2) a standing breach no longer blocks other launches', String(deployGate(s, other, 'enterprise')));
     }

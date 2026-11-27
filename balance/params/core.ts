@@ -956,18 +956,6 @@ export const PARAMS_CORE = defineParams([
     notes: 'Event records carry no per-field source; also defaultChoice (index) not registered.',
   },
   {
-    id: 'core.COMPANY_EVENTS.deadlineDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/company.ts', symbol: 'COMPANY_EVENTS', path: ['*', 'deadlineDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; company.ts:22, 57 "deadlineDays: 14 / 30"',
-  },
-  {
-    id: 'core.COMPANY_EVENTS.cooldown',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/company.ts', symbol: 'COMPANY_EVENTS', path: ['*', 'cooldown'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; company.ts:22, 57 "cooldown: 365 / 60"',
-  },
-  {
     id: 'core.RIVALS_EVENTS.deadlineDays',
     ref: { kind: 'export', module: 'src/engine/v2/events/catalog/rivals.ts', symbol: 'RIVALS_EVENTS', path: ['*', 'deadlineDays'] },
     unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
