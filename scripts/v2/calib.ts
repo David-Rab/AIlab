@@ -86,7 +86,7 @@ if (process.env.V3_ASI) ASI_EXTRA.gaps = Number(process.env.V3_ASI);
 /** New game with the leader lab on, ticked with no player actions (endings skipped) until
  *  the leader records milestone `stopAt`. Returns the leader's milestone days. */
 function runT1L(preset: T1Preset, stopAt: MilestoneIdx, seed = SEED, maxDays = 365 * 16): Partial<Record<MilestoneIdx, number>> {
-  const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
+  const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID);
   if (!L) throw new Error('T1L: no leader lab');
   while (s.time.day < maxDays && L.core.milestoneDays[stopAt] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });

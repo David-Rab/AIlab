@@ -20,7 +20,7 @@ import { deactivateRival } from '../actors/rivals';
 import { addRivalKnowledge, recipeOf } from '../actors/rivalModel';
 import { request } from '../actors/state';
 import { LEADER_ID } from '../models/labs';
-import { KINDS } from '../../../data/v2/npcLabs';
+import { persOf } from '../npc/lab';
 import type { GameStateV2, Money, RivalLab, SystemCtx } from '../types';
 import { revenueRun } from './observe';
 import { growthOf, privateRivals, STORY, type StoryNow } from './story';
@@ -74,7 +74,7 @@ export const valueCap = (revenue: Money, growth: number): Money => Math.max(RIVA
 export const rivalSpend = (r: RivalLab): Money => r.core.computeOnline * RIVAL.perH100eYear + RIVAL.overhead;
 
 /** N2b-1: an NPC lab's funding is its kind's (data/v2/npcLabs.ts KINDS: parent or state never fail; private raises and can go into distress). */
-export const parentFunded = (r: RivalLab) => (r.npc ? KINDS[r.npc.kind].funding !== 'private' : r.archetype === 'bigtech' || r.archetype === 'openweights' || r.core.id === LEADER_ID);
+export const parentFunded = (r: RivalLab) => (r.npc ? persOf(r.npc).funding !== 'private' : r.archetype === 'bigtech' || r.archetype === 'openweights' || r.core.id === LEADER_ID);
 
 /** The big-tech rival that would license-and-hire a failing lab: the one with the most compute. */
 export function exitBuyer(s: GameStateV2, r?: RivalLab): RivalLab | undefined {

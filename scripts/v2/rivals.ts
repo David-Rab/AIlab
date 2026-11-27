@@ -43,7 +43,7 @@ import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { hRef } from '../../src/engine/v2/production/ces';
 
-const mk = (seed = 2027, leaderLab = true): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false, leaderLab }));
+const mk = (seed = 2027): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 
@@ -80,7 +80,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   const b2 = makeBase(2, 100, 2e27, 0.3);
   check(near(b2.gPre - b1.gPre, Math.log10(2), 1e-9) && postG(b2, REC) > postG(b1, REC), 'R1 a base on twice the training FLOP gains log₁₀ 2 of G_pre (and its versions gain at least that)', `${(b2.gPre - b1.gPre).toFixed(4)} OOM; version +${(postG(b2, REC) - postG(b1, REC)).toFixed(4)}`);
   // In play: two copies of a world, one rival with twice the compute for a year.
-  const sa = mk(11, false);
+  const sa = mk(11);
   const sb = clone(sa);
   const ra = sa.rivals[0];
   const rb = sb.rivals[0];

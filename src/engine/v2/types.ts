@@ -149,8 +149,9 @@ export interface SetupV2 {
   gov: string; // GOV_PRESETS id or 'realistic'
   public: string;
   china: string;
-  rivals: string; // archetype id for all, or 'realistic'
-  rivalCount: 3 | 4;
+  /** The US NPC labs (design/npc/NPC-LABS.md §10): 'realistic' (the July 2025 cast) or a custom list; China's lab is
+   *  always there and its preset is `china` above. */
+  cast: 'realistic' | NpcSetupLab[];
   governance: GovernancePresetId;
   storyteller: StorytellerId;
   tutorial: boolean;
@@ -158,8 +159,14 @@ export interface SetupV2 {
   companyName: string;
   /** Start type (STRUCTURE §4.8, BUILD-PLAN R9; data/v2/starts.ts). */
   start: StartType;
-  /** Add the simulated AI-2027 leader lab to the world (BUILD-PLAN R2, D1): on for every start but the leader's. */
-  leaderLab: boolean;
+}
+
+/** One custom US NPC lab (setup.cast): its kind, its start lag behind the frontier (months), and optional overrides of
+ *  the kind's seven values (data/v2/npcLabs.ts Personality). Its compute, money and tools are the kind's typical start. */
+export interface NpcSetupLab {
+  kind: import('../../data/v2/npcLabs').NpcKindId;
+  lagMonths: number;
+  personality?: Partial<import('../../data/v2/npcLabs').Personality>;
 }
 
 /** The four starts (BUILD-PLAN R9): a spinout, a challenger, a big-tech lab, or the frontier leader. */
@@ -2099,6 +2106,8 @@ export interface RivalFinance {
 /** N2b-1 (design/npc/NPC-LABS.md §4, engine/v2/npc/lab.ts): an NPC lab's moving state. */
 export interface NpcLabState {
   kind: import('../../data/v2/npcLabs').NpcKindId;
+  /** The player's adjusted seven values (setup.cast); absent: the kind's. */
+  pers?: import('../../data/v2/npcLabs').Personality;
   /** Model family (invented, data/v2/npcLabs.ts). */
   family: string;
   /** Lag behind the reference frontier (days) and its normal value d0. */
