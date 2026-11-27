@@ -10,6 +10,8 @@ import { decimalYear } from '../core/time';
 import { ws4r } from '../actors/state';
 import { robotOutput } from '../worldfx/robots';
 import { automationShare } from '../worldfx/readouts';
+import { worldMix } from '../worldfx/mix';
+import { attention, frontier as publicFrontier, govMilestones, incidentHeat, publicMilestones, usLeadOverChinaMonths, type MilestoneBoard } from './observe';
 import type { GameStateV2, LabId } from '../types';
 
 export interface LabReadout {
@@ -22,6 +24,8 @@ export interface LabReadout {
   monthsBehind: number | null;
   /** Day each milestone was first reached (index = MilestoneIdx). */
   milestoneDays: Partial<Record<number, number>>;
+  /** Attention on the lab, 0..1 (observe.ts, spec 3.2). */
+  attention: number;
 }
 
 export interface WorldReadout {
@@ -29,6 +33,9 @@ export interface WorldReadout {
   year: number;
   labs: LabReadout[];
   frontier: { lab: LabId | null; G: number | null };
+  /** W2 shared inputs (observe.ts): the public frontier holder, the milestones shown publicly (index to first day and lab) and
+   *  those the US government sees, the world's incident heat and the US lead over China (months). */
+  observe: { frontierHolder: LabId | null; publicMilestones: MilestoneBoard; govMilestones: MilestoneBoard; incidentHeat: number; usLeadOverChinaMonths: number | null };
   laws: { inForce: string[]; exportPolicy: string };
   economy: { unemploymentUS: number; youthUnemployment: number; gdpGrowthUS: number; aiIncomeShare: number; automationUS: number };
   geopolitics: { taiwanDisrupted: boolean; chinaGapMonths: number | null };
@@ -52,9 +59,13 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     if (g > topG) { topG = g; top = id; }
   }
   const behind = (id: LabId, leader: LabId | null) => (leader && Number.isFinite(bestG(s, id)) && Number.isFinite(topG) ? fin(lagDays(s, id, leader) / MONTH) : null);
+  const pf = publicFrontier(s);
+  const mix = worldMix(s);
   const labs: LabReadout[] = ids.map(({ id, kind }) => ({
     id, kind, G: fin(bestG(s, id)), monthsBehind: behind(id, top), milestoneDays: { ...(labCore(s, id)?.milestoneDays ?? {}) },
+    attention: fin(attention(s, id, pf, mix))!,
   }));
+  const usLead = usLeadOverChinaMonths(s, pf);
   // China's gap to the US frontier (the best US lab: the NPC labs and the observer player).
   let usTop: LabId | null = null;
   let usG = -Infinity;
@@ -66,6 +77,7 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     day: s.time.day, year: Math.round(decimalYear(s) * 1000) / 1000,
     labs,
     frontier: { lab: top, G: fin(topG) },
+    observe: { frontierHolder: pf.lab, publicMilestones: publicMilestones(s), govMilestones: govMilestones(s), incidentHeat: fin(incidentHeat(s))!, usLeadOverChinaMonths: usLead === null ? null : fin(usLead) },
     laws: { inForce: (['sb53', 'raise', 'euGpai'] as const).filter((k) => L[k]), exportPolicy: L.exportPolicy },
     economy: { unemploymentUS: fin(w.unemployment.US)!, youthUnemployment: fin(w.youthUnemployment)!, gdpGrowthUS: fin(w.macro.US.g)!, aiIncomeShare: fin(w.aiIncomeShare)!, automationUS: fin(automationShare(s, 'US'))! },
     geopolitics: { taiwanDisrupted: ws4r(s).taiwanDisrupted, chinaGapMonths: chinaGap },

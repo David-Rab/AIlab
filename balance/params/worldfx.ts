@@ -264,4 +264,15 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; serving.ts:112',
     notes: 'Reference verifiability in the sector coverage threshold; kappaV is data (market chunk).',
   }),
+
+  // ---------------------------------------------------------------- world/observe.ts (W2: the shared inputs, spec 3.2-3.3)
+  ...(['nearFrontierMonths', 'attentionHalvingMonths', 'incidentHalfLifeDays', 'briefing1DelayDays'] as const).map((k): Param => ({
+    id: `wfx.OBSERVE.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/observe.ts', symbol: 'OBSERVE', path: [k] },
+    value: { nearFrontierMonths: 3, attentionHalvingMonths: 3, incidentHalfLifeDays: 182, briefing1DelayDays: 90 }[k],
+    unit: k.endsWith('Months') ? 'months' : 'days',
+    ...W, actor: 'all', kind: 'designer',
+    evidence: 'observe.ts OBSERVE "[D]"; design/world/OUTSIDE-WORLD.md 3.2 "within about 3 months ... halving with each further ~3 months [D]", 3.3 "half-life about 6 months"',
+    notes: k === 'briefing1DelayDays' ? "The government sees the player's internal milestones 90 days late at briefing 1." : 'Attention and incident-heat shape, to fit to the shape checks.',
+  })),
 ]);
