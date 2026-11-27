@@ -128,8 +128,6 @@ export function siteLastLiveInQ(s: GameStateV2, o: SiteOpts): number {
   const q = siteBuildingLiveInQ(s, o);
   return q[q.length - 1];
 }
-/** Old name of siteLiveInQ (the engine barrel and the build card still import it). */
-export const siteEtaQ = siteLiveInQ;
 
 /** What a site's capex ($B, the whole campus) is made of (DATACENTERS §5b): `building` before the repetition saving
  *  (rent: the network fit-out), `repeatSaving` (building × the 3-building 10% / 5-building 15% discount), `extra`

@@ -1620,6 +1620,22 @@ const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8')
 const err = await page.evaluate((j) => window.ai27v2.importJson(j) ?? '', fx);
 ok('Import day-400 fixture', err === '', err);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+// DC-9: the Sites tab is gone; its rows sit under the chart on Overview, one per site, and the header's live figure is the
+// sum of the live buildings' power.
+{
+  await nav('compute');
+  await tabTo('overview');
+  await wait(200);
+  const r = await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const live = s.player.sites.reduce((a, x) => a + (x.stage !== 'live' ? 0 : !x.ws3.liveDays || x.ws3.liveDays.length <= 1 ? x.mw : (x.ws3.buildingMW ?? x.mw / x.ws3.liveDays.length) * Math.max(1, x.ws3.liveDays.filter((d) => d <= s.time.day).length)), 0);
+    const txt = document.querySelector('[data-home=sites] [data-test=sites-live]')?.textContent ?? '';
+    const shown = parseFloat(txt) * (/GW/.test(txt) ? 1000 : 1);
+    return { rows: document.querySelectorAll('[data-home=sites] .dcs-row:not(.ax)').length, sites: s.player.sites.length, live, shown, txt, sitesTab: !!document.querySelector('[data-tab=sites]') };
+  });
+  ok('DC-9: no Sites tab; one row per site under the chart', !r.sitesTab && r.rows === r.sites && r.sites > 0, `${r.rows} rows, ${r.sites} sites`);
+  ok('DC-9: the Sites header shows the live power of the live buildings', Math.abs(r.shown - r.live) <= (/GW/.test(r.txt) ? 50 : 0.5), `${r.txt} vs ${Math.round(r.live)} MW`);
+}
 // J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
 // (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
 const tipCov = { tipped: 0, n: 0, miss: [] };
