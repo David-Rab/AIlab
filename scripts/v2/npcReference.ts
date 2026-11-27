@@ -22,7 +22,7 @@ for (const tl of ['fast', 'central', 'slow'] as TimelineId[]) {
     const e = Math.abs(refG(s, ac)! - gSC); maxAcErr = Math.max(maxAcErr, e); rows++;
     check(e < 0.05, `${tl}[${index}]: G at AC ${e.toFixed(4)} from gSC`);
     const p = TIMELINE_PROGRESS[tl][index], last = SERIES_FROM + (p.length - 1) * SERIES_STEP;
-    check(refG(s, last + 5) === refG(s, last), `${tl}[${index}]: flat after the end`);
+    check(refG(s, last + 5)! > refG(s, last)!, `${tl}[${index}]: extended (rising) after the end`);
     // round trip on the running maximum: clockOfG(refG(t)) <= t, and equal wherever progress is at its running max
     let rm = -Infinity;
     for (let t = SERIES_ANCHOR + 0.01; t < last; t += 0.07) {
@@ -32,8 +32,15 @@ for (const tl of ['fast', 'central', 'slow'] as TimelineId[]) {
       rm = Math.max(rm, g - SERIES_G0[tl]);
       if (g - SERIES_G0[tl] >= rm - 1e-12) check(Math.abs(back - t) < 1e-6, `${tl}[${index}]: round trip at ${t.toFixed(2)} gave ${back}`);
     }
-    check(clockOfG(s, 1e9) === Infinity, 'above the series is Infinity');
+    check(Math.abs(clockOfG(s, refG(s, last + 5)!)! - (last + 5)) < 1e-6, 'above the series: the inverse of the extension');
     check(clockOfG(s, SERIES_G0[tl] - 1) === SERIES_ANCHOR, 'below G(V0) is the anchor');
+  }
+}
+for (const tl of ['fast', 'central', 'slow'] as TimelineId[]) {
+  const lens = TIMELINE_PROGRESS[tl].map((p) => p.length);
+  for (const index of [lens.indexOf(Math.max(...lens)), lens.indexOf(Math.min(...lens))]) {
+    const s = stateOf(tl, index), end = SERIES_FROM + (lens[index] - 1) * SERIES_STEP, g60 = refG(s, 2060)!;
+    check(Number.isFinite(g60) && g60 >= refG(s, end)! && (end >= 2060 || g60 > refG(s, end)!), `${tl}[${index}]: refG at 2060 finite and above the row end (${end.toFixed(1)})`);
   }
 }
 const other = stateOf('fast', 0, 'authors2026');

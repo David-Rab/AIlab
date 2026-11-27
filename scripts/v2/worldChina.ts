@@ -8,7 +8,7 @@ import { makeCtx } from '../../src/engine/v2/core/loop';
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
 import { aiRdOf, CHINAGOV, initialChinagov, resolveTreaty, stepChinagov } from '../../src/engine/v2/world/chinagov';
 import { playerAttention, USGOV } from '../../src/engine/v2/world/usgov';
-import { frontier, usLeadOverChinaMonths } from '../../src/engine/v2/world/observe';
+import { frontier, publicMilestones, usLeadOverChinaMonths } from '../../src/engine/v2/world/observe';
 import { taiwanHazardQ } from '../../src/engine/v2/compute/market';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { refYear } from '../../src/engine/v2/npc/shocks';
@@ -38,6 +38,8 @@ const setLead = (s: GameStateV2, months: number) => {
 const step = (s: GameStateV2, days: number, each?: (s: GameStateV2) => void) => {
   for (let i = 0; i < days; i++) { s.time.day++; stepChinagov(s, makeCtx(s)); each?.(s); }
 };
+/** A US NPC lab reached milestone i long ago (public by now). */
+const reach = (s: GameStateV2, i: number) => { const r = s.rivals.find((x) => x.core.status === 'active' && x.npc && x.core.id !== 'china')!; r.core.milestoneDays[i as 0] = s.time.day - 400; };
 const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 
 // S5: a growing US lead climbs tension 0 -> 1 -> 2 (the national collective); strict export controls alone reach 1.
@@ -49,15 +51,33 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   check(s.chinagov.tension === 0, 'S5: a 7-month lead does not climb before the hold', String(s.chinagov.tension));
   step(s, 3);
   check(s.chinagov.tension === 1, 'S5: a 7-month lead held 60 days -> tension 1 (acquisition push)', String(s.chinagov.tension));
+  // A large lead with no milestone 2 stays at rung 1; with it, rung 2 (the national collective).
+  step(s, 400);
+  check(s.chinagov.tension === 1 && !s.chinagov.centralised, 'S5: a large lead with no US milestone 2 stays at tension 1 (no collective)', String(s.chinagov.tension));
   const c0 = s.china.lab.core.computeOnline;
   const a0 = s.china.access;
-  s.chinagov.leadHist = [7, 8, 9, 10, 10.5]; // widening over 4 quarters
-  setLead(s, 11);
-  step(s, CHINAGOV.holdDays + 1, (x) => { x.chinagov.leadHist = [7, 8, 9, 10, 10.5]; });
-  check(s.chinagov.tension === 2 && s.chinagov.centralised, 'S5: an 11-month widening lead -> tension 2, the national collective', `${s.chinagov.tension}, centralised ${s.chinagov.centralised}`);
+  reach(s, 2);
+  check(publicMilestones(s)[2] !== undefined, 'fixture: milestone 2 is public', '');
+  step(s, CHINAGOV.holdDays + 1);
+  check(s.chinagov.tension === 2 && s.chinagov.centralised, 'S5: milestone 2 public and a long lead -> tension 2, the national collective', `${s.chinagov.tension}, centralised ${s.chinagov.centralised}`);
   check(near(s.china.lab.core.computeOnline / c0, CHINAGOV.centralMult) && near(s.china.access / a0, CHINAGOV.centralMult), `S5: the collective multiplies China's lab compute and chip access by ${CHINAGOV.centralMult}`, `${(s.china.lab.core.computeOnline / c0).toFixed(3)}, ${(s.china.access / a0).toFixed(3)}`);
-  step(s, CHINAGOV.coerceAfterDays + CHINAGOV.holdDays + 1);
-  check(s.chinagov.tension === 3, 'S5: the lead still above 9 months a year after the collective -> tension 3 (coercion)', String(s.chinagov.tension));
+  step(s, 400);
+  check(s.chinagov.tension === 2, 'S5: rung 3 needs milestone 4 or US stage 3, not time', String(s.chinagov.tension));
+  reach(s, 4);
+  step(s, CHINAGOV.holdDays + 1);
+  check(s.chinagov.tension === 3, 'S5: milestone 4 public at tension 2 -> tension 3 (coercion)', String(s.chinagov.tension));
+  const w = load('day400.json');
+  setLead(w, 0);
+  w.chinagov.tension = 2;
+  w.usgov.stage = CHINAGOV.coerceStage;
+  step(w, CHINAGOV.holdDays + 1);
+  check(w.chinagov.tension === 3, 'S5: US stage 3 at tension 2 -> tension 3', String(w.chinagov.tension));
+  // The smoothed lead: one noisy quarter does not swing it.
+  const sm = load('day400.json');
+  setLead(sm, 12);
+  sm.chinagov.leadHist = [2, 2, 2, 2];
+  step(sm, CHINAGOV.holdDays + 5);
+  check(sm.chinagov.tension === 0, 'S5: tension reads the smoothed lead (history 2, 2, 2, 2 against a noisy 12)', String(sm.chinagov.tension));
   setLead(s, 0);
   step(s, 400);
   check(s.chinagov.tension === 3, 'S5: rung 3 is sticky (lead gone for 400 days)', String(s.chinagov.tension));
@@ -163,9 +183,9 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   check(w4 === 'war', 'war: the war ending within 24 quarters at tension 4', String(w4));
 }
 
-// Theft: tension 0 -> no Chinese attempts; tension 1 with a leading, attended player -> attempts.
+// Theft: weight theft starts at tension 2 (rung 1 is the acquisition push): none at 0 or 1; attempts at 2 with a leading, attended player.
 {
-  const attempts = (tension: 0 | 1) => {
+  const attempts = (tension: 0 | 1 | 2) => {
     const s = load('day900.json'); // the player leads China by over a year, attention 1
     s.chinagov.tension = tension;
     s.player.security.wsl = 1; // a lab at the industry floor (the security system raises it there)
@@ -176,8 +196,10 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   };
   const t0 = attempts(0);
   const t1 = attempts(1);
+  const t2 = attempts(2);
   check(t0.h === 0 && t0.n === 0, 'theft: tension 0 -> no Chinese theft attempts in 3 years', `hazard ${t0.h}, attempts ${t0.n}`);
-  check(t1.h > 0 && t1.n > 0, 'theft: tension 1, a leading attended player -> attempts in 3 years', `hazard ${t1.h.toFixed(4)}/day, attempts ${t1.n}`);
+  check(t1.h === 0 && t1.n === 0, 'theft: tension 1 (acquisition push) -> no weight theft in 3 years', `hazard ${t1.h}, attempts ${t1.n}`);
+  check(t2.h > 0 && t2.n > 0, 'theft: tension 2, a leading attended player -> attempts in 3 years', `hazard ${t2.h.toFixed(4)}/day, attempts ${t2.n}`);
 }
 
 finish('worldChina');

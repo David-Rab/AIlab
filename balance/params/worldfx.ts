@@ -12,7 +12,7 @@ const USGOV_VALUES: Record<string, number> = {
   trustStart: 55, lagDays: 90, consolidateAfterDays: 180, consolidateConcern: 75, attentionMin: 0.5, securityMet: 1.5, securityMissed: -1,
   briefingFull: 0.5, coverupExposed: -6, theftFromYou: -5, misuseSev5: -8, clearMorale: -10, clearSecurity: 0.3, clearTrust: 10,
   resistTrust: -15, resistMorale: 3, oversightTrust: 10, refuseTrust: -10, reviewDays: 30, softTrust: 60, declineTrust: -10,
-  dpaShare: 0.5, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
+  dpaShare: 0.5, exportTheftDays: 365, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
   licensingFriction: 0.1, reliefRise: 1, reliefOffRise: 0.5, ubiHoldDays: 182, reliefRetrain: 0.2, ubiExitMult: 3, scareHeat: 6,
   hitlOn: 75, hitlOff: 55, hitlAlphaCap: 0.5, companionFactor: 0.8, sezOn: 60, sezOff: 70, fdaLagMult: 0.5, governmentTrust: 40,
   concernShift: 0,
@@ -21,8 +21,8 @@ const USGOV_VALUES: Record<string, number> = {
 const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'licensingFriction', 'reliefRetrain', 'ubiExitMult', 'fdaLagMult', 'governmentTrust']);
 /** world/chinagov.ts CHINAGOV, every key (registry-lint checks each value against the module). */
 const CHINAGOV_VALUES: Record<string, number> = {
-  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, lead2: 9, coerceAfterDays: 365, provokeDays: 180, provokeHold: 30,
-  centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 1,
+  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, leadQuarters: 4, collectiveMilestone: 2, coerceMilestone: 4, coerceStage: 3, provokeDays: 180, provokeHold: 30,
+  centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 2,
   theftIntentBase: 20, theftIntentPerRung: 20, taiwanPerRung: 0.5, taiwanCoercion: 0.15, warPerQuarter: 0.25, warShock: 0.05,
   safetyBase: 30, safetyPerTalks: 10, safetyPerRung: -5, goPublicApproval: 2, treatyClockRate: 0.65,
 };
@@ -288,10 +288,10 @@ export const PARAMS_WORLDFX = defineParams([
   }),
 
   // ---------------------------------------------------------------- world/public.ts (W4: the public, spec 5)
-  ...(['base', 'milestoneStep', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
+  ...(['base', 'milestoneStep', 'milestoneFrom', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
     id: `wfx.PUBLIC.${k}`,
     ref: { kind: 'export', module: 'src/engine/v2/world/public.ts', symbol: 'PUBLIC', path: [k] },
-    value: { base: 50, milestoneStep: 6, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
+    value: { base: 50, milestoneStep: 6, milestoneFrom: 2, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
     unit: k.endsWith('Days') ? 'days' : k === 'base' || k === 'protestConcern' ? 'concern points (0-100)' : undefined,
     ...W, actor: 'all',
     ...(k === 'base'
