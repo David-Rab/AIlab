@@ -1,67 +1,76 @@
 # Data-centre mockup (COMPUTE › Overview): notes
 
-Files: `build.png` (default, speed-up options open), `build-tips.png` (Grid tile tooltip locked, opposition tooltip
-open), `build.html` + `build.js` + `data.js` (source), `render.mjs` (copy of `market/render.mjs`). Render from this
-folder: `node render.mjs build build:tips`. `current-overview.png` / `current.png` are the app's own Overview and Sites
-tabs (UI-test screenshots, day 400, Nov 15: the shell has changed since, the cards have not).
+The mockup is today's real app with the redesign injected, so everything it does not change is the app as it is.
+`render.mjs` loads the worktree build (`dist/index.html`) on the day-400 fixture (Aug 5, 2026), opens the build
+options row, injects `build.js` and writes `build.png` / `build-tips.png` (1920 × 1080). `_shot.mjs` writes the
+untouched reference shots `current-overview.png`, `current-orders.png`, `current.png` (old Sites tab). Run from the
+worktree root: `node_modules/.bin/vite build && node design/ux/mockups/dc/render.mjs` (node_modules = junction to the
+main checkout's).
 
-Scope (designer, 2026-11-27): no Sites tab. Tabs become Overview · Orders · Market. Overview keeps the status strip,
-the Capacity and fleet chart, Order chips and Rent cloud as they are (new numbers only). Build data centre keeps its
-place and style; site rows move from the old Sites tab to under the chart. The grid pool, spare transformers,
-transformer lead time and pre-order row are gone.
+## What changes (designer, 2026-11-27, round 3)
 
-State: Jul 5, 2026 (Q3 26), L0 shell = the market mockup's day-369 values. Waits today: grid 20 q, turbines 9 q,
-rent 4 q. 0.74 kW per H100e ⇒ 1.35M H100e per GW.
+- Tabs: Overview · Orders & market (Sites goes).
+- Status strip, Capacity and fleet chart, Buy chips, Rent compute, top bar, nav, bottom bar: unchanged. Chart marker
+  Red River 2.0 → 1.0 GW (grid sites cap at 1 GW); chart height trimmed to make room for the site rows.
+- Build data centre, same place and style:
+  - Power tiles Rent / Grid / Gas show the **expected live date** for the chosen size and speed-ups, a delay band
+    (+0–3q, opposition only; Rent has none) and the size cap. The wait, its 2023→26 trend and queue ÷ connections are
+    in the tile tooltip.
+  - Multi-GW unlocked (gas sites go to 5 GW); size limit chip 100 MW–5 GW.
+  - Preview: capex, racks for +1.4M H100e, what sets the date (construction or power), opposition odds and when they
+    are decided. The live date is on the tile only (one home).
+  - Options row: crash construction, rush power, fast-track permits, community package, each with saving and price;
+    company default kept. Pay-with tiles unchanged (values rescaled to the new cost).
+- Site rows under the chart: construction ‖ power bars, live date, stage, block odds + package button in permits.
+  Grid pool / spare transformers / transformer lead time / pre-order row removed.
 
-## Numbers (DATACENTERS.md §2–5, 1 GW, Q3 26)
+## Numbers (Q3 26; DATACENTERS.md §2–5; waits today grid 20 q, turbines 9 q, rent 4 q)
 
-| Source | Live | Upfront | Running /yr |
-|---|---|---|---|
-| Rent | 4 q ⇒ Q3 27 | $4.0B network | $1.8B rent + $0.75B power ≈ $2.6B |
-| Grid | 1 + max(8, 20) = 21 q ⇒ Q4 31 | $14B + $0.2B = $14.2B | 8.6¢ × 8.76 TWh ≈ $0.75B |
-| Gas | 2 + max(8, 9) = 11 q ⇒ Q2 29 | $14B + $3B = $17.0B | 0.5 × grid ≈ $0.4B |
-| Gas as selected (rush power + community package) | 2 + max(8, 4) = 10 q ⇒ Q1 29 | $17.0B + $0.9B + $1.0B = $18.9B | $0.4B |
+Shown toggle state: Campus 1 GW, Gas, rush power + community package.
 
-Speed-up savings shown are marginal on the current selection: crash −4 q (then max(4, 4)), rush power −1 q
-(max(8, 9) → max(8, 4)), fast-track −1 q, community package block 12% → 6%. Opposition odds are illustrative:
-gas 10% × 1.2 public mood = 12%, × 0.5 package = 6%; delay 30%. Pay-with tiles are today's component, values
-illustrative.
+| Tile | Live | How |
+|---|---|---|
+| Rent | Q3 27 | rent wait 4 q |
+| Grid | Q3 30 · +0–3q | 1 + max(8, 20 × 0.75 rush) = 16 q |
+| Gas | Q1 29 · +0–3q | 2 + max(8, 4 used turbines) = 10 q; power ready Q1 28, construction sets the date |
 
-Sites: Abilene North (rent 300 MW) and Abilene South (grid 300 MW) live = 0.60 GW; Ashburn Hall rent 200 MW, Q1 26
-+ 4 q ⇒ Q1 27; Lone Pine gas 2.5 GW, committed Q4 25, permits to Q2 26 + 9 q turbines ⇒ Q3 28; Mesa Verde gas 1 GW,
-committed Q2 26, permits to Q4 26 (opposition pending) ⇒ Q1 29; Red River grid 1 GW (was 2 GW; grid sites cap at 1),
-committed Q3 25 at 18 q ⇒ Q2 30, construction from Q2 28. Chart: powered capacity = live GW × 1.35M (0.81M → 1.08M
-Q1 27 → 4.46M Q3 28 → 5.81M Q1 29); chips on order exceed racks Q4 26–Q2 28 (idle, red), hence the status tile.
+Cost $14B + $3B turbines + $0.9B rush + $1.0B package = $18.9B. Savings given the shown state: crash −4 q, rush −1 q,
+fast-track −1 q. Odds (illustrative): block gas 10% / grid 5%, × 1.2 public mood, × 0.5 package; delay gas 30%,
+grid 20%, +1–3 q.
 
-## IA map (one home per datum)
+Sites = the fixture's four, translated (Abilene North colo → rent, Abilene South brownfield → grid, Lone Pine gas
+1.2 GW live, Red River grid 2.0 → 1.0 GW: committed Q2 25 at 17 q, live Q4 29 as the chart marker says,
+construction from Q4 27) plus **Mesa Verde**, 1 GW gas committed Jul 2026 (not in the fixture; added to show a site
+in permits): permits to Q1 27, 9 q turbines ⇒ Q2 29, block 12% without package.
+
+## Where the real app differs from the stale Nov-15 screenshot
+
+Top bar: research speed, lead, cash · runway, loss-of-control risk (no capability/understanding bar, no
+catastrophe gauge). Nav: Overview; R&D (Compute, Lab, Research, Training, Models, Products, Safety); Company & world
+(Finance, Relations, World); Codex. Bottom bar: "1 to watch · 5 alerts" + event ticker. Header link "Compute
+allocation". Cards: "Buy chips" (deposit / on-delivery / arrival / cash → runway lines, supplier terms) and "Rent
+compute" (1 q · 1 yr · 2 yr · 4 yr terms, payment lines, spot cap). Build card already has Pay-with tiles, a cash →
+runway line and limit chips.
+
+## IA map
 
 | Datum | Home | Level |
 |---|---|---|
-| Chips without racks, when | Status strip tile 2 | L1 |
-| Powered capacity vs fleet, by quarter | Capacity and fleet chart | L1 |
-| Per site: size, stage, live date, construction ‖ power bars | Sites rows under the chart | L1 |
-| Racks used / live | Sites header bar | L1 |
-| Pending block odds of a site + package button | Site row, permits stage only | L1; breakdown L3 |
-| Site detail (capex paid, chips installed, pay terms) | Site row tooltip (as today) | L3 |
-| Today's wait + size cap per source | Power tile | L2 |
-| Upfront, power price, opposition level, wait trend, queue ÷ connections | Power tile tooltip | L3 |
-| New site: cost, H100e, block/delay odds | Preview pills | L2; odds breakdown L3 |
-| New site: live date and what sets it (construction or power) | Preview line | L2 |
-| Speed-ups: price and saving | Options row (collapsed by default; open in build.png) | L2 |
-| Payment options | Pay-with tiles (unchanged) | L2 |
+| Expected live date per source (+ delay band), size cap | Power tile | L2 |
+| Wait today, trend 2023→26, queue ÷ connections, upfront, power price, odds | Power tile tooltip | L3 |
+| Capex, H100e, what sets the date, opposition odds | Preview lines | L2; odds breakdown L3 |
+| Speed-ups: saving and price | Options row (collapsed by default) | L2 |
+| Per site: bars, live date, stage, pending block odds + package | Site rows | L1 |
+| Racks used / live | Sites header | L1 |
 
-## Glossary terms needed
+Glossary: rent / grid / gas (sources), grid wait, turbine wait, rent wait, firm queue, connections per year, permits,
+construction, power, opposition, public against data centres, crash construction, rush power, fast-track permits,
+community package, sites. Retire: colo, brownfield, nuclear, grid pool, spare transformers, transformer lead time.
 
-Rent, grid, gas (power sources), rent wait, grid wait, turbine wait, firm queue, connections per year, upfront,
-power price, opposition, public against data centres, permits, construction, power (stage), hall being built,
-waiting for grid, crash construction, rush power, fast-track permits, community package, racks used, sites.
-Retire: colo, brownfield, nuclear, grid pool, spare transformers, transformer lead time.
+## Open questions
 
-## Design questions raised
-
-1. Speed-up savings depend on each other (crash saves 0 q on plain gas, 4 q once rush power is on). The options row
-   shows the saving given the other choices.
-2. Does the turbine wait start at commit or after permits? Mockup: after permits.
-3. What is lost if a site is blocked (package paid upfront? turbine deposit?). Tooltip says "money spent so far".
-4. The chips you have ordered outrun your racks from Q4 26 to Q2 28. Today only the status tile and the red bars show
-   this; the build card does not say which source would close the gap in time (renting would by Q3 27).
+1. Savings depend on each other (crash saves 0 q on plain gas, 4 q with rush power); tiles and options show values
+   given the current toggles.
+2. Turbine clock: starts after permits (assumed).
+3. What is lost on a block (package? turbine deposit?).
+4. The chart's planned capacity still comes from today's engine; it will move once sites follow the new rules.
