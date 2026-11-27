@@ -48,10 +48,22 @@ Out of scope: the four markets and the rival labs themselves, and calibration of
   changes something the lab feels or is a readout the end screen needs. Otherwise it is deleted.
 - **R4. Every number has a calibration target:**
   - a real series (2023–2026 history),
-  - the source scenario's own values ([[prefer-source-derived-params]]),
+  - a value taken from the drawn AI Futures Model run ([[prefer-source-derived-params]]),
   - or a shape rule (§11).
 
   No target, no number.
+
+  **Calibration frame** (designer, 2026-11-27: "we are using the AI futures models - not the AI27"):
+  - The timelines are AI Futures Model (AIFM) runs, as in the balance work: fast, central and slow are SAR-date
+    groups, and each game draws one run.
+  - The AIFM has no government, public or economy. So:
+    - the shared history, to late 2026, is calibrated to the real series in SOURCES.md;
+    - after that, every world beat is keyed to the drawn run's milestones (SC = AC, SAR, ASI) through the game's own
+      milestone predicates, never to a calendar date.
+  - AI 2027's dated beats are not targets. Its dates sit on its own fast timeline. At most, its order of reactions
+    ("security, then clearances, then oversight") may inform a shape, if the designer agrees.
+  - The horizon follows the timeline. The ASI medians are about 2030 (fast), 2033 (central) and 2046 (slow), so the
+    world has to stay sane over a 20-year slow run.
 - **R5. Levers through normal business.** The player moves these actors by what the lab does anyway: security,
   briefing, pledges, disclosure, where and how much it builds, what it deploys, the transition fund. No menu of one-click
   relation buttons.
@@ -99,9 +111,9 @@ laws (special economic zones, FDA fast track) and the public frontier.
 
 | Readout | Rule | Feeds | Target |
 |---|---|---|---|
-| Unemployment (US, CN, ROW) | existing displaced-pool rule | public concern; relief law; endings | BLS CPS 2023–2026 baseline; displacement shape from the source scenario (research/16) |
-| GDP growth | baseline trend + automation share × gain + world-tech boost − shocks (war, Taiwan, severe misuse) | re-employment (sectors.ts:311, its one market read); end screen; headlines | BEA trend; source scenario's growth path |
-| AI share of income | AI revenue (all labs) ÷ GDP | end screen ("how gains are shared") | the source scenario's values |
+| Unemployment (US, CN, ROW) | existing displaced-pool rule | public concern; relief law; endings | BLS CPS 2023–2026 baseline; displacement driven by the drawn run’s automation via sector adoption; shape check S4 |
+| GDP growth | baseline trend + automation share × gain + world-tech boost − shocks (war, Taiwan, severe misuse) | re-employment (sectors.ts:311, its one market read); end screen; headlines | BEA actuals and CBO potential (history); after 2026 a shape check, no scenario path |
+| AI share of income | AI revenue (all labs) ÷ GDP | end screen ("how gains are shared") | readout only; no target needed |
 
 **Deleted:**
 - the CES automation factor, trend and autoLevel;
@@ -130,7 +142,7 @@ NPC labs need no approval of their own: their demand is headline-shaped (NPC-LAB
 Protests are a headline when concern passes a threshold, not a ladder.
 
 Targets: concern from survey series (Pew Research Center and Gallup AI-attitude surveys, 2023–2026; source to fetch),
-and the source scenario's public-reaction beats (AI 2027) as a shape.
+after 2026, concern steps are keyed to milestones of the drawn run (shape check).
 
 ## 6. US government (rank 3)
 
@@ -171,11 +183,11 @@ and the source scenario's public-reaction beats (AI 2027) as a shape.
 | Incident reporting (SB 53, RAISE, EU code) | their real dates (one table) | — | reporting deadlines (safety sphere) | real dates |
 | Export controls (strictness 0–2) | rises with the US–China contest (China tension, thefts by China) | falls with a treaty | compute market, China compute | 2023–2025 control history |
 | Frontier licensing | concern > threshold, sustained | concern well below | friction on frontier deploys; reporting | [D] shape |
-| Worker relief → transfers → UBI | 12-month unemployment rise > threshold; UBI if sustained 6 months | relief ends when the rise fades; UBI sticky | economy (re-employment, the ending's sharing) | source scenario (AI 2027 Slowdown) |
+| Worker relief → transfers → UBI | 12-month unemployment rise > threshold; UBI if sustained 6 months | relief ends when the rise fades; UBI sticky | economy (re-employment, the ending's sharing) | thresholds [D], shape check S4; real 2023–26 rises stayed under 1 pt (SOURCES §1) |
 | Human-in-the-loop mandate | public scare (leak or severe incident) + high concern | concern low | caps agent substitution across sectors | [D] shape |
 | Companion apps banned for minors | companion share + concern | concern low | consumer friction | 2025–2026 state laws |
-| Special economic zones | government sees superhuman AI research, low concern | concern high | robots (flavour) | source scenario |
-| FDA fast track | an AI drug pipeline exists (world tech) | — | world-tech ramp (flavour) | source scenario |
+| Special economic zones | government sees superhuman AI research, low concern | concern high | robots (flavour) | milestone-keyed [D] |
+| FDA fast track | an AI drug pipeline exists (world tech) | — | world-tech ramp (flavour) | milestone-keyed [D] |
 
 **Deleted:**
 - eight of the nine meters: AI priority, regulation stance, hawkishness, Congress activism, state pressure, judicial

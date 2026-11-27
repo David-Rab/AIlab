@@ -239,6 +239,10 @@ as [D] game values, not source numbers), and the footnote text. The Slowdown end
 
 ## 10. Suggested targets (spec number to series or beat)
 
+> **Lead note, 2026-11-27:** the timelines are AI Futures Model runs (see the balance work), not AI 2027. The AI 2027
+> rows below are NOT date targets. At most they give the order of reactions relative to milestones. Future beats are
+> keyed to the drawn run's milestones (OUTSIDE-WORLD §2 R4).
+
 | Spec number (OUTSIDE-WORLD) | Calibrate to | Value and note |
 |---|---|---|
 | §4 Unemployment baseline (US) | BLS LNS14000000 | 3.4–3.9% in 2023, 3.7–4.2% in 2024, 4.0–4.5% in 2025, 4.1–4.4% in 2026. Quiet-world start (mid-2025): 4.1–4.3%. Youth baseline: 8% (2023), 9–9.5% (2024), 10–10.5% (2025–26) |
