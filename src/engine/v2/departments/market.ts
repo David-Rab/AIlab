@@ -1,29 +1,28 @@
-// The labour market's weekly system (design/bal/LABOUR-ROUND.md §4.2; L12). Called from teams.ts `teamsWeek`.
-// One pool per kind k ∈ {eng, re, sci} (capabilities and safety staff of a kind share it). Each week:
+// The labour market's weekly system (design/bal/LABOUR-ROUND.md §4.2; L12; teams as whole chunks). Called from teams.ts
+// `teamsWeek`. One pool per kind k ∈ {eng, re, sci} (capabilities and safety staff of a kind share it). Each week:
 //   inflow    P_k += I_k / 52                                           (net inflow; the game has no exit flow from P)
-//   leavers   heads −= heads · SEPARATION · max(0.2, 1.5 − morale/100) / 52   (back to U by construction: U = P − E)
 //   E, U      E_k = heads of kind k in AI labs (the player, plus the rivals' and China's PLACEHOLDER heads); U_k = P_k − E_k
 //   wage      w_k = w0_k · [(E_k / U_k) / (E0_k / U0_k)]^(1/η)            (E0, U0 at game start, startMarket)
 //   hires     min(V_k, μ_k · U_k^α · V_k^(1−α) · (1 + π_k)^ε · pull · morale / 52)
-//   poach     share 1 − (1+π)^(−ε) of the rivals' leavers (heads · SEPARATION / 52) join the player, up to the V left
+//   poach     with a premium, a share 1 − (1+π)^(−ε) of those hires comes from the rival labs, not the outside pool
+//   chunks    the hires add up in p.hiring.progress[k]; at the kind's TEAM_SIZE a FULL team arrives (never a part team)
 //   pay       new hires at the offer w_k (1 + π_k); every head's pay relaxes toward the offer at 1/T per year
-// V_k = the player's open positions of kind k: vacancies in arrived teams, the queued teams' unfilled seats and the
-// keep-hiring targets' seats not yet queued (the whole hiring-target gap). Automation enters only through V (the
-// player's own targets). Poaching (L13): with a premium, a share of the rivals' leavers joins the player. No stars (L17).
-import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS, SEPARATION, W0 } from '../../../data/v2/labourMarket';
+// Teams are whole chunks: no vacancies, no hiring queue, no player leavers (staff go only when the player lets a team go or
+// an event moves them). V_k = the target gap in heads (Σ over the kind's keys of (target teams − teams) × size) less the
+// progress already made. Automation enters only through V (the player's own targets). No stars (L17).
+import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS, W0 } from '../../../data/v2/labourMarket';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE, TEAM_KEYS } from '../../../data/v2/teams';
-import { applyTargets, attritionMorale, laneWeights, moraleFactor, moraleOf, teamLabel } from './teams';
-import type { GameStateV2, LabourPool, PlayerLab, SystemCtx, Team, TeamDept, TeamRole } from '../types';
+import { deptOfKey, moraleFactor, moraleOf, nextSpecialty, roleOfKey, teamLabel } from './teams';
+import type { GameStateV2, LabourPool, PlayerLab, SystemCtx, Team, TeamDept, TeamKey, TeamRole } from '../types';
 
 const WEEKS = 52;
 
 // ───────── Heads in AI labs (E) and outside (U) ─────────
 
-/** The player's heads of kind k: arrived teams plus the people already hired into queued teams. */
+/** The player's heads of kind k: arrived teams plus the people hired toward the next team. */
 export function playerHeads(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole): number {
-  let n = 0;
+  let n = p.hiring.progress[k]?.heads ?? 0;
   for (const t of p.teams) if (t.role === k) n += t.heads;
-  for (const t of p.hiring.filling) if (t.role === k) n += t.heads;
   return n;
 }
 
@@ -86,19 +85,35 @@ export const offerOf = (s: GameStateV2, k: TeamRole) => s.labour.pools[k].w * (1
 
 // ───────── Open positions (V) and the matching ─────────
 
-/** V_k by department: vacancies in arrived teams, queued teams' unfilled seats, and the keep-hiring targets' seats
- *  not yet queued (whole teams). The player's own targets: the only place automation enters. */
+/** How many teams of `key` the player is short of its keep-hiring target. */
+export const teamGap = (p: Pick<PlayerLab, 'teams' | 'hiring'>, key: TeamKey): number => {
+  const role = roleOfKey(key);
+  const dept = deptOfKey(key);
+  return Math.max(0, (p.hiring.targets[key] ?? 0) - p.teams.filter((t) => t.role === role && t.dept === dept).length);
+};
+
+/** The key the next team of kind k will be: the stored one while it is still short of its target, else the key furthest
+ *  behind its target (ties: key order). With no gap anywhere, the stored key. */
+export function nextKeyOf(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole): TeamKey {
+  const cur = p.hiring.progress[k].key;
+  if (teamGap(p, cur) > 0) return cur;
+  let best = cur;
+  let g = 0;
+  for (const key of TEAM_KEYS) {
+    if (roleOfKey(key) !== k) continue;
+    const gap = teamGap(p, key);
+    if (gap > g) { best = key; g = gap; }
+  }
+  return best;
+}
+
+/** V_k by department: the keep-hiring targets' gap in heads (whole teams) less the progress toward the next team (taken
+ *  off the department of the key it is for). The player's own targets: the only place automation enters. */
 export function openPositionsByDept(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole): Record<TeamDept, number> {
   const v: Record<TeamDept, number> = { cap: 0, saf: 0 };
-  for (const t of p.teams) if (t.role === k) v[t.dept] += Math.max(0, t.size - t.heads);
-  for (const t of p.hiring.filling) if (t.role === k) v[t.dept] += Math.max(0, t.size - t.heads);
-  for (const key of TEAM_KEYS) {
-    const role = (key === 'eng' ? 'eng' : key.split('.')[0]) as TeamRole;
-    if (role !== k) continue;
-    const dept = (key === 'eng' ? 'cap' : key.split('.')[1]) as TeamDept;
-    const have = p.teams.filter((t) => t.role === k && t.dept === dept).length + p.hiring.filling.filter((t) => t.role === k && t.dept === dept).length;
-    v[dept] += Math.max(0, (p.hiring.targets[key] ?? 0) - have) * TEAM_SIZE[k];
-  }
+  for (const key of TEAM_KEYS) if (roleOfKey(key) === k) v[deptOfKey(key)] += teamGap(p, key) * TEAM_SIZE[k];
+  const d = deptOfKey(nextKeyOf(p, k));
+  v[d] = Math.max(0, v[d] - (p.hiring.progress[k]?.heads ?? 0));
   return v;
 }
 export function openPositions(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole): number {
@@ -122,7 +137,8 @@ export function matchScale(s: GameStateV2, k: TeamRole): number {
 /** Talent pull multiplier (today's, [D]): 1 + talentPull/50, floor 0. */
 export const pullOf = (s: GameStateV2) => Math.max(0, 1 + s.relations.talentPull / 50);
 
-/** The morale multiplier for kind k: today's moraleFactor per department, weighted by where the openings are. */
+/** The morale multiplier for kind k: today's moraleFactor per department, weighted by where the openings are. Morale's
+ *  only effect on staff is this hiring speed (nobody leaves). */
 export function kindMorale(s: GameStateV2, k: TeamRole, byDept = openPositionsByDept(s.player, k)): number {
   const V = byDept.cap + byDept.saf;
   if (V <= 0) return moraleFactor(moraleOf(s.player, 'cap'));
@@ -144,95 +160,86 @@ export function weeklyHires(s: GameStateV2, k: TeamRole): number {
   return Math.min(V, matchRate(s, k, V, kindMorale(s, k, byDept)));
 }
 
+/** Weeks until the next team of kind k is full: the weeks it takes for the hires to add up to (size − progress), week by week
+ *  as the game runs them (hires = min(V, matching rate on V), V shrinking as they come; U, premium, pull and morale held).
+ *  The first week's share is (size − progress) ÷ this week's hires. `extraV` = seats a team not yet in the targets would add
+ *  (a hire preview). Infinity when nothing is being hired. */
+export function weeksToNextTeam(s: GameStateV2, k: TeamRole, extraV = 0): number {
+  const p = s.player;
+  const byDept = openPositionsByDept(p, k);
+  let V = byDept.cap + byDept.saf + extraV;
+  const c = matchRate(s, k, 1, kindMorale(s, k, byDept)); // the matching rate at V = 1: rate(V) = c V^(1−α)
+  let need = Math.max(0, TEAM_SIZE[k] - (p.hiring.progress[k]?.heads ?? 0));
+  for (let wk = 1; wk <= 520; wk++) {
+    const h = Math.min(V, c * Math.pow(V, 1 - ALPHA));
+    if (!(h > 0)) return Infinity;
+    need -= h;
+    V -= h;
+    if (need <= 1e-6) return wk;
+  }
+  return Infinity;
+}
+
 // ───────── Poaching (L13) ─────────
 
-/** The share of a rival's leavers that joins the player at premium π: 1 − (1 + π)^(−ε) (0 at π = 0). */
+/** The share of the player's hires that comes from the rival labs at premium π: 1 − (1 + π)^(−ε) (0 at π = 0). */
 export const poachShare = (pi: number) => (pi > 0 ? 1 - Math.pow(1 + pi, -EPS) : 0);
 
 /**
- * PLACEHOLDER (LABOUR-ROUND §4.2 item 5; the full version belongs to the rival session): this week's poaching of kind k
- * from the rivals (never China). Each active rival's leavers of the kind are heads_k × SEPARATION / 52; a share
- * poachShare(π_k) of them joins the player, at most `room` heads in all (the player's open positions left after the normal
- * hires; the rivals are scaled down together when it binds). The rival loses exactly the poached number of heads, split
- * between `core.staff.cap` and `core.staff.saf` by where the kind's heads sit (the roster keeps its fixed REF_ROLE_SHARE /
- * SAF_ROLE_SHARE mix, so the other kinds shrink with it). growLabStaff multiplies the lower number from then on: the loss
- * is not refilled. Returns the heads poached.
+ * PLACEHOLDER (LABOUR-ROUND §4.2 item 5; the full version belongs to the rival session): `n` of this week's hires of kind k
+ * come from the rivals (never China), split across the active rivals by their heads of the kind (capped by what they have).
+ * Each rival loses exactly its number of heads, split between `core.staff.cap` and `core.staff.saf` by where the kind's
+ * heads sit (the roster keeps its fixed REF_ROLE_SHARE / SAF_ROLE_SHARE mix, so the other kinds shrink with it).
+ * growLabStaff multiplies the lower number from then on: the loss is not refilled. Returns the heads taken.
  */
-export function poachFromRivals(s: GameStateV2, k: TeamRole, room: number): number {
-  const share = poachShare(premiumOf(s.player, k));
-  if (share <= 0 || room <= 0) return 0;
-  const rows: { r: GameStateV2['rivals'][number]; capK: number; safK: number; leavers: number }[] = [];
+export function poachFromRivals(s: GameStateV2, k: TeamRole, n: number): number {
+  if (n <= 0) return 0;
+  const rows: { r: GameStateV2['rivals'][number]; capK: number; safK: number }[] = [];
   let total = 0;
   for (const r of s.rivals) {
     if (r.core.status !== 'active') continue;
     const capK = r.core.staff.cap * REF_ROLE_SHARE[k];
     const safK = k === 'eng' ? 0 : r.core.staff.saf * SAF_ROLE_SHARE[k];
-    const leavers = ((capK + safK) * SEPARATION * share) / WEEKS;
-    rows.push({ r, capK, safK, leavers });
-    total += leavers;
+    rows.push({ r, capK, safK });
+    total += capK + safK;
   }
   if (total <= 0) return 0;
-  const scale = Math.min(1, room / total);
-  for (const { r, capK, safK, leavers } of rows) {
-    const n = leavers * scale;
+  const take = Math.min(n, total);
+  for (const { r, capK, safK } of rows) {
     const h = capK + safK;
-    if (n <= 0 || h <= 0) continue;
-    r.core.staff.cap = Math.max(0, r.core.staff.cap - (n * capK) / h);
-    r.core.staff.saf = Math.max(0, r.core.staff.saf - (n * safK) / h);
+    if (h <= 0) continue;
+    const m = (take * h) / total;
+    r.core.staff.cap = Math.max(0, r.core.staff.cap - (m * capK) / h);
+    r.core.staff.saf = Math.max(0, r.core.staff.saf - (m * safK) / h);
   }
-  return total * scale;
+  return take;
 }
 
 // ───────── Weekly flows ─────────
 
-/** Place n hires of kind k: vacancies first (in proportion to each team's gap), then the queued teams of the kind by
- *  their lane weights, then in queue order; a team arrives when full and the keep-hiring policy queues the next, which
- *  takes any hires left. Returns the heads placed. */
+/** Add n hires of kind k to the progress toward the next team; each time it reaches the team size a full team arrives (of
+ *  the key furthest behind its target) and the rest carries on toward the next. Returns the heads placed. */
 function placeHires(s: GameStateV2, ctx: SystemCtx | undefined, k: TeamRole, n: number): number {
   const p = s.player;
-  const h = p.hiring;
-  const n0 = n;
-  let vac = 0;
-  for (const t of p.teams) if (t.role === k) vac += Math.max(0, t.size - t.heads);
-  if (vac > 0 && n > 0) {
-    const f = Math.min(1, n / vac);
-    for (const t of p.teams) if (t.role === k && t.heads < t.size) t.heads = Math.min(t.size, t.heads + (t.size - t.heads) * f);
-    n = Math.max(0, n - vac * f);
+  const prog = p.hiring.progress[k];
+  const size = TEAM_SIZE[k];
+  let left = n;
+  for (let i = 0; i < 64 && left > 1e-9; i++) {
+    prog.key = nextKeyOf(p, k);
+    if (teamGap(p, prog.key) <= 0) break; // no open team: hires never exceed V, so this is rounding only
+    const m = Math.min(left, size - prog.heads);
+    prog.heads += m;
+    left -= m;
+    if (prog.heads < size - 1e-6) break;
+    const dept = deptOfKey(prog.key);
+    const t: Team = { id: `T${p.hiring.nextId++}`, role: k, dept, size, heads: size };
+    if (k === 'sci') t.specialty = nextSpecialty(p.teams, dept);
+    p.teams.push(t);
+    prog.heads = 0;
+    ctx?.log('company', `A new ${teamLabel(t)} team joins.`, 1);
   }
-  for (let pass = 0; pass < 64; pass++) {
-    const w = [...laneWeights(p, 'cap'), ...laneWeights(p, 'saf')].filter((x) => x.t.role === k);
-    const W = w.reduce((a, x) => a + x.w, 0);
-    if (W > 0 && n > 1e-9) {
-      const pool = n;
-      for (const { t, w: wt } of w) {
-        const m = Math.min(t.size - t.heads, (pool * wt) / W);
-        t.heads += m;
-        n -= m;
-      }
-    }
-    for (const t of h.filling) {
-      if (t.role !== k || n <= 1e-9 || t.heads >= t.size) continue;
-      const m = Math.min(n, t.size - t.heads);
-      t.heads += m;
-      n -= m;
-    }
-    let arrived = false;
-    const still: Team[] = [];
-    for (const t of h.filling) {
-      if (t.role === k && t.heads >= t.size - 1e-6) {
-        t.heads = t.size;
-        p.teams.push(t);
-        ctx?.log('company', `A new ${teamLabel(t)} team joins.`, 1);
-        arrived = true;
-        continue;
-      }
-      still.push(t);
-    }
-    h.filling = still;
-    if (!arrived || n <= 1e-9) break;
-    applyTargets(p); // the next team of a key whose target is not met yet takes the hires left
-  }
-  return n0 - Math.max(0, n);
+  prog.key = nextKeyOf(p, k);
+  return n - Math.max(0, left);
 }
 
 /** The pay blend after `hired` new heads at the offer, then one week of renewal toward the offer (rate 1/T per year,
@@ -243,55 +250,26 @@ export function repriceWeek(pay: number, before: number, hired: number, offer: n
   return offer + (blended - offer) * Math.exp(-1 / (WEEKS * PAY_RENEWAL_YEARS));
 }
 
-/** One week of the labour market for the player (inflow, leavers, wage, hires, pay). Called from teams.ts teamsWeek. */
+/** One week of the labour market for the player (inflow, wage, hires toward whole teams, poaching, pay). Called from
+ *  teams.ts teamsWeek. */
 export function marketWeek(s: GameStateV2, ctx: SystemCtx | undefined) {
   const p = s.player;
   const L = s.labour;
   for (const k of LABOUR_KINDS) base(s, k); // saves from before L12: the reference before this week's flows
   // 1. Inflow.
   for (const k of LABOUR_KINDS) L.pools[k].P += INFLOW[k] / WEEKS;
-  // 5. Leavers (separation × today's morale factor); they leave E, so they are back in U.
-  for (const t of p.teams) {
-    const att = (t.heads * SEPARATION * attritionMorale(p, t.dept)) / WEEKS;
-    t.heads = Math.max(0, t.heads - att);
-  }
-  applyTargets(p);
   for (const k of LABOUR_KINDS) {
-    // 3. The market wage from this week's E and U.
+    // 2. The market wage from this week's E and U.
     L.pools[k].w = marketWage(s, k);
     const offer = offerOf(s, k);
-    // 4. Hires (the matching function), placed into vacancies then queued teams.
+    // 3. Hires (the matching function) toward the next team; with a premium a share of them is taken from the rivals.
     const before = playerHeads(p, k);
-    const V = openPositions(p, k);
-    let hired = placeHires(s, ctx, k, weeklyHires(s, k));
-    // 5. Poaching (premium only): a share of the rivals' leavers fills the positions the matching left open.
-    const poached = poachFromRivals(s, k, V - hired);
-    if (poached > 0) hired += placeHires(s, ctx, k, poached);
-    // 6. Pay: new hires at the offer, everyone toward it.
+    const hires = weeklyHires(s, k);
+    poachFromRivals(s, k, hires * poachShare(premiumOf(p, k)));
+    const hired = placeHires(s, ctx, k, hires);
+    // 4. Pay: new hires at the offer, everyone toward it.
     p.pay[k] = repriceWeek(p.pay[k], before, hired, offer);
   }
-}
-
-/** Expected weeks to fill `need` heads of kind k at today's U, premium, pull and morale: the matching rate on the open
- *  positions V (which shrink as they fill), less the kind's weekly leavers; Infinity if hiring cannot outpace leavers
- *  within ten years. `extraV` = open seats the question adds (a team not yet queued). */
-export function weeksToFill(s: GameStateV2, k: TeamRole, need: number, extraV = 0): number {
-  const p = s.player;
-  const byDept = openPositionsByDept(p, k);
-  let V = byDept.cap + byDept.saf + extraV;
-  const morale = kindMorale(s, k, byDept);
-  let att = 0;
-  for (const t of p.teams) if (t.role === k) att += (t.heads * SEPARATION * attritionMorale(p, t.dept)) / WEEKS;
-  const c = matchRate(s, k, 1, morale); // the matching rate at V = 1: rate(V) = c V^(1−α) (U, π, pull, morale held)
-  let left = need;
-  for (let wk = 1; wk <= 520; wk++) {
-    const net = Math.min(V, c * Math.pow(V, 1 - ALPHA)) - att;
-    if (net <= 0) return Infinity;
-    left -= net;
-    if (left <= 1e-6) return wk;
-    V = Math.max(left, V - net);
-  }
-  return Infinity;
 }
 
 /** Player payroll of kind-k heads at the lab's pay, $B/yr. */

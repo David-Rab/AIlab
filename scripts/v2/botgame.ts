@@ -73,8 +73,8 @@ export interface StaffLog {
 }
 export interface ForcedRun { series: ForcedSeries; staff: StaffLog }
 const kindHeads = (s: GameStateV2, k: TeamRole) => {
-  let n = 0;
-  for (const t of [...s.player.teams, ...s.player.hiring.filling]) if (t.role === k) n += t.heads;
+  let n = s.player.hiring.progress[k].heads; // hired toward the next team
+  for (const t of s.player.teams) if (t.role === k) n += t.heads;
   return n;
 };
 const emptyTrack = (): KindTrack => ({ heads: [], path: [], prem: [], wr: [] });
@@ -87,7 +87,7 @@ class ForcedStaff {
     for (const k of TEAM_KEYS) {
       const role = roleOfKey(k);
       let n = 0;
-      for (const t of [...s.player.teams, ...s.player.hiring.filling]) if (t.role === role && (role === 'eng' ? 'eng' : `${role}.${t.dept}`) === k) n += t.heads;
+      for (const t of s.player.teams) if (t.role === role && (role === 'eng' ? 'eng' : `${role}.${t.dept}`) === k) n += t.heads;
       this.startKey[k] = n;
       this.startKind[role] += n;
     }

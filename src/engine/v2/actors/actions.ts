@@ -349,8 +349,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = poachHeads(r);
       // RD-X04b: tacit knowledge (c4TacitG, sized before the heads move) enters the pretraining stack as public ideas.
       const tacit = c4TacitG(s, r);
-      r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
-      changeHeads(s, 'cap', n);
+      // Staff arrive as whole teams (changeHeads rounds): the rival loses the heads that actually moved.
+      r.core.staff.cap = Math.max(0, r.core.staff.cap - changeHeads(s, 'cap', n));
       addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');

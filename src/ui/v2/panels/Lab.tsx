@@ -7,7 +7,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronRight, GripVertical } from 'lucide-react';
 import { store } from '../store';
 import {
-  AUTO_SPLIT_USES, autoSplitPlan, engAllocView, lentTrainingH100e, fillWeeks, fullTeamPayroll, idleShares, idleTeams, queuedOfKey, rankMoves, reAllocView,
+  AUTO_SPLIT_USES, autoSplitPlan, engAllocView, lentTrainingH100e, fillWeeks, fullTeamPayroll, idleShares, idleTeams, rankMoves, reAllocView,
   responseCurves, RESPONSE_SCALES, safReAllocView, SPLIT_KEYS, SPLIT_LABEL, teamGain, teamsOfKey, workTypeViews,
 } from '../../../engine/v2';
 import type { AutoSplitUse } from '../../../engine/v2/departments/autoSplit';
@@ -374,7 +374,7 @@ function SciSplit({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const cap = teamsOfKey(p, 'sci.cap').length;
   const saf = teamsOfKey(p, 'sci.saf').length;
-  const target = (k: TeamKey) => Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length + queuedOfKey(p, k).length);
+  const target = (k: TeamKey) => Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
   const step = (k: TeamKey, d: number) => (
     <ActBtn id="teams.target" testId={`sciSplit.${k}.${d > 0 ? 'up' : 'down'}`} params={{ key: k, n: Math.max(0, target(k) + d) }} icon={d > 0 ? ICON.plus : ICON.minus} label="" ariaLabel={`${d > 0 ? 'More' : 'Fewer'} ${k === 'sci.cap' ? 'capability' : 'safety'} scientist teams`} block={d < 0 && target(k) <= 0 ? 'Already 0' : undefined} />
   );
@@ -398,7 +398,7 @@ function SciSplit({ s }: { s: GameStateV2 }) {
 }
 
 function Workforce({ s }: { s: GameStateV2 }) {
-  const rows = useMemo(() => boardRows(s), [s, s.time.day, s.player.teams.length, JSON.stringify(s.player.split), s.player.hiring.filling.length]);
+  const rows = useMemo(() => boardRows(s), [s, s.time.day, s.player.teams.length, JSON.stringify(s.player.split)]);
   const maxM = Math.max(1.5, ...rows.map((r) => r.w?.m ?? 1));
   const row = (k: RowKey) => { const r = rows.find((x) => x.k === k)!; return <WorkRow key={k} s={s} r={r} maxM={maxM} />; };
   return (
@@ -485,11 +485,10 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   toUse('agents');
   if (rc && !(free > 1e-4) && at(rc.agents, 1.4) - 1 < MIN_GAIN) wont.push('More AI staff compute: no gain');
   // Hires: one team of a kind (Keep hiring +1).
-  const target = (k: TeamKey) => Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length + queuedOfKey(p, k).length);
+  const target = (k: TeamKey) => Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
   const hireCost = (k: TeamKey) => {
     const role = k === 'eng' ? 'eng' : (k.split('.')[0] as 're' | 'sci');
-    const dept = k === 'eng' ? 'cap' : (k.split('.')[1] as 'cap' | 'saf');
-    const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
+    const wk = fillWeeks(s, role, TEAM_SIZE[role]);
     return `${F.money(fullTeamPayroll(s, role), { perYear: true })} · ${Number.isFinite(wk) ? `~${wk} wk to hire` : 'hiring stalled'}`;
   };
   const hire = (k: TeamKey, what: string, target2: string, eff: string, gain: number, mt: Move['target'] | null, note = '') => {
@@ -530,7 +529,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
 }
 
 function BestMoves({ s }: { s: GameStateV2 }) {
-  const { cards, wont } = useMemo(() => bestMoves(s), [s, s.time.day, JSON.stringify(s.player.split), s.player.teams.length, s.player.hiring.filling.length, JSON.stringify(s.player.hiring.targets), s.player.policies.lendTraining]);
+  const { cards, wont } = useMemo(() => bestMoves(s), [s, s.time.day, JSON.stringify(s.player.split), s.player.teams.length, JSON.stringify(s.player.hiring.progress), JSON.stringify(s.player.hiring.targets), s.player.policies.lendTraining]);
   return (
     <Card id="ctl-bestMoves" className="lab-moves" home="bestMoves" title={<span className="row-i"><ICON.revenue size={16} /><Term id="bestMoves">Best moves</Term></span>}
       right={<Tip content={() => <TipCard title="From your estimates">Gains come from what your lab believes about how compute and people turn into results, not from the truth. Ranked by days of progress a year: a move that raises a rate by a share f of today's gives f × 365 more days of today's progress each year.</TipCard>}><span className="dim small">from your estimates</span></Tip>}>

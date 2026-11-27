@@ -2,10 +2,10 @@
 //
 // The player's staff are whole teams of fixed size: engineers (150, one shared pool), research engineers (100,
 // capabilities or safety) and scientists (40, a tree-column specialty). Each week:
-//   the labour market (departments/market.ts, L12): inflow into the pools, leavers at SEPARATION × the morale factor
-//               (safety teams use safety morale), the market wage, hires by the matching function per kind (first into
-//               vacancies, then into the queued teams by lane weight and in order; a team arrives when it is full), pay
-//   policy      "keep hiring to N" queues one standard team per key while teams + queued < N
+//   the labour market (departments/market.ts, L12): inflow into the pools, the market wage, hires by the matching function
+//               per kind (they add up toward the next team; a FULL team arrives when they reach its size), poaching, pay
+//   policy      "keep hiring to N": the open positions are the gap to N teams, in whole teams (no vacancies, no queue)
+// Teams are whole chunks: nobody leaves except when the player lets a team go or an event moves staff (changeHeads).
 // Engine map (model v3 V3): capabilities research engineers serve the research-engineer needs (models/research.ts
 // reAllocation: run operations, evals, project experiments, tuning; the production readout's h is those on
 // experiments + tuning over the leader lab's day-0 value); capabilities scientists run projects, each team's taste the
@@ -16,10 +16,11 @@ import {
   MOVE_SAFETY_MORALE, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS,
   TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
+import { LABOUR_KINDS } from '../../../data/v2/labourMarket';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { ENG_UNIT_HEADS } from '../../../data/v2/workTypes';
 import { Phi } from '../production/ces';
-import { marketWeek, offerOf, weeksToFill } from './market';
+import { marketWeek, offerOf, weeksToNextTeam } from './market';
 import { measuredLabour, sdAIOf, workContext } from './workfit';
 import type {
   BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, StaffByRole, StartType, SystemCtx, Team, TeamDept,
@@ -34,8 +35,6 @@ export const deptOfKey = (k: TeamKey): TeamDept => (k === 'eng' ? 'cap' : (k.spl
 /** Hiring multiplier from morale (0.5 at 0, 1 at 50, 1.5 at 100) [D]. */
 export const moraleFactor = (morale: number) => Math.min(1.5, Math.max(0.5, 0.5 + morale / 100));
 export const moraleOf = (p: Pick<PlayerLab, 'morale'>, dept: TeamDept) => (dept === 'saf' ? p.morale.safety : p.morale.overall);
-/** Leavers' multiplier from morale: max(0.2, 1.5 − morale/100) (V2-SPEC §3.4.1), on SEPARATION (departments/market.ts). */
-export const attritionMorale = (p: Pick<PlayerLab, 'morale'>, dept: TeamDept) => Math.max(0.2, 1.5 - moraleOf(p, dept) / 100);
 
 function newTeam(h: Pick<TeamHiring, 'nextId'>, role: TeamRole, dept: TeamDept, specialty?: Column, heads = TEAM_SIZE[role]): Team {
   const t: Team = { id: `T${h.nextId++}`, role, dept: role === 'eng' ? 'cap' : dept, size: TEAM_SIZE[role], heads };
@@ -57,7 +56,7 @@ export function startTeams(baseline: BaselineId, start: StartType = 'leader'): {
   const leader = start === 'leader';
   const counts = leader ? START_TEAMS[baseline] : def.teams;
   const specs = leader ? START_SPECIALTIES : def.specialties;
-  const hiring: TeamHiring = { targets: { ...counts }, filling: [], nextId: 1, premium: { eng: 0, re: 0, sci: 0 } };
+  const hiring: TeamHiring = { targets: { ...counts }, progress: { eng: { key: 'eng', heads: 0 }, re: { key: 're.cap', heads: 0 }, sci: { key: 'sci.cap', heads: 0 } }, nextId: 1, premium: { eng: 0, re: 0, sci: 0 } };
   const teams: Team[] = [];
   const spec: Record<TeamDept, number> = { cap: 0, saf: 0 };
   for (const k of TEAM_KEYS) {
@@ -69,24 +68,6 @@ export function startTeams(baseline: BaselineId, start: StartType = 'leader'): {
     }
   }
   return { teams, hiring };
-}
-
-/** Whole teams in the reference split for a headcount (migration from staff, absorbed staff). Leftover heads go into
- *  partly filled teams (vacancies the hiring lane refills). */
-export function teamsFromStaff(h: Pick<TeamHiring, 'nextId'>, staff: StaffByRole): Team[] {
-  const out: Team[] = [];
-  const add = (role: TeamRole, dept: TeamDept, people: number) => {
-    if (people < 1) return;
-    const size = TEAM_SIZE[role];
-    const n = Math.max(1, Math.round(people / size));
-    for (let i = 0; i < n; i++) out.push(newTeam(h, role, dept, role === 'sci' ? nextSpecialty(out, dept) : undefined, Math.min(size, people / n)));
-  };
-  add('eng', 'cap', staff.cap * REF_ROLE_SHARE.eng);
-  add('re', 'cap', staff.cap * REF_ROLE_SHARE.re);
-  add('sci', 'cap', staff.cap * REF_ROLE_SHARE.sci);
-  add('re', 'saf', staff.saf * SAF_ROLE_SHARE.re);
-  add('sci', 'saf', staff.saf * SAF_ROLE_SHARE.sci);
-  return out;
 }
 
 // ───────── Derived readouts ─────────
@@ -105,14 +86,17 @@ export const teamPayroll = (p: Pick<PlayerLab, 'pay'>, t: Pick<Team, 'heads' | '
 /** Payroll of a new full team ($B/yr): its seats at today's offer (new hires are paid the offer, market.ts). */
 export const fullTeamPayroll = (s: GameStateV2, role: TeamRole) => (TEAM_SIZE[role] * offerOf(s, role)) / 1000;
 
-/** Player payroll $B/yr: every team plus the people already hired into queued teams, at the lab's pay per kind, plus the
+/** Player payroll $B/yr: every team plus the people already hired toward the next team, at the lab's pay per kind, plus the
  *  stars on staff (a star's pay is $M/yr; stars count under the capabilities department; LABOUR-ROUND §6.3). It takes
  *  the state, not the lab, so the star pay cannot be left out. */
 export function payrollOf(s: Pick<GameStateV2, 'player' | 'labour'>, dept?: TeamDept): number {
   const p = s.player;
   let b = !dept || dept === 'cap' ? s.labour.stars.reduce((a, x) => a + (x.employer === 'player' ? x.pay : 0), 0) / 1000 : 0;
   for (const t of p.teams) if (!dept || t.dept === dept) b += teamPayroll(p, t);
-  for (const t of p.hiring.filling) if (!dept || t.dept === dept) b += teamPayroll(p, t);
+  for (const k of LABOUR_KINDS) {
+    const g = p.hiring.progress[k];
+    if (g.heads > 0 && (!dept || deptOfKey(g.key) === dept)) b += (g.heads * p.pay[k]) / 1000;
+  }
   return b;
 }
 
@@ -132,36 +116,10 @@ export function syncTeams(s: GameStateV2) {
 }
 
 export const teamsOfKey = (p: Pick<PlayerLab, 'teams'>, k: TeamKey) => p.teams.filter((t) => keyOf(t) === k);
-export const queuedOfKey = (p: Pick<PlayerLab, 'hiring'>, k: TeamKey) => p.hiring.filling.filter((t) => keyOf(t) === k);
 
-/** A queued team's weight in its lane: its heads to go plus an equal part of its key's deficit not yet queued. */
-export function laneWeights(p: Pick<PlayerLab, 'teams' | 'hiring'>, dept: TeamDept): { t: Team; w: number }[] {
-  const q = p.hiring.filling.filter((t) => t.dept === dept && t.heads < t.size);
-  return q.map((t) => {
-    const k = keyOf(t);
-    const nq = q.filter((u) => keyOf(u) === k).length;
-    const extra = Math.max(0, (p.hiring.targets[k] ?? 0) - teamsOfKey(p, k).length - nq) * t.size;
-    return { t, w: t.size - t.heads + extra / nq };
-  });
-}
-
-/** Weeks until a queued team (or a new one, without id) arrives at today's matching rate (departments/market.ts
- *  weeksToFill: today's U, premium, talent pull and morale on the kind's open positions, less its weekly leavers):
- *  vacancies of the kind first, and while it fills, each other queued team of the kind takes its weighted share. */
-export function fillWeeks(s: GameStateV2, team: Pick<Team, 'role' | 'dept' | 'size' | 'heads'> & { id?: string }): number {
-  const p = s.player;
-  const k = team.role;
-  let vac = 0;
-  for (const t of p.teams) if (t.role === k) vac += Math.max(0, t.size - t.heads);
-  const ws = [...laneWeights(p, 'cap'), ...laneWeights(p, 'saf')].filter((x) => x.t.role === k);
-  const queued = ws.find((x) => x.t.id === team.id);
-  const mine = queued ?? { t: team as Team, w: team.size - team.heads };
-  const rem = team.size - team.heads;
-  let need = vac + rem;
-  for (const x of ws) if (x.t.id !== team.id) need += Math.min(x.t.size - x.t.heads, (rem * x.w) / Math.max(1e-9, mine.w));
-  const inQueue = team.id !== undefined && p.hiring.filling.some((t) => t.id === team.id);
-  return weeksToFill(s, k, need, inQueue ? 0 : rem);
-}
+/** Weeks until the next team of kind k arrives at this week's hires: (size − progress) ÷ hires (departments/market.ts
+ *  weeksToNextTeam). `extraV` = the seats of a team not yet in the targets (a hire preview). Infinity when nothing is open. */
+export const fillWeeks = (s: GameStateV2, k: TeamRole, extraV = 0): number => weeksToNextTeam(s, k, extraV);
 
 /** Build capacity (team-weeks per week) = effective software-engineering labour (model v3 V3.3): the engineers' team-
  *  equivalents (heads/ENG_UNIT_HEADS = 150, the reference unit, not the real team size) and the engineering agents' AI labour in the optimal human/AI task split at the
@@ -178,23 +136,10 @@ export function buildCapacity(s: GameStateV2): { human: number; aEng: number; ca
 
 // ───────── Weekly system ─────────
 
-/** One week of the labour market (departments/market.ts: inflow, leavers, wage, hires by the matching function, pay),
- *  with the keep-hiring policy and team arrivals. */
+/** One week of the labour market (departments/market.ts: inflow, wage, hires toward whole teams, poaching, pay). */
 export function teamsWeek(s: GameStateV2, ctx: SystemCtx) {
   marketWeek(s, ctx);
   syncTeams(s);
-}
-
-/** Policy "keep hiring to N": queue one standard Strong team per key while teams + queued < N. */
-export function applyTargets(p: PlayerLab) {
-  const h = p.hiring;
-  for (const k of TEAM_KEYS) {
-    if (queuedOfKey(p, k).length > 0) continue;
-    if (teamsOfKey(p, k).length >= (h.targets[k] ?? 0)) continue;
-    const role = roleOfKey(k);
-    const dept = deptOfKey(k);
-    h.filling.push(newTeam(h, role, dept, role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0));
-  }
 }
 
 export function teamLabel(t: Pick<Team, 'role' | 'dept' | 'specialty'>): string {
@@ -203,7 +148,7 @@ export function teamLabel(t: Pick<Team, 'role' | 'dept' | 'specialty'>): string 
   return `${t.specialty ? COLUMN_LABEL[t.specialty] : 'science'} science`;
 }
 
-/** hiring (200, weekly): team attrition, keep-hiring policy, team arrivals. */
+/** hiring (200, weekly): the labour market, hires toward whole teams, team arrivals. */
 export const hiringSystem: EngineSystem = {
   id: 'hiring', owner: 'WS1', cadence: 'weekly', order: 200, system: 'people',
   run(s, ctx) {
@@ -214,40 +159,28 @@ export const hiringSystem: EngineSystem = {
 
 // ───────── Player actions (models/actions.ts wraps these) ─────────
 
-/** Queue a standard team for `key`. It is placed ahead of policy-queued teams that have not started filling in its lane. */
-export function hireTeam(s: GameStateV2, ref: { key?: TeamKey }): Team | string {
+/** Hire a team for `key`: one more team in its keep-hiring target (the market's hires build toward it, then a full team arrives). */
+export function hireTeam(s: GameStateV2, ref: { key?: TeamKey }): string | undefined {
   const p = s.player;
-  const h = p.hiring;
-  const k0 = ref.key ?? 're.cap';
-  if (!TEAM_KEYS.includes(k0)) return 'Unknown team kind';
-  const role = roleOfKey(k0);
-  const dept = deptOfKey(k0);
-  const t = newTeam(h, role, dept, role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0);
-  const at = h.filling.findIndex((f) => f.dept === t.dept && f.heads === 0);
-  if (at < 0) h.filling.push(t);
-  else h.filling.splice(at, 0, t);
-  // The team counts toward its keep-hiring target (raise it so the policy does not treat it as extra).
-  const k = keyOf(t);
-  h.targets[k] = Math.max(h.targets[k] ?? 0, teamsOfKey(p, k).length + queuedOfKey(p, k).length);
-  return t;
+  const k = ref.key ?? 're.cap';
+  if (!TEAM_KEYS.includes(k)) return 'Unknown team kind';
+  p.hiring.targets[k] = Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length) + 1;
+  return undefined;
 }
 
-/** Let a team go (or cancel a queued one). Morale −1 per 1% of the department let go (max 15); the keep-hiring
- *  target drops so the policy does not hire it back. */
+/** Let an arrived team go. Morale −1 per 1% of the department let go (max 15); the keep-hiring target drops so the policy
+ *  does not hire it back. */
 export function releaseTeam(s: GameStateV2, ctx: SystemCtx, id: string): string | undefined {
   const p = s.player;
-  const h = p.hiring;
-  const inTeams = p.teams.findIndex((t) => t.id === id);
-  const inQueue = h.filling.findIndex((t) => t.id === id);
-  if (inTeams < 0 && inQueue < 0) return 'No such team';
-  const t = inTeams >= 0 ? p.teams[inTeams] : h.filling[inQueue];
+  const i = p.teams.findIndex((t) => t.id === id);
+  if (i < 0) return 'No such team';
+  const t = p.teams[i];
   const k = keyOf(t);
   const deptHeads = staffOf(p.teams)[t.dept];
-  if (inTeams >= 0) p.teams.splice(inTeams, 1);
-  else h.filling.splice(inQueue, 1);
-  h.targets[k] = Math.min(h.targets[k] ?? 0, teamsOfKey(p, k).length + queuedOfKey(p, k).length);
+  p.teams.splice(i, 1);
+  p.hiring.targets[k] = Math.min(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
   const pct = (100 * t.heads) / Math.max(1, deptHeads);
-  if (t.heads > 0) ctx.bump(t.dept === 'saf' ? 'morale.safety' : 'morale', -Math.min(15, pct), 'layoffs', teamLabel(t));
+  ctx.bump(t.dept === 'saf' ? 'morale.safety' : 'morale', -Math.min(15, pct), 'layoffs', teamLabel(t));
   syncTeams(s);
   return undefined;
 }
@@ -268,37 +201,34 @@ export function moveTeam(s: GameStateV2, ctx: SystemCtx, id: string): string | u
   return undefined;
 }
 
-/** People gained or lost outside hiring (poaching, acquisitions, events). Losses come off every team in the
- *  department in proportion (the lane refills them); gains fill vacancies first, then form whole Strong teams in the
- *  reference split; leftover people start a queued research-engineering team. */
-export function changeHeads(s: GameStateV2, dept: TeamDept, delta: number) {
+/** People gained or lost outside hiring (events, acquisitions, poaching actions), in whole teams. The head change is split
+ *  by the role shares (REF_ROLE_SHARE for capabilities, SAF_ROLE_SHARE for safety) and each role's share rounded to whole teams
+ *  of its size. A gain adds that many full teams (a gain also raises the keep-hiring target to hold them); a loss removes
+ *  that many whole teams, newest first, as many as the department has. Returns the heads actually moved (signed). */
+export function changeHeads(s: GameStateV2, dept: TeamDept, delta: number): number {
   const p = s.player;
-  if (!Number.isFinite(delta) || delta === 0) return;
-  const mine = p.teams.filter((t) => t.dept === dept);
-  if (delta < 0) {
-    const total = mine.reduce((a, t) => a + t.heads, 0);
-    const f = total > 0 ? Math.max(0, 1 + delta / total) : 0;
-    for (const t of mine) t.heads *= f;
-  } else {
-    let left = delta;
-    for (const t of mine) {
-      if (left <= 0) break;
-      const n = Math.min(left, t.size - t.heads);
-      t.heads += n;
-      left -= n;
-    }
-    if (left > 0) {
-      const add = teamsFromStaff(p.hiring, dept === 'cap' ? { cap: left, saf: 0 } : { cap: 0, saf: left }).filter((t) => t.heads >= t.size - 1e-6);
-      for (const t of add) {
-        p.teams.push(t);
-        left -= t.heads;
-        const k = keyOf(t);
-        p.hiring.targets[k] = Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
+  if (!Number.isFinite(delta) || delta === 0) return 0;
+  const share: Partial<Record<TeamRole, number>> = dept === 'cap' ? REF_ROLE_SHARE : SAF_ROLE_SHARE;
+  let moved = 0;
+  for (const role of ['eng', 're', 'sci'] as TeamRole[]) {
+    const n = Math.round((Math.abs(delta) * (share[role] ?? 0)) / TEAM_SIZE[role]);
+    const k = dept === 'cap' && role === 'eng' ? 'eng' : (`${role}.${dept}` as TeamKey);
+    for (let i = 0; i < n; i++) {
+      if (delta > 0) {
+        const team = newTeam(p.hiring, role, dept, role === 'sci' ? nextSpecialty(p.teams, dept) : undefined);
+        p.teams.push(team);
+        moved += team.size;
+      } else {
+        const at = p.teams.map((x) => keyOf(x)).lastIndexOf(k);
+        if (at < 0) break;
+        moved -= p.teams[at].heads;
+        p.teams.splice(at, 1);
       }
-      if (left >= 1) p.hiring.filling.unshift(newTeam(p.hiring, 're', dept, undefined, Math.min(TEAM_SIZE.re - 1, left)));
     }
+    if (delta > 0) p.hiring.targets[k] = Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
   }
   syncTeams(s);
+  return moved;
 }
 
 /** Set the keep-hiring target for a key. */

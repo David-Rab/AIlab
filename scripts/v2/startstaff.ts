@@ -35,7 +35,7 @@ for (const k of Object.keys(want) as TeamKey[]) {
   ok(heads[k] === wantHeads[k], `${k}: ${heads[k]} heads (want ${wantHeads[k]})`);
 }
 ok(t.every((x) => x.heads === x.size && x.size === TEAM_SIZE[x.role]), 'every start team is full (heads = size = TEAM_SIZE)');
-ok(s.player.hiring.filling.length === 0, 'no team in the hiring queue on day 0');
+ok(Object.values(s.player.hiring.progress).every((g) => g.heads === 0), 'no hires toward a next team on day 0');
 ok(s.player.staff.cap === 1930 && s.player.staff.saf === 70, `staff: capabilities ${s.player.staff.cap} (1,930), safety ${s.player.staff.saf} (70)`);
 const spec = new Map<string, number>();
 for (const x of t) if (x.role === 'sci') spec.set(`${x.dept}:${x.specialty}`, (spec.get(`${x.dept}:${x.specialty}`) ?? 0) + 1);

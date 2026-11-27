@@ -13,7 +13,7 @@ import { lineResultsPerYear } from '../safety/agendas';
 import { playerHeads, premiumOf, weeklyHires } from './market';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../types';
 import {
-  buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
+  buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, releaseTeam, roleOfKey, setTeamTarget,
   staffOf, teamPayroll, teamsOfKey,
 } from './teams';
 
@@ -29,7 +29,7 @@ const fail = (why: string | undefined) => {
 export type TeamSpec = { role: TeamRole; dept: TeamDept; specialty?: Column; heads?: number };
 const previewTeam = (s: GameStateV2, t: TeamSpec, i = 0): Team => {
   const dept = t.role === 'eng' ? 'cap' : t.dept;
-  const specialty = t.specialty ?? (t.role === 'sci' ? nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) : undefined);
+  const specialty = t.specialty ?? (t.role === 'sci' ? nextSpecialty(s.player.teams, dept) : undefined);
   return { id: `preview:${i}`, role: t.role, dept, size: TEAM_SIZE[t.role], heads: t.heads ?? TEAM_SIZE[t.role], ...(specialty ? { specialty } : {}) };
 };
 
@@ -132,8 +132,7 @@ function teamMove(s: GameStateV2, t: Team): { loss: CostLine; gain: CostLine } {
 /** The team a release/move preview talks about: the given id, else the newest arrived team (of a role, if given). */
 function pickTeam(s: GameStateV2, p: Params, role?: TeamRole): Team | undefined {
   const id = str(p, 'team', '');
-  const all = [...s.player.teams, ...s.player.hiring.filling];
-  if (id) return all.find((t) => t.id === id);
+  if (id) return s.player.teams.find((t) => t.id === id);
   const pool = role ? s.player.teams.filter((t) => t.role === role) : s.player.teams;
   return pool[pool.length - 1];
 }
@@ -162,7 +161,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
     available: () => true,
     preview: (s, p) => {
       const t = hireSpec(p);
-      const weeks = fillWeeks(s, { ...t, size: TEAM_SIZE[t.role], heads: 0 });
+      const weeks = fillWeeks(s, t.role, TEAM_SIZE[t.role]);
       return {
         costs: [{ currency: 'cash', amount: fullTeamPayroll(s, t.role), target: '$B/yr payroll' }],
         gains: [{ ...teamGain(s, t), ...(Number.isFinite(weeks) ? { lagDays: weeks * 7 } : {}) }],
@@ -170,8 +169,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       };
     },
     apply: (s, _ctx, p) => {
-      const r = hireTeam(s, { key: str(p, 'key', 're.cap') as TeamKey });
-      if (typeof r === 'string') fail(r);
+      fail(hireTeam(s, { key: str(p, 'key', 're.cap') as TeamKey }));
     },
   },
   {
@@ -199,7 +197,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
   },
   {
     id: 'teams.release', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Let go',
-    available: (s) => (s.player.teams.length + s.player.hiring.filling.length > 0 ? true : 'No teams'),
+    available: (s) => (s.player.teams.length > 0 ? true : 'No teams'),
     preview: (s, p) => {
       const t = pickTeam(s, p);
       if (!t) return { costs: [{ currency: 'morale', amount: 0 }], gains: [], exposure: [] };
@@ -238,7 +236,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const k = str(p, 'key', 're.cap') as TeamKey;
       const role = roleOfKey(k);
       const dept = deptOfKey(k);
-      const have = teamsOfKey(s.player, k).length + queuedOfKey(s.player, k).length;
+      const have = teamsOfKey(s.player, k).length;
       const n = Math.max(0, Math.round(num(p, 'n', (s.player.hiring.targets[k] ?? 0) + 1)));
       const d = Math.max(0, n - have);
       return d > 0

@@ -43,10 +43,6 @@ export const ALPHA = 0.35;
  *  [BLS JOLTS 2025, Information sector; DFH 2013 check; 7.4/yr; LABOUR-SOURCES §13]. Confidence M (L for labs). */
 export const F0_PER_MONTH = 0.62;
 
-/** q: separation rate, per year [BLS JOLTS 2025, Information quits; LABOUR-SOURCES §13; designer accepted 15.6%/yr,
- *  decision 5]. Confidence L-M. */
-export const SEPARATION = 0.156;
-
 /** T: years over which a head's pay moves to the market offer (contract renewal; LABOUR-ROUND §4.2 item 7, open question Q2)
  *  [D] designer: gradual, annual renewal. Every head's pay relaxes toward the offer at rate 1/T per year (continuous: after
  *  one year the gap has closed by 1 - e^-1 = 63%). */

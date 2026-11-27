@@ -37,9 +37,9 @@ export const COMPANY_EVENTS: EventDefV2[] = [
         const n = Math.round(s.player.staff.cap * 0.03);
         const r = activeLab(s, d.lab);
         const tacit = r ? poachLeakG(s, r.core.id, n) : 0; // RD-X04b: sized before the heads move
-        changeHeads(s, 'cap', -n);
+        const left = -changeHeads(s, 'cap', -n); // whole teams: the rival gains the heads that actually left
         if (r) {
-          r.core.staff.cap += n;
+          r.core.staff.cap += left;
           addRivalKnowledge(r, tacit);
         }
       }),

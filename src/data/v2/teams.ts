@@ -15,7 +15,7 @@ export const REF_ROLE_SHARE: Record<TeamRole, number> = { eng: 0.3, re: 0.55, sc
 /** Reference split of safety staff: 90 research engineers + 50 scientists of 140 (research/19 §1.1) [Design]. */
 export const SAF_ROLE_SHARE: Record<'re' | 'sci', number> = { re: 90 / 140, sci: 50 / 140 };
 
-// Pay, hiring speed and leavers are the labour market's (data/v2/labourMarket.ts W0, F0_PER_MONTH, SEPARATION;
+// Pay and hiring speed are the labour market's (data/v2/labourMarket.ts W0, F0_PER_MONTH;
 // departments/market.ts, L12): the fixed TEAM_COST_M, HIRING_BASE and ATTRITION_BASE are retired.
 
 /** Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]. */
