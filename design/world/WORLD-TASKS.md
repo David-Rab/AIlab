@@ -54,7 +54,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W3 | (folded into W1b) | | | | |
 | W4 | Public (spec §5) | Sonnet high | 60 min | W2 | done eb95c5da |
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | done d1e5629d |
-| W6 | China government (spec §7) | Sonnet high | 75 min | W5 | running (+ China lab compute fix) |
+| W6 | China government (spec §7) | Sonnet high | 75 min | W5 | done 0d85b56f |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | done 875af419 |
@@ -142,3 +142,15 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   stage 0 to Nov 2026, then stages 1/2/3/4 in 2028-05 / 2030-04 / 2031-08 / 2032-02; strict exports 2030-05; licensing
   2030-07; no relief (12-month rise never > 1 pt). SCHEMA 122 · d1e5629d. Open: ws4.ts shows 5 failures (canon text,
   intel, China lead, rival gaps), not confirmed pre-existing; hygiene timed out on a shared CPU.
+- W6 · Opus high · ~46 min · China's lab on the NPC compute rule (start 0.36M H100e, ×2.25/yr plan; export and
+  collective multipliers via s.china.access). End gap: fast +4.8, central +8.2, slow +12.0 months (China behind; it was
+  −23 in slow). world/chinagov.ts: tension 0–4, talks 0–3, E23 Treaty (back/oppose), verification needs pre-deploy
+  testing. The treaty caps the player's AI R&D pool (power.ts poolsOf) and slows the NPC clock ×0.65. War at tension 4.
+  Theft only from tension 1, on attended labs leading China by > 90 d. SCHEMA 123 · 0d85b56f.
+  Findings → W6b:
+  - (1) The slow reference series runs out at ~2044.6: NPC G goes negative.
+  - (2) Tension follows the noisy public lead, so the collective forms by Dec 2026 and rung 3 by 2029 in every timeline
+    (wrong shape; not real history).
+  - (3) Strict exports never switch off after the first Chinese theft.
+  - Taiwan disruptions: 18 in slow.
+- W6b · Sonnet high · fixes (1)–(3) · running. W10c · Sonnet high · dashboard rows for public/usgov/china · running
