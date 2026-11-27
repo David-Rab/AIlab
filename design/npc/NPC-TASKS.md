@@ -14,7 +14,7 @@ the merge wave.
 | ID | Task | Model | Depends on | Status |
 |---|---|---|---|---|
 | N1 | Reference frontier: the AIFM run's progress series as G_ref(t) in the generated draw data; `npc/reference.ts` `refG` and `clockOfG` (rescoped to the cut-down model) | Sonnet high | — | running |
-| N3 | M_world: state-free `referenceEnv`, reference lineage per world, memoised mean curve (σ_cyc dropped) | Sonnet high | — | finishing |
+| N3 | M_world: state-free `referenceEnv`, reference lineage per world, memoised mean curve (σ_cyc dropped) | Sonnet high | — | done, merged; full fingerprint pair running |
 | N3b | Check the probe's "heavy safety raises misalignment" | Sonnet high | — | done |
 | N3c | ~~Option B: k per world~~ — **cancelled** (designer approved the cut-down model, 2026-11-27): k = 0.5 constant | — | — | cancelled |
 | N7 | Remove `cooperation` (writes, the star hire's displayed "trust with rivals" cost, the meter) | Sonnet medium | — | done, merged bbec174 |
@@ -40,3 +40,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N7 | accepted | 17 min | 13 files; no action left without effect; fixtures still carry the field (harmless, regenerated in N12). Lead fixed one stale registry evidence string. |
 | N2a | accepted | 16 min | Names replaced (most of §12 collided with real companies/products). Findings 1-6 became the lead rulings R1-R5 (spec §16). Press-only: xAI money/headcount, upstart funding. |
 | N2a2 | accepted (rescoped mid-task per principle 7) | ~25 min | One cadence 119 d (median of 27 flagship steps, range 15-317) [P]; generic internal rule. CSV read through a summarising fetch: rows may be missing, fine at shape level. |
+| N3 | accepted pending the fingerprint pair | ~45 min (over budget: its fingerprint ran > 20 min and was stopped) | Function-level identity 19,968 comparisons, 0 diffs. M at ASI easy 0.29 / medium 0.43 / central-hard 0.51 / hard 0.60; monotone in G; ~30 ms (max 102 under load). Reference without the start tools (lead). |
