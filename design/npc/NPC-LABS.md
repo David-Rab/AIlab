@@ -429,3 +429,10 @@ only), `phys.{pool, ideas, clDay, run, serve, eff}` except where listed above, `
   opacity is part of the shape. The per-kind compute σs in N2a's table are evidence only.
 - **R7. Headcount is not a headline state.** Where staff move (absorb, the DPA fold-in), they come from compute ×
   one typical staff-per-H100e ratio. The cast's per-lab headcounts are evidence only.
+- **R8. The software part of the reference frontier** (N1 finding). In the AIFM, `software_efficiency` is not the
+  software part of `progress`: progress is log10 of the cumulative ∫10^(TSP+SE) and `training_compute` the cumulative
+  ∫10^TSP, so their difference is a weighted history of SE, and raw SE is not monotone. The reference recipe is
+  therefore S_ref = progress − log10 training_compute (cumulative FLOP), which makes Δprogress = ΔS_ref + ΔlogC exact,
+  so G and the milestone dates are exact. The split itself only needs the right shape (principle 7): with
+  near-exponential compute growth log(cumulative) ≈ log(current) + const, so compute ratios between labs carry over.
+  The clock inverse reads S_ref's running maximum if S_ref ever dips.
