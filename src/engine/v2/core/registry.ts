@@ -24,7 +24,7 @@ import { SAFETY_ACTIONS } from '../safety/actions';
 // WS3
 import { computeOnlineSystem } from '../compute/power';
 import { opexSystem, payrollSystem } from '../finance/cashflow';
-import { marketQSystem } from '../compute/market';
+import { geoShocksQSystem, marketQSystem } from '../compute/market';
 import { sitesQSystem } from '../compute/sites';
 import { computeHistQSystem } from '../compute/forecast';
 import { capitalQSystem } from '../finance/investors';
@@ -37,6 +37,8 @@ import { actorsDailySystem } from '../actors/relations';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
 import { geoQSystem } from '../actors/china';
+import { npcQSystem } from '../actors/rivals';
+import { copyrightQSystem } from '../finance/observe';
 import { indexSystem } from '../actors/index';
 import { RELATION_ACTIONS } from '../actors/actions';
 import { COMPANY_EVENTS } from '../events/catalog/company';
@@ -85,6 +87,9 @@ export const SYSTEMS: readonly EngineSystem[] = [
   capitalQSystem, // 420 WS3 quarterly
   boardQSystem, // 430 WS3 quarterly
   geoQSystem, // 440 WS4 quarterly
+  geoShocksQSystem, // 441 WS3 quarterly (Taiwan/Korea rolls)
+  copyrightQSystem, // 442 WS3 quarterly (copyright suit)
+  npcQSystem, // 443 WS4 quarterly (rival finance, goalposts)
   indexSystem, // 500 WS4 semiannual
 ];
 

@@ -226,6 +226,15 @@ export function goalpostsQ(s: GameStateV2, ctx: SystemCtx) {
   }
 }
 
+/** npcQ (443, quarterly): rival revenue, money and chip orders, then the moving-goalposts roll. */
+export const npcQSystem: EngineSystem = {
+  id: 'npcQ', owner: 'WS4', cadence: 'quarterly', order: 443, system: 'relations',
+  run(s, ctx) {
+    rivalFinanceQ(s, ctx);
+    goalpostsQ(s, ctx);
+  },
+};
+
 /** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China meters and ladder. */
 export const rivalsChinaSystem: EngineSystem = {
   id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100, system: 'relations',

@@ -3,14 +3,12 @@ import { CHINA_PRESETS } from '../../../data/actors';
 import { clamp } from '../../rng';
 import { CHINA_ID, activeRivals } from '../models/labs';
 import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, SetupV2, SystemCtx } from '../types';
-import { cash, drift } from './fx';
-import { goalpostsQ, rivalFinanceQ } from './rivals';
+import { drift } from './fx';
 import { lagDays } from '../models/capability';
 import { chinaCast, initialNpcLab } from '../npc/lab';
 import { START_DATE } from '../core/time';
 import { request, ws4 } from './state';
-import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
-import { copyrightExposure } from '../finance/observe';
+import { setExportPolicy } from '../compute/market';
 
 /** DeepCent's compute (H100e): China's accessible compute × its AGI share (AI 2027 compute forecast: 40% → 90% as the
  *  collective centralizes, research/11 #16) × the R&D share 0.6. CP3k: the start uses the same rule (it used 0.35 of
@@ -212,7 +210,12 @@ function reweight(s: GameStateV2, ctx: SystemCtx) {
   }
 }
 
-/** geoQ (440, quarterly): Taiwan/Korea rolls, export policy, China preset re-weighting, rival finance and orders. */
+/** The one place the Taiwan roll reads China: the preset's Taiwan propensity (multiplier) and the ladder's rung-5 add. */
+export function taiwanPressure(s: GameStateV2): { mult: number; add: number } {
+  return { mult: chinaParams(s).taiwan, add: s.china.rung >= 5 ? 0.15 : 0 };
+}
+
+/** geoQ (440, quarterly): China preset re-weighting, centralization, export policy, treaty track. */
 export const geoQSystem: EngineSystem = {
   id: 'geoQ', owner: 'WS4', cadence: 'quarterly', order: 440, system: 'relations',
   run(s, ctx) {
@@ -239,43 +242,11 @@ export const geoQSystem: EngineSystem = {
         if (r.chance(0.4)) ctx.log('china', 'China retaliates with rare-earth controls.', 2);
       }
     }
-    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience) × the China preset's Taiwan
-    // propensity, plus the ladder (research/10 R9, rung 5). Applied through WS3's taiwanShock (supply, prices,
-    // chips in transit); WS3's marketQ decays it.
-    const day = ctx.day;
-    if (w.taiwanDisrupted && s.market.disruptTW === 0) {
-      w.taiwanDisrupted = false;
-      ctx.log('world', 'Taiwan shipping normalises.', 2);
-    }
-    s.market.geoTW = c.meters.taiwanTension / 100;
-    const pTW = clamp(taiwanHazardQ(s) * pp.taiwan + (c.rung >= 5 ? 0.15 : 0), 0, 0.5);
-    if (!w.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
-      const quarters = 1 + Math.floor(r.float() * 4);
-      w.taiwanDisrupted = true;
-      w.taiwanUntil = day + quarters * 91;
-      taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
-      s.flags['ws4:taiwanEver'] = true;
-      ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
-      ctx.headline('taiwan', 'Taiwan crisis: chip shipments from TSMC disrupted');
-    }
-    if (s.market.disruptKR === 0 && r.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, r.range(0.3, 0.7), 2 + Math.floor(r.float() * 3));
     // Treaty track: talks → restraint (D4) → verified (D5) (research/10 §1.4).
     if (s.gov.treaty === 'talks' && c.deesc >= 4) s.gov.treaty = 'restraint';
     if ((s.gov.treaty === 'talks' || s.gov.treaty === 'restraint') && c.deesc >= 5 && c.meters.verificationWillingness > 50) {
       s.gov.treaty = 'verified';
       ctx.log('china', 'The US and China sign a verified agreement on frontier AI.', 4);
     }
-    // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
-    // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
-    // the crawl (data.license, domain 'web') is the way to avoid it (finance/observe.ts copyrightExposure).
-    const lit = copyrightExposure(s);
-    const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);
-    if (lit.pQ > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(lit.pQ)) {
-      s.flags['ws4:lastSuitDay'] = day;
-      cash(s, ctx, -lit.settlement, 'copyright settlement');
-      ctx.log('company', `Authors and publishers sued over ${Math.round(lit.tokensT)}T tokens of unlicensed training data; you settled for ${lit.settlement.toFixed(1)}B. Licensing the data stops further suits.`, 3);
-    }
-    rivalFinanceQ(s, ctx);
-    goalpostsQ(s, ctx);
   },
 };

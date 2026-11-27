@@ -5,6 +5,9 @@ import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import { decimalYear } from '../core/time';
 import { FORCING } from '../core/forcing';
+import { taiwanPressure } from '../actors/china';
+import { ws4 } from '../actors/state';
+import { clamp } from '../../rng';
 import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
@@ -525,3 +528,33 @@ export const marketQSystem: EngineSystem = {
 };
 
 export type { LabOrder };
+
+/** geoShocksQ (441, quarterly): Taiwan and Korea disruption rolls. */
+export const geoShocksQSystem: EngineSystem = {
+  id: 'geoShocksQ', owner: 'WS3', cadence: 'quarterly', order: 441, system: 'compute',
+  run(s, ctx) {
+    const w = ws4(s);
+    const r = ctx.rng('china');
+    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience) × the China preset's Taiwan
+    // propensity, plus the ladder (research/10 R9, rung 5). Applied through WS3's taiwanShock (supply, prices,
+    // chips in transit); WS3's marketQ decays it.
+    const day = ctx.day;
+    if (w.taiwanDisrupted && s.market.disruptTW === 0) {
+      w.taiwanDisrupted = false;
+      ctx.log('world', 'Taiwan shipping normalises.', 2);
+    }
+    s.market.geoTW = s.china.meters.taiwanTension / 100;
+    const tp = taiwanPressure(s);
+    const pTW = clamp(taiwanHazardQ(s) * tp.mult + tp.add, 0, 0.5);
+    if (!w.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
+      const quarters = 1 + Math.floor(r.float() * 4);
+      w.taiwanDisrupted = true;
+      w.taiwanUntil = day + quarters * 91;
+      taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
+      s.flags['ws4:taiwanEver'] = true;
+      ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
+      ctx.headline('taiwan', 'Taiwan crisis: chip shipments from TSMC disrupted');
+    }
+    if (s.market.disruptKR === 0 && r.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, r.range(0.3, 0.7), 2 + Math.floor(r.float() * 3));
+  },
+};
