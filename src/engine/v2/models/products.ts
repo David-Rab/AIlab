@@ -56,7 +56,7 @@ export const agentModeOn = (s: GameStateV2, d: Deployment) => activeFeatures(s, 
 /** RD-P11: the product's incident-site terms from its tools: the task-horizon multiplier of its horizon extenders on
  *  all work (Memory ×1.3: the tasks its model runs alone; autonomy A = H/(H + H_HALF)), the affordances they add
  *  (ProductToolDef.afford: Computer use +0.25, Agent mode +0.3) and, MK-11, the task length Agent mode sells (its gate,
- *  AGENT_TASK_HOURS: the product's task horizon is at least that, as the deleted Agents product's 4 h). */
+ *  AGENT_TASK_HOURS: the product's task horizon is at least that, AGENT_TASK_HOURS). */
 export function productSiteTerms(s: GameStateV2, d: Deployment): { hMult: number; afford: number; minH: number } {
   let hMult = 1;
   let afford = 0;

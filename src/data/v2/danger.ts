@@ -74,7 +74,7 @@ export const DANGER_ACTS: Partial<Record<TraitId, ActDef>> = {
 export const UMODE_ACT: ActDef = { act: 'Unexplained behaviour', kappa: 2e-3, domain: 'AGENCY', thetaV2: 4.5, s: 1, alpha: 0.5, floor: 2, span: 1 };
 
 /** Task horizon a deployment gives the model (hours) [D]: chat turns, API calls, enterprise workflows. MK-11: a product
- *  with Agent mode runs its tasks (data/v2/tools.ts AGENT_TASK_HOURS = 4, the old Agents product's) at least that long
+ *  with Agent mode runs its tasks (data/v2/tools.ts AGENT_TASK_HOURS = 2) at least that long
  *  (models/products.ts productSiteTerms). Internal uses read their work types' horizons (workTypes.ts H). */
 export const CHANNEL_HORIZON_H: Record<Exclude<Channel, 'internal'>, number> = {
   consumer: 0.1, api: 0.5, enterprise: 1, vetted: 1, open: 2,

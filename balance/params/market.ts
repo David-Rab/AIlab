@@ -226,7 +226,7 @@ const MARKET_BUYERS: Param[] = [
 const TL = 'src/data/v2/tools.ts';
 const toolFam = (path: (string | number)[], unit: string, meta: Partial<Meta> & Pick<Meta, 'kind' | 'evidence'>) => one(TL, 'PRODUCT_TOOLS', ['*', ...path], undefined, unit, { ...W, ...meta });
 const TOOLS: Param[] = [
-  one(TL, 'AGENT_TASK_HOURS', [], 4, 'hours (measured 50% time horizon)', { ...W, kind: 'designer', evidence: 'tools.ts:31-32 "Agent mode needs a measured 50% time horizon at least this long: ... [D]"' }),
+  one(TL, 'AGENT_TASK_HOURS', [], 2, 'hours (measured 50% time horizon)', { ...W, kind: 'sourced', source: 'METR TH1.1 o3 120 min (metr.org/assets/benchmark_results_1_1.yaml); ChatGPT agent (Jul 2025) is o3-class; designer 2026-11-27', evidence: 'tools.ts:31-33 "2 h, the measured horizon of the model its analogue launched on [P]"' }),
   one(TL, 'CERT_DAYS', [], 240, 'days', { ...W, kind: 'sourced', source: 'research/CAL-products-sources.md C1 (OpenAI FedRAMP 20x Moderate 27 Apr 2026, ~8 months after the AI prioritisation opened Aug 2025; fedramp.gov/ai)',
     evidence: 'tools.ts:38-42 "240 [P, CAL-P]: OpenAI\'s ChatGPT Enterprise / API got FedRAMP 20x Moderate on 27 Apr 2026, about 8 months after ... Range 3-24 months"',
     range: { lo: 90, hi: 720, from: 'tools.ts:40 "Range 3-24 months" (read as 30-day months)' } }),
