@@ -11,6 +11,8 @@ import {
 import { privilegedOf } from '../../../engine/v2/security/security';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, STAR_HIRE, TEAM_SIZE } from '../../../data/v2/teams';
+import { P0, PREMIUM_STEPS, W0 } from '../../../data/v2/labourMarket';
+import { offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf } from '../../../engine/v2/departments/market';
 import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
 import { NeedsBoard } from './Work';
@@ -87,7 +89,6 @@ function nextTeamBuys(s: GameStateV2, k: TeamKey): { text: ReactNode; tip: strin
 function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
   const p = s.player;
   const role = roleOf(k);
-  const dept = deptOf(k);
   const Ic = ROLE_ICON[role];
   const ts = teamsOfKey(p, k);
   const fills = queuedOfKey(p, k);
@@ -95,7 +96,6 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
   const target = p.hiring.targets[k] ?? 0;
   const perTeam = fullTeamPayroll(s, role);
   const pay = ts.reduce((a, t) => a + teamPayroll(p, t), 0);
-  const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
   const f0 = fills[0];
   const f0wk = f0 ? fillWeeks(s, f0) : 0;
   const buys = nextTeamBuys(s, k);
@@ -133,7 +133,6 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
       </div>
       <div className="lh-pay">
         <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1}`, value: F.money(teamPayroll(p, t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>
-        <Tip content={() => <TipCard title="Time to hire a team" value={Number.isFinite(wk) ? `~${wk} weeks` : 'stalled'}>Weeks to fill one new team at today&apos;s hiring speed (talent pull and morale set it; teams already filling go first).</TipCard>}><div className="small dim">{Number.isFinite(wk) ? `~${wk} wk a team` : 'hiring stalled'}</div></Tip>
       </div>
       <Tip content={() => <TipCard title="Next team buys">{buys.tip}</TipCard>}>
         <div className={`lh-buys ${buys.quiet ? 'dim' : ''}`} data-test={`buys.${k}`}>{buys.text}</div>
@@ -162,13 +161,116 @@ function Teams({ s }: { s: GameStateV2 }) {
 }
 
 
+// ───────── Labour market (L16; LABOUR-ROUND §4) ─────────
+const KINDS: TeamRole[] = ['eng', 're', 'sci'];
+const KIND_NAME_L: Record<TeamRole, string> = { eng: 'Engineers', re: 'Research engineers', sci: 'Scientists' };
+const KIND_TERM_L: Record<TeamRole, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
+const wageM = (x: number) => `$${x.toFixed(2)}M`;
+const premLabel = (x: number) => (x > 0 ? `+${Math.round(x * 100)}%` : 'none');
+
+function LabourRow({ s, k }: { s: GameStateV2; k: TeamRole }) {
+  const p = s.player;
+  const pool = s.labour.pools[k];
+  const Ic = ROLE_ICON[k];
+  const pi = premiumOf(p, k);
+  const w = pool.w;
+  const pay = p.pay[k];
+  const offer = offerOf(s, k);
+  const catching = Math.abs(offer - pay) / Math.max(1e-9, offer) > 0.02;
+  const up = offer > pay;
+  const U = outsideHeads(s, k);
+  const share = U / pool.P;
+  const start = (pool.U0 ?? U) / P0[k];
+  const dShare = (share - start) * 100;
+  const mine = playerHeads(p, k);
+  const china = otherLabHeads({ rivals: [], china: s.china }, k);
+  const rivals = otherLabHeads(s, k) - china;
+  const V = openPositions(p, k);
+  const hires = weeklyHires(s, k);
+  const wk = fillWeeks(s, { role: k, dept: 'cap', size: TEAM_SIZE[k], heads: 0 });
+  const dTone = dShare < -0.005 ? 'tone-neg' : dShare > 0.005 ? 'tone-pos' : 'dim';
+  const wageTip = () => (
+    <TipCard title={<Term id="marketWage">Market wage</Term>} value={`${wageM(w)} a person-year`} rows={[
+      { label: 'Your average pay', value: wageM(pay) },
+      { label: 'Your offer now', value: `${wageM(offer)}${pi > 0 ? ` (${premLabel(pi)})` : ''}` },
+      { label: 'At the start', value: wageM(W0[k]) },
+      { label: 'AI labs hold', value: `${F.pct(1 - share, 1)} of the pool` },
+    ]}>
+      Wages rise as AI labs hire the pool down, yours and your rivals&apos;. A <Term id="premiumPay">pay premium</Term> pulls people from rivals but costs more on everyone of that kind. Your average pay catches up with your offer over about a year{catching ? `: it is moving ${up ? 'up' : 'down'} to ${wageM(offer)}` : ''}.
+    </TipCard>
+  );
+  const talentTip = () => (
+    <TipCard title={<Term id="talentOutside">Talent outside AI labs</Term>} value={F.pct(share, 1)} rows={[
+      { label: 'Everyone able to do the job', value: F.count(pool.P) },
+      { label: 'You employ', value: F.count(mine) },
+      { label: 'Other labs employ', value: F.count(rivals) },
+      { label: 'China\'s labs employ', value: F.count(china) },
+      { label: 'Outside AI labs', value: F.count(U) },
+      { label: 'Since the start', value: F.pp(dShare, Math.abs(dShare) < 1 ? 2 : 1) },
+    ]}>
+      Who you can hire. Labs hire from this pool and it thins: hiring slows and the <Term id="marketWage">market wage</Term> rises. New graduates refill it slowly.
+    </TipCard>
+  );
+  const speedTip = () => (
+    <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} value={V > 0 ? `${t1(hires)} people a week` : 'no open positions'} rows={[
+      { label: 'Open positions', value: F.count(V) },
+      { label: `A new team of ${TEAM_SIZE[k]}`, value: Number.isFinite(wk) ? `about ${wk} weeks` : 'never at current rates' },
+      { label: <Term id="talentPull">Talent pull</Term>, value: F.num(s.relations.talentPull, 0, true) },
+      { label: <Term id="premiumPay">Pay premium</Term>, value: premLabel(pi) },
+    ]}>
+      People you hire this week for your open positions. More openings, talent pull, morale and a premium raise it; a thinner pool slows it. Vacancies fill first, then teams being hired.
+    </TipCard>
+  );
+  return (
+    <div className="lm-row" data-kind={k}>
+      <div className="lh-name">
+        <span className="lh-ic"><Ic size={16} /></span>
+        <b><Term id={KIND_TERM_L[k]}>{KIND_NAME_L[k]}</Term></b>
+      </div>
+      <Tip content={wageTip}>
+        <div className="lm-cell" data-test={`lm-wage.${k}`}>
+          <span><b className="num lm-big">{wageM(w)}</b> <span className="dim small">market</span></span>
+          <span className="small dim">you pay <b className="num">{wageM(pay)}</b>{catching && <span className={up ? 'tone-warn' : 'tone-pos'}> {up ? '▲' : '▼'} {wageM(offer)}</span>}</span>
+        </div>
+      </Tip>
+      <Tip content={talentTip}>
+        <div className="lm-cell" data-test={`lm-talent.${k}`}>
+          <span className="row-i"><span className="lh-meter lm-meter"><i style={{ width: `${share * 100}%` }} /></span><b className="num">{F.pct(share, 1)}</b></span>
+          <span className={`small ${dTone}`}>{dShare < -0.005 ? '▼' : dShare > 0.005 ? '▲' : '▬'} <span className="num">{F.pp(dShare, Math.abs(dShare) < 1 ? 2 : 1)}</span> <span className="dim">since the start</span></span>
+        </div>
+      </Tip>
+      <Tip content={speedTip}>
+        <div className="lm-cell" data-test={`lm-speed.${k}`}>
+          {V > 0 ? <span><b className="num lm-big">{t1(hires)}</b> <span className="dim small">a week</span></span> : <span className="dim">no open positions</span>}
+          <span className="small dim">{Number.isFinite(wk) ? `~${wk} wk for a team` : 'a team: never at this rate'}</span>
+        </div>
+      </Tip>
+      <div className="lm-cell lm-prem" data-test={`lm-premium.${k}`}>
+        <span className="seg-row">
+          {PREMIUM_STEPS.map((x) => (Math.abs(x - pi) < 1e-9
+            ? <Tip key={x} content={() => <TipCard title={<Term id="premiumPay">Pay premium</Term>} value={premLabel(x)} rows={[{ label: 'Your offer', value: `${wageM(offer)} a person-year` }, { label: <Term id="poaching">Poaching</Term>, value: x > 0 ? `${F.pct(poachShare(x))} of rivals' leavers join you` : 'none' }]}>Your current premium on the market wage for {KIND_NAME_L[k].toLowerCase()}.</TipCard>}><span className="seg-on" data-test={`premium.${k}.${x}`}>{premLabel(x)}</span></Tip>
+            : <ActBtn key={x} id="hiring.premium" testId={`premium.${k}.${x}`} params={{ kind: k, step: x }} label={premLabel(x)} />))}
+        </span>
+        <span className="small dim">{pi > 0 ? <>offering <b className="num">{wageM(offer)}</b>, poaching from rivals</> : 'pay at the market wage'}</span>
+      </div>
+    </div>
+  );
+}
+
+function LabourMarket({ s }: { s: GameStateV2 }) {
+  return (
+    <Card home="labour" className="lm-card" title={<span className="row-i"><ICON.staff size={15} />Labour market <span className="dim small lc">$M per person-year</span></span>}>
+      <div className="lm-head"><span>Staff</span><span><Term id="marketWage">Market wage</Term></span><span><Term id="talentOutside">Talent outside AI labs</Term></span><span><Term id="weeklyHireCap">Hiring speed</Term></span><span><Term id="premiumPay">Pay premium</Term></span></div>
+      {KINDS.map((k) => <LabourRow key={k} s={s} k={k} />)}
+    </Card>
+  );
+}
+
 const PAY_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
 function PayrollCard({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const total = payrollOf(p);
   const byKey = PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(p, t), 0) }));
-  const hiresK = (['eng', 're', 'sci'] as const).map((k) => weeklyHires(s, k));
-  const capW = hiresK[0] + hiresK[1] + hiresK[2];
   const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(p, t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
   return (
     <Card home="payroll" className="lh-paycard" title={<span className="row-i"><ICON.cash size={15} /><Term id="payroll">Payroll</Term></span>}
@@ -176,9 +278,6 @@ function PayrollCard({ s }: { s: GameStateV2 }) {
       <Tip content={payTip}><div className="lh-paybar">{byKey.map((x) => x.v > 0 && <i key={x.k} style={{ flex: x.v, background: KEY_COLOR[x.k] }} />)}</div></Tip>
       <div className="lh-legend small">{byKey.map((x) => <span key={x.k}><i style={{ background: KEY_COLOR[x.k] }} />{KEY_FULL[x.k]}</span>)}</div>
       <div className="lh-kv">
-        <Tip content={() => <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} rows={[{ label: 'Engineers', value: `${F.count(hiresK[0])} people a week` }, { label: 'Research engineers', value: `${F.count(hiresK[1])} people a week` }, { label: 'Scientists', value: `${F.count(hiresK[2])} people a week` }, { label: <Term id="talentPull">Talent pull</Term>, value: F.num(s.relations.talentPull, 0, true) }]}>People you hire this week for your open positions. More openings, talent pull and morale raise it; a thinner talent pool slows it.</TipCard>}>
-          <div className="row"><Term id="weeklyHireCap">Hiring speed</Term><span><b className="num">{F.count(capW)}</b> <span className="dim small">people a week</span></span></div>
-        </Tip>
         <div className="row" data-home="morale"><Term id="morale">Morale</Term><Why k="morale" title="Morale" body="See [[morale]]."><span className="lh-meter"><i style={{ width: `${p.morale.overall}%` }} /></span><b className="num">{F.idx(p.morale.overall)}</b></Why></div>
         <div className="row sub" data-home="moraleSafety"><span>Safety staff</span><Why k="morale.safety" title="Safety staff morale"><span className="lh-meter"><i style={{ width: `${p.morale.safety}%` }} /></span><b className="num">{F.idx(p.morale.safety)}</b></Why></div>
       </div>
@@ -199,7 +298,10 @@ function PayrollCard({ s }: { s: GameStateV2 }) {
 export function LabPeople({ s }: { s: GameStateV2 }) {
   return (
     <div className="lh-grid" data-test="lab-hiring">
-      <Teams s={s} />
+      <div className="lh-main">
+        <LabourMarket s={s} />
+        <Teams s={s} />
+      </div>
       <div className="lh-side">
         <PayrollCard s={s} />
       </div>
