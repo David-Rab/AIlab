@@ -14,7 +14,7 @@ the merge wave.
 | ID | Task | Model | Depends on | Status |
 |---|---|---|---|---|
 | N1 | Reference frontier: the AIFM run's progress series as G_ref(t); `npc/reference.ts` `refG`, `clockOfG` | Sonnet high | — | done, merged |
-| N3 | M_world: state-free `referenceEnv`, reference lineage per world, memoised mean curve (σ_cyc dropped) | Sonnet high | — | done, merged; full fingerprint pair running |
+| N3 | M_world: state-free `referenceEnv`, reference lineage per world, memoised mean curve (σ_cyc dropped) | Sonnet high | — | done, merged; fingerprint identical |
 | N3b | Check the probe's "heavy safety raises misalignment" | Sonnet high | — | done |
 | N3c | ~~Option B: k per world~~ — **cancelled** (designer approved the cut-down model, 2026-11-27): k = 0.5 constant | — | — | cancelled |
 | N7 | Remove `cooperation` (writes, the star hire's displayed "trust with rivals" cost, the meter) | Sonnet medium | — | done, merged bbec174 |
@@ -43,3 +43,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N2a2 | accepted (rescoped mid-task per principle 7) | ~25 min | One cadence 119 d (median of 27 flagship steps, range 15-317) [P]; generic internal rule. CSV read through a summarising fetch: rows may be missing, fine at shape level. |
 | N3 | accepted pending the fingerprint pair | ~45 min (over budget: its fingerprint ran > 20 min and was stopped) | Function-level identity 19,968 comparisons, 0 diffs. M at ASI easy 0.29 / medium 0.43 / central-hard 0.51 / hard 0.60; monotone in G; ~30 ms (max 102 under load). Reference without the start tools (lead). |
 | N1 | accepted (lead checked the test: max |G(AC) − gSC| 0.0009 on 9 runs) | ~55 min (incl. the decomposition stop and two rescopes) | 0.1-yr grid (quarterly missed AC by up to 1.4 OOM). Progress dips in 3 of 869 runs (max 2.38 OOM below the running max). 4 runs > 0.05 OOM at AC (fast runs at 750-1100 OOM/yr). |
+| N3 fingerprint | identical | ~25 min | botfingerprint --seeds 2 --bots ref (6 games, tl-fast/central/slow): 35b24c9 vs npc f7b6d1d, byte-identical. N3 refactor proven behaviour-neutral for the player. |
