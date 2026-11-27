@@ -162,3 +162,9 @@ This replaces the scattered round-2 notes above as the working list. No new inve
 | M3 | One measurement with R3.1–R3.3, on the dashboard | measure | after |
 Only if takeoff still runs short after M3: the untested mechanism suspects (the CES-free ideation channel, the experiment-share ramp) go to the designer.
 - 2026-11-27: the labour-CES / optimal task-split fix is **deferred** by the designer (memory `ai27-balance-deferred`, item 8). Session wrapping up; next session starts from design/bal/HANDOFF-CALIBRATION.md.
+
+## Plan after M3 (designer, 2026-11-27)
+1. **M3** measurement (running, `balance/runs/M3`).
+2. **Fit** what we have, as well as possible **without mechanism changes** (source-range parameters only: SC threshold, P24 line strength, takeoff residuals).
+3. **Merge `bal` into master** (designer approved, after the fit).
+4. Then **discuss the full list of relevant deferred mechanisms** (memory `ai27-balance-deferred`, incl. the labour task split) and work on them.
