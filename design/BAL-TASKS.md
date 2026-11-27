@@ -203,3 +203,4 @@ All of C1–C7 and every open-question recommendation are approved (Q3: stars at
 | L1 split rule | running | lab-l1 / ../AI27-l1 |
 | L4 P24 + L.latent pools | running | lab-l4 / ../AI27-l4 |
 | L2, L3, L5–L9, L11–L19, CP, M4 | todo | order per LABOUR-ROUND §10 |
+- L10 sourcing done (design/bal/LABOUR-SOURCES.md); designer's rulings on its judgement calls are at the end of that file (team sizes 100/50/20 with no partial teams, pay ladder, star pay $50M/yr [D], player's 7 stars, 15.6%/yr). L4 merged (P24 n0 ≈ 19, L.latent ≈ 20).

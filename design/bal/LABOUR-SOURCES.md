@@ -282,3 +282,11 @@ Translation: the player is the AIFM's leading company, which the AIFM built from
 | poachGap.star | UNSOURCED (use the C4 premium steps) | — | — | — |
 | stars.employer0 | labs 0.60 (Google 0.24, OpenAI 0.20, Meta 0.12, MS 0.04), outside 0.32, China 0.08 | share | Semantic Scholar top-25 cited NeurIPS/ICML/ICLR 2020–23, paper affiliations | L |
 | safety0.player | 70 (re 45, sci 25) | heads | OpenAI o1 contributions page (Dec 2024); split SAF_ROLE_SHARE | L |
+
+## Designer decisions on the judgement calls (2026-11-27)
+1. **Pools = whole US occupations: accepted** ("labour isn't a significant bottleneck", which the designer considers realistic).
+2. **Wage growth from the sourced η (≈×1.5/yr on the AIFM staff path): accepted.**
+3. **Team sizes change so the sourced start fits whole teams; no partially filled teams.** Lead's choice: engineers 100, research engineers 50, scientists 20 (the same sizes in safety). Start (rounded to whole teams): capabilities 6 eng (600; source 579), 21 RE (1,050; 1,061), 14 sci (280; 289); safety 1 RE (50; 45), 1 sci (20; 25).
+4. **Starting stars: the player takes the leading lab's share** (0.20 × 37 ≈ 7).
+5. **Separation 15.6%/yr accepted. NOT one wage:** a pay ladder engineer < research engineer < scientist < star at the start (before the market moves it). Lead's rule: keep the existing relatives 0.7 : 0.8 : 1.0 (research/19, [D] from Levels.fyi) and scale them so the headcount-weighted mean is the S-1's $1.15M → **engineer $0.86M, research engineer $0.98M, scientist $1.22M** per head-year. Each kind's market wage then moves on its own pool.
+6. **Star pay at the start: tens to hundreds of millions per year** (designer), not the $2.0M placeholder. Lead's value: **$50M/yr** per star (about the geometric middle of the range), tagged [D] (designer-set), with the star wage then moving with the star pool like the others.
