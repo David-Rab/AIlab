@@ -484,7 +484,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   toUse('experiments');
   toUse('agents');
   if (rc && !(free > 1e-4) && at(rc.agents, 1.4) - 1 < MIN_GAIN) wont.push('More AI staff compute: no gain');
-  // Hires: one Strong team of a kind (Keep hiring +1).
+  // Hires: one team of a kind (Keep hiring +1).
   const target = (k: TeamKey) => Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length + queuedOfKey(p, k).length);
   const hireCost = (k: TeamKey) => {
     const role = k === 'eng' ? 'eng' : (k.split('.')[0] as 're' | 'sci');
