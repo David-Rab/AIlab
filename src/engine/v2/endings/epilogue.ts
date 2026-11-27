@@ -12,7 +12,9 @@ import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { CONTROL } from '../../../data/v2/danger';
 import { asiControl, lossThreshold } from '../safety/control';
 import { keptShare } from '../actors/commitments';
-import { labOf, postureOf, projectLabMis, rivalMis } from '../actors/rivals';
+import { labOf, postureOf, rivalMis } from '../actors/rivals';
+import { npcM } from '../npc/risk';
+import { persOf } from '../npc/lab';
 import { ws4r } from '../actors/state';
 
 /** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
@@ -32,7 +34,10 @@ export function playerContain(s: GameStateV2): number {
 }
 
 /** Containment for other labs: posture·0.2 (§5.2). */
-export const otherContain = (s: GameStateV2, lab: LabId) => 0.2 * postureOf(s, lab).safetyInvestment;
+export const otherContain = (s: GameStateV2, lab: LabId) => {
+  const r = labOf(s, lab);
+  return 0.2 * (r?.npc ? persOf(r.npc).safetyEmphasis : postureOf(s, lab).safetyInvestment);
+};
 
 /** Player's share of the control index (mean of the domain shares). */
 export function controlShare(s: GameStateV2, lab: LabId = 'player'): number {
@@ -50,10 +55,9 @@ export function misOf(s: GameStateV2, lab: LabId): number {
   return r ? rivalMis(r) : 0;
 }
 
-/** Projected Mis when lab X reaches ASI: the days to ASI = the G gap to the ASI point ÷ the lab's own frontier-G slope
- *  over PACE_WINDOW_DAYS (RD-L02, DD-10, B22's lead part; was the player's progress-year pace × 0.7 with a 0.3-pace
- *  floor), and for a rival or China its own trait cadence over those days on WS2's rival trait step (rivals.ts
- *  projectLabMis, the rule labs use in play). The player's is its current frontier's Mis. Pure. */
+/** Projected m when lab X reaches ASI: the days to ASI = the G gap to the ASI point ÷ the lab's own frontier-G slope over
+ *  PACE_WINDOW_DAYS; for an NPC lab m = mWorld at the ASI capability with the lab's safety and today's race pressure
+ *  (npc/risk.ts npcM, N5; no projection loop). The player's is its current frontier's Mis. Pure. */
 export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; days: number } {
   // The ASI point on the display scale (λ = 15, the level knot every lab's ASI milestone reads), at the lab's own pace.
   const asiG = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]);
@@ -61,7 +65,9 @@ export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; da
   const days = Math.round((gap / frontierGPerYear(s, lab, PACE_WINDOW_DAYS)) * 365);
   if (lab === 'player') return { mis: misOf(s, 'player'), days };
   const r = labOf(s, lab);
-  return { mis: r ? projectLabMis(s, r, asiG, days) : 0, days };
+  if (!r) return { mis: 0, days };
+  const p = postureOf(s, lab); // the same safety and race response the daily m uses
+  return { mis: npcM(s, Math.max(asiG, r.internal.G), p.safetyInvestment, p.raceRelaxation, r.npc?.p ?? 0), days };
 }
 
 const ARCH_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech: 'corporate', maverick: 'corporate', openweights: 'multipolar', upstart: 'corporate', deepcent: 'beijing' };

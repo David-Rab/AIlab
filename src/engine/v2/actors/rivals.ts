@@ -225,14 +225,6 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
   return b > 0.5 ? 1 - 0.2 * b : 1;
 }
 
-/** Projected hidden m of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts): m at
- *  the ASI capability `asiG` under the lab's current race pressure (N2b-2, NPC-LABS §7; no trait projection). `days` is
- *  unused (kept for the caller's signature). */
-export function projectLabMis(s: GameStateV2, r: RivalLab, asiG: number, _days: number): number {
-  const p = postureOf(s, r.core.id);
-  return npcM(s, Math.max(asiG, r.internal.G), p.safetyInvestment, p.raceRelaxation, r.npc?.p ?? 0);
-}
-
 /** Hidden m of a non-player lab's internal frontier (stored daily on its npc state, npc/risk.ts). */
 export const rivalMis = (r: RivalLab) => npcMisOf(r);
 
