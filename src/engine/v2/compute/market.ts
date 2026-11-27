@@ -3,9 +3,9 @@
 import { CAPEX_LEASE, COMPONENTS, DEBT_SIZING, EXPORT_POLICY, FIRM_TERMS, LESSOR, MARKET } from '../../../data/v2/deals';
 import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
-import { decimalYear } from '../core/time';
+import { decimalYear, START_DATE } from '../core/time';
+import { lawsInForce } from '../../../data/v2/laws';
 import { FORCING } from '../core/forcing';
-import { taiwanPressure } from '../actors/china';
 import { ws4 } from '../actors/state';
 import { clamp } from '../../rng';
 import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
@@ -49,7 +49,7 @@ export function initialMarket(baseline: BaselineId): ChipMarket {
     backlog: 1.5,
     cumOrders8q: Array(8).fill(3.0e6),
     geoTW: 0.93, disruptTW: 0, disruptKR: 0,
-    exportPolicy: baseline === 'classic' ? 'strict' : 'caseByCase',
+    exportPolicy: lawsInForce({ time: { day: 0, startDate: START_DATE } }).exportPolicy, // the laws table (data/v2/laws.ts)
     demandQ: 3.0e6,
     exoDemandQ: 2.2e6,
     ws3: defaultMarketWS3(),
@@ -187,15 +187,21 @@ export function koreaShock(s: GameStateV2, ctx: SystemCtx, severity = 0.5, quart
   ctx.headline('kr-shock', 'Korean memory fabs disrupted; HBM supply falls');
 }
 
-/** Export-control state (R15 §1.2). WS4 (gov ladder) calls this. */
+/** Export-control state (R15 §1.2). The laws table's daily step (actors/daily.ts) calls this when the table's policy
+ *  changes. */
 export function setExportPolicy(s: GameStateV2, policy: ChipMarket['exportPolicy']): void {
   s.market.exportPolicy = policy;
 }
 
+/** Cross-strait tension 0..1. W1d stand-in until W6: China's start value 0.4 (China's tension comes back with W6). */
+const TAIWAN_TENSION = 0.4;
+/** Share of people naming AI the top problem (%). W1d stand-in until W4: the start value 1 (no salience term). */
+const AI_SALIENCE = 1;
+
 /** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension) × (1 + 2·salience), cap 3% [R15 Design]. */
-export function taiwanHazardQ(s: GameStateV2): number {
-  const tension = s.china.meters.taiwanTension / 100;
-  const salience = Math.min(1, Math.max(0, (s.pub.salience - 1) / 2));
+export function taiwanHazardQ(_s: GameStateV2): number {
+  const tension = TAIWAN_TENSION;
+  const salience = Math.min(1, Math.max(0, (AI_SALIENCE - 1) / 2));
   return Math.min(0.03, 0.0025 * (1 + 4 * tension) * (1 + 2 * salience));
 }
 /** Korea HBM disruption probability 0.1%/q [R15 Design]. */
@@ -421,7 +427,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   w.playerWeight = orderWeight(s, false, 0.3);
   repriceCancellableCloud(s);
   w.labOrders = w.labOrders.filter((o) => o.qty - o.delivered > 1);
-  // China's compute is WS4's (china.meters.computeAbs, §3.10.4); exports to China only reduce the supply here.
+  // China's compute is WS4's (china.computeAbs, npc/china.ts); exports to China only reduce the supply here.
 
   // 7. Bookkeeping: global production and stock, backlog signal, supplier expansion.
   const shipped = Math.min(S, outside + claims.reduce((a, c) => a + c.got, 0)) + toChina;
@@ -535,17 +541,15 @@ export const geoShocksQSystem: EngineSystem = {
   run(s, ctx) {
     const w = ws4(s);
     const r = ctx.rng('china');
-    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience) × the China preset's Taiwan
-    // propensity, plus the ladder (research/10 R9, rung 5). Applied through WS3's taiwanShock (supply, prices,
-    // chips in transit); WS3's marketQ decays it.
+    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard (tension × salience). W1d stand-in until W6: the China
+    // factor (its preset's Taiwan propensity) is 1 and the China-ladder add (rung 5) is 0. Applied through WS3's
+    // taiwanShock (supply, prices, chips in transit); WS3's marketQ decays it.
     const day = ctx.day;
     if (w.taiwanDisrupted && s.market.disruptTW === 0) {
       w.taiwanDisrupted = false;
       ctx.log('world', 'Taiwan shipping normalises.', 2);
     }
-    s.market.geoTW = s.china.meters.taiwanTension / 100;
-    const tp = taiwanPressure(s);
-    const pTW = clamp(taiwanHazardQ(s) * tp.mult + tp.add, 0, 0.5);
+    const pTW = clamp(taiwanHazardQ(s), 0, 0.5);
     if (!w.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
       const quarters = 1 + Math.floor(r.float() * 4);
       w.taiwanDisrupted = true;

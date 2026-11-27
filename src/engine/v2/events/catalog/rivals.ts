@@ -53,7 +53,6 @@ function buyApply(pay: PayWith) {
       return;
     }
     if (sold) ws4(s).soldControl = true; // its holders now control the company (the 'acquired' ending)
-    ws4(s).absorbedCompute += r.core.computeOnline;
     const st = staffOf(r);
     changeHeads(s, 'cap', st.cap);
     changeHeads(s, 'saf', st.saf);

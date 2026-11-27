@@ -42,8 +42,8 @@ export interface V3Inputs {
   flopEff: number;
   /** Capacity-weighted taste of the capabilities science teams with AI (research input per idea). */
   Tai: number;
-  /** Speed modifiers inside M (siloing, migrations) and on the rate (pause, treaty). */
-  mods: number; rateMult: number;
+  /** Speed modifiers inside M (siloing, migrations, research pace). */
+  mods: number;
   /** Readout pieces of the work-type layer. */
   sdAI: number; aEng: number; copies: number; speed: number; aiFte: number; agentFte: number;
   /** The lab has reached its superhuman coder (stage 2 for the readers of `stage`). */
@@ -59,7 +59,6 @@ export interface LabInputs {
    *  C = that research compute (H100e), off = agents switched off. Idle compute is not research compute (DD-19). */
   mixUnit: { c: number; k: number; C: number; off: boolean };
   mods: number;
-  rateMult: number;
   /** Model v3 V3: the player's work-type research inputs. */
   v3: V3Inputs;
 }
@@ -124,14 +123,14 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   }
   const v3: V3Inputs = {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
-    flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
+    flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
     agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,
     stage2: p.milestoneDays[3] !== undefined,
   };
   const Cres = pools.experiments + (pools.routine + pools.frontier);
   return {
-    yr, h, k, c, mods: v3.mods, rateMult: mod.rateMult,
+    yr, h, k, c, mods: v3.mods,
     mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off },
     v3,
   };
@@ -177,7 +176,7 @@ export function labSpeedRel(s: GameStateV2): number {
   const speed = researchMods(s).speed;
   const b = x && x.X > 0 && x.c > 0 && speed > 0 ? Xces(w.prod, x.c, t.l) * speed : 0;
   const k = b > 0 ? x!.X / b : 1;
-  return (t.X * t.units * k * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
+  return (t.X * t.units * k * inp.v3.Tai * inp.v3.mods) / (DAY0_REF.re / RE_LABOUR_UNIT);
 }
 
 /** UB-2: the player's research inputs with the parts the lab cannot observe directly read as it measures / believes

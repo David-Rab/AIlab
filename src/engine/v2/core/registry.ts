@@ -36,7 +36,6 @@ import { rivalsChinaSystem } from '../actors/rivals';
 import { actorsDailySystem } from '../actors/daily';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
-import { geoQSystem } from '../actors/china';
 import { npcQSystem } from '../actors/rivals';
 import { copyrightQSystem } from '../finance/observe';
 import { BRIEF_OFFICIALS } from '../actors/actions';
@@ -46,7 +45,6 @@ import { OPEN_WEIGHTS } from '../models/openWeights';
 import { RETIRE } from '../endings/retire';
 import { COMPANY_EVENTS } from '../events/catalog/company';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
-import { GOV_EVENTS } from '../events/catalog/gov';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
 // WS5
@@ -89,7 +87,6 @@ export const SYSTEMS: readonly EngineSystem[] = [
   sitesQSystem, // 410 WS3 quarterly
   capitalQSystem, // 420 WS3 quarterly
   boardQSystem, // 430 WS3 quarterly
-  geoQSystem, // 440 WS4 quarterly
   geoShocksQSystem, // 441 WS3 quarterly (Taiwan/Korea rolls)
   copyrightQSystem, // 442 WS3 quarterly (copyright suit)
   npcQSystem, // 443 WS4 quarterly (rival finance, goalposts)
@@ -100,7 +97,7 @@ export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, PO
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...GOV_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS,
+  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));

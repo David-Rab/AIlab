@@ -10,7 +10,7 @@ import { internalVersion } from '../models/labs';
 import { domainScaleG, gOfLevel, levelGate, levelOfG, v2LevelGate } from '../models/capability';
 import type { ControlDomainId, ControlState, GameStateV2, LabId, SectorId, SystemCtx } from '../types';
 import { paidDeployments, productGVec, type WorldMix } from './mix';
-import { clamp01, techRamp, type PolicyState } from './policy';
+import { clamp01, techRamp } from './util';
 import { worldTechEffects } from './techtree';
 
 export const CONTROL_DOMAINS: ControlDomainId[] = ['ECON', 'GOV', 'MIL', 'INFRA'];
@@ -111,23 +111,6 @@ function sharesWeighted(mix: WorldMix, secs: SectorId[], weights: number[]): Rec
   return out;
 }
 
-function capShares(sh: Record<LabId, number>, cap: number): Record<LabId, number> {
-  const out = { ...sh };
-  for (let it = 0; it < 4; it++) {
-    let excess = 0;
-    let free = 0;
-    for (const k of Object.keys(out)) {
-      if (out[k] > cap) {
-        excess += out[k] - cap;
-        out[k] = cap;
-      } else free += out[k];
-    }
-    if (excess <= 1e-9 || free <= 0) break;
-    for (const k of Object.keys(out)) if (out[k] < cap) out[k] += (excess * out[k]) / free;
-  }
-  return out;
-}
-
 /** Binomial(3, a) tier mix with mass above the cap collapsed onto the cap. */
 function tierMix(a: number, cap: number): [number, number, number, number] {
   const b = (k: number) => [1, 3, 3, 1][k] * Math.pow(a, k) * Math.pow(1 - a, 3 - k);
@@ -156,8 +139,10 @@ export function govAdviceG(s: GameStateV2, mix: WorldMix): number {
 }
 const REASON_IX = DOMAIN_IDS.indexOf('REASON');
 
-/** Daily control update (called from worldDaily). */
-export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, pol: PolicyState): void {
+/** Daily control update (called from worldDaily). The policy terms (government AI advisors, arms race, human judgment
+ *  over force removed, a human-in-the-loop mandate, advice transparency, multi-vendor) went with the government actor
+ *  (W1d); W5 re-adds what it passes. */
+export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix): void {
   const W = s.world;
   const US = W.sectors.US;
   const dt = 1 / 365;
@@ -187,8 +172,8 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const target: Record<ControlDomainId, number> = {
     ECON: econP,
     // Officials adopt superhuman advisers (AI 2027 Dec 2027: Cabinet talks to the model "for hours a day") [D].
-    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * v2LevelGate(w, 'REASON', govAdv, 12, 1),
-    MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * v2LevelGate(w, 'REASON', govAdv, 12, 1),
+    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + 0.35 * v2LevelGate(w, 'REASON', govAdv, 12, 1),
+    MIL: US.MIL.A + (milOk ? 0.03 : 0) + eff.milP + 0.1 * v2LevelGate(w, 'REASON', govAdv, 12, 1),
     INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * v2LevelGate(w, 'CYBER', mix.bestPublic.CYBER, 11, 1),
   };
 
@@ -207,16 +192,13 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
       Lag = Math.max(Lag, ivAg * 0.5 + Lag * 0.5);
       Lr = Math.max(Lr, ivR * 0.5 + Lr * 0.5);
     }
-    // Tier cap: DoDD 3000.09-style human judgment over force holds unless removed or an arms race; an
-    // economy-wide human-in-the-loop mandate caps every domain at T2.
-    let cap: ControlState['tierCap'] = 3;
-    if (dom === 'MIL' && !pol.milLoopRemoved && !pol.armsRace) cap = 1;
-    if (pol.humanInLoop && cap > 2) cap = 2;
+    // Tier cap: DoDD 3000.09-style human judgment over force holds (nothing removes it until W5).
+    const cap: ControlState['tierCap'] = dom === 'MIL' ? 1 : 3;
     c.tierCap = cap;
-    const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * v2LevelGate(w, 'REASON', Lr, 12, 0.5) - 0.03);
+    const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + 0.2 * v2LevelGate(w, 'REASON', Lr, 12, 0.5) - 0.03);
     const tgt = tierMix(a, cap);
     for (let k = 0; k < 4; k++) c.tiers[k] += (tgt[k] - c.tiers[k]) * 2 * dt;
-    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * v2LevelGate(w, 'REASON', Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
+    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * v2LevelGate(w, 'REASON', Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers, 0.98);
     c.accept += (accStar - c.accept) * ACCEPT.rate * dt;
     // Shares by lineage key.
     let sh: Record<LabId, number>;
@@ -229,7 +211,6 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
       for (const k of Object.keys(sh)) sh[k] *= 1 - io;
       sh.player = (sh.player ?? 0) + io;
     }
-    if (pol.multiVendor && (dom === 'GOV' || dom === 'MIL')) sh = capShares(sh, 0.5);
     c.shares = sh;
   }
 }

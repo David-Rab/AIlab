@@ -20,26 +20,15 @@ import type { GameStateV2, LabId, RivalLab } from '../types';
  *  value [P]: AI 2027's China, after stealing Agent-2, is about 2 months behind (it goes from about 6 to 2; the old
  *  THEFT_GAP_CLOSED's source, research/RD-X04r T5). */
 export const THEFT_INTEGRATION_DAYS = 60;
-/** Treaty: the reference clock's speed under a verified treaty (the former research-rate multiplier) [D]. */
-export const TREATY_CLOCK_RATE = 0.65;
 /** Safety spillover (a spilling safety finding published): the fixed step every lab's lag falls, days [D]: SPILL_G's
  *  0.024 OOM at the reference's early pace of about 1.2 OOM a year. */
 export const SPILL_DAYS = 7;
 
 // ───────────────────────────── the reference clock and positions ─────────────────────────────
 
-const LOST = 'npc:clockLost';
-const LOST_DAY = 'npc:clockDay';
-/** Treaty (the reference clock runs ×TREATY_CLOCK_RATE for every lab): call once a day (idempotent within a day). The
- *  clock the labs read is the calendar year less the reference days the treaty has held back. */
-export function treatyClockDay(s: GameStateV2): void {
-  if (s.flags[LOST_DAY] === s.time.day) return;
-  s.flags[LOST_DAY] = s.time.day;
-  if (s.gov.treaty === 'verified') s.flags[LOST] = Number(s.flags[LOST] ?? 0) + (1 - TREATY_CLOCK_RATE);
-}
-/** The year on the reference clock (what every lab reads in place of the calendar year): decimalYear less the days a verified
- *  treaty has held the clock back. */
-export const refYear = (s: GameStateV2) => decimalYear(s) - Number(s.flags[LOST] ?? 0) / 365.25;
+/** The year on the reference clock (what every lab reads): the calendar year. (The verified-treaty slowdown went with
+ *  the government actors, W1d; W6 re-adds a treaty as a compute cap.) */
+export const refYear = (s: GameStateV2) => decimalYear(s);
 
 /** The lag (days behind the reference) of a lab whose model would be at G; undefined when G is not on the reference run. */
 export function posOf(s: GameStateV2, G: number): number | undefined {

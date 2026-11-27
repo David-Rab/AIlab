@@ -279,7 +279,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       startDate: START,
       publicLagMonths: 6.5, // [P Epoch ECI first crossing: R1-0528 140.73, o1 141.16 on 17 Dec 2024; CAST §1]
       internalModel: { rule: 'advanceByReleaseLag' },
-      computeH100e: 'china-meter', // China actor's compute meter (actors/china.ts): no number here
+      computeH100e: 'china-meter', // China's compute (npc/china.ts CHINA_COMPUTE_START): no number here
       revenueRunB: null, // no Epoch row before 2026
       valuationB: null, // self-funded by High-Flyer
       equityRaisedB: null,

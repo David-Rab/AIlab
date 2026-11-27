@@ -3,15 +3,13 @@
 // Every system that changes a top-level meter either
 //   ctx.bump(key, Δ, source, detail)   — applies Δ (clamped) and records it, or
 //   ctx.cause(key, Δ, source, detail)  — records a change it applied itself.
-// Keys are the spec's meter keys (CAUSE_KEYS). Any dotted state path to a number also works ("pub.activism").
+// Keys are the spec's meter keys (CAUSE_KEYS). Any dotted state path to a number also works ("player.morale.safety").
 import type { CauseEntry, Day, GameStateV2 } from '../types';
 
 export const CAUSE_RING = 40; // entries per key (§2.5 budget)
 
 /** Spec meter keys (§2.6) → state path. */
 export const CAUSE_KEYS: Record<string, string> = {
-  'pub.approval': 'pub.approval',
-  'pub.concern': 'pub.concern',
   'player.finance.valuation': 'player.finance.valuation',
   'finance.credibility': 'player.finance.credibility',
   cash: 'player.finance.cash',
@@ -19,21 +17,13 @@ export const CAUSE_KEYS: Record<string, string> = {
   'board.confidence': 'player.board.confidence',
   morale: 'player.morale.overall',
   'morale.safety': 'player.morale.safety',
-  'gov.securityDemand': 'gov.securityDemand',
-  'gov.nationalization': 'gov.nationalization',
-  'china.theftIntent': 'china.meters.theftIntent',
   'world.unemployment.US': 'world.unemployment.US',
 };
 
 /** Clamp ranges by canonical key or path prefix; unlisted meters are unbounded. */
 const RANGES: [prefix: string, lo: number, hi: number][] = [
-  ['pub.approval', -100, 100],
-  ['pub.', 0, 100],
   ['board.confidence', 0, 100],
   ['morale', 0, 100],
-  ['gov.', 0, 100],
-  ['china.theftIntent', 0, 100],
-  ['china.meters.', 0, 100],
   ['world.unemployment.', 0, 100],
   ['player.finance.valuation', 0, Number.MAX_VALUE],
   ['finance.credibility', 0, 100],

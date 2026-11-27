@@ -1,5 +1,5 @@
 // Economy: three small readouts (design/world/OUTSIDE-WORLD.md §4). Owner: WS5.
-//   1. GDP growth per region: g = G_BASE[r] + gAI + world-tech growth − policy shock, gdp ← gdp·exp(g/12) monthly.
+//   1. GDP growth per region: g = G_BASE[r] + gAI + world-tech growth − output shock (US), gdp ← gdp·exp(g/12) monthly.
 //      gAI = λ · (annual change of the value-weighted automation share Σ v·A of the region).
 //   2. AI share of income = AI-lab revenue / US GDP.
 //   3. Unemployment is not computed here: sectors.ts owns it (the displacement engine); this system only records the
@@ -9,7 +9,7 @@
 //   is still small then) and 0.0074 (day 900, within 3%). The day-900 fit is used.
 import { REGIONS } from '../../../data/v2/sectors';
 import type { EngineSystem, GameStateV2, RegionId } from '../types';
-import { policyState } from './policy';
+import { ws4r } from '../actors/state';
 import { automationShare } from './readouts';
 import { worldTechEffects } from './techtree';
 
@@ -17,6 +17,22 @@ import { worldTechEffects } from './techtree';
 export const G_BASE: Record<RegionId, number> = { US: 0.022, CN: 0.04, ROW: 0.028 };
 /** λ: growth added per unit of annual change of the automation share (one number for every region), fitted above. */
 export const ECONOMY = { lambda: 0.6 };
+
+/** Days a severity-5 misuse incident (the player's, WS2's stamp, or a rival's) keeps the economy in shock [D]. */
+export const MISUSE_SHOCK_DAYS = 180;
+/** US output shock, a growth penalty per year [D]: Taiwan chip disruption 3%/yr while it lasts; a severity-5 misuse
+ *  incident in the last MISUSE_SHOCK_DAYS days 2%/yr. (A China war's 5% went with the China actor, W1d; W6 re-adds
+ *  it.) */
+export const OUTPUT_SHOCK = { taiwan: 0.03, misuse: 0.02 };
+
+/** The US output shock today (growth penalty per year). */
+export function outputShock(s: GameStateV2): number {
+  const w = ws4r(s);
+  const day = s.time.day;
+  const last = s.flags['ws2.sev5MisuseDay'];
+  const sev5 = (typeof last === 'number' && day - last < MISUSE_SHOCK_DAYS) || w.rivalIncidents.some((i) => i.misuse && i.severity >= 5 && day - i.day < MISUSE_SHOCK_DAYS);
+  return (w.taiwanDisrupted ? OUTPUT_SHOCK.taiwan : 0) + (sev5 ? OUTPUT_SHOCK.misuse : 0);
+}
 
 /** Total AI-lab revenue run-rate ($B/yr): player + rivals + DeepCent. */
 export function aiRevenue(s: GameStateV2): number {
@@ -30,7 +46,7 @@ export function runEconomy(s: GameStateV2): void {
   const W = s.world;
   const fx = W.fx;
   const eff = worldTechEffects(s);
-  const shock = policyState(s).gShock;
+  const shock = outputShock(s);
   for (const r of REGIONS) {
     const M = W.macro[r];
     const hist = fx.autoHist[r];

@@ -64,8 +64,6 @@ for (const e of EVENTS) {
 const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> = {
   credibility: (k) => k === 'finance.credibility',
   morale: (k) => k.startsWith('morale'),
-  approval: (k) => k === 'pub.approval',
-  chinaTension: (k) => k.startsWith('china.meters.'),
 };
 const appliedLabel = (id: string, cur: string, day: number) => `action ${id} @day ${day}: its ${cur} line is applied`;
 const clone = (s: GameStateV2) => deserialize(JSON.stringify(s));

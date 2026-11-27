@@ -13,7 +13,7 @@ import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../t
 import { openWeightsReleased, postureOf } from '../actors/rivals';
 import { lagDays } from '../models/capability';
 import { request, ws4 } from '../actors/state';
-import { executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
+import { CHINA_RUNG, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 import { secretsLeak } from '../npc/shocks';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
@@ -31,8 +31,9 @@ export function privilegedOf(staff: Pick<StaffByRole, 'cap' | 'saf'>, siloing: n
   return (staff.cap + staff.saf) * (1 - 0.3 * siloing);
 }
 
-/** Spy rate per privileged staffer: 0.005, rising to 0.01 at China rung ≥ 2 (R11 verified). */
-export const spyRate = (s: GameStateV2) => (s.china.rung >= 2 ? 0.01 : 0.005);
+/** Spy rate per privileged staffer: 0.005, rising to 0.01 at China rung ≥ 2 (R11 verified). The rung is the W1d
+ *  stand-in (security/theft.ts CHINA_RUNG) until W6. */
+export const spyRate = (_s: GameStateV2) => (CHINA_RUNG >= 2 ? 0.01 : 0.005);
 
 export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2.4): SecurityState {
   const privileged = privilegedOf(staff, 0);
@@ -96,7 +97,7 @@ export const securitySystem: EngineSystem = {
     if (cn.core.status === 'active') {
       const leak = secretsLeakDaily(s);
       const days = secretsLeak(s, leak); // N6: a daily pull toward the player by the channel's strength
-      w.drift['china.lag'] = (w.drift['china.lag'] ?? 0) - days;
+      if (Math.abs(days) > 1e-6) ctx.cause('china.lag', -days, 'secrets leak');
       // Sustained distillation: China's next post-training would take > DISTILL_SUSTAINED_OOM from the player's products.
       w.distillDays = distillationLeak(s, CHINA_ID).dG > DISTILL_SUSTAINED_OOM ? w.distillDays + 1 : 0;
     }

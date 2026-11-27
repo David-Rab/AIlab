@@ -13,7 +13,8 @@ import { CHINA_POSTURE_BASE, KIND_CLAUSE, KIND_POSTURES } from '../../../data/v2
 import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { flopOfDesign } from '../models/effective';
 import { clockOfG, refG } from './reference';
-import { refYear, treatyClockDay } from './shocks';
+import { refYear } from './shocks';
+import { CHINA_RUNG } from '../security/theft';
 import { gV0 } from '../models/capability';
 import { baseParams, setModelG } from './model';
 import { seedRivalLineup } from './market';
@@ -31,7 +32,7 @@ import type { GameStateV2, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture,
 
 /** Days per month for the cast's lags in months (d₀ = 30.4 × months behind the leader) [D]. */
 export const DAYS_PER_MONTH = 30.4;
-/** China's compute plan: the growth of China's compute meter without export policy, ×2 a year (actors/china.ts chinaDaily,
+/** China's compute plan: the growth of China's compute meter without export policy, ×2 a year (npc/china.ts chinaComputeDaily,
  *  IFP) [repo]. KINDS.china has no appetite of its own (its compute is the meter's). */
 export const CHINA_PLAN_GROWTH = 2;
 /** Floor of the reference slope (OOM a year) the shortfall converts at: the reference is flat after the run's last
@@ -133,9 +134,9 @@ export const isReleaseDay = (n: NpcLabState, day: number) => day >= n.phase && (
 export const lastReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.floor((day - n.phase) / RELEASE_CADENCE_DAYS) * RELEASE_CADENCE_DAYS;
 
 /** Whether the lab's release today is open weights (the kind's openness rule; 'partial' opens the model it replaces). */
-export function opensRelease(s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'pers'>): boolean {
+export function opensRelease(_s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'pers'>): boolean {
   const o = persOf(n).openness;
-  return o.mode === 'open' || (o.mode === 'chinaRung' && s.china.rung < o.belowRung);
+  return o.mode === 'open' || (o.mode === 'chinaRung' && CHINA_RUNG < o.belowRung);
 }
 
 /** One NPC lab's capability day: the lag relaxes to its target, the internal model follows G_ref(t − d); on a release day
@@ -144,7 +145,6 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   const n = r.npc;
   const w = s.hidden.timeline;
   const yr = decimalYear(s);
-  treatyClockDay(s); // N6: a verified treaty holds the reference clock the labs read back (npc/shocks.ts)
   const t = npcTarget(s, r);
   n.short = t.short;
   n.slope = t.slope;

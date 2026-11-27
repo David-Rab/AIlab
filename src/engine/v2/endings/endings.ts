@@ -1,6 +1,6 @@
 // End conditions (V2-SPEC §5.1), checked daily in spec order, and ending construction. Owner: WS4.
 import { isDivision } from '../../../data/v2/starts';
-import { cadencesDue, decimalYear } from '../core/time';
+import { decimalYear } from '../core/time';
 import { activeRivals } from '../models/labs';
 import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
@@ -89,8 +89,7 @@ export const endingsSystem: EngineSystem = {
     // 4. Catastrophe.
     const cat = catastropheCheck(s, ctx);
     if (cat) return endGame(s, ctx, cat, 'none');
-    // 5. War: China rung 6, P = 0.25 per quarter.
-    if (s.china.rung >= 6 && cadencesDue(s.time.startDate, day).includes('quarterly') && rng.chance(0.25)) return endGame(s, ctx, 'war', 'none');
+    // 5. War: removed with the China actor (W1d); W6 re-adds it from China's tension.
     // 6. Rogue (model v3 E9: a process, no roll). The hunt for a noticed escape may capture the copy each day; after
     //    90 d it goes quiet (location unknown). Any escaped copy still out there (hunted, quiet, or one security never
     //    noticed) acquires compute (safety/control.ts controlStep) and takes control once it holds two copies' worth,

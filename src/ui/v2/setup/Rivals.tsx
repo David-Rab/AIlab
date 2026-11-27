@@ -1,7 +1,6 @@
 // Setup: the Rivals section (design/npc/NPC-LABS.md §10). Realistic (default): the July 2025 cast, one line each.
 // Create rivals (advanced): how many US labs (0-6), per lab a kind, a start lag and, optionally, its seven values.
 import { useState, type ReactNode } from 'react';
-import { CHINA_PRESETS } from '../../../data/actors';
 import { KINDS, REALISTIC_CAST, type FocusChannel, type NpcKindId, type OpennessRule, type Personality } from '../../../data/v2/npcLabs';
 import type { NpcSetupLab, SetupV2 } from '../../../engine/v2';
 import { useV2 } from '../store';
@@ -136,16 +135,6 @@ export function RivalsSection() {
           {labs.length === 0 && <div className="dim small">No US rivals: only China's lab races you.</div>}
         </div>
       )}
-      <div className="china-pick" data-picker="china">
-        <div className="picker-label">China</div>
-        <div className="picker-opts">
-          {[{ id: 'realistic', name: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...CHINA_PRESETS.map((x) => ({ id: x.id, name: x.name, desc: x.desc.replace(/[^.]*AI 2027[^.]*\.\s*/g, '').trim() }))].map((o) => (
-            <Tip key={o.id} content={() => <TipCard title={o.name}>{o.desc}</TipCard>}>
-              <button className={`chip ${d.china === o.id ? 'active' : ''}`} data-opt={o.id} onClick={() => set({ china: o.id })}>{o.name}</button>
-            </Tip>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

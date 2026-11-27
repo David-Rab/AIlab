@@ -738,12 +738,6 @@ export const PARAMS_CORE = defineParams([
     evidence: 'build.ts:73 "One-off builds [D]: launching a product 4 team-weeks."',
   },
   {
-    id: 'core.SIDELINE_SHARE',
-    ref: { kind: 'export', module: 'src/engine/v2/departments/workfit.ts', symbol: 'SIDELINE_SHARE' },
-    value: 0.1, unit: 'fraction of every team\'s heads', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; workfit.ts:262-264 "E12 security clearances take SIDELINE_SHARE of every team\'s heads off the teams for their 60 days"',
-  },
-  {
     id: 'core.build.runSetupTW',
     ref: { kind: 'inline', file: 'src/engine/v2/departments/build.ts', anchor: "if (kind === 'base') return 0.4 * Math.sqrt(Math.max(0.01, scale));" },
     value: [0.4, 0.25, 0.1, 0.05], unit: 'team-weeks (base at 1e27 FLOP, continue, post-train, distill/amplify)', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
@@ -767,12 +761,6 @@ export const PARAMS_CORE = defineParams([
     ref: { kind: 'inline', file: 'src/engine/v2/departments/workfit.ts', anchor: 'asicMigrationUntil ?? -1) > day) mods *= 0.85;' },
     value: 0.85, unit: 'speed multiplier during a custom-ASIC migration', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
     evidence: 'workfit.ts:261 "a custom-ASIC migration −15% [D: toolchain and kernel porting churn ...]"',
-  },
-  {
-    id: 'core.workfit.treaty',
-    ref: { kind: 'inline', file: 'src/engine/v2/departments/workfit.ts', anchor: "s.gov.treaty === 'verified' ? 0.65 : 1" },
-    value: 0.65, unit: 'experiment-rate multiplier under a verified treaty', area: 'core', layer: 'world', kind: 'designer',
-    evidence: 'workfit.ts:262 "a verified treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with]"',
   },
   {
     id: 'core.workfit.rentalPath',
@@ -877,12 +865,6 @@ export const PARAMS_CORE = defineParams([
     value: [40, 15, 70, 40, 40], unit: 'score points (loss: survival <, company <; win: survival >=, company >=, freedom >=)', area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; scoring.ts:126-130 "Bot verdict (never shown as a moral grade)"',
     notes: 'The verdict feeds bot win rates (the START difficulty labels).',
-  },
-  {
-    id: 'core.endings.warP',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: "includes('quarterly') && rng.chance(0.25)" },
-    value: 0.25, unit: 'probability per quarter at China rung 6', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged',
-    evidence: 'no tag; endings.ts:92 "5. War: China rung 6, P = 0.25 per quarter."',
   },
   {
     id: 'core.endings.catastropheP',
@@ -990,12 +972,6 @@ export const PARAMS_CORE = defineParams([
     ref: { kind: 'export', module: 'src/engine/v2/events/catalog/company.ts', symbol: 'COMPANY_EVENTS', path: ['*', 'cooldown'] },
     unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; company.ts:22, 57 "cooldown: 365 / 60"',
-  },
-  {
-    id: 'core.GOV_EVENTS.deadlineDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/gov.ts', symbol: 'GOV_EVENTS', path: ['*', 'deadlineDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; gov.ts:21, 49, 72, 105 "deadlineDays: 30 / 14 / 14 / 14"',
   },
   {
     id: 'core.RIVALS_EVENTS.deadlineDays',

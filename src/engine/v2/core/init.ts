@@ -1,5 +1,5 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
-// Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
+// Composes the owner-provided initialisers (initialFinance, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
 import { startMarket } from '../departments/market';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
@@ -12,9 +12,7 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { BASELINES } from '../../../data/world';
 import { Rng, clamp } from '../../rng';
-import { initialChina } from '../actors/china';
-import { initialGov } from '../actors/gov';
-import { initialPublic } from '../actors/public';
+import { initialChina } from '../npc/china';
 import { FIN } from '../actors/rivals';
 import { initialNpcLab, castOf, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -69,7 +67,7 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     world,
     alignment: 'sampled',
     econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
-    gov: 'realistic', public: 'realistic', china: 'realistic', cast: 'realistic',
+    cast: 'realistic',
     governance: 'legacyNonprofit',
     storyteller: 'rising',
     tutorial: true,
@@ -347,8 +345,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     player,
     rivals,
     china,
-    gov: initialGov(hidden.actorPresets.gov),
-    pub: initialPublic(hidden.actorPresets.public, setup.baseline),
     commitments: [],
     market: initialMarket(setup.baseline),
     power: initialPower(),

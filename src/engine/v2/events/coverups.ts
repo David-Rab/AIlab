@@ -15,7 +15,8 @@ export function addCoverup(s: GameStateV2, what: string, pTotal: number, horizon
   w.coverups.push({ id: `cv${s.time.day}-${w.coverups.length}`, day: s.time.day, what, pDaily, until: s.time.day + horizon });
 }
 
-/** Daily: each open cover-up may be exposed (approval −8, an alert and a headline); an internal report left past its
+/** Daily: each open cover-up may be exposed (an alert and a headline; its approval cost went with the public actor,
+ *  W1d; W4 brings it back); an internal report left past its
  *  deadline goes external at 2× damage (A6, E19). */
 export function coverupsDaily(s: GameStateV2, ctx: SystemCtx) {
   const w = ws4(s);
@@ -30,7 +31,6 @@ export function coverupsDaily(s: GameStateV2, ctx: SystemCtx) {
       if (!rng.chance(c.pDaily)) continue;
       w.coverups.splice(w.coverups.indexOf(c), 1);
       w.leaked++;
-      ctx.bump('pub.approval', -8, 'cover-up exposed', c.what);
       ctx.log('alert', `A cover-up is exposed: ${c.what}.`, 4);
       ctx.headline('coverup', `Report: ${s.player.name} hid ${c.what}.`);
     }

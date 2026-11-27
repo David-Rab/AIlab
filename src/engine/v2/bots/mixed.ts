@@ -89,11 +89,7 @@ export function makeMixedBot(S: MixedBotSettings = DEFAULT_MIXED): BotPolicy {
     },
     decide(s, d) {
       switch (d.id) {
-        case 'E10': return byLabel(d, 'Public + retaliate');
-        case 'E12': return byLabel(d, 'Comply');
-        case 'E20': return byLabel(d, 'Accept');
-        case 'E22': return byLabel(d, 'Decline', 1);
-        case 'E23': return byLabel(d, 'Verified talks');
+        case 'E10': return byLabel(d, 'Go public');
         case 'E30': return byLabel(d, 'Honour');
         case 'E32': return mergerChoice(s, d, S.mergerChoice); // FIN3c: cash or stock, never control
         default: return pickByTags(s, d, [['disclose', 'honour'], ['balanced', 'control'], ['cooperate', 'community'], ['safety']]);

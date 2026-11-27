@@ -110,8 +110,6 @@ export interface GameStateV2 {
   player: PlayerLab;
   rivals: RivalLab[]; // US rivals (never deleted; status tracks merges/bankruptcy)
   china: ChinaActor;
-  gov: GovActor;
-  pub: PublicActor;
   commitments: Commitment[];
 
   market: ChipMarket;
@@ -157,11 +155,8 @@ export interface SetupV2 {
   world: WorldPresetId;
   alignment: AlignDiffId;
   econ: EconPresetId | 'sampled';
-  gov: string; // GOV_PRESETS id or 'realistic'
-  public: string;
-  china: string;
   /** The US NPC labs (design/npc/NPC-LABS.md §10): 'realistic' (the July 2025 cast) or a custom list; China's lab is
-   *  always there and its preset is `china` above. */
+   *  always there. */
   cast: 'realistic' | NpcSetupLab[];
   governance: GovernancePresetId;
   storyteller: StorytellerId;
@@ -260,7 +255,6 @@ export interface HiddenWorld {
    *  its source tested (a hash of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
   methodScale: Record<string, number>;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
-  actorPresets: { gov: string; public: string; china: string };
   rivalPostures: Record<LabId, SafetyPosture>;
   chinaPosture: SafetyPosture;
 }
@@ -1814,8 +1808,6 @@ export interface PartnerTerms {
   strings: DealStrings;
   /** A hyperscaler's stake cap (15%): tranches land only up to it. */
   stakeCap?: number;
-  /** A sovereign cheque's political cost (security demand). */
-  politics?: { securityDemand: number };
   /** A rescue tops the partner up to this stake. */
   stake?: number;
   /** Years the running terms last (supply, revenue share, priority, IP access). */
@@ -2151,42 +2143,11 @@ export interface RivalIntel {
   knownIncidents: string[];
 }
 
+/** China: just its NPC lab until W6 rebuilds the government (W1d). `computeAbs`: China's accessible compute (H100e),
+ *  DeepCent's base (npc/china.ts). */
 export interface ChinaActor {
-  preset: string;
-  lab: RivalLab; // DeepCent-style collective (or leading Chinese lab before centralization)
-  meters: {
-    computeShare: number; computeAbs: H100e; chipSelfSufficiency: number; domesticFab: number;
-    distillationAccess: number; intelCapability: number; theftIntent: number; centralization: number;
-    stateSteering: number; safetyConcern: number; openWeights: number; taiwanTension: number;
-    normsDiplomacy: number; verificationWillingness: number; econLeverage: number; hawkDove: number;
-  };
-  rung: 0 | 1 | 2 | 3 | 4 | 5 | 6; // posture ladder (research/10 §1.4)
-  deesc: 0 | 1 | 2 | 3 | 4 | 5; // de-escalation track D1..D5
-  holdDays: Record<string, number>;
-  presetWeights: Record<string, number>; // quarterly re-weighting
-}
-
-// ───────────────────────────── Government, public, blocs (§3.10) ─────────────────────────────
-
-export interface GovActor {
-  preset: string;
-  aiPriority: number; regStance: number; securityDemand: number; hawkishness: number;
-  nationalization: number; congressActivism: number; stateRegPressure: number; judicialCheck: number;
-  awareness: number; // what gov knows about true capability 0..100
-  congressControl: 'R' | 'D' | 'split';
-  rungSec: 0 | 1 | 2 | 3 | 4 | 5; // G-SEC
-  rungChn: 0 | 1 | 2 | 3 | 4; // G-CHN
-  oversight: boolean; treaty: 'none' | 'talks' | 'restraint' | 'verified';
-  statutes: { sb53: boolean; raise: boolean; euCode: boolean; federalLicensing: boolean; preemption: boolean };
-  holdDays: Record<string, number>;
-  lastActionDay: Record<string, Day>;
-}
-
-export interface PublicActor {
-  preset: string;
-  concern: number; approval: number; awareness: number; jobAnxiety: number; xrisk: number;
-  regDemand: number; salience: number; activism: number; dcNimby: number; companionship: number;
-  rung: 0 | 1 | 2 | 3 | 4 | 5;
+  lab: RivalLab; // DeepCent-style collective
+  computeAbs: H100e;
 }
 
 // ───────────────────────────── Commitments (§3.9.4) ─────────────────────────────
@@ -2321,13 +2282,13 @@ export interface PendingDecision {
 }
 
 export interface DecisionRecord { day: Day; eventId?: string; actionId?: string; choice: string; tags: string[]; snapshot: DecisionSnapshot; }
-export interface DecisionSnapshot { L: number; U: number; cash: Money; leadRival: number; leadChina: number; approval: number; misTrue: number; }
+export interface DecisionSnapshot { L: number; U: number; cash: Money; leadRival: number; leadChina: number; misTrue: number; }
 
 export type LogKind = 'news' | 'incident' | 'milestone' | 'gov' | 'china' | 'public' | 'rival' | 'company' | 'research' | 'finance' | 'world' | 'alert';
 export interface LogEntry { day: Day; kind: LogKind; text: string; severity?: 1 | 2 | 3 | 4 | 5; ref?: string; }
 export interface Headline { day: Day; id: string; text: string; sector?: SectorId; }
 
-/** "Why did this change" (§2.6). Keys are meter paths, e.g. 'pub.approval', 'player.finance.valuation'. */
+/** "Why did this change" (§2.6). Keys are meter paths, e.g. 'morale', 'player.finance.valuation'. */
 export interface CauseLedger { byKey: Record<string, CauseEntry[]>; } // ring buffer, 40 per key
 export interface CauseEntry { day: Day; delta: number; source: string; detail?: string; }
 
@@ -2337,7 +2298,7 @@ export interface SeriesV2 {
   /** Best internal frontier G per lab (OOM, weekly, aligned to day from the end): the lead clock lagDays reads it (RD-L01). */
   G: Record<LabId, number[]>;
   Lmeasured: number[]; U: number[]; M: number[]; cash: number[]; revenue: number[]; valuation: number[];
-  compute: number[]; approval: number[]; gdpG: number[]; unemp: number[];
+  compute: number[]; gdpG: number[]; unemp: number[];
   misTrue: number[]; misEst: number[];
   /** UB-2: Research speed (× the leading lab in July 2025, labSpeedRel) and the part of it the lab credits to AI staff
    *  (production.ts aiStaffSpeedPart), weekly; absent on saves before UB-2 (the history starts then). */
@@ -2415,8 +2376,8 @@ export interface EngineSystem {
 /** Currencies used to express every lever's cost/gain/exposure (§3.9.1, §2.7). */
 export type Currency =
   | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'credibility' // credibility: the player's investor credibility (finance/promises.ts)
-  | 'morale' | 'boardConf' | 'approval' | 'security' | 'monitorability'
-  | 'alignment' | 'freedom' | 'chinaTension' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
+  | 'morale' | 'boardConf' | 'security' | 'monitorability'
+  | 'alignment' | 'freedom' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
 
 /** `unit` (optional, display only): the unit of `amount` when the currency label would mislead (model v3 D4: data and
  *  suite gains are tokens or fidelity, not levels "L"). */
@@ -2513,11 +2474,6 @@ export interface Coverup { id: string; day: Day; what: string; pDaily: number; u
 export interface RivalIncident { lab: LabId; day: Day; severity: number; misuse: boolean }
 
 export interface Ws4State {
-  /** Level the government believes the player's frontier is at (§3.10.1: announced / leaked / briefed). */
-  govSeenL: number;
-  leakedL: number;
-  /** Level the player has publicly claimed (best measured L of an external deployment). */
-  claimedL: number;
   coverups: Coverup[];
   /** Continue-through-red-flag counter (E09/E17); feeds leaks. */
   redFlags: number;
@@ -2545,14 +2501,9 @@ export interface Ws4State {
   spyMult: number;
   /** Days China/rival distillation inflow has exceeded the E06 threshold. */
   distillDays: number;
-  /** Misalignment evidence made public (P-LEAK / R14 / G-SEC 5). */
-  misalignmentLeak: boolean;
-  /** Days DA−track conditions held (D2 needs 180 quiet days). */
-  lastTheftOrCyberDay: Day;
-  usProposedTalks: boolean;
-  treatyRejected: boolean;
-  /** Player G-SEC 5b acceptance (DPA consolidation) — government-held lab. */
+  /** Player DPA-consolidation acceptance (government-held lab). Nothing sets it until W5 rebuilds the US government. */
   dpaAccepted: boolean;
+  /** The hard nationalisation path (the 'nationalized' ending). Nothing sets it until W5. */
   nationalizedHard: boolean;
   soldControl: boolean;
   retired: boolean;
@@ -2561,12 +2512,6 @@ export interface Ws4State {
   leaked: number;
   /** World GDP (US) at game start, for Prosperity. */
   gdp0: number;
-  /** Rolling drift accumulator per meter key, flushed to the cause ledger weekly. */
-  drift: Record<string, number>;
-  /** China gap history (lead days, weekly) for "widening"/"shrinking" rules. */
-  chinaLeadHist: number[];
-  /** Merged rival compute folded into the player by DPA / acquisition (WS3 should add to computeOnline). */
-  absorbedCompute: number;
   /** Last day a crisis decision was queued (storyteller), and noise for the chaotic storyteller. */
   storyNoise: number;
   /** Event requests from WS4 systems; the director fires them under storyteller limits (E4). Expire after 60 d. */

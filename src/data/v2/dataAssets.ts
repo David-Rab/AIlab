@@ -50,7 +50,7 @@ export const LICENCE_DELIVERY_DAYS = 60;
 export const LICENCE_SIZE_T = { min: 0.01, max: 20 } as const;
 /** Licensing the crawl (data.license, domain 'web': v2's blanket "License data"): $1B + $0.005B per unlicensed T (270T →
  *  $2.35B, v2's numbers [D]); it adds no tokens (the crawl is already held) and ends the copyright-suit hazard on it
- *  (actors/china.ts). */
+ *  (finance copyrightQ). */
 export const WEB_LICENCE = { baseB: 1, perTB: 0.005 } as const;
 
 /** Synthetic data (compute + a teacher). Generation FLOP = FLOP per token of the teacher × SYN_OVERGEN per kept token

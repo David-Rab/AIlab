@@ -77,7 +77,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   // spread the score (2026-11-24 end-screen audit: 50 in every ending).
   const m = s.world.macro.US;
   const gdp0 = w.gdp0 || m.gdp;
-  const ubi = s.player.policies.transitionFund >= 20 || !!s.flags['ws4:ubi'];
+  const ubi = s.player.policies.transitionFund >= 20;
   // Leaving the race: an aligned projected winner (power set) shares its abundance; otherwise scale with survival.
   const base = PROSPERITY_BASE[id] ?? (lossLike ? (power !== 'none' ? 65 : 10 + 0.4 * survival[0].value) : 50);
   const prosperity: ScoreTerm[] = [{ label: 'This ending', value: base }];
@@ -94,7 +94,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   else {
     const V = Math.max(1, s.player.finance.valuation);
     const playerFirst = id === 'asiAligned' || id === 'asiTakeover' || (id === 'asiContested' && !otherLabs(s).some((r) => r.core.milestoneDays[6] !== undefined && r.core.milestoneDays[6]! <= (s.player.milestoneDays[6] ?? Infinity)));
-    const independent = !s.gov.oversight && !w.dpaAccepted && !w.nationalizedHard && !w.soldControl;
+    const independent = !w.dpaAccepted && !w.nationalizedHard && !w.soldControl;
     company = [{ label: 'Valuation', value: 20 * Math.log10(V / 100) }];
     if (playerFirst) company.push({ label: 'First to superintelligence', value: 40 });
     if (independent) company.push({ label: 'Independent at the end', value: 20 });
@@ -102,10 +102,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   // Geopolitics
   const leadChina = s.china.lab.core.status === 'active' ? lagDays(s, 'china', 'player') : 180;
   const geopolitics: ScoreTerm[] = [{ label: 'Starting point', value: 50 }, { label: leadChina >= 0 ? 'Lead over China' : 'Behind China', value: clamp(leadChina / 6, -30, 30) }];
-  if (s.gov.treaty === 'verified') geopolitics.push({ label: 'Verified treaty', value: 25 });
-  if (id === 'war') geopolitics.push({ label: 'War', value: -30 });
   if (s.flags['ws4:taiwanEver']) geopolitics.push({ label: 'Taiwan crisis', value: -15 });
-  if (s.china.rung >= 5) geopolitics.push({ label: 'China near war footing', value: -10 });
   return { survival, freedom, prosperity, company, geopolitics };
 }
 

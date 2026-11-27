@@ -79,16 +79,6 @@ console.log(`player position ${pp.toFixed(1)} d; lags ${[...dOf(base)].map(([k, 
   const d0 = r.npc!.d; sh.poachIn(s, r, n);
   check(near(days, sh0 * 120, 1e-9) && near(r.npc!.d - d0, days, 1e-9), `poach in: an ahead rival's d rises by ${(sh0 * 100).toFixed(2)}% of the 120-day gap`, `${days.toFixed(2)} d`);
 }
-// treaty: the reference clock runs x0.65 for every lab
-{
-  const s = clone(base); const r = s.rivals[0]; s.gov.treaty = 'verified';
-  for (let i = 1; i <= 100; i++) { s.time.day = i; sh.treatyClockDay(s); sh.treatyClockDay(s); } // idempotent within a day
-  const lost = Number(s.flags['npc:clockLost']);
-  check(near(lost, 100 * (1 - sh.TREATY_CLOCK_RATE), 1e-9), `treaty: 100 days -> the reference clock lost ${lost.toFixed(1)} d (rate ${sh.TREATY_CLOCK_RATE})`);
-  check(near(npcG(s, r), refGAt(s, decimalYear(s) - (lost + r.npc!.d) / 365.25), 1e-9) && npcG(s, r) < refGAt(s, decimalYear(s) - r.npc!.d / 365.25), 'every lab reads the slowed clock (internal G on the reference at refYear - d)');
-  const t = clone(base); for (let i = 1; i <= 100; i++) { t.time.day = i; sh.treatyClockDay(t); }
-  check(t.flags['npc:clockLost'] === undefined, 'no treaty: the clock does not slow');
-}
 // spillover: a fixed small step, never past the player
 {
   const s = clone(base); const before = dOf(s); sh.spill(s);

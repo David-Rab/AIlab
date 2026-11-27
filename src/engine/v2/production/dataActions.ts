@@ -2,7 +2,7 @@
 //
 //   data.license      buy a licensed corpus in one domain at a price tier (q 1.5 / 2 / 3, research/20 A3), delivered
 //                     later; domain 'web' licenses the public crawl instead (v2's blanket "License data": no tokens, ends
-//                     the copyright-suit hazard, actors/china.ts)
+//                     the copyright-suit hazard, finance copyrightQ)
 //   data.synthesize   a share of the synthetic pool generates with a chosen teacher for some days (tokens from
 //                     synTokensPerH100eDay, quality from the teacher's G, the asset inherits the teacher's traits);
 //                     days 0 stops the job. The rest of the pool keeps the default teacher (the internal research model)

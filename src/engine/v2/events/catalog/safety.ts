@@ -8,8 +8,7 @@ import { internalVersion } from '../../models/labs';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
-import { approval, cash } from '../../actors/fx';
-import { pLeak } from '../../actors/public';
+import { cash } from '../../actors/fx';
 import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
@@ -33,7 +32,7 @@ function dilemma(what: string) {
     ch('Disclose', ['disclose', 'safety'], P([]), (s: GameStateV2) => {
       ws4(s).disclosed++;
     }),
-    ch('Keep it quiet', ['quiet', 'secrecy'], P([L('approval', 8, 'if found: nothing is fixed, the flaw stays in the model', { probability: COVERUP_DISCOVERY_ODDS })]), (s: GameStateV2) => {
+    ch('Keep it quiet', ['quiet', 'secrecy'], P([]), (s: GameStateV2) => {
       addCoverup(s, what, COVERUP_DISCOVERY_ODDS);
     }),
     ch('Deny', ['deny'], P([]), () => {}),
@@ -90,23 +89,19 @@ export const SAFETY_EVENTS: EventDefV2[] = [
   ev({
     id: 'E19', title: 'The leak', icon: 'alert', crisis: true, cooldown: 365, deadlineDays: 7, defaultChoice: 2,
     when: requestOnly,
-    text: (_s, d) => `An internal safety memo is in the press${Number(d.mult) > 1 ? ' — after your own staff warned you' : ''}. AI is now a top national issue ([[salience]]).`,
+    text: (_s, d) => `An internal safety memo is in the press${Number(d.mult) > 1 ? ' — after your own staff warned you' : ''}.`,
     choices: [
-      ch('Full disclosure', ['disclose', 'safety'], P([]), (s, ctx, d) => {
-        pLeak(s, ctx, Number(d.mult ?? 1));
+      ch('Full disclosure', ['disclose', 'safety'], P([]), (s, ctx) => {
         const w = ws4(s);
         w.disclosed++;
         w.redFlags = 0;
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Deny', ['deny'], P([L('approval', 8, 'if contradicted later', { probability: clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1) })]), (s, ctx, d) => {
-        pLeak(s, ctx, Number(d.mult ?? 1) * 0.7);
+      ch('Deny', ['deny'], P([]), (s) => {
         addCoverup(s, 'the truth behind the leaked memo', clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1), 120);
         ws4(s).leaked++;
       }),
-      ch('Spin', ['quiet'], P([L('approval', 10)]), (s, ctx, d) => {
-        pLeak(s, ctx, Number(d.mult ?? 1));
-        approval(ctx, -10, 'E19 spin');
+      ch('Spin', ['quiet'], P([]), (s) => {
         ws4(s).leaked++;
       }),
     ],
@@ -125,7 +120,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
           ctx.log('alert', 'The escaped copy was found and shut down.', 4);
         }
       }),
-      ch('Hunt quietly', ['quiet', 'secrecy'], P([L('approval', 8, 'if found out', { probability: COVERUP_DISCOVERY_ODDS + 0.2 })], [], [L('alignment', -0.3, 'recapture odds lower')]), (s, ctx) => {
+      ch('Hunt quietly', ['quiet', 'secrecy'], P([], [], [L('alignment', -0.3, 'recapture odds lower')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'quiet';
         addCoverup(s, 'an escaped model copy', COVERUP_DISCOVERY_ODDS + 0.2, 120);
         if (ctx.rng('events').chance(clamp(0.25 + 0.1 * (s.player.security.wsl - 3), 0.05, 0.7))) {
@@ -133,12 +128,9 @@ export const SAFETY_EVENTS: EventDefV2[] = [
           escapeResolved(s, ctx.day, 'captured');
         }
       }),
-      ch('Disclose', ['disclose', 'safety'], P([L('approval', 10), L('cash', 1, 'markets panic')], [L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
+      ch('Disclose', ['disclose', 'safety'], P([L('cash', 1, 'markets panic')], [L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'public';
-        approval(ctx, -10, 'E25 disclosed escape');
-        ctx.bump('pub.concern', 10, 'E25 disclosed escape');
         ws4(s).disclosed++;
-        ws4(s).misalignmentLeak = true;
         if (ctx.rng('events').chance(0.5)) {
           delete ws4(s).loose;
           escapeResolved(s, ctx.day, 'captured');

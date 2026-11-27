@@ -5,6 +5,7 @@
 // predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
 import type { Commitment, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
 import { cash } from './fx';
+import { lawsInForce } from '../../../data/v2/laws';
 import { ws4r } from './state';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
@@ -206,9 +207,9 @@ export function keptShare(s: GameStateV2): number {
 }
 
 /** Statutory floors (§3.9.4, research/17 §1.7): SB 53 15-day / RAISE 72-hour reporting. A covered-up incident
- *  under statute is a legal fine; checked daily by actorsDaily. */
+ *  under statute is a legal fine; checked daily by actorsDaily; the laws by date from data/v2/laws.ts. */
 export function statutoryDaily(s: GameStateV2, ctx: SystemCtx) {
-  const st = s.gov.statutes;
+  const st = lawsInForce(s);
   if (!st.sb53 && !st.raise) return;
   const hours = st.raise ? 72 : 360;
   for (const i of s.player.safety.incidents) {

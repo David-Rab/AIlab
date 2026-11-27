@@ -15,7 +15,7 @@ import { internalVersion } from '../models/labs';
 import { domainRefShift, domainScaleGs, gOfLevel, gOfV2Level, levelOfG, oomPerLevel, v2LevelGate } from '../models/capability';
 import type { DomainId, GameStateV2, SystemCtx, TimelineWorld } from '../types';
 import { worldMix, type WorldMix } from './mix';
-import { policyState, sigmoid, techRamp } from './policy';
+import { sigmoid, techRamp } from './util';
 import { robotAvail } from './robots';
 
 export { techRamp };
@@ -57,7 +57,7 @@ export function playerScience(s: GameStateV2, techId: string): number {
  *  message shows the gate on the measured domain scale (techGateLevels). */
 export function techBlocker(s: GameStateV2, t: WorldTechDef, g: Record<DomainId, number>): string | undefined {
   for (const p of t.prereqs) if (s.world.techs[p]?.discoveredDay === undefined) return `needs ${TECH_BY_ID[p]?.name ?? p}`;
-  if (t.needs === 'sez' && !policyState(s).sez) return 'needs Special Economic Zones';
+  if (t.needs === 'sez' && !s.world.robots.sezOpen) return 'needs Special Economic Zones'; // nothing opens them until W5 (W1d)
   if (t.needs === 'findings' && s.knowledge.publishedFindings.length < 3) return 'needs 3 published safety findings';
   const w = s.hidden.timeline;
   for (const [d, min] of GATES[t.id]) if (g[d] < gOfV2Level(w, d, min)) return `${d} ${fmtGate(levelOfG(w, gOfV2Level(w, d, min)))}`;
@@ -93,9 +93,7 @@ function gateLevels(s: GameStateV2, techId: string, best: Record<DomainId, numbe
 /** Effective lag (years) after compression. */
 export function effectiveLag(s: GameStateV2, t: WorldTechDef): number {
   let lag = t.lag;
-  const pol = policyState(s);
   if (t.lagChannel === 'health') {
-    if (pol.fdaFastTrack) lag *= 0.5;
     if (['W06', 'W07', 'W08', 'W09'].includes(t.id)) lag *= 1 - 0.5 * techRamp(s, 'W05');
   }
   if (t.lagChannel === 'physical' && s.world.robots.sezOpen) lag *= 0.3;
@@ -145,8 +143,6 @@ export function advanceTechs(s: GameStateV2, ctx: SystemCtx): void {
         if (st.prog >= 1) {
           st.discoveredDay = ctx.day;
           ctx.headline(t.id === 'W16' ? 'H28' : `H16:${t.id}`, t.headline);
-          if (t.effects.benefit) ctx.bump('pub.approval', 0.3 * t.effects.benefit, 'world tech', t.name);
-          if (t.id === 'W16') ctx.bump('pub.jobAnxiety', 4, 'world tech', 'general-purpose robots');
         }
       }
     } else {
@@ -154,7 +150,6 @@ export function advanceTechs(s: GameStateV2, ctx: SystemCtx): void {
       const yrs = (ctx.day - st.discoveredDay) / 365;
       const prev = st.ramp;
       st.ramp = lag <= 0 ? 1 : yrs >= lag ? 1 : Math.max(prev, (sigmoid(10 * (yrs / lag - 0.5)) - sigmoid(-5)) / (sigmoid(5) - sigmoid(-5)));
-      if (t.effects.benefit && prev < 0.5 && st.ramp >= 0.5) ctx.bump('pub.approval', 0.5 * t.effects.benefit, 'world tech', `${t.name} reaches patients`);
     }
     if (t.risk) st.exposure = exposureOf(s, t, best);
   }

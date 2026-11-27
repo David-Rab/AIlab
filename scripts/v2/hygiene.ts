@@ -149,7 +149,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
   ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
-  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440], ['geoShocksQ', 'WS4', 'quarterly', 441], ['copyrightQ', 'WS4', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
+  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoShocksQ', 'WS4', 'quarterly', 441], ['copyrightQ', 'WS4', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
   ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
 ];
 for (const [id, owner, cadence, order] of SPEC) {
@@ -164,7 +164,7 @@ const setups: SetupV2[] = [
   defaultSetupV2({ seed: 1 }),
   defaultSetupV2({ seed: 2, world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
   defaultSetupV2({ seed: 3, world: 'tl-central', baseline: 'reality', governance: 'founder', alignment: 'hard' }),
-  defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy', gov: 'hawk', china: 'gambler' }),
+  defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy' }),
   defaultSetupV2({ seed: 5, world: 'tl-fast', governance: 'nonprofitPBC', tutorial: false }),
   defaultSetupV2({ seed: 6 }), // the default cast
   defaultSetupV2({ seed: 7, world: 'tl-fast' }),
@@ -358,9 +358,9 @@ check(JSON.stringify(counts) === JSON.stringify(expected) && counts.quarterly ==
 // ---------- 7. Cause ledger ----------
 const ls = newGame(defaultSetupV2({ seed: 8 }));
 const ctx = makeCtx(ls);
-const before = ls.pub.approval;
-const applied = ctx.bump('pub.approval', 500, 'test', 'clamp');
-check(ls.pub.approval === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
+const before = ls.player.morale.overall;
+const applied = ctx.bump('morale', 500, 'test', 'clamp');
+check(ls.player.morale.overall === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
 ctx.bump('player.morale.overall', -5, 'test');
 ctx.bump('cash', 2, 'test');
 ctx.cause('player.finance.cash', 1, 'other');

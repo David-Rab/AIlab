@@ -45,7 +45,7 @@ import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts 
 import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import type { EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
+import type { GameStateV2 } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
 import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
 import { cached, pick, prefill } from './simcache';
@@ -306,13 +306,12 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // Rushed gas (used turbines): power wait 4 q, so 2 q of permits and 7 q of construction (500 MW: 9.5 x 0.5^0.4, DATACENTERS 5b) set the go-live; no package.
   for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'gas', mw: 500, rush: true, community: false }).id);
   s.player.finance.cash = 1e6; // isolate the stage machine from money
-  // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at 45 (public mood 45 ÷ 50 = 0.9, its 2025 start
-  // value) for the site rolls: gas block 10% × 0.9 = 9%, delay 30% × 0.9 = 27% (DATACENTERS §3; odds [design D-6]).
-  const NIMBY = 45;
-  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, system: 'core', run: (x) => void (x.pub.dcNimby = NIMBY) };
+  // Neutral sentiment: the data-centre opposition is the W1d stand-in 45 (compute/sites.ts DC_NIMBY; public mood
+  // 45 ÷ 50 = 0.9, its 2025 start value) for the site rolls: gas block 10% × 0.9 = 9%, delay 30% × 0.9 = 27%
+  // (DATACENTERS §3; odds [design D-6]).
   // The opposition roll at the end of permits: WS4's director is off too, else E27 "Site blocked" (default: community
   // deal) re-permits every blocked site over the 5 years.
-  while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'], extraSystems: [neutral] });
+  while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'] });
   const sites = s.player.sites.filter((x) => ids.has(x.id));
   const blocked = share(sites.map((x) => x.stage === 'blocked'));
   const delayed = share(sites.map((x) => x.ws3.delayedQ > 0));
@@ -453,7 +452,7 @@ for (const a of FINANCE_ACTIONS) {
     act(s, 'cmp.newSite', { path: 'gas', mw: 500 });
     check(s.player.policies.communityBenefits && !!s.player.sites[n]?.communityPackage, 'FIN1 community package as the company default: new sites carry it');
     const p = reactiveUnblockOdds(s);
-    check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at dcNimby ${f1(s.pub.dcNimby)}`);
+    check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at the stand-in dcNimby 45`);
   }
 }
 
@@ -889,7 +888,6 @@ for (const a of FINANCE_ACTIONS) {
 {
   const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   const E32 = EVENT_BY_ID.get('E32')!;
-  const E22 = EVENT_BY_ID.get('E22')!;
   const idx = (e: typeof E32, label: string) => e.choices.findIndex((c) => c.label === label);
   /** A fixture with a private rival out of money and its E32 offer pending; a rich, confident board unless told. */
   const offer = (opts: { cash?: number; bc?: number; preset?: Parameters<typeof initialBoard>[0]; rivalV?: number } = {}) => {
@@ -1008,24 +1006,6 @@ for (const a of FINANCE_ACTIONS) {
     const ov = dealVotes(o, t);
     check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the trust\'s, under PBC + trust)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
   }
-  // E22: the absorbed labs' obligations follow the same rule; accepting is a merger vote; no price.
-  {
-    const s = fx();
-    s.player.board.confidence = 80;
-    s.player.finance.cash = 2000;
-    const priv = s.rivals.filter((x) => x.core.status === 'active' && x.finance.valuation > 0);
-    for (const r of priv) r.finance.cash = -1;
-    s.events.pending.push({ id: 'E22', instance: 'E22@t', day: s.time.day, deadline: s.time.day + 14, data: {}, crisis: true });
-    const i = idx(E22, 'Accept');
-    const v = E22.choices[i].vote!(s, {});
-    const pv = E22.choices[i].preview(s, {});
-    const want = priv.reduce((a, r) => a + rivalObligations(r).total, 0);
-    const cash0 = s.player.finance.cash;
-    const err = resolve(s, 'E22@t', i);
-    const entries = s.player.finance.ledger.filter((c) => c.kind === 'acquired');
-    const debt = s.player.finance.debts.filter((x) => x.kind === 'assumed').reduce((a, x) => a + x.drawn, 0);
-    check(!!v && v.decision === 'merger' && !err && entries.length === priv.filter((r) => r.finance.commitments > 0).length && Math.abs(entries.reduce((a, c) => a + c.perQuarter * ACQUIRE.termQ, 0) - want) < 1e-6 && Math.abs(debt - priv.length) < 1e-9 && s.player.finance.cash === cash0 && Math.abs(-pv.exposure.filter((c) => c.currency === 'cash')[0].amount - Math.round(want * 10) / 10) < 1e-9, 'FIN3c E22 DPA consolidation: each private lab\'s contracts and debt are yours (parent-funded labs bring none), no price; accepting needs the board\'s merger vote, shown first', `${entries.length} contract entries $${f1(want)}B · debt $${f1(debt)}B · vote ${v?.yes}/${v?.total}`);
-  }
 }
 
 // ───────────────────────────── FIN4a: partner offers (FINANCE-V3 §6.1–§6.3) ─────────────────────────────
@@ -1109,14 +1089,13 @@ for (const a of FINANCE_ACTIONS) {
     check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^gw:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW deployed (gw tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
   }
   {
-    // Sovereign: a passive cheque with the political cost and no in-country site.
+    // Sovereign: a passive cheque and no in-country site (its political cost went with the government actor, W1d).
     const s = fx();
     const sites0 = s.player.sites.length;
-    const sd0 = s.gov.securityDemand;
     const t = partnerTerms(s, 'Gulf Sovereign Fund');
     const err = signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
     const d = dealWith(s, 'Gulf Sovereign Fund');
-    check(!err && s.player.sites.length === sites0 && s.gov.securityDemand > sd0 && !!t.politics && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque with its political cost (security demand) and no in-country site', `$${f1(t.equityNow)}B · security demand ${f1(sd0)} → ${f1(s.gov.securityDemand)}`);
+    check(!err && s.player.sites.length === sites0 && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque and no in-country site', `$${f1(t.equityNow)}B`);
   }
   {
     // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.

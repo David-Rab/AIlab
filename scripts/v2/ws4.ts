@@ -53,8 +53,9 @@ const load = (i: number) => deserialize(fixtures[i]);
   const ids = new Set(EVENTS.map((e) => e.id));
   // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
-  // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts.
-  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E30', 'E32'];
+  // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts; W1d cut E12 Clearances, E20
+  // Oversight committee, E22 DPA consolidation and E23 China deal (W5/W6/W7 rebuild them).
+  const want = ['E01', 'E10', 'E19', 'E25', 'E27', 'E30', 'E32'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, `E1 catalog: exactly the ${want.length} kept events`, `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
@@ -175,7 +176,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
       const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, system: 'core', run: (x) => {
         // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
-        for (const id of ['E10', 'E19', 'E20', 'E25']) {
+        for (const id of ['E10', 'E19', 'E25']) {
           delete x.events.fired[id];
           request(x, id, { n: x.time.day });
         }
@@ -206,17 +207,14 @@ const load = (i: number) => deserialize(fixtures[i]);
 {
   const W = (seed: number) => newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
   const BAD: TraitVector = Object.fromEntries(TRAIT_IDS.map((t) => [t, t === 'HONEST' || t === 'CORRIG' ? 0 : 1])) as TraitVector;
-  const setups: Record<EndingId, (s: GameStateV2) => void> = {
+  // 'war' is unreachable until W6 re-adds it from China's tension (the China ladder went in W1d).
+  const setups: Partial<Record<EndingId, (s: GameStateV2) => void>> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
     acquired: (s) => void (ws4(s).soldControl = true),
     ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster vote
     nationalized: (s) => void (ws4(s).nationalizedHard = true),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
-    war: (s) => {
-      s.china.rung = 6;
-      s.time.day = 91; // tick → day 92 = 1 Oct (quarterly)
-    },
     rogue: (s) => {
       atLevel(s, 4);
       ws4(s).loose = { day: s.time.day - 100, versionId: 'V0', mis: 1 };

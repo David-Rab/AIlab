@@ -10,6 +10,7 @@ import { ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
 import { publicOf, sigmaOf } from '../npc/public';
 import { DAYS_PER_MONTH } from '../npc/lab';
+import { CHINA_RUNG, CHINA_THEFT_INTENT } from '../security/theft';
 
 /** The true lead over a lab (days; > 0 = the player ahead) on the recorded frontier-G histories, against the player's best
  *  MEASURED version (CP4: not one still in testing). Engine truth: it is never shown; leadDays swaps the lab's side for its
@@ -125,12 +126,12 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: misuseEst, band: [clamp(misuseEst / 2, 0, 1), clamp(0.01 + 2 * misuseLevel * Math.max(chain, 0.05), 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 0.6 }, { label: 'World tech exposure and defences', share: 0.4 }] });
   // Theft: P(a weight theft) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4];
   // the row used to show the theft probability itself as a catastrophe probability.
-  const pTheft = clamp(0.05 + (3.5 - (s.player.security.wsl + (m.wsl ?? 0))) * 0.15 + clamp(s.china.meters.theftIntent + (m.theftIntent ?? 0), 0, 100) / 300, 0, 1);
+  const pTheft = clamp(0.05 + (3.5 - (s.player.security.wsl + (m.wsl ?? 0))) * 0.15 + clamp(CHINA_THEFT_INTENT + (m.theftIntent ?? 0), 0, 100) / 300, 0, 1);
   const cnMid = s.china.lab.core.status === 'active' ? (publicBand(s.china.lab)[0] + publicBand(s.china.lab)[1]) / 2 : 0;
   const theftEst = clamp(pTheft * 0.3 * curve(cnMid), 0, 1);
   out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(Math.min(1, pTheft + 0.1) * 0.3 * curve(cnMid) + 0.01, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
   out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
-  const war = clamp(0.005 + 0.04 * Math.max(0, s.china.rung + (m.rung ?? 0)), 0, 1);
+  const war = clamp(0.005 + 0.04 * Math.max(0, CHINA_RUNG + (m.rung ?? 0)), 0, 1);
   out.push({ id: 'war', label: 'War', kind: 'war', estimate: war, band: [war / 2, Math.min(1, war * 2)], drivers: [{ label: 'China posture ladder', share: 0.7 }, { label: 'Taiwan tension', share: 0.3 }] });
   return out;
 }

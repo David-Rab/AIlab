@@ -16,7 +16,8 @@ import { rivalMoneyQ } from '../finance/rivalFinance';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, SafetyPosture, SystemCtx } from '../types';
 import * as shock from '../npc/shocks';
 import { rivalLineupStep, rivalToolStep } from '../npc/market';
-import { chinaDaily } from './china';
+import { chinaComputeDaily } from '../npc/china';
+import { reportingLaw } from '../../../data/v2/laws';
 import { cPlanQ, growLabStaff, labReferenceSplit, npcCapabilityDay, persOf } from '../npc/lab';
 import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
 import { ws4 } from './state';
@@ -45,10 +46,14 @@ export function labOf(s: GameStateV2, id: LabId): RivalLab | undefined {
   return id === 'china' ? s.china.lab : s.rivals.find((r) => r.core.id === id);
 }
 
+/** China's safety concern 0..100, the base of its lab's safety investment (§3.10.4). W1d stand-in until W6: its start
+ *  value 30. */
+const CHINA_SAFETY_CONCERN = 30;
+
 /** Effective (dynamic) posture = hidden posture + WS4 deltas (moving goalposts, joint evals); China's safety
  *  investment follows its safety concern (§3.10.4). Hidden: engine use only. */
 export function postureOf(s: GameStateV2, lab: LabId): SafetyPosture {
-  const base = lab === 'china' ? { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + (0.4 * s.china.meters.safetyConcern) / 100 } : s.hidden.rivalPostures[lab];
+  const base = lab === 'china' ? { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + (0.4 * CHINA_SAFETY_CONCERN) / 100 } : s.hidden.rivalPostures[lab];
   const d = s.ws4?.postureDelta[lab];
   if (!base) return { safetyInvestment: 0.3, evalRigor: 0.3, externalAccess: 0.3, disclosureRate: 0.3, raceRelaxation: 0.5, bindingness: 0.3 };
   if (!d) return base;
@@ -136,7 +141,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     const row = rng.weighted(rows.map((x) => ({ item: x, weight: x.h })));
     const misuse = row.source === 'misuse';
     const sev = misuse ? clamp(3 + Math.floor(rng.float() * 3), 1, 5) : drawSeverity(row, rng.float()); // misuse: v2's 3–5
-    const floor = r.core.kind === 'rival' && (s.gov.statutes.sb53 || s.gov.statutes.raise) && sev >= 3 ? 0.6 : 0;
+    const floor = r.core.kind === 'rival' && reportingLaw(s) && sev >= 3 ? 0.6 : 0;
     const vis = Math.max(floor, clamp(p.disclosureRate + 0.5 * p.externalAccess + 0.1, 0, 1) * (sev >= 4 ? 1 : 0.6));
     if (rng.chance(vis)) {
       w.rivalIncidents.push({ lab: id, day, severity: sev, misuse });
@@ -144,7 +149,6 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       r.intel.knownIncidents.push(`${day}:${sev}${misuse ? 'm' : ''}`);
       if (r.intel.knownIncidents.length > 20) r.intel.knownIncidents.shift();
       ctx.log(r.core.kind === 'china' ? 'china' : 'rival', `${r.core.name}: ${misuse ? 'misuse' : 'model'} incident (severity ${sev}) made public.`, sev >= 3 ? 3 : 2, id);
-      if (sev >= 4 && !misuse) ctx.bump('china.meters.safetyConcern', 10, 'global misalignment scare (R14)', r.core.name);
     }
   }
 }
@@ -233,12 +237,12 @@ export const npcQSystem: EngineSystem = {
   },
 };
 
-/** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China meters and ladder. */
+/** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China's compute. */
 export const rivalsChinaSystem: EngineSystem = {
   id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100, system: 'relations',
   run(s, ctx) {
     for (const r of activeRivals(s)) labDaily(s, ctx, r);
     if (s.china.lab.core.status === 'active') labDaily(s, ctx, s.china.lab);
-    chinaDaily(s, ctx);
+    chinaComputeDaily(s);
   },
 };

@@ -82,7 +82,7 @@ const fixed = applyResponse(s, c3, 'patchSignal', v3.id, rh.id);
 check(fixed === undefined && rh.status === 'resolved' && rh.responses.includes('patchSignal'), 'environment fix applies to the hack incident', fixed ?? rh.status);
 
 // 4. disclosure
-s.gov.statutes.sb53 = true;
+// SB 53 is in force by date on the day-400 fixture (data/v2/laws.ts).
 const timed = mk('RH', { severity: 2, exposure: 'customer', publicTimerDays: 20 });
 applyResponse(s, c3, 'patchSignal', v3.id, timed.id);
 check(timed.status === 'open' && timed.publicTimerDays === 20, 'a fix does not close the disclosure question (timed incident stays open)', timed.status);
