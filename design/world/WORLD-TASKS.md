@@ -47,7 +47,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1a | Move what geoQ hosts (NPC finance, copyright suits, Taiwan and Korea rolls) into their own systems; behaviour identical | Sonnet high | 45 min | — | done 0c17a262 |
 | W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | done cf5ef02f |
 | W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | done e72ac062 |
-| W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | running |
+| W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
 | W1d | Quiet world, engine part 2: delete the gov and China actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Sonnet high (W1c sets the pattern) | 75 min | W1c | |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
@@ -80,3 +80,10 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 - W13 · Sonnet high · ~3 min · PLANS.md: Greenblatt A–E (Oct 2025) and AI Futures "AI 2040: Plan A" with A/B/C+/C/D/S
   (Jul 2026). Proposes 4 minimal additions; designer to decide. Quotes came through a summarising fetch; re-check before
   using them in game text · 8ed8cc37
+- W1c · Opus high · ~90 min (stalled waiting on a finished job; lead stopped it) · relations cluster deleted: relations,
+  blocs, research bodies, Safety Index, 17 relation actions, E16, E29; kept actions moved to their owners; cover-ups →
+  events/coverups.ts. 104 files, −2161/+715. tsc, registry-lint, lint-tradeoffs and fixtures pass. Stand-ins are marked
+  "W1c". For `bal` at merge: hiring pull is fixed at the start-type anchor (no drift); the safe bot now orders an
+  independent evaluators' suite (externallyEvaluated); the 'government' power outcome is unreachable until W5 ·
+  7c7a7e3d. Lead fixed stream owners for geoShocksQ/copyrightQ → WS4.
+- Brief rule from here: no waiting on background jobs. Checks run in the foreground with a timeout, then report.
