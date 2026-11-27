@@ -425,3 +425,7 @@ only), `phys.{pool, ideas, clDay, run, serve, eff}` except where listed above, `
   at 2025.445), which is OpenAI's internal model, so OpenAI's internal lag is 0. The cast's public lags are measured
   against the public frontier on 1 July (o3-pro), which sits about 2.1 months behind V0; N2b converts them. The
   upstart has no public model: its lag is a [D] value with a wide public band.
+- **R6. Noise (principle 7):** one σ per public quantity for every lab (compute 0.25), with China ×2 because its
+  opacity is part of the shape. The per-kind compute σs in N2a's table are evidence only.
+- **R7. Headcount is not a headline state.** Where staff move (absorb, the DPA fold-in), they come from compute ×
+  one typical staff-per-H100e ratio. The cast's per-lab headcounts are evidence only.
