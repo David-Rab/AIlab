@@ -392,7 +392,7 @@ the baseline goes.
 
 | Setup item | Decision |
 |---|---|
-| Baseline | **Delete.** The world part (public, export policy, chip stock, global compute, China share and gap) becomes the world's real mid-2025 start (SOURCES). The lab part (cash, revenue, valuation, compute, staff, security level, order and site scale) moves into the start types (data/v2/starts.ts) with today's default values, so the balance calibration doesn't move. Flag to `bal`: those values are AI 2027's and need re-sourcing. |
+| Baseline | **Delete; no options** (designer: "just reality up to late 2026"). The world part (public, export policy, chip stock, global compute, China share and gap) becomes the world's real mid-2025 start (SOURCES). The lab part (cash, revenue, valuation, compute, staff, security level, order and site scale) moves into the start types (data/v2/starts.ts) with today's default values, so the balance calibration doesn't move. Flag to `bal`: those values are AI 2027's and need re-sourcing. |
 | Timeline (fast, central, slow) | keep |
 | Alignment difficulty | keep (the balance workstream owns its levels) |
 | Economy (Unknown, Normal, Fast diffusion, Gated) | **Delete the picker and presets.** One adoption setting with today's default values, renamed off `ai2027`; it is a product-market parameter. Alternatives may return later as a world axis. |
@@ -405,5 +405,13 @@ the baseline goes.
 Every outside-world use of AI 2027 goes with the deleted code. What's left is listed for the designer (W12):
 - player-visible AI 2027 content: the end screen's AI 2027 reference line and glossary term, China's lab name
   "DeepCent", the "OpenBrain" default, the milestone table's `Agent-N` names and canon dates, the v1 glossary;
-- lab-internal parameters whose source comment is AI 2027 (about 130 comment hits in about 50 files). These are
-  listed for the balance workstream to re-source against reality and the AIFM, not changed here.
+- lab-internal parameters whose source comment is AI 2027 (about 130 comment hits in about 50 files). This session
+  only lists them and hands the list to the balance workstream at merge (designer: "this session isn't supposed to
+  really do much about the player's lab - mostly fix up the outside world").
+
+## 16. Plans A, B, C, D as a requirement
+
+The designer: "AI futures plan A B and so on ... should be an inspiration (we should have enough in the game to be
+able to implement those plans in theory if things work out)". W13 reads the primary texts and maps each plan onto
+this spec. It also lists the smallest additions each one needs, for example an option on an existing beat or one
+extra state value. Those additions are folded into W5–W7.

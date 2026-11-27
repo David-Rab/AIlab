@@ -98,3 +98,13 @@ outsiders see of you", or cut? (4) the parallel calibration work on `bal`: own b
 >
 > we can still totally be inspired by AI27 for things like the order of the US gov reactions and options and events
 > and things.
+
+## 9. Plans A–D; baseline; scope
+
+> also AI futures plan A B and so on (we should read up on them) should be an inspiration (we should have enough in
+> the game to be able to implement those plans in theory if things work out)
+>
+> we dont want the baseline to have options anymore - just reality up to late 2026.
+
+> this session isn't supposed to really do much about the player's lab - mostly fix up the outside worl. so only list
+> them and hand to the balance work when we merge
