@@ -11,9 +11,11 @@ import { deriveNames } from '../models/naming';
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
 // 112: the old world presets are removed (a world is one of the three timelines); old saves are invalid, no migration.
-export const SCHEMA_REV = 112;
+// 113: data centres and power redesign (design/DATACENTERS.md): sites are rent / grid / gas campuses with world waits;
+//      old saves are invalid, no migration.
+export const SCHEMA_REV = 113;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
-export const MIN_SCHEMA_REV = 103;
+export const MIN_SCHEMA_REV = 113;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
 export const OLD_SAVE_MESSAGE = 'This save is from an older version of the game and can no longer be loaded.';
 export const AUTOSAVE_KEY = 'ai27.v2.autosave';
