@@ -28,9 +28,11 @@
 import type { Channel, SectorId, TraitId } from '../../engine/v2/types';
 import type { FeatureFx, FeatureId } from './features';
 
-/** Agent mode needs a measured 50% time horizon at least this long: the tasks it sells are half-day work units (METR
- *  time horizons; AI 2027's 2026 agents) [D] (the gate of the Agents product MK-1 deleted). */
-export const AGENT_TASK_HOURS = 4;
+/** Agent mode needs a measured 50% time horizon at least this long: 2 h, the measured horizon of the model its analogue
+ *  launched on [P]: ChatGPT agent (Jul 2025) is o3-class, and METR TH1.1 measures o3 at 120 min
+ *  (metr.org/assets/benchmark_results_1_1.yaml). Designer 2026-11-27; it was 4 h [D], the deleted Agents product's gate.
+ *  The tasks it sells are work units that long (data/v2/danger.ts CHANNEL_HORIZON_H reads it for the incident site). */
+export const AGENT_TASK_HOURS = 2;
 /** Sectors with a certification for AI vendors [D: US federal FedRAMP (GOV, MIL: DoD impact levels), health data
  *  HITRUST (HEALTH; HIPAA itself has none: HHS "does not endorse or otherwise recognize private organizations'
  *  'certifications'"), SOC 2 and model-risk review (FIN)]. */
@@ -213,7 +215,7 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
     id: 'agentMode', name: 'Agent mode', kind: 'general', analogue: 'ChatGPT agent',
     products: ['api', 'enterprise', 'vetted'], sectors: [], buildTW: 8, cash: 0.05,
     // Sells autonomous agent-hours (today's Agents product, deleted in MK-1) on a product whose model's measured 50%
-    // time horizon ≥ AGENT_TASK_HOURS (4 h, the Agents gate) [D]. §5 SpreadsheetBench o3 23.25 → agent 35.27 and
+    // time horizon ≥ AGENT_TASK_HOURS (2 h, see above). §5 SpreadsheetBench o3 23.25 → agent 35.27 and
     // BrowseComp 68.9 vs 51.5 change the model [P-analogue]: no fit bonus, the gate and the hours are the effect.
     // afford +0.3 [D]: the deleted Agents channel's CHANNEL_AFFORD 0.8 over API's 0.5 (data/v2/danger.ts).
     // Build 8 TW, $0.05B [D] (two product launches' LAUNCH_TW).
