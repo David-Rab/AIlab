@@ -25,7 +25,7 @@ Each source has an upfront cost **or** a higher power price, never both.
 | What it is | A hall in a colocation or neocloud campus | A new connection from the utility | Your own turbines on site |
 | Power ready in | **Rent wait** (world, §4): ~1 q in 2023 → ~4 q in 2026 | **Grid wait** (world, §4): ~12 q in 2023 → ~20 q in 2026 | **Turbine wait** (world, §4): ~4 q in 2023 → ~9 q in 2026 |
 | Permits | none | 1 q | 2 q (air permits) |
-| Construction | none (the landlord builds) | 8 q | 8 q |
+| Construction | none (the landlord builds) | 9.5 q at 1 GW (10 q) | 9.5 q at 1 GW (10 q) |
 | Size per site | up to 1 GW | up to 1 GW | up to 5 GW |
 | Upfront cost per GW | network only ($4B) | building $14B + utility upgrades $0.2B | building $14B + turbines $3B |
 | Running cost | rent ≈ $1.8B per GW-year (≈ $150/kW-month), 5-year lease, plus grid power | grid power 1.0× | fuel and upkeep ≈ 0.5× grid |
@@ -73,7 +73,7 @@ Chosen on the build card; each shows its price and the quarters it saves.
 
 | Lever | What it does | Cost | Source |
 |---|---|---|---|
-| Crash construction | Construction time × 0.5 (1 GW: 8 q → 4 q) | +35% building cost, higher opposition odds | 1 GW in ~4 q: xAI Colossus 2 (Epoch). Premium **[design]** |
+| Crash construction | Construction time × 0.5 (1 GW: 10 q → 5 q) | +35% building cost, higher opposition odds | 1 GW in ~4 q: xAI Colossus 2 (Epoch). Premium **[design]** |
 | Rush power (grid) | Pay for the substation and lines yourself instead of waiting for the utility's schedule: grid wait − 25% **[design]** | +$0.3B per GW **[design, range $0.05–0.3B unverified]** | LBNL "Speed to Power" (2026) |
 | Rush power (gas) | Buy used or refurbished turbines: turbine wait → 4 q | +30% turbine cost **[design]** | SemiAnalysis: used units in < 12 months |
 | Fast-track permits | Permits − 1 q (gas 2 → 1, grid 1 → 0) | 5% of building cost (~$0.7B per GW) **[design]** | Federal fast-track for > 100 MW sites (EO 14318) |
@@ -83,11 +83,11 @@ The community package rises from 3% to ~7% of the building cost ($1M per MW, the
 
 ## 5b. Size: construction time and economies of scale (designer, 2026-11-27)
 
-- **Construction time grows sub-linearly with size:** 8 q × (GW)^0.3 (100 MW 4 q, 300 MW 6 q, 1 GW 8 q, 2.5 GW 11 q, 5 GW 13 q); crash construction halves it.
-- **Building cost per GW falls with size:** building $14B per GW × (GW)^−0.1 (100 MW $17.6B/GW, 1 GW $14B, 5 GW $11.9B). Crash and fast-track prices are shares of this scaled building cost; turbines, utility upgrades, rush and the community package stay per GW.
-- So many small sites are faster, one big campus is cheaper: 5 × 1 GW = $70B live in 8 q; 1 × 5 GW ≈ $59.6B live in 13 q (building only).
+- **Construction time grows sub-linearly with size:** 9.5 q × (GW)^0.4 (100 MW 4 q, 300 MW 6 q, 500 MW 7 q, 1 GW 10 q, 2.5 GW 14 q, 5 GW 18 q); crash construction halves it.
+- **Building cost per GW falls with size:** building $14B per GW × (GW)^−0.05 (100 MW $15.7B/GW, 1 GW $14B, 5 GW $12.9B). Crash and fast-track prices are shares of this scaled building cost; turbines, utility upgrades, rush and the community package stay per GW.
+- So many small sites are faster, one big campus is cheaper: 5 × 1 GW = $70B live in 10 q; 1 × 5 GW ≈ $64.5B live in 18 q (building only).
 - **Rushed gas sites count in the turbine backlog** like any gas site (replaces [D-5]).
-- Exponents are **[design]** pending research/23 §9 (sizes vs build time and cost).
+- Exponents are now sourced: time 0.4 from the Epoch timelines fit (research/23 §9); cost −0.05 is a design value at the top of what the data allow.
 
 ## 6. Removed
 

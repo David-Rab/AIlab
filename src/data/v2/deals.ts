@@ -138,13 +138,13 @@ export const SOURCES: Record<SiteSource, SourceDef> = {
   // rent: hall in a colo/neocloud campus; you pay the network ($4B/GW); landlord builds; no opposition
   rent: { permitQ: 0, buildQ: 0, maxMW: 1000, upfrontPerGW: NETWORK_PER_GW, extraPerGW: 0, powerCostMult: 1, blockBase: 0, delayBase: 0 },
   // grid: building + utility upgrades $0.2B/GW [unverified, range 0.05–0.3]; EIA tariff 1.0×; largest live grid sites ≤ ~1 GW (Epoch hub)
-  grid: { permitQ: 1, buildQ: 8, maxMW: 1000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 0.2, powerCostMult: 1, blockBase: 0.05, delayBase: 0.2 },
+  grid: { permitQ: 1, buildQ: 9.5, maxMW: 1000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 0.2, powerCostMult: 1, blockBase: 0.05, delayBase: 0.2 },
   // gas: building + turbines $3B/GW ($1.7–2.0k/kW × 1.4–1.6 overbuild, SemiAnalysis); fuel+upkeep 0.5× grid [needs a gas-price source]; campuses 2.3–5.2 GW
-  gas: { permitQ: 2, buildQ: 8, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
+  gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
 };
 export const SITE_MIN_MW = 100;
-/** Size scaling (DATACENTERS §5b): construction quarters × (GW / refGW)^buildTimeExp; building $ per GW × (GW / refGW)^costExp. [design] pending research/23 §9 */
-export const SCALE = { refGW: 1, buildTimeExp: 0.3, costExp: -0.1 } as const;
+/** Size scaling (DATACENTERS §5b): construction quarters × (GW / refGW)^buildTimeExp; building $ per GW × (GW / refGW)^costExp. Time exponent 0.4 and 9.5 q at 1 GW: Epoch timelines fit (research/23 §9); cost exponent -0.05 is a design value at the top of what the data allow. */
+export const SCALE = { refGW: 1, buildTimeExp: 0.4, costExp: -0.05 } as const;
 /** Speed-ups (DATACENTERS §5). */
 export const LEVERS = {
   crash: { buildMult: 0.5, buildingShare: 0.35, oddsMult: 1.5 },  // Colossus 2 in ~4 q for 1 GW (Epoch): half the construction time; premium, odds [design]

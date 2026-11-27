@@ -303,7 +303,7 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   const ctx = makeCtx(s);
   const N = 400;
   const ids = new Set<string>();
-  // Rushed gas (used turbines): power wait 4 q, so 2 q of permits and 6 q of construction (500 MW: 8 x 0.5^0.3, DATACENTERS 5b) set the go-live; no package.
+  // Rushed gas (used turbines): power wait 4 q, so 2 q of permits and 7 q of construction (500 MW: 9.5 x 0.5^0.4, DATACENTERS 5b) set the go-live; no package.
   for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'gas', mw: 500, rush: true, community: false }).id);
   s.player.finance.cash = 1e6; // isolate the stage machine from money
   // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at 45 (public mood 45 ÷ 50 = 0.9, its 2025 start
@@ -318,7 +318,7 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   const delayed = share(sites.map((x) => x.ws3.delayedQ > 0));
   const builds = sites.filter((x) => x.ws3.liveDay !== undefined && x.ws3.buildStartDay !== undefined).map((x) => Math.round(((x.ws3.liveDay as number) - (x.ws3.buildStartDay as number)) / 91.25));
   check(Math.abs(blocked - 0.09) <= 0.03 && Math.abs(delayed - 0.27) <= 0.05, 'F10 400 rushed gas 500 MW sites at neutral sentiment (dcNimby 45, mood 0.9, no package): blocked 9% ± 3 pp, delayed 27% ± 5 pp (DATACENTERS §3; odds [design D-6])', `blocked ${f1(blocked * 100)}%, delayed ${f1(delayed * 100)}%`);
-  check(median(builds) === 6, 'F10 median construction-to-live 6 quarters, rushed 500 MW gas (C14; 8 q x 0.5^0.3, DATACENTERS 5b)', `median ${median(builds)} q`);
+  check(median(builds) === 7, 'F10 median construction-to-live 7 quarters, rushed 500 MW gas (C14; 9.5 q x 0.5^0.4, DATACENTERS 5b)', `median ${median(builds)} q`);
 }
 
 // ───────────────────────────── F11: revenue path consumption ─────────────────────────────

@@ -43,12 +43,12 @@ console.log(`     start waits: grid ${worldWaitQ(s, 'grid').toFixed(3)} q (Red R
 
 const gasO: SiteOpts = { path: 'gas', mw: 1000, rush: true, community: true };
 near(sitePowerQ(s, gasO), 4, 'gas rush powerQ');
-near(siteLiveInQ(s, gasO), 10, 'gas rush live in (2 + max(8, 4))');
+near(siteLiveInQ(s, gasO), 12, 'gas rush live in (2 + max(10, 4))');
 near(siteCapex(gasO), 18.9, 'gas rush + community capex (14 + 3 + 0.9 + 1.0)', 1e-9);
 const gas = newSite(s, ctx, gasO);
 near(gas.capexPaid, 0.945, 'gas paid now (5%)', 1e-9);
 check(gas.stage === 'permitting' && qOfDay(s, gas.stageEndDay) === 6, 'gas permits end Q1 27 (index 6)', `${gas.stage} → q ${qOfDay(s, gas.stageEndDay)}`);
-check(siteLiveQ(s, gas)?.q === 14, 'forecast: gas live Q1 29 (index 14)', `q ${siteLiveQ(s, gas)?.q}`);
+check(siteLiveQ(s, gas)?.q === 16, 'forecast: gas live Q3 29 (index 16)', `q ${siteLiveQ(s, gas)?.q}`);
 
 const gridRate = 30 * Math.pow(1.1, 2026 + 7 / 12 + 4 / 365 - 2026);
 const gridW = worldWaitQ(s, 'grid');
@@ -76,7 +76,7 @@ check(!!rentLedger && rentLedger.payee === 'Data-centre rent', 'rent ledger entr
 near(rentLedger?.perQuarter ?? 0, 0.45, 'rent per quarter ($B)');
 check(rentLedger?.startDay === dayOfQuarter(s.time.startDate, 8), 'rent starts at go-live Q3 27 (index 8)', `q ${qOfDay(s, rentLedger?.startDay ?? 0)}`);
 near(rent.capexPaid, 0.05 * 4, 'rent paid now (5% of the $4B network)');
-check(siteSchedule(s, gasO).etaQ === 10 && siteSchedule(s, gasO).buildQ === 8, 'siteSchedule gas: eta 10, build 8');
+check(siteSchedule(s, gasO).etaQ === 12 && siteSchedule(s, gasO).buildQ === 10, 'siteSchedule gas: eta 12, build 10');
 
 // Tick quarterly and follow the three sites
 const stages: Record<string, string[]> = { gas: [], grid: [], rent: [] };
@@ -87,17 +87,17 @@ tickTo(s, 22, (q) => {
   const d = gas.capexPaid - lastPaid;
   if (d > 1e-12) gasPays.push(+d.toFixed(6));
   lastPaid = gas.capexPaid;
-  if (q === 6) check(gas.stage === 'building', 'gas building from Q1 27 (power 4 < construction 8)', gas.stage);
-  if (q === 5) check(grid.stage === 'power' && qOfDay(s, grid.stageEndDay) === 12, 'grid: permits end Q4 26, power stage until Q3 28 (index 12)', `${grid.stage} → q ${qOfDay(s, grid.stageEndDay)}`);
-  if (q === 12) check(grid.stage === 'building' && qOfDay(s, grid.stageEndDay) === 20, 'grid building Q3 28 → Q3 30', `${grid.stage} → q ${qOfDay(s, grid.stageEndDay)}`);
+  if (q === 6) check(gas.stage === 'building', 'gas building from Q1 27 (power 4 < construction 10)', gas.stage);
+  if (q === 5) check(grid.stage === 'power' && qOfDay(s, grid.stageEndDay) === 10, 'grid: permits end Q4 26, power stage until Q1 28 (index 10)', `${grid.stage} → q ${qOfDay(s, grid.stageEndDay)}`);
+  if (q === 10) check(grid.stage === 'building' && qOfDay(s, grid.stageEndDay) === 20, 'grid building Q1 28 → Q3 30', `${grid.stage} → q ${qOfDay(s, grid.stageEndDay)}`);
   if (q === 8) check(rent.stage === 'live', 'rent live Q3 27', rent.stage);
-  if (q === 14) check(gas.stage === 'live', 'gas live Q1 29', gas.stage);
+  if (q === 16) check(gas.stage === 'live', 'gas live Q3 29', gas.stage);
   if (q === 20) check(grid.stage === 'live', 'grid live Q3 30', grid.stage);
 });
 console.log(`     gas stages: ${stages.gas.join(' ')}`);
 console.log(`     grid stages: ${stages.grid.join(' ')}`);
 console.log(`     gas construction payments: ${gasPays.join(', ')}`);
-check(gasPays.length === 8 && gasPays.every((x) => Math.abs(x - gasPays[0]) < 1e-6), 'gas: 8 equal construction payments', `${gasPays.length}`);
+check(gasPays.length === 10 && gasPays.every((x) => Math.abs(x - gasPays[0]) < 1e-6), 'gas: 10 equal construction payments', `${gasPays.length}`);
 near(gas.capexPaid, 18.9, 'gas capexPaid at go-live', 1e-9);
 check(grid.ws3.liveAt === dayOfQuarter(s.time.startDate, 20), 'grid liveAt unchanged by the later 20 GW (Q3 30)', `q ${qOfDay(s, grid.ws3.liveAt ?? 0)}`);
 near(grid.capexPaid, grid.capex, 'grid capexPaid at go-live', 1e-9);
@@ -112,10 +112,10 @@ console.log(`     waitHist grid: ${s.power.waitHist.grid.slice(0, 8).join(' ')} 
   const g = newSite(t, c, gridO);
   const b0 = siteBars(t, g);
   console.log(`     grid bars at commitment: ${JSON.stringify(b0)}`);
-  check(!!b0 && b0.liveQ === 20 && b0.permits?.[1] === 5 && b0.power?.[1] === 20 && b0.construction?.[0] === 12, 'siteBars at commitment: permits → Q4 26, power → Q3 30, construction from Q3 28');
+  check(!!b0 && b0.liveQ === 20 && b0.permits?.[1] === 5 && b0.power?.[1] === 20 && b0.construction?.[0] === 10, 'siteBars at commitment: permits → Q4 26, power → Q3 30, construction from Q1 28');
   tickTo(t, 6);
   const b1 = siteBars(t, g);
-  check(!!b1 && b1.liveQ === 20 && b1.firm && b1.power?.[0] === 5 && b1.construction?.[0] === 12, 'siteBars after the roll match', JSON.stringify(b1));
+  check(!!b1 && b1.liveQ === 20 && b1.firm && b1.power?.[0] === 5 && b1.construction?.[0] === 10, 'siteBars after the roll match', JSON.stringify(b1));
 }
 
 // Fast-track grid: no permits, the roll at commitment

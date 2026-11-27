@@ -21,8 +21,8 @@ const fresh = () => {
   return s;
 };
 
-// 1. Construction quarters by size, normal / crash (grid and gas have the same 8 q reference).
-const Q: [number, number, number][] = [[100, 4, 2], [300, 6, 3], [500, 6, 3], [1000, 8, 4], [2500, 11, 5], [5000, 13, 6]];
+// 1. Construction quarters by size, normal / crash (grid and gas have the same 9.5 q reference).
+const Q: [number, number, number][] = [[100, 4, 2], [300, 6, 3], [500, 7, 4], [1000, 10, 5], [2500, 14, 7], [5000, 18, 9]];
 for (const path of ['grid', 'gas'] as const) {
   for (const [mw, n, c] of Q) {
     near(siteBuildQ({ path, mw }), n, `${path} ${mw} MW construction q`);
@@ -34,12 +34,12 @@ near(siteBuildQ({ path: 'rent', mw: 1000, crash: true }), 0, 'rent ignores crash
 
 // 2. Capex by size (building scaled; turbines, upgrades, rush, community not).
 near(siteCapex({ path: 'gas', mw: 1000, rush: true, community: true }), 18.9, 'gas 1 GW rush + community capex');
-near(siteCapex({ path: 'gas', mw: 5000 }), 5 * (14 * Math.pow(5, -0.1) + 3), 'gas 5 GW no levers capex', 0.01);
-near(siteCapex({ path: 'gas', mw: 5000 }), 74.59, 'gas 5 GW no levers capex vs spec', 0.01);
-near(siteCapex({ path: 'grid', mw: 100 }), 0.1 * (14 * Math.pow(0.1, -0.1) + 0.2), 'grid 0.1 GW no levers capex', 0.001);
-near(siteCapex({ path: 'grid', mw: 100 }), 1.7825, 'grid 0.1 GW capex vs spec', 0.001);
-near(siteCapex({ path: 'gas', mw: 5000, crash: true }), 95.45, 'gas 5 GW crash capex', 0.01);
-near(siteCapex({ path: 'gas', mw: 5000, fastTrack: true }) - siteCapex({ path: 'gas', mw: 5000 }), 5 * 0.05 * 14 * Math.pow(5, -0.1), 'fast-track = 5% of the scaled building', 1e-9);
+near(siteCapex({ path: 'gas', mw: 5000 }), 5 * (14 * Math.pow(5, -0.05) + 3), 'gas 5 GW no levers capex', 0.01);
+near(siteCapex({ path: 'gas', mw: 5000 }), 79.59, 'gas 5 GW no levers capex vs spec', 0.01);
+near(siteCapex({ path: 'grid', mw: 100 }), 0.1 * (14 * Math.pow(0.1, -0.05) + 0.2), 'grid 0.1 GW no levers capex', 0.001);
+near(siteCapex({ path: 'grid', mw: 100 }), 1.5908, 'grid 0.1 GW capex vs spec', 0.001);
+near(siteCapex({ path: 'gas', mw: 5000, crash: true }), 102.20, 'gas 5 GW crash capex', 0.01);
+near(siteCapex({ path: 'gas', mw: 5000, fastTrack: true }) - siteCapex({ path: 'gas', mw: 5000 }), 5 * 0.05 * 14 * Math.pow(5, -0.05), 'fast-track = 5% of the scaled building', 1e-9);
 near(siteCapex({ path: 'gas', mw: 5000, rush: true }) - siteCapex({ path: 'gas', mw: 5000 }), 5 * 0.3 * 3, 'rush is unscaled (30% of the turbines)', 1e-9);
 near(siteCapex({ path: 'rent', mw: 5000 }), 5 * 4, 'rent network fit-out is unscaled', 1e-9);
 
