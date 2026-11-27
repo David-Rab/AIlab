@@ -10,6 +10,8 @@ import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
+import { siteLiveQ } from '../compute/forecast';
+import { leverEffects, siteLiveInQ, type SiteOpts } from '../compute/sites';
 import { cloudPricePerYear, refTotalAt } from '../compute/market';
 import type { GameStateV2 } from '../types';
 import { BC_WARN, criticsAvailable, criticsOusterShift } from './board';
@@ -100,7 +102,8 @@ function cloudAt(s: GameStateV2, day: number) {
 function baseCloudAt(s: GameStateV2, day: number) {
   return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && c.endDay - c.startDay > 400 ? c.h100e : 0), 0);
 }
-/** Facility MW expected live by a future day (non-blocked sites whose stage ends before it; building/live only). */
+/** Facility MW expected live by a future day (non-blocked sites: live, building and ending before it, and, with
+ *  `includePlanned`, sites whose planned go-live quarter (siteLiveQ: permits, then power or construction) is by then). */
 function mwBy(s: GameStateV2, day: number, includePlanned = true) {
   let mw = 0;
   for (const x of s.player.sites) {
@@ -108,8 +111,8 @@ function mwBy(s: GameStateV2, day: number, includePlanned = true) {
     if (x.stage === 'live') mw += x.mw;
     else if (x.stage === 'building' && x.stageEndDay <= day) mw += x.mw;
     else if (includePlanned && x.stage !== 'building') {
-      const eta = x.stageEndDay + (x.ws3?.buildQ ?? 8) * 91;
-      if (eta <= day) mw += x.mw;
+      const l = siteLiveQ(s, x);
+      if (l && dayOfQuarter(s.time.startDate, l.q) <= day) mw += x.mw;
     }
   }
   return mw;
@@ -128,6 +131,19 @@ function ownedBy(s: GameStateV2, qq: number) {
   const inv = s.player.finance.ws3.inventory;
   const due = s.player.orders.reduce((a, o) => a + (o.dueQ < qq ? Math.max(0, o.qty - o.delivered) : 0), 0);
   return installed + inv.ready + inv.transit + due;
+}
+
+/** The bot's build options for one source and size [DC-7]: every speed-up that saves at least one quarter (judged with
+ *  the other two on; one that saves nothing is dropped and the rest re-judged), the community package always. */
+function siteChoice(s: GameStateV2, path: 'grid' | 'gas', mw: number, pay: 'cash' | 'lease'): SiteOpts & { liveInQ: number } {
+  const o: SiteOpts = { path, mw, crash: true, rush: true, fastTrack: true, community: true, pay };
+  for (let i = 0; i < 3; i++) {
+    const eff = leverEffects(s, o);
+    let changed = false;
+    for (const k of ['crash', 'rush', 'fastTrack'] as const) if (o[k] && !((eff[k]?.savesQ ?? 0) > 0)) { o[k] = false; changed = true; }
+    if (!changed) break;
+  }
+  return { ...o, liveInQ: siteLiveInQ(s, o) };
 }
 
 /** Run one autopilot step (call every day before the tick; acts on the 1st of each month). */
@@ -211,21 +227,25 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     let gap = needMW - mwBy(s, day);
     let n = 0;
     while (gap > 100 && n++ < 12) {
-      // On-site gas crash builds (Stargate pattern, R15 §1.3).
-      const path = 'gas';
-      const mw = Math.min(SOURCES[path].maxMW, Math.max(500, gap));
-      if (!tryAct('cmp.newSite', { path, mw, crash: true, pay: o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash', community: true })) break;
-      gap -= mw;
+      // Grid or gas, whichever is live earlier with every useful speed-up on; a tie goes to grid (cheaper upfront).
+      const pay = o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash';
+      const pick = (['grid', 'gas'] as const)
+        .map((path) => siteChoice(s, path, Math.min(SOURCES[path].maxMW, Math.max(500, gap)), pay))
+        .reduce((x, y) => (y.liveInQ < x.liveInQ ? y : x));
+      const { liveInQ: _liveInQ, ...opts } = pick;
+      if (!tryAct('cmp.newSite', opts as unknown as Record<string, number | string | boolean>)) break;
+      gap -= pick.mw;
       if (o.guard && (runwayOf(s).q < guardQ || budgetRoom(s) < 0)) break;
     }
   }
 
-  // Leases (≤ 2 quarters) when MW will be short.
-  const day2 = dayOfQuarter(s.time.startDate, q + 2);
-  const shortMW = target(s, o, day2 - s.time.day) - baseCloudAt(s, day2) - siteCapacityH(s, mwBy(s, day2, false)) / Math.pow(0.944, 2);
+  // Rented hall when MW will be short by the time it is ready (the world's rent wait; no pool).
+  const rentQ = siteLiveInQ(s, { path: 'rent', mw: 100 });
+  const day2 = dayOfQuarter(s.time.startDate, q + rentQ);
+  const shortMW = target(s, o, day2 - s.time.day) - baseCloudAt(s, day2) - siteCapacityH(s, mwBy(s, day2)) / Math.pow(0.944, rentQ);
   if (shortMW > 0.05e6 && prudent && o.offBalance) {
-    const leaseMW = Math.min(SOURCES.rent.maxMW, (shortMW * kWAt(s, 2)) / 1000);
-    if (leaseMW >= 100) tryAct('cmp.newSite', { path: 'rent', mw: leaseMW });
+    const rentMW = Math.min(SOURCES.rent.maxMW, (shortMW * kWAt(s, rentQ)) / 1000);
+    if (rentMW >= 100) tryAct('cmp.newSite', { path: 'rent', mw: rentMW });
   }
 
   // Chips: fill MW expected 3 quarters out, up to the target net of long-term cloud.
