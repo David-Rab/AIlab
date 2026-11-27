@@ -36,8 +36,10 @@ export const RESTRICT = 0.3;
  *  deployment's work [D: agents lose the shared memory bank; no source quantifies it]. */
 export const LOCKDOWN_COLLUSION_MULT = 0.5;
 export const LOCKDOWN_SLOWDOWN = 0.03;
-/** Human-review staff: safety engineers per 10% of the lab's R&D work humans still review [D]. */
-export const REVIEW_STAFF = 5;
+/** Human-review staff: safety engineers per 10% of the lab's R&D work humans still review [D]. L15: 2.5 (was 5, set
+ *  against a 100-head safety research-engineer start): full review keeps about half the sourced start's 50 safety
+ *  research engineers, as it did before, so cases, eval suites and removals have people at the start. */
+export const REVIEW_STAFF = 2.5;
 /** Control-protocol compute: the trusted model reruns the deferred / resampled share of actions at its cost ratio [D:
  *  trusted model ≈ 1/10 of the watched model's FLOP per token]. */
 export const CONTROL_TRUSTED_COST = 0.1;

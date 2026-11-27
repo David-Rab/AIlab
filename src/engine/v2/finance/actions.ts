@@ -1,10 +1,10 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
 // Every preview shows what apply() does (§2.7 preview truth). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
-import { CAPEX_LEASE, COMMUNITY, DEBT_SIZING, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, SITE_PATHS, TRANSFORMER, type PartnerSupply } from '../../../data/v2/deals';
+import { CAPEX_LEASE, DEBT_SIZING, LEVERS, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, RENT, SITE_MIN_MW, SITE_TIERS, SOURCES, type CampusBuildings, type PartnerSupply } from '../../../data/v2/deals';
 import { dateOfDay, dayOfQuarter } from '../core/time';
 import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
-import { addCommunityPackage, newSite, oppositionOdds, siteCapex, siteEtaQ, siteSchedule, type SiteOpts } from '../compute/sites';
+import { addCommunityPackage, campusMW, newSite, oppositionOdds, siteBuildingLiveInQ, siteCapex, siteSchedule, siteSizeError, type SiteOpts } from '../compute/sites';
 import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, PartnerTerms, Pitch, Site, SystemCtx } from '../types';
@@ -16,7 +16,7 @@ import { anchorPartners, dealVote as firstVote, dealVotes, partnerOffers, partne
 import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
-import { ensureWs3, yearStats } from './ext';
+import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
@@ -626,13 +626,22 @@ const rentCompute: ActionDef = {
 
 // ───────────────────────────── Compute: sites (spec §4 payment options) ─────────────────────────────
 
+/** The build card's options. Rent: cash only, one hall, no speed-ups and no community package. mw (one building)
+ *  clamped to [100, source max]; buildings (1, 3, 5; default 1) as asked: a campus over the source's cap is refused
+ *  (siteSizeError). */
 function siteOpts(s: GameStateV2, p: P): SiteOpts {
-  const path = str(p, 'path', 'brownfield') as Site['path'];
-  const def = SITE_PATHS[path] ?? SITE_PATHS.brownfield;
-  const pay = str(p, 'pay', 'cash') === 'lease' && path !== 'lease' ? 'lease' : 'cash';
+  const asked = str(p, 'path', 'gas');
+  const path = (SOURCES[asked as Site['path']] ? asked : 'gas') as Site['path'];
+  const def = SOURCES[path];
+  // One building is at most the largest size tile (1 GW, DATACENTERS §5b); bigger sites are campuses of several buildings.
+  const buildingMax = Math.min(def.maxMW, Math.max(...SITE_TIERS.map((t) => t.mw)));
+  const mw = Math.max(SITE_MIN_MW, Math.min(buildingMax, num(p, 'mw', buildingMax)));
+  if (path === 'rent') return { path, mw, buildings: 1, crash: false, rush: false, fastTrack: false, community: false, pay: 'cash' };
+  const buildings = num(p, 'buildings', 1) as CampusBuildings;
+  const pay = str(p, 'pay', 'cash') === 'lease' ? 'lease' : 'cash';
   const rate = pay === 'lease' ? leaseRate(s) : undefined;
   return {
-    path: SITE_PATHS[path] ? path : 'brownfield', mw: Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))), crash: bool(p, 'crash'),
+    path, mw, buildings, crash: bool(p, 'crash'), rush: bool(p, 'rush'), fastTrack: bool(p, 'fastTrack'),
     community: bool(p, 'community', s.player.policies.communityBenefits), pay, ...(rate !== undefined ? { leaseRate: rate } : {}),
   };
 }
@@ -642,40 +651,45 @@ const site: ActionDef = {
   available: notInsolvent,
   preview(s, p) {
     const o = siteOpts(s, p);
+    const tooBig = siteSizeError(o);
+    if (tooBig) return { costs: [{ currency: 'cash', amount: 0, target: `cannot build: ${tooBig}` }], gains: [], exposure: [] };
     const capex = siteCapex(o);
     const odds = oppositionOdds(s, { path: o.path, crash: !!o.crash, communityPackage: !!o.community });
-    const eta = siteEtaQ(s, o) * 91;
-    const H = (o.mw * 1000) / s.power.kWPerH100e;
+    const lives = siteBuildingLiveInQ(s, o);
+    const etaLast = lives[lives.length - 1] * 91;
+    const kW = s.power.kWPerH100e;
+    const H = (campusMW(o) * 1000) / kW;
     const exposure: CostLine[] = [];
     let costs: CostLine[];
-    if (o.path === 'lease') costs = [{ currency: 'cash', amount: -(o.mw / 1000) * 1.2, target: 'colocation rent per year × 5 (non-cancellable)' }, { currency: 'cash', amount: -capex, target: 'network fit-out' }];
+    if (o.path === 'rent') costs = [{ currency: 'cash', amount: -(campusMW(o) / 1000) * RENT.perGWYear, target: `rent per year × ${RENT.years} (non-cancellable)` }, { currency: 'cash', amount: -capex, target: 'network fit-out' }];
     else if (o.pay === 'lease') {
       const opt = payOptions(s, capex, 'site', siteSchedule(s, o)).find((x) => x.id === 'lease')!;
-      costs = [{ currency: 'cash', amount: -opt.now, lagDays: eta, target: `capex, your ${Math.round((1 - CAPEX_LEASE.siteShare) * 100)}% share` }, { currency: 'cash', amount: -opt.perYear, lagDays: eta, target: `lease per year × ${opt.years} y from go-live (${((opt.rate ?? 0) * 100).toFixed(0)}%)` }];
+      costs = [{ currency: 'cash', amount: -opt.now, lagDays: etaLast, target: `capex, your ${Math.round((1 - CAPEX_LEASE.siteShare) * 100)}% share` }, { currency: 'cash', amount: -opt.perYear, lagDays: etaLast, target: `lease per year × ${opt.years} y from go-live${lives.length > 1 ? ' of the last building' : ''} (${((opt.rate ?? 0) * 100).toFixed(0)}%)` }];
       exposure.push({ currency: 'cash', amount: -CAPEX_LEASE.rvgShare * capex * CAPEX_LEASE.siteShare, target: 'residual-value guarantee if you walk away' });
-    } else costs = [{ currency: 'cash', amount: -capex, lagDays: eta, target: 'capex on the build schedule' }];
+    } else costs = [{ currency: 'cash', amount: -capex, lagDays: etaLast, target: 'capex on the build schedule' }];
     if (odds.block > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.block * 100) / 100, target: 'blocked by local opposition' });
     if (odds.delay > 0) exposure.push({ currency: 'compute', amount: -H, probability: Math.round(odds.delay * 100) / 100, lagDays: 182, target: 'delayed 1–3 quarters' });
-    if (o.path === 'lease' && s.market.ws3 && o.mw / 1000 > s.market.ws3.leasePoolGW) exposure.push({ currency: 'compute', amount: -H, target: 'lease pool exhausted this quarter' });
-    return { costs, gains: [{ currency: 'compute', amount: H, lagDays: eta, target: 'MW to install chips' }], exposure };
+    // racks as each building goes live (one line per quarter, first building first; DATACENTERS §5b)
+    const gains: CostLine[] = [];
+    for (const q of [...new Set(lives)]) {
+      const k = lives.filter((y) => y === q).length;
+      gains.push({ currency: 'compute', amount: (k * o.mw * 1000) / kW, lagDays: q * 91, target: lives.length > 1 ? `MW to install chips (${k === 1 ? 'building' : `${k} buildings`} ${lives.indexOf(q) + 1}${k > 1 ? `–${lives.indexOf(q) + k}` : ''} of ${lives.length})` : 'MW to install chips' });
+    }
+    return { costs, gains, exposure };
   },
   apply(s, ctx, p) {
     const o = siteOpts(s, p);
+    const tooBig = siteSizeError(o);
+    if (tooBig) return tooBig;
     if (o.pay === 'lease' && o.leaseRate === undefined) return leaseAvailable(s) as string;
-    if (o.path === 'lease') o.mw = Math.min(o.mw, s.market.ws3.leasePoolGW * 1000);
-    if (o.mw < 50) {
-      ctx.log('finance', 'No colocation capacity left this quarter.');
-      return 'No colocation capacity left this quarter';
-    }
     newSite(s, ctx, o);
   },
 };
 
 /** Sites still able to take an upfront community package (in permitting, not yet rolled, not colocation). */
-const packageable = (s: GameStateV2) => s.player.sites.filter((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease');
-
-/** Community package (spec §4; merges F1 and the per-site deal): with `siteId`, the upfront package for that site (≈ 3%
- *  of its capex, block odds × 0.5); without, the company default: every site still permitting gets it now and every
+const packageable = (s: GameStateV2) => s.player.sites.filter((x) => x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'rent');
+/** Community package (spec §4; merges F1 and the per-site deal): with `siteId`, the upfront package for that site ($1B
+ *  per GW of its size, block odds × 0.5); without, the company default: every site still permitting gets it now and every
  *  new site by default, with the pledge to pay our own power and grid costs (a relations commitment, kept from F1). */
 const community: ActionDef = {
   id: 'cmp.community', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Community package',
@@ -684,9 +698,9 @@ const community: ActionDef = {
     const one = str(p, 'siteId', '');
     // FIN4r (L3): without a site, every site still permitting gets the package (as apply does), default on or off.
     const sites = one ? packageable(s).filter((x) => x.id === one) : packageable(s);
-    const cost = sites.reduce((a, x) => a + x.capex * COMMUNITY.upfront, 0);
-    const saved = sites.reduce((a, x) => a + ((x.mw * 1000) / s.power.kWPerH100e) * oppositionOdds(s, x).block * (1 - COMMUNITY.blockMult), 0);
-    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.max(cost, 0.01), lagDays: 0, target: `+${Math.round(COMMUNITY.upfront * 100)}% capex on ${sites.length} site${sites.length === 1 ? '' : 's'} (build schedule)` }];
+    const cost = sites.reduce((a, x) => a + (x.mw / 1000) * LEVERS.community.perGW, 0);
+    const saved = sites.reduce((a, x) => a + ((x.mw * 1000) / s.power.kWPerH100e) * oppositionOdds(s, x).block * (1 - LEVERS.community.blockMult), 0);
+    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.max(cost, 0.01), lagDays: 0, target: `$${LEVERS.community.perGW}B per GW on ${sites.length} site${sites.length === 1 ? '' : 's'} (build schedule)` }];
     const gains: CostLine[] = [{ currency: 'compute', amount: saved, target: 'block risk halved (expected H100e kept)' }];
     if (!one && !s.player.policies.communityBenefits) {
       costs.push({ currency: 'freedom', amount: -1, target: 'pledge: every new site carries the package' });
@@ -710,23 +724,6 @@ const community: ActionDef = {
       ctx.bump('pub.dcNimby', -10, 'community package policy');
     }
     for (const x of packageable(s)) addCommunityPackage(x);
-  },
-};
-
-const transformers: ActionDef = {
-  id: 'cmp.preorderTransformers', verb: 'deal', system: 'compute', sphere: 'finance', owner: 'WS3', title: 'Transformers',
-  available: notInsolvent,
-  preview(s, p) {
-    const gw = Math.max(0.1, num(p, 'gw', 2));
-    return { costs: [{ currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * TRANSFORMER.depositShare, target: '20% deposit' }, { currency: 'cash', amount: -gw * TRANSFORMER.costPerGW * 0.8, lagDays: s.power.transformerLeadQ * 91 }], gains: [{ currency: 'leadDays', amount: (s.power.transformerLeadQ - 8) * 91 + 91, target: 'no transformer wait for new sites' }], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    ensureWs3(s);
-    const gw = Math.max(0.1, num(p, 'gw', 2));
-    const cost = gw * TRANSFORMER.costPerGW;
-    s.power.ws3.transformersGW += gw;
-    bookCash(s, ctx, -cost, 'compute', 'transformer pre-order', `${gw.toFixed(1)} GW`);
-    yearStats(s).capexSites += cost;
   },
 };
 
@@ -857,7 +854,7 @@ const pickCancellable = (s: GameStateV2, id: string) => {
 
 export const FINANCE_ACTIONS: ActionDef[] = [
   raise, ipo, partner, draw, repay, recap, refuseRecap, critics,
-  buyChips, rentCompute, site, community, transformers,
+  buyChips, rentCompute, site, community,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];
 

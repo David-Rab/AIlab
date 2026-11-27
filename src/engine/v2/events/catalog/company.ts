@@ -6,7 +6,7 @@ import type { EventDefV2 } from '../../types';
 import { bloc, cash, morale, scrutiny } from '../../actors/fx';
 import * as shock from '../../npc/shocks';
 import { raceResponseOf } from '../../npc/lab';
-import { changeHeads } from '../../departments/teams';
+import { changeHeads, headsMoved } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 import { COMMUNITY } from '../../../../data/v2/deals';
 import { reactiveUnblockOdds } from '../../compute/sites';
@@ -33,13 +33,14 @@ export const COMPANY_EVENTS: EventDefV2[] = [
         ctx.bump('relations.talentPull', 2, 'E16 counter-offers');
       }),
       // N6: the lead line is the lag the rival loses (npc/shocks.ts letGoDays: the tacit share moved of the days it trails you).
-      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(shock.letGoDays(s, activeLab(s, d.lab)!, Math.round(s.player.staff.cap * 0.03), s.player.staff.cap)) : 0, "days that rival closes on you (its lag falls)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
+      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(shock.letGoDays(s, activeLab(s, d.lab)!, headsMoved(s.player, 'cap', -Math.round(s.player.staff.cap * 0.03)), s.player.staff.cap)) : 0, "days that rival closes on you (its lag falls)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
         const n = Math.round(s.player.staff.cap * 0.03);
         const r = activeLab(s, d.lab);
-        if (r) shock.letGo(s, r, n, s.player.staff.cap); // N6: sized before the heads move
-        changeHeads(s, 'cap', -n);
+        const staff = s.player.staff.cap;
+        const left = -changeHeads(s, 'cap', -n); // whole teams: the rival gains the heads that actually left
         if (r) {
-          r.core.staff.cap += n;
+          shock.letGo(s, r, left, staff); // the let-go shock (npc/shocks.ts) by the heads that left, as its preview (headsMoved)
+          r.core.staff.cap += left;
         }
       }),
       ch('Sue', ['fight'], P([L('scrutiny', 5)], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx) => {

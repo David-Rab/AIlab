@@ -9,8 +9,10 @@
 //   assist     win rate w = Φ((F_w − F^med)/S_WIN); human speed-up 1/(M + R + (1 − w)) when > 1 (GDPval)
 //   AI labour  FTE = compute × 8766 h ÷ (H100e-hours per work-hour) ÷ 2000 h; H100e-hours per work-hour = 2·N_active ×
 //              (200k uncached input ÷ 0.35 + 40k output ÷ 0.07) ÷ 1e15 ÷ 3600 (physical: FLOP per token, utilisation)
-//   labour     L_w = [(1 − a)^(1−ρc)·(H·assist)^ρc + a^(1−ρc)·AI^ρc]^(1/ρc) (AI Futures coding CES); m_w = L_w / H multiplies
-//              every allocation of the role's teams (agents add capacity to the same allocations, MODEL-V3 §5.6)
+//   labour     optimal human/AI task split (production/ces.ts optimalLabour; LABOUR-ROUND §1). h = H·assist: AI scarce
+//              (AI ≤ a·(h + AI)): L = h + AI; else AI takes every covered task: L = [(1 − a)^(1−ρc)·h^ρc + a^(1−ρc)·AI^ρc]^(1/ρc)
+//              (AI Futures coding CES); m_w = L_w / H multiplies every allocation of the role's teams (agents add capacity
+//              to the same allocations, MODEL-V3 §5.6). λ is applied by the caller to the total, not inside the split
 //   taste      sd_AI = 3.09·(F_IDEAS − F^med_IDEAS)/Δ_bm; a team's taste E[max(T_team, F_AI)] on the AIFM distribution
 //   safety     SAF_EXP / SAF_IDEAS on the safety package through the same functions; Trusted to AI t is the share of
 //              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
@@ -18,15 +20,15 @@
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
-  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  MILESTONE_COVER, PEAK_FLOPS, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
+import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
-import { Lrel, Phi, tasteSigma } from '../production/ces';
+import { optimalLabour, Phi, tasteSigma } from '../production/ces';
 import { domainRefShift, gOfLevel, h50Of, h50Ratio, versionDomainG } from '../models/capability';
 import { measuredDomainOf } from '../models/labs';
 import { believedProd } from '../production/believed';
@@ -37,7 +39,7 @@ import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { agentSplitShare, agentVersion, monitorBudget, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
-import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
+import type { DomainId, GameStateV2, ModelVersion, ProdParams, TimelineWorld, VersionBuild } from '../types';
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired' && v.status !== 'rolledBack';
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -153,19 +155,29 @@ export function dollarsPerH100eHour(s: GameStateV2): number {
   const r = s.market.rental;
   return r > 0 ? r : (14e3 * Math.pow(0.8, decimalYear(s) - 2025.5)) / 8766;
 }
-/** AI cost per work-hour of a version ($) and the lab's best engineers' ($: Elite engineering pay over 2,000 hours). */
+/** AI cost per work-hour of a version ($) and the lab's engineers' ($: the lab's engineering pay, p.pay.eng, over 2,000 hours). */
 export function costPerWorkHour(s: GameStateV2, fpt: number): { ai: number; human: number } {
-  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (TEAM_COST_M.cap.eng * QUALITY.elite.cost * 1e6) / FTE_HOURS_PER_YEAR };
+  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (s.player.pay.eng * 1e6) / FTE_HOURS_PER_YEAR };
 }
 
 // ───────────────────────────── effective labour ─────────────────────────────
 
-/** Effective labour L_w (team-equivalents) of H human team-equivalents and AI team-equivalents at coverage a, with the
- *  assist speed-up on the human share: the AI Futures coding CES (research/13 §1.3, ρc and λ from the preset). */
-export function effLabour(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): number {
+/** The optimal human/AI task split of H human team-equivalents (with the assist speed-up on them) and AI team-equivalents
+ *  at coverage a (production/ces.ts optimalLabour; LABOUR-ROUND.md §1): L, AI's share of the tasks, and the humans' share
+ *  of the margin wH (h ÷ L when AI and humans share the covered tasks, since ∂L/∂h = 1; the CES weight when AI takes every
+ *  covered task). ρc from the preset; λ is not applied here (callers apply it once to the total). */
+export function labourSplit(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): { L: number; wH: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
   const h = Math.max(1e-12, H * assist);
-  if (a <= 1e-9) return h;
-  return Lrel({ rc: P.rc } as Pick<ProdParams, 'rc' | 'u' | 'v' | 'rho' | 'zeta' | 'lam'>, Math.min(1, a), h, Math.max(1e-12, AI));
+  if (a <= 1e-9) return { L: h, wH: 1, aiTaskShare: 0, regime: 'shared' };
+  const r = optimalLabour(P.rc, a, h, Math.max(0, AI));
+  const wH = r.regime === 'shared' ? h / r.L : (Math.pow(1 - a, 1 - P.rc) * Math.pow(h, P.rc)) / Math.pow(r.L, P.rc);
+  return { ...r, wH };
+}
+
+/** Effective labour L_w (team-equivalents) of H human team-equivalents and AI team-equivalents at coverage a, with the
+ *  assist speed-up on the human share: the optimal task split (labourSplit; ρc from the preset). */
+export function effLabour(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): number {
+  return labourSplit(P, a, H, AI, assist).L;
 }
 
 // ───────────────────────────── taste ─────────────────────────────
@@ -199,7 +211,7 @@ export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
 }
 
 /** A team's human taste (research input per idea vs a Strong team without AI): z SDs above the lab's average on the AIFM
- *  lognormal (mean 1, 99.9th pct = m2b × median), × the star factor `human`. */
+ *  lognormal (mean 1, 99.9th pct = m2b × median), × the lab's human taste mean `human` (humanTasteMean). */
 export const humanTaste = (z: number, m2b: number, human: number): number => Math.exp(tasteSigma(m2b) * z) * human;
 
 /** The AI's taste: the lognormal mean at the AI's SD under the world's ceiling (ceilingSD), exp(−σ²/2 + sd·σ). */
@@ -217,10 +229,21 @@ export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, 
   if (sAI <= 0) return Th;
   return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
-/** A team's human taste position (SDs) from its quality. */
-export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];
-/** Lab-wide human taste factor from star hires (data/v2/teams.ts starTasteOf). */
-export const starTaste = (s: GameStateV2) => starTasteOf(s.player.stars ?? 0);
+/** The lab's human research taste T_h (LABOUR-ROUND §6.2; the AIFM's aggregate is the mean over the company's researchers,
+ *  taste_distribution.py:583): T_h = (S × b + Σ T_star) ÷ (S + n_star). S = the capabilities scientist heads, b = the teams'
+ *  base taste s.labour.teamTaste, the sum runs over the stars the lab employs; a star adds no labour, only a taste to the
+ *  mean. Translation rule (BAL-TASKS): the AIFM's company mean taste of 1 already includes its own top researchers, so b is
+ *  set once at the start so that T_h(start) = 1 exactly (init.ts initialLabour: b = (S0 + n0 − Σ T_star,0) ÷ S0, fixed for
+ *  the game). Hiring a star then lifts T_h above 1 and losing one lowers it, a star's marginal effect about
+ *  (T_star − T_h) ÷ (S + n). It is the `human` factor of humanTaste / teamTaste (capability research only; unlock and
+ *  safety projects do not read it). */
+export function humanTasteMean(s: GameStateV2): number {
+  let S = 0;
+  for (const t of s.player.teams) if (t.role === 'sci' && t.dept === 'cap') S += t.heads;
+  let sum = 0, n = 0;
+  for (const x of s.labour.stars) if (x.employer === 'player') { sum += x.taste; n++; }
+  return S + n > 0 ? (S * s.labour.teamTaste + sum) / (S + n) : 1;
+}
 
 // ───────────────────────────── the lab's work context (one day) ─────────────────────────────
 
@@ -234,7 +257,7 @@ export interface LabourOf {
    *  does on its own, A = t × coverage. */
   t: number;
   A: number;
-  /** Human team-equivalents in the role (heads ÷ team size × quality) and AI team-equivalents (FTE ÷ team size). */
+  /** Human team-equivalents in the role (heads ÷ team size) and AI team-equivalents (FTE ÷ team size). */
   H: number;
   AI: number;
   aiFte: number;
@@ -320,13 +343,12 @@ export function humansOf(s: GameStateV2, slot: LabourSlot): number {
   let h = 0;
   for (const t0 of s.player.teams) {
     const t = onDuty(s, t0);
-    const q = QUALITY[t.quality].out;
-    if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads) * q;
-    else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads) * q;
-    else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads) * q;
-    else if (slot === 'SAF_EXP' && t.role === 're' && t.dept === 'saf') h += (t.heads / WORK_TYPES.SAF_EXP.heads) * q;
+    if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads);
+    else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads);
+    else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads);
+    else if (slot === 'SAF_EXP' && t.role === 're' && t.dept === 'saf') h += (t.heads / WORK_TYPES.SAF_EXP.heads);
     // Safety scientists on research-line projects (the work the safety agents can be handed).
-    else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads) * q;
+    else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads);
   }
   return h;
 }
@@ -346,9 +368,7 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
   const H = humansOf(s, slot) * (scale.h ?? 1);
   const AI = aiFte / def.heads;
   const P = s.hidden.timeline.prod;
-  const L = effLabour(P, fit.a, H, AI, fit.assist);
-  const hh = Math.max(1e-12, H * fit.assist);
-  const wH = fit.a >= 1 - 1e-12 ? 0 : fit.a <= 1e-9 ? 1 : (Math.pow(1 - fit.a, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
+  const { L, wH } = labourSplit(P, fit.a, H, AI, fit.assist);
   return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, t: 1, A: fit.a, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH, sAI: aiFte > 0 ? aiIdeasShare(H, fit.assist, L) : 0 };
 }
 
@@ -357,15 +377,13 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
  *  work not handed is done by humans unassisted. So the AI share is A = t·a and the human share's speed-up is the
  *  time-weighted (Amdahl) mean: (1 − A) ÷ ((1 − t) + t·(1 − a)/assist). At t = 1 this is effLabour exactly (the
  *  capabilities slots' function); at t = 0 the humans alone. Returns L, m = L/H and the humans' share of the margin wH. */
-export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H: number, AI: number, assist: number): { L: number; m: number; wH: number; A: number; assist: number } {
+export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H: number, AI: number, assist: number): { L: number; m: number; wH: number; A: number; assist: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
   const tt = Math.max(0, Math.min(1, t));
-  if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1 };
+  if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1, aiTaskShare: 0, regime: 'shared' };
   const A = tt * Math.max(0, Math.min(1, a));
   const as = tt >= 1 ? assist : A >= 1 - 1e-12 ? assist : (1 - A) / (1 - tt + (tt * (1 - Math.min(1, a))) / assist);
-  const L = effLabour(P, A, H, AI, as);
-  const hh = Math.max(1e-12, H * as);
-  const wH = A >= 1 - 1e-12 ? 0 : A <= 1e-9 ? 1 : (Math.pow(1 - A, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
-  return { L, m: L / H, wH, A, assist: as };
+  const { L, wH, aiTaskShare, regime } = labourSplit(P, A, H, AI, as);
+  return { L, m: L / H, wH, A, assist: as, aiTaskShare, regime };
 }
 
 /** UB-2: a labour slot as the lab measures and believes it: the work fit read from the AI staff model's MEASURED skills
@@ -373,10 +391,10 @@ export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H:
  *  effective compute, with the same owned-tool effects (the slot's fit minus the model's own, a fact of the tools the lab
  *  built); coverage, win rate and assist from that fit on the public reference points; work done from the BELIEVED
  *  production parameters (production/believed.ts). Humans, AI team-equivalents, copies and compute are facts. */
-export interface MeasuredLabour { fit: WorkFit; L: number; m: number; wH: number; A: number; measured: boolean }
+export interface MeasuredLabour { fit: WorkFit; L: number; m: number; wH: number; A: number; measured: boolean; aiTaskShare: number; regime: 'shared' | 'boundary' }
 export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   const v = sl.versionId ? s.player.models.versions.find((x) => x.id === sl.versionId) : undefined;
-  if (!v) return { fit: sl.fit, L: sl.H, m: sl.H > 1e-12 ? 1 : 0, wH: 1, A: 0, measured: false }; // no model: no fit to read
+  if (!v) return { fit: sl.fit, L: sl.H, m: sl.H > 1e-12 ? 1 : 0, wH: 1, A: 0, measured: false, aiTaskShare: 0, regime: 'shared' }; // no model: no fit to read
   const w = s.hidden.timeline; // public reference points (G_SC, Δ_bm, level knots) only
   const gMeas = (d: DomainId) => gOfLevel(w, measuredDomainOf(s, v, d)) + domainRefShift(w, d);
   const ws = WORK_TYPES[sl.wt].w as Record<DomainId, number>;
@@ -387,7 +405,39 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   const win = winRate(w, sl.wt, fit);
   const f: WorkFit = { fit, best: sl.fit.best, med: sl.fit.med, h50, a: coverage(w, sl.wt, fit, h50), win, assist: assistOf(win) };
   const r = handedLabour(believedProd(s).mid, f.a, sl.t, sl.H, sl.AI, f.assist);
-  return { fit: f, L: r.L, m: r.m, wH: r.wH, A: r.A, measured: v.evals.measuredL !== undefined };
+  return { fit: f, L: r.L, m: r.m, wH: r.wH, A: r.A, measured: v.evals.measuredL !== undefined, aiTaskShare: r.aiTaskShare, regime: r.regime };
+}
+
+/** LABOUR-ROUND.md §2.1: the margins of one labour job, on the BELIEVED labour (measuredLabour: the same inputs as Best
+ *  moves, never the true hidden fit). The two steps are definitions, not tuned numbers: +10% AI compute (the AI
+ *  team-equivalents scale with the agents' compute, as labourOf's scale.k) and +1 team (one real team of the job's role,
+ *  TEAM_SIZE: H counts heads ÷ the job's reference unit WORK_TYPES[wt].heads, so one team is TEAM_SIZE ÷ that unit of H:
+ *  100 engineers / 50 research engineers / 20 scientists, the same sizes in safety; L15). */
+export const MARGIN_COMPUTE = 1.1;
+export const marginTeamH = (slot: LabourSlot) => TEAM_SIZE[WORK_TYPES[slot].who as 'eng' | 're' | 'sci'] / WORK_TYPES[slot].heads;
+export interface LabourMargins {
+  /** What AI can do alone on this job: its coverage a (safety: t × a). */
+  canDo: number;
+  /** What it does now: min(A, ai ÷ (h + ai)), the AI share of the tasks in the optimal split. */
+  doingNow: number;
+  /** 'ai': AI staff are the bottleneck (AI and humans share the covered tasks); 'people': AI takes every task it can and
+   *  the humans are the bottleneck. */
+  bottleneck: 'ai' | 'people';
+  /** Work done gained by +10% AI compute and by +1 team, as L(new) ÷ L − 1 (0 when the job has no humans, L = 0). */
+  plusCompute: number;
+  plusTeam: number;
+}
+export function labourMargins(s: GameStateV2, slot: LabourSlot): LabourMargins {
+  const sl = slot === 'SAF_EXP' ? safetyLabour(s).exp : slot === 'SAF_IDEAS' ? safetyLabour(s).ideas : workContext(s).slots[slot];
+  const ml = measuredLabour(s, sl);
+  const rel = (x: LabourOf) => (ml.L > 1e-12 ? measuredLabour(s, x).L / ml.L - 1 : 0);
+  return {
+    canDo: ml.A,
+    doingNow: Math.min(ml.A, ml.aiTaskShare),
+    bottleneck: ml.regime === 'shared' ? 'ai' : 'people',
+    plusCompute: rel({ ...sl, AI: sl.AI * MARGIN_COMPUTE }),
+    plusTeam: rel({ ...sl, H: sl.H + marginTeamH(slot) }),
+  };
 }
 
 /** UB-2: the AI taste inputs as the lab believes them: AI research taste (SDs above the median scientist) from the

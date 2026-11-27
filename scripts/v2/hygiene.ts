@@ -265,7 +265,7 @@ check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 
 // ITS OWN stream inside the caller's system).
 const STREAM_OWNER: Record<StreamId, WorkstreamId> = {
   world: 'WS1', prod: 'WS1', runs: 'WS1', safety: 'WS2', incidents: 'WS2', market: 'WS3', finance: 'WS3',
-  security: 'WS4', actors: 'WS4', rivals: 'WS4', china: 'WS4', events: 'WS4', endings: 'WS4', worldfx: 'WS5', company: 'WS1',
+  security: 'WS4', actors: 'WS4', rivals: 'WS4', china: 'WS4', events: 'WS4', endings: 'WS4', worldfx: 'WS5', company: 'WS1', labour: 'WS1',
 };
 /** [system id, stream, why] — a hook owned by the stream's workstream, called from another workstream's system. */
 const CROSS_HOOKS: [string, StreamId, string][] = [

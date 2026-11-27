@@ -3,8 +3,8 @@
 // A lease changes timing, not cost: the lessor pays the capex and recovers it with its return, priced by your rating,
 // as funded × CRF(r, n) a year for n years. It adds a long fixed obligation (in the rating's commitments term) and a
 // residual-value guarantee: 50% of the unamortised balance if you walk away, a contingent liability.
-import { BUILD_Q, CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS } from '../../../data/v2/deals';
-import type { Commitment$, Day, GameStateV2, Money } from '../types';
+import { CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS, SITE_UPFRONT } from '../../../data/v2/deals';
+import type { Commitment$, Day, GameStateV2, Money, Site } from '../types';
 
 /** Capital-recovery factor: the annual payment that repays 1 over `years` at rate `r`. */
 export const crf = (r: number, years: number) => (r <= 0 ? 1 / years : (r * Math.pow(1 + r, years)) / (Math.pow(1 + r, years) - 1));
@@ -37,8 +37,11 @@ export function leaseBalance(c: Commitment$, day: Day): Money {
   return pv / Math.pow(1 + r, Math.max(0, (start - day) / 365));
 }
 
+/** What a leased site's lessor has funded in buildings whose lease has not started (all of it before the first goes live). */
+export const unbookedFunded = (x: Site): Money => (x.ws3.lease ? x.ws3.lease.byBuilding.slice(x.ws3.lease.booked).reduce((a, b) => a + b, 0) : 0);
+
 /** Residual-value guarantees: 50% of each financing lease's unamortised balance [D], plus the same on the funded part of
- *  leased sites still being built. Contingent: owed only if you walk away. */
+ *  leased buildings still being built. Contingent: owed only if you walk away. */
 export function contingentLiabilities(s: GameStateV2): { total: Money; items: { name: string; amount: Money }[] } {
   // A lease is one ledger entry, or several after a renegotiation split it (FIN4r): grouped by contract.
   const by = new Map<string, Money>();
@@ -47,41 +50,52 @@ export function contingentLiabilities(s: GameStateV2): { total: Money; items: { 
     const key = c.contract ?? c.id;
     by.set(key, (by.get(key) ?? 0) + CAPEX_LEASE.rvgShare * leaseBalance(c, s.time.day));
   }
+  for (const x of s.player.sites) if (x.stage !== 'blocked' && unbookedFunded(x) > 0) by.set(siteLeaseId(x.id), (by.get(siteLeaseId(x.id)) ?? 0) + CAPEX_LEASE.rvgShare * unbookedFunded(x));
   const items: { name: string; amount: Money }[] = [...by.entries()].map(([key, amount]) => {
     const site = s.player.sites.find((x) => siteLeaseId(x.id) === key);
     return { name: site ? site.name : `Chip lease ${key.replace(/^L-fin-/, '').replace(/-\d+$/, '')}`, amount };
   });
-  for (const x of s.player.sites) if (x.stage !== 'live' && x.stage !== 'blocked' && x.ws3.lease) items.push({ name: x.name, amount: CAPEX_LEASE.rvgShare * x.ws3.lease.funded });
   return { total: items.reduce((a, i) => a + i.amount, 0), items };
 }
 
-/** Residual-value guarantee of one site's lease (built: from its ledger entries; building: on the amount funded so far). */
+/** Residual-value guarantee of one site's lease (buildings live: from their ledger entries; the rest: on the amount funded so far). */
 export function siteRVG(s: GameStateV2, siteId: string): Money {
   const x = s.player.sites.find((y) => y.id === siteId);
   if (!x?.ws3.lease) return 0;
   const cs = s.player.finance.ledger.filter((l) => (l.contract ?? l.id) === siteLeaseId(siteId) && l.endDay > s.time.day);
-  return CAPEX_LEASE.rvgShare * (cs.length ? cs.reduce((a, c) => a + leaseBalance(c, s.time.day), 0) : x.ws3.lease.funded);
+  return CAPEX_LEASE.rvgShare * (cs.reduce((a, c) => a + leaseBalance(c, s.time.day), 0) + unbookedFunded(x));
 }
 export const siteLeaseId = (siteId: string) => `L-fin-${siteId}`;
 
 /** `guarantor`: the partner guaranteeing a lease below rating B (FIN4b). */
 export interface PayOption { id: 'cash' | 'lease' | 'loan'; label: string; total: Money; now: Money; perYear: Money; years: number; rate?: number; blocked?: string; note: string; guarantor?: string }
 
-/** A site's expected construction schedule (compute/sites.ts `siteSchedule`): quarters to go-live, building quarters,
- *  and whether the first building payment falls in the quarter building starts (no separate power stage) or the next. */
-export interface SiteSchedule { etaQ: number; buildQ: number; firstNow: boolean }
+/** A site's expected construction schedule (compute/sites.ts `siteSchedule`): quarters to go-live (the first
+ *  building's), construction quarters of one building, and whether its first payment falls in the quarter building
+ *  starts (no separate power stage) or the next. A campus also lists every building's go-live quarter in `etaQs`
+ *  (absent: the one building at etaQ); each building has the same construction time and an equal share of the capex. */
+export interface SiteSchedule { etaQ: number; buildQ: number; firstNow: boolean; etaQs?: number[] }
+/** Go-live quarters of a schedule's buildings. */
+export const scheduleEtas = (sch: SiteSchedule): number[] => sch.etaQs ?? [sch.etaQ];
 
-/** Construction interest a site lease capitalises (FIN4r, M3): funded at go-live ÷ the lessor's share of capex. The
- *  lessor's money accrues its rate quarterly to go-live (sitesQ): the upfront part paid at the start accrues over the
- *  whole ETA; each building payment (equal parts, one a quarter) only from when it is paid. */
-export function constructionGrowth(r: number, sch: SiteSchedule): number {
+/** Construction interest one building's lease capitalises (FIN4r, M3): funded at its go-live ÷ the lessor's share of
+ *  its capex. The lessor's money accrues its rate quarterly to go-live (sitesQ): the upfront part paid at the start
+ *  accrues over the whole ETA; each building payment (equal parts, one a quarter) only from when it is paid. */
+export function buildingGrowth(r: number, etaQ: number, sch: SiteSchedule): number {
   const g = (q: number) => Math.pow(1 + r, q / 4);
   const k0 = sch.firstNow ? 0 : 1;
   const n = sch.buildQ - k0;
   let build = 0;
   if (n <= 0) build = 1;
   else for (let k = k0; k < sch.buildQ; k++) build += g(sch.buildQ - k) / n;
-  return BUILD_Q.upfront * g(sch.etaQ) + (1 - BUILD_Q.upfront) * build;
+  return SITE_UPFRONT * g(etaQ) + (1 - SITE_UPFRONT) * build;
+}
+
+/** Construction interest a site lease capitalises: the mean over its buildings (each its own share of the capex, each
+ *  leased at its own go-live). */
+export function constructionGrowth(r: number, sch: SiteSchedule): number {
+  const etas = scheduleEtas(sch);
+  return etas.reduce((a, e) => a + buildingGrowth(r, e, sch), 0) / etas.length;
 }
 
 /**

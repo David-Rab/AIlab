@@ -23,16 +23,22 @@ export interface WorkTypeDef {
   v: number;
   /** Domain whose effective compute sets the time horizon (CODE for software, AGENCY otherwise) [V3.2]. */
   horizon: DomainId;
-  /** Heads that make one team-equivalent of this work (the role's team size; scientists' capacity unit). */
+  /** Heads that make one team-equivalent of this work (the role's reference unit, not the real team size since L15; scientists' capacity unit, CAPACITY_UNIT). */
   heads: number;
 }
 
 /** The work types [R20 E, R19 §1.1, MODEL-V3 §6.1; H and weights D]. */
+/** L15: the reference unit of each role's labour, in people. One "team-equivalent" of the labour model (build capacity in
+ *  team-weeks, research-engineer team-equivalents, RE_LABOUR_UNIT, the H of each job) is this many heads. They are the
+ *  former team sizes (150 / 100), kept as units of measure when the real teams changed (data/v2/teams.ts TEAM_SIZE
+ *  100 / 50 / 20), so the same people mean the same labour. */
+export const ENG_UNIT_HEADS = 150;
+export const RE_UNIT_HEADS = 100;
 export const WORK_TYPES: Record<WorkTypeId, WorkTypeDef> = {
-  SWE: { id: 'SWE', name: 'Software engineering', who: 'eng', w: { CODE: 0.7, AGENCY: 0.3 }, H: 2, v: 0.9, horizon: 'CODE', heads: 150 },
-  EXP: { id: 'EXP', name: 'Experiments & runs', who: 're', w: { CODE: 0.4, RSCH: 0.4, AGENCY: 0.2 }, H: 8, v: 0.7, horizon: 'AGENCY', heads: 100 },
+  SWE: { id: 'SWE', name: 'Software engineering', who: 'eng', w: { CODE: 0.7, AGENCY: 0.3 }, H: 2, v: 0.9, horizon: 'CODE', heads: ENG_UNIT_HEADS },
+  EXP: { id: 'EXP', name: 'Experiments & runs', who: 're', w: { CODE: 0.4, RSCH: 0.4, AGENCY: 0.2 }, H: 8, v: 0.7, horizon: 'AGENCY', heads: RE_UNIT_HEADS },
   IDEAS: { id: 'IDEAS', name: 'Research ideas & taste', who: 'sci', w: { RSCH: 0.7, REASON: 0.3 }, H: 40, v: 0.3, horizon: 'AGENCY', heads: 40 },
-  SAF_EXP: { id: 'SAF_EXP', name: 'Safety experiments', who: 're', w: { CODE: 0.5, RSCH: 0.5 }, H: 8, v: 0.5, horizon: 'AGENCY', heads: 100 },
+  SAF_EXP: { id: 'SAF_EXP', name: 'Safety experiments', who: 're', w: { CODE: 0.5, RSCH: 0.5 }, H: 8, v: 0.5, horizon: 'AGENCY', heads: RE_UNIT_HEADS },
   SAF_IDEAS: { id: 'SAF_IDEAS', name: 'Safety research ideas', who: 'sci', w: { RSCH: 0.7, REASON: 0.3 }, H: 80, v: 0.2, horizon: 'AGENCY', heads: 40 },
   OTHER: { id: 'OTHER', name: 'Other expert work', who: 'world', w: { SOCIAL: 0.35, BIO: 0.25, CYBER: 0.2, MEDIA: 0.2 }, H: 8, v: 0.4, horizon: 'AGENCY', heads: 1 },
 };
@@ -186,13 +192,11 @@ export const COPY_TOKENS_PER_S = 60;
 export const SPEED_CAP = 50;
 /** Hours a human FTE works per year. */
 export const FTE_HOURS_PER_YEAR = 2000;
-/** Human taste of a team by quality, in SDs of the lab's taste distribution (Strong = the lab's average) [D]. */
-export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 
 // ───────────────────────────── research in physical units (V3.4) ─────────────────────────────
 
 /** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): a fixed unit of measure, set
- *  equal to one full project's allocation (data/v2/research.ts RE_MAX_PER_PROJECT) [D]. */
+ *  equal to one full project's base need (data/v2/research.ts RE_FULL_PROJECT) [D]. */
 export const RE_LABOUR_UNIT = 2;
 /** The leader lab's day-0 experiment share of its compute: SHARE_REF's 2025.5 row (35% since the split fix: Epoch's other
  *  R&D ~66% of OpenAI's 2024 spend, the AIFM's experiment_H100e 56% with synthetic data; it was AI 2027's narrow 5%) [R:

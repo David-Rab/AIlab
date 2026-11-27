@@ -3,12 +3,10 @@
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_PERIOD_DAYS, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { RE_OPS } from '../../../data/v2/research';
-import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, SPLIT_LABEL, presetSplit, setSplit, type SplitPreset } from '../departments/split';
-import { STAR_HIRE } from '../../../data/v2/teams';
-import { hireStar } from '../departments/teams';
-import { starGain, TEAM_ACTIONS } from '../departments/teamActions';
+import { TEAM_ACTIONS } from '../departments/teamActions';
+import { STAR_ACTIONS } from '../departments/stars';
 import { BUILD_ACTIONS } from '../departments/build';
 import { SUITE_ACTIONS } from './suites';
 import { DATA_ACTIONS } from '../production/dataActions';
@@ -31,12 +29,8 @@ import { poolsOf } from '../compute/power';
 import { RESPONSE_SCALES, responseCurves } from '../production/readout';
 import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
-import { bookCash } from '../finance/ledger';
 import { adopted } from './paradigms';
 import { methodLines, methodsFromParam } from '../safety/methods';
-
-/** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
-const starCost = (s: GameStateV2) => STAR_HIRE.cost * startOf(s).mods.starCost;
 
 type Params = Record<string, number | string | boolean>;
 type Preview = ReturnType<ActionDef['preview']>;
@@ -435,20 +429,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
   ...TEAM_ACTIONS,
   ...BUILD_ACTIONS,
   ...AGENT_ACTIONS,
-  {
-    id: 'starHire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Star hire',
-    available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
-    preview: (s) => ({
-      costs: [{ currency: 'cash', amount: starCost(s) }],
-      gains: [starGain(s)],
-      exposure: [],
-    }),
-    apply: (s, ctx) => {
-      hireStar(s);
-      bookCash(s, ctx, -starCost(s), 'staff', 'star hire');
-      ctx.log('company', 'A star researcher joins.', 1);
-    },
-  },
+  ...STAR_ACTIONS,
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */

@@ -182,3 +182,44 @@ Only if takeoff still runs short after M3: the untested mechanism suspects (the 
 - Checks: tsc and lints clean; the forced replay of M3 seed 2027 tl-central is identical (no change for tl-* worlds); the UI test plays setup → game → end → new game.
 - Tests: test:quick has 97 failing checks (65 already failing on bal before the change; about +32 are expected values written for the old ai2027 world, mainly finance, safety ideas/research, worktypes, products, suites, rivals). UI: 20 fail (16 before); the 5 new ones are being classified (`.scratch/UI-NEW-FAILS.md`).
 - Next: the designer playtests master; the lead brings the deferred-mechanisms list (incl. the AI-labour takeoff from M3 and item 8, the task split).
+
+## After merge: point-1 checks (2026-11-27)
+- `.scratch/LABOUR-MULT-CHECK.md`: the game's AI labour multiplier is at or BELOW the AIFM's at equal effective compute (0.4–1.0×); the AIFM uses an optimal split (`coding_labor_optimal_ces`), which supports deferred item 8.
+- `.scratch/RATE-DECOMP.md`: the 2027–28 jump is **P24 (AI-designed successor) entering with a fresh pool** (n0 ≈ 1.85; no LINE_START_INPUT entry, by design "research just beginning"); ~96% of the jump in the central check game; the six start lines alone are flat like the draw (0.41 vs 0.34 OOM/yr). mIdeas contributes ~0 (the idea pool is already full). P24 has no AIFM counterpart: AI-driven research there acts only through the labour multiplier and taste, so P24 double-counts. Decision for the designer.
+
+## Labour round: designer decisions (2026-11-27)
+- **Using labour: the optimal task split is APPROVED** (item 8): AI and humans share covered tasks while AI is scarce (L = h + ai), humans move to uncovered tasks once AI could more than fill them (today's CES), one rule for all slots (replaces the build max(human, L) stopgap). **UI must show clearly:** what AI *can* cover, what it is doing now, and what more compute and more human labour would add.
+- **Hiring market, designer's answers:** (1) player, rivals and China draw from the pools in principle; for now a *very* simplified placeholder for rivals/China (the full version belongs to the rival session); (2) wage repricing is gradual; (3) quality tiers: the designer questions whether they add gameplay (lead's answer pending); (4) automation feeds the market only through labs hiring less, no extra rule; (5) premium pay offered; (6) start state sourced; (7) forced runs hire through the market, retiring the harness exception.
+- The designer wants the other deferred labour issues folded into this round (incl. "how research engineers do experiment work"): inventory in `.scratch/LABOUR-INVENTORY.md` (running).
+- Open: P24 fresh-pool decision (options A/B/C; lead recommends A).
+- **P24: option A approved** (start pool from the pretraining research stock like the other lines; no fresh-pool lump).
+- **Quality tiers removed for ALL kinds, scientists included.** New 4th kind: the **star**, a single person who only adds research taste. Explicit, tangible, discrete, scarce and expensive (replaces today's star hire +0.05 τ_h).
+
+## Labour round: APPROVED (designer, 2026-11-27): design/bal/LABOUR-ROUND.md
+All of C1–C7 and every open-question recommendation are approved (Q3: stars at the AIFM size, named, lab-wide; Q6: L.latent gets the P24 rule).
+| Task | Status | Branch / worktree |
+|---|---|---|
+| L10 sourcing | running | bal (docs only) |
+| L1 split rule | running | lab-l1 / ../AI27-l1 |
+| L4 P24 + L.latent pools | running | lab-l4 / ../AI27-l4 |
+| L2, L3, L5–L9, L11–L19, CP, M4 | todo | order per LABOUR-ROUND §10 |
+- L10 sourcing done (design/bal/LABOUR-SOURCES.md); designer's rulings on its judgement calls are at the end of that file (team sizes 100/50/20 with no partial teams, pay ladder, star pay $50M/yr [D], player's 7 stars, 15.6%/yr). L4 merged (P24 n0 ≈ 19, L.latent ≈ 20).
+- Status 2026-11-27 (later): L1, L2, L4, L10 merged into bal. Running: L3 (lab-l3 in ../AI27-l1), L5 (lab-l5, ../AI27-l5, Opus (c)), L8 (lab-l8, ../AI27-l8). Next: L6, L7 after L5; L9 after L8; L11 after L8 (team sizes 100/50/20 and the pay ladder go into L11/L15).
+- Status: L3, L5, L6, L8, L11 merged. Running: L7 (lab-l7, ../AI27-l5), L9 (lab-l9, ../AI27-l1), L12 (lab-l12, ../AI27-l8, Opus (c)). Note from L11: star taste uses each world's drawn m2b (per-timeline median ≈ 4, p90 ≈ 12; seed 1 drew 22), so a star's effect varies by world: about +1% idea quality at the median m2b, up to ~6% in high-m2b worlds. Source-faithful; report to the designer.
+- L12 merged (market weekly system; payroll $1.75B → $2.18B/yr on day 1 from the pay ladder). L17 (stars) built; merging needs conflict work (agent on lab-l17).
+- **Lead's translation fix (L17):** the start lab's mean human taste equals the AIFM's 1. In the AIFM the company's mean of 1 already includes its own top researchers, and the player starts with ~7 stars among ~320 scientists, so without a fix T_h at start was ≈1.5 in high-m2b worlds. Rule: a teams' base taste b is set once at start so that T_h(start) = 1; afterwards T_h = (S·b + ΣT_star)/(S + n). Stars hired or lost move it from there.
+- Coordination: before the CP (test:quick/test:ui) and M4 (36-game balrun), message session ai27-94 (data-centre, branch dc), which is running its own full checkpoint, so heavy runs don't overlap.
+- Status: L13/L14, L15, L17 (with the start-taste fix) merged into bal; day-1 payroll $2.31B/yr incl. 7 stars. Running: L16 (lab-l16, ../AI27-l8), L19 (lab-l19, ../AI27-l1). Then L18 (after L16), SCHEMA_REV bump + fixture regen, CP, M4 (coordinate with ai27-94).
+- **Designer (2026-11-27): WAIT before starting the CP tests** (test:quick / test:ui) and M4, until the designer gives the go.
+- All build tasks L1–L19 merged into bal, plus CP prep (SCHEMA_REV 113, MIN 113, fixtures regenerated). L19 smoke (seed 2027 central): the AIFM staff path is reachable through the market (within 2–4%, premium ≤ +50%, no miss); wages ×2 by 2028.
+- **Open design issue (for the designer): queued teams can stall short of full.** Hires = c·V^0.65 fall as open seats V shrink, leavers keep re-opening vacancies, and vacancies are filled before the queue, so near the target a queued team sits ~6–10 seats short of full forever (`fillWeeks` correctly says "never"). Options: (A) a team arrives at ~90% full and hires are split between vacancies and the queue in proportion to their seats (lead's recommendation); (B) the queue fills before vacancies (bad: while growing, existing teams decay at 15.6%/yr); (C) teams start working as they fill (partial teams).
+- Tests still on hold until the designer's go.
+- **Designer: keep it simple → option C chosen.** No hiring queue: a new team appears at once with empty seats and works with whoever is in it (task on lab-noqueue, SCHEMA_REV 114).
+- **Superseded by the designer (2026-11-27): teams are whole chunks.** Hires build toward the next full team; no vacancies, no queue, no player leavers. Morale keeps only its effect on hiring speed. Poaching = with a premium, a share 1 − (1+π)^−ε of your hires come from rivals (who shrink). Staff-moving events move whole teams. Task on lab-chunks (SCHEMA_REV 114). The sourced 15.6%/yr separation is no longer used for the player.
+- Master moved (2026-11-27): the data-centre work (dc, 47ee6fc6) is on master; SCHEMA_REV 113 there; it moves calibration (design/dc/CALIBRATION-NOTE.md). **Merge master into bal after lab-chunks lands and BEFORE the CP/M4**, so M4 measures master + labour; renumber our SCHEMA_REV above master's.
+
+## Labour round merged to master (2026-11-27): master = 6f1448b6
+- Contents: L1–L19, teams as whole chunks (no vacancies/queue/leavers), master's data-centre work merged in, SCHEMA_REV 115.
+- Regressions found at CP and fixed: eval suites unstaffed and investigations blocked (cause: start safety RE 100 → 50 with REVIEW_STAFF set for 100 → REVIEW_STAFF 5 → 2.5 [D, lead's change, designer to confirm]; needs claim by order via needRoom); the successor AI-share floor (labourSplit min 1e-12 → 0).
+- CP results: UI 713 pass / 17 fail (20 before the round); quick-test failures otherwise expected-value shifts. Remaining vs master: none new in footholds/successor/safety.
+- Open for the designer: FOOTHOLD.removal staff sizes 10/5/10/5 (src/data/v2/danger.ts:239) were set for 100-head teams; a 10-head removal can't be staffed at day 400 with the default need order. M4 was stopped (0.1 games/min under load); rerun alone later.

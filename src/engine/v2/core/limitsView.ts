@@ -1,14 +1,13 @@
 // Read-only views of the limits the player can hit (STRUCTURE R11, data/v2/limits.ts): the live reading of each cap,
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
 import { RESTRICT, controlOn, isRestricted, productUsageMult, restrictMult } from '../safety/safeguards';
-import { SITE_PATHS } from '../../../data/v2/deals';
+import { SITE_MIN_MW, SOURCES, type SiteSource } from '../../../data/v2/deals';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import { wslFloor } from '../security/security';
 import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
-import { leaseAvailableGW } from '../compute/sites';
 import { revenueReadout, servingPool } from '../worldfx/revenue';
 import { kycDemandFactor } from '../models/deployments';
 import { chatToolAppeal, productTools, toolGap } from '../worldfx/serving';
@@ -91,9 +90,9 @@ export function spotRentalView(s: GameStateV2, want: number): { cap: number; use
   return { cap, used, left, get: Math.min(want, left) };
 }
 
-/** Site size range for a power source and the lease pool left (LIMITS site.mw). */
-export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { min: number; max: number; leaseGW?: number } {
-  return { min: 50, max: SITE_PATHS[path].maxMW, ...(path === 'lease' ? { leaseGW: leaseAvailableGW(s) } : {}) };
+/** Site size range for a power source (LIMITS site.mw): 100 MW up to the source's largest site. */
+export function siteSizeView(_s: GameStateV2, path: SiteSource): { min: number; max: number } {
+  return { min: SITE_MIN_MW, max: SOURCES[path].maxMW };
 }
 
 /** A product's demand modifiers (LIMITS product.demandMods): each factor on its demand. RD-B11 (B42) / RD-P07: its tools

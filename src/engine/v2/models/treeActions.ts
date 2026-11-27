@@ -6,7 +6,7 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
 import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, SafReNeed, StackKey, TraitId } from '../types';
-import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
+import { DEFAULT_TEAMS_WANTED, DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
 import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
   assignCapNow, assignTeam, dequeueNode, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
@@ -256,7 +256,7 @@ export const TREE_ACTIONS: ActionDef[] = [
         if (!wantIsAuto(s, id)) r.wantAuto.push(id);
       } else {
         r.wantAuto = r.wantAuto.filter((x) => x !== id);
-        r.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', 1))));
+        r.want[id] = Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(num(p, 'n', DEFAULT_TEAMS_WANTED))));
       }
       assignCapNow(s);
     },

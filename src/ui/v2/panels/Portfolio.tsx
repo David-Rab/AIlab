@@ -14,7 +14,7 @@ import {
 import type { CapProjectView, Column, GameStateV2, LineRow, ProgrammeGets, ProgrammeRate, SafetyProgramme, StageId } from '../../../engine/v2';
 import { PROJECT_BY_ID, lineNodeId, optionsOf } from '../../../data/v2/tree';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { COLUMN_LABEL, QUALITY } from '../../../data/v2/teams';
+import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { GoBtn, Ref } from '../kit';
@@ -79,7 +79,7 @@ function limitSegs(s: GameStateV2): Seg[] {
   const held = researchMods(s).frontierExp <= 0;
   const idleSci = capPriorityList(s).idleTeams.length;
   const reShort = re.needs.some((n) => n.short > 1e-6 && Number.isFinite(n.demand));
-  const sciGain = teamGain(s, { role: 'sci', dept: 'cap', quality: 'strong', specialty: 'pretraining' }).amount;
+  const sciGain = teamGain(s, { role: 'sci', dept: 'cap', specialty: 'pretraining' }).amount;
   const compute: Seg = exp <= 0 || held
     ? { k: 'compute', name: 'Compute', term: 'computeBound', icon: ICON.compute, st: 'bad', word: held ? 'Experiments held' : 'None for experiments', tip: held ? 'Frontier work is paused: capability experiments get no compute.' : 'No compute on research experiments: no capability project can test anything.' }
     : lim === 'compute-bound' ? { k: 'compute', name: 'Compute', term: 'computeBound', icon: ICON.compute, st: 'on', word: 'Limits most', tip: 'More experiment compute would speed research up the most (your estimate).' }
@@ -88,7 +88,7 @@ function limitSegs(s: GameStateV2): Seg[] {
     ? { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'bad', word: 'None', tip: 'No research-engineer teams: experiments cannot run.' }
     : lim === 'labor-bound' || lim === 'human-bound' ? { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'on', word: 'Limits most', tip: 'More research engineers (people or AI staff) would speed research up the most (your estimate).' }
     : reShort ? { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'mid', word: 'Short', tip: 'Some research-engineer needs get less than they ask; see LAB.' }
-    : re.idle >= 0.5 ? { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'off', word: 'Spare teams', tip: 'Some research-engineer teams have no experiment to run (at most two per programme).' }
+    : re.idle >= 0.5 ? { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'off', word: 'Idle', tip: 'No programme is in experiments, so the research engineers have nothing to run.' }
     : { k: 're', name: 'Research engineers', term: 'laborBound', icon: ICON.roleRE, st: 'off', word: 'Enough', tip: 'Every need gets its research engineers.' };
   const sci: Seg = nSci === 0
     ? { k: 'sci', name: 'Scientists', term: 'humanBound', icon: ICON.roleSci, st: 'bad', word: 'None', tip: 'No capability science teams: no new ideas.' }
@@ -206,7 +206,7 @@ function Effect({ v, rate }: { v: CapProjectView; rate?: ProgrammeRate }) {
 
 function capTeamsTip(v: CapProjectView) {
   return () => (
-    <TipCard title={<Term id="teamsWanted">Teams</Term>} value={`${v.teams.length} of ${v.want} wanted${v.auto ? ' (auto)' : ''}`} rows={v.teams.map((t, i) => ({ label: `${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team ${i + 1}`, value: `${QUALITY[t.quality].label}${t.match ? ' · right field' : ''}` }))}>
+    <TipCard title={<Term id="teamsWanted">Teams</Term>} value={`${v.teams.length} of ${v.want} wanted${v.auto ? ' (auto)' : ''}`} rows={v.teams.map((t, i) => ({ label: `${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team ${i + 1}`, value: t.match ? 'right field' : '' }))}>
       {v.teams.length < v.want ? 'Higher-priority programmes took the free teams. ' : ''}The game places science teams down the list; change teams wanted in the card.
     </TipCard>
   );
@@ -548,8 +548,8 @@ function CapDrawer({ s, v }: { s: GameStateV2; v: CapProjectView }) {
               <Limit id="research.maxTeams" tone={v.want >= PROJECT_MAX_TEAMS ? 'warn' : 'quiet'}>max {PROJECT_MAX_TEAMS}</Limit>
             </span>
             <span className="k"><Term id="roleRE">Research engineers</Term></span>
-            <Tip content={() => <TipCard title="Research engineers on it" value={`${F.num(v.re, 1)} teams`}>Given to programmes in testing, in priority order; at most two per programme.</TipCard>}>
-              <span><b className="num">{F.num(v.re, 1)}</b> teams {v.re <= 0 ? <span className="dim small">(none while it finds ideas)</span> : null} <Limit id="research.rePerProject" tone={v.re >= 2 - 1e-9 ? 'warn' : 'quiet'}>at most 2 per programme</Limit></span>
+            <Tip content={() => <TipCard title="Research engineers on it" value={`${F.num(v.re, 1)} teams`} rows={[{ label: 'Work done on it', value: `${F.num(v.reEff, 1)} team-equivalents` }, { label: <Term id="workDone">AI help</Term>, value: `× ${F.num(v.reEff / Math.max(1e-9, v.re), 1)}` }, { label: 'Base need', value: '2 team-equivalents' }]}>Each programme in testing first gets its base need, in priority order; the engineers left after every need speed up the running programmes, shared evenly.</TipCard>}>
+              <span><b className="num">{F.num(v.re, 1)}</b> teams {v.re <= 0 ? <span className="dim small">(none while it finds ideas)</span> : null} <span className="dim small">base need 2 of work, plus its share of the spare</span></span>
             </Tip>
             <span className="k"><Term id="expCompute">Experiment compute</Term></span>
             <span className="row-i">

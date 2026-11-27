@@ -7,7 +7,7 @@
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
 // interpretability and evals & control: safety scientists). Capabilities science teams are placed every day by the
 // priority assignment of models/research.ts (planAssignment); safety science teams by the same planner (RD-R03).
-// Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column. RD-R04: there is no rolled path; every safety
+// Capacity = Σ heads/40 × 1.5 in the team's specialty column. RD-R04: there is no rolled path; every safety
 // node has a research line (P27 is a project of line AG17).
 //  - Safety nodes (a node with an agenda; RD-R02b): the shared project stepper (models/research.ts stepProject, dept
 //    'saf'; rates in safety/lineProjects.ts lineRates): one "does it work" test that the safety scientists and the
@@ -32,12 +32,12 @@ import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetS
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, believedSciOn, sciWorkRate, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, openMidGameLines, planAssignment, believedSciOn, sciWorkRate, stepProject, takesTeams,
   type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding, nodeTestResult } from '../safety/findings';
-import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC, SAF_LINE_WEIGHT } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_TEAMS_WANTED, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC, SAF_LINE_WEIGHT } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
@@ -78,7 +78,7 @@ export function initialResearch(teams: Team[] = []): ResearchState {
     const n = node(l.id);
     if (!n || (n.needs ?? []).length) continue;
     queue.push(l.id);
-    cap.want[l.id] = Math.max(1, Math.round((l.w / wSum) * sci));
+    cap.want[l.id] = Math.max(DEFAULT_TEAMS_WANTED, Math.round((l.w / wSum) * sci));
   }
   return { queue, ...cap };
 }
@@ -397,6 +397,8 @@ function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNod
 export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   const p = s.player;
   const q = p.research.queue;
+  // LABOUR-ROUND §7: a line that opens today (P24, Recurrent architectures) stores its start pool.
+  openMidGameLines(s, (id) => nodeKnown(s, id));
   // Known or unrunnable projects leave the queue / free their teams.
   for (let i = q.length - 1; i >= 0; i--) if (nodeKnown(s, q[i]) || !node(q[i])) q.splice(i, 1);
   for (const t of p.teams) {

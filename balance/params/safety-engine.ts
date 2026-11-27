@@ -232,9 +232,9 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
   {
     id: 'sfe.REVIEW_STAFF',
     ref: { kind: 'export', module: SAFEG, symbol: 'REVIEW_STAFF' },
-    value: 5, unit: 'safety engineers per 10% of R&D work reviewed',
+    value: 2.5, unit: 'safety engineers per 10% of R&D work reviewed',
     area: 'safety', layer: 'world', kind: 'designer',
-    evidence: 'safeguards.ts:39 "Human-review staff: safety engineers per 10% of the lab\'s R&D work humans still review [D]."',
+    evidence: 'safeguards.ts:39 "Human-review staff: safety engineers per 10% of the lab\'s R&D work humans still review [D]. L15: 2.5 (was 5, set against a 100-head safety research-engineer start)"',
   },
   {
     id: 'sfe.CONTROL_TRUSTED_COST',

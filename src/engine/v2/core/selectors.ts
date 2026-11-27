@@ -40,7 +40,8 @@ export { baseLabel, namingChoice } from '../models/naming';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';
 export { teamGain } from '../departments/teamActions';
-export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
+export { aiShareByRole, buildCapacity, fillWeeks, fullTeamPayroll, keyOf, payrollOf, playerH, teamLabel, teamPayroll, teamsOfKey } from '../departments/teams';
+export { labHeads, marketWage, offerOf, openPositions, outsideHeads, weeklyHires } from '../departments/market';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
 export { AGAINST, FOLDED_METHODS, METHOD_BY_ID, METHODS, againstOptions, defaultMethods, methodPolicyOn, ownedMethods } from '../safety/methods';
 export { plannedSightLimit, sightGrid, sightLimit } from '../safety/sightLimit';
@@ -169,7 +170,7 @@ export {
   STAGES, UNLOCK_STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
   measuredDelta, otherEffectViews, reAllocView, safReAllocView, labSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
-export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MeasuredDelta, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
+export type { AdoptedView, AllocView, CapProjectView, ReNeedTotal, EffectRowView, MeasuredDelta, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
 export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';

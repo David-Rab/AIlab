@@ -7,7 +7,7 @@
 //                projects' science rate: taste does not speed the work, it would set quality, and a safety test has no
 //                candidates to grade), and
 //   experiments  X(c, ℓ) × speed ÷ (30 X_ref) per day, in the capability units (RD-R02a): c = the project's experiment FLOP per
-//                day ÷ (its agenda's computeNeed × C_UNIT_FLOP_PER_DAY), ℓ = (m_exp × engineers ÷ RE_LABOUR_UNIT)^λ, X_ref =
+//                day ÷ (its agenda's computeNeed × C_UNIT_FLOP_PER_DAY), ℓ = (k_line × effective engineers ÷ RE_LABOUR_UNIT)^λ (L6: the engineers are the pool, m_exp is in it; k_line = the line's m over the slot's), X_ref =
 //                X(1, SAF_RE_ASK^λ);
 // speed = the research modifiers every project has (departments/workfit.ts researchMods). Then the hidden works draw
 // against the agenda's true efficacy decides: works → the node's own technique or finding (findings.ts nodeTestResult;
@@ -17,8 +17,8 @@
 //
 // Research engineers (RD-A04, SR-21): one needs list in the player's order (research.safRe, set in LAB; models/research.ts
 // allocate, the capability engineers' allocator): human review, open cases, validation jobs, eval suites,
-// foothold removals, line experiments (each project in priority order asks SAF_RE_ASK labour units × its science
-// staffing); the rest is idle. safetySpend sums the filled needs' staff and compute cost.
+// foothold removals, line experiments (L6: a pool, the people it gets × the slot's m; each project's base need in priority
+// order is SAF_RE_ASK labour units × its science staffing, the surplus spread evenly over the projects); the rest is idle. safetySpend sums the filled needs' staff and compute cost.
 // Compute: the safety line after cases and eval suites (in the list's order) goes to validation and the projects in experiments by need (RD-R02a, the capability
 // rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
 // its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
@@ -26,8 +26,7 @@
 // models/research.ts sciTasteOf, on the safety model's SAF_IDEAS fit) is a readout here; no safety rate reads it.
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
-import { TEAM_SIZE } from '../../../data/v2/teams';
+import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT, RE_UNIT_HEADS } from '../../../data/v2/workTypes';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS } from '../../../data/v2/research';
 import { evalH100eAsk, evalM, evalReDemand } from '../models/evals';
@@ -49,9 +48,9 @@ import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 
-/** RD-R02a: safety research-engineer heads (× quality, the allocator's unit) in one experiment-labour unit
- *  (RE_LABOUR_UNIT team-equivalents of TEAM_SIZE.re heads; departments/capacity.ts reCapacity). */
-const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * TEAM_SIZE.re;
+/** RD-R02a: safety research-engineer heads (the allocator's unit) in one experiment-labour unit
+ *  (RE_LABOUR_UNIT team-equivalents of RE_UNIT_HEADS heads; departments/capacity.ts reCapacity). */
+const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * RE_UNIT_HEADS;
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
 
 // ───────────────────────────── state ─────────────────────────────
@@ -157,18 +156,19 @@ const openCaseShare = (s: GameStateV2) => s.player.safety.investigations.filter(
 /** The safety compute line (H100e): split.safety of the online compute (RD-A05a's flat allocation). */
 export const safetyLineH100e = (s: GameStateV2) => s.player.computeOnline * Math.max(0, s.player.split.safety);
 
-/** Today's safety research-engineer and compute allocation (SR-21: LAB's one needs list). Heads are heads × quality. */
+/** Today's safety research-engineer and compute allocation (SR-21: LAB's one needs list). Heads are heads. */
 export interface SafAlloc {
   /** Engineers not on review, cases, fixes or removals; on line experiments; on validation jobs (SR-09; valPool = their
    *  H100e of the line); idle (no need takes them); on human review (the 'review' need, SR-21: in the list). */
   free: number; exp: number; validation: number; valPool: number; idle: number; safeguards: number;
-  /** RD-A04 / SR-21: capacity (heads × quality), each need's demand and what it got (player's order). */
+  /** RD-A04 / SR-21: capacity (heads), each need's demand and what it got (player's order). */
   heads: number; demand: Record<SafReNeed, number>; got: Record<SafReNeed, number>;
   /** SR-21: each need's compute on the safety line (H100e). Cases and evals ask a fixed amount, filled in the needs
    *  list's order; validation jobs and line experiments share what is left by need (RD-B08 rule). computeIdle = the
    *  line's H100e no need uses. caseScale = the cases' compute granted ÷ asked (1 when filled). */
   compute: Record<SafReNeed, SafCompute>; line: number; computeIdle: number; caseScale: number;
-  /** Engineers and experiment FLOP per day per project in experiments. */
+  /** Engineers and experiment FLOP per day per project in experiments. `re` is EFFECTIVE heads (L6: the safety slot's m is
+   *  in it already); `exp` and `got.safExp` are the people. */
   re: Map<string, number>; flop: Map<string, number>;
   /** Pool left for validation and line experiments (H100e) and the line experiments' share of it per agenda. */
   pool: number; share: Partial<Record<AgendaId, number>>;
@@ -183,6 +183,15 @@ export function casesServed(s: GameStateV2): number {
 export function needServed(s: GameStateV2, k: SafReNeed): number {
   const a = safAllocation(s);
   return a.demand[k] > 1e-12 ? Math.min(1, a.got[k] / a.demand[k]) : 1;
+}
+/** L6: safety research engineers (heads) a need `k` would gain if its demand rose by `add` today, at its place in the
+ *  player's order: the needs list is served by priority, so a new case, removal or suite claims what the needs above it
+ *  leave (the line experiments' surplus included); no one has to be idle. */
+export function needRoom(s: GameStateV2, k: SafReNeed, add: number): number {
+  const a = safAllocation(s);
+  const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
+  const d = a.demand;
+  return Math.max(0, allocate(a.heads, order, { ...d, [k]: d[k] + Math.max(0, add) })[k] - allocate(a.heads, order, d)[k]);
 }
 /** RF-S11 (SR-21): human review's catch at the staffing it gets: HUMAN_REVIEW × the 'review' need's served share (an
  *  unstaffed review stops nothing). Staffing is the player's own quantity, so the believed readouts use it too. */
@@ -212,9 +221,12 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   }
   const heads = safetyReHeads(s);
   const ids = experimenting(s, extra);
-  // A project asks for engineers in proportion to its science staffing (a serious programme: SAF_RE_ASK labour units; at
-  // most the old Major level); the asks sum to the line experiments' demand and are served in priority order. Its
-  // compute need is the ask × its agenda's computeNeed (capability C_UNITs).
+  // L6 (LABOUR-ROUND §3.2): the line experiments' engineers are one POOL, as the capability engineers' (L5). A project's
+  // BASE need is its ask: engineers in proportion to its science staffing (a serious programme: SAF_RE_ASK labour units; at
+  // most the old Major level), in EFFECTIVE heads (x quality, AI labour included). The pool is the people the needs list
+  // gives line experiments x the safety slot's m (the needs list is in people, as every other need); the base needs are
+  // served in priority order, the last one partial, and what is left is spread evenly over the programmes in experiments.
+  // A project's compute need is the ask x its agenda's computeNeed (capability C_UNITs).
   const ask = new Map<string, number>();
   const need = new Map<string, number>();
   let askSum = 0;
@@ -231,29 +243,37 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   }
   const mSaf = evalM(s);
   // SR-21: one needs list; human review (SR-13b's pre-commit) and eval suites (the capability engineers' 'evals' need)
-  // are needs in it; eval staff are safety engineers (heads × quality = team-equivalents × TEAM_SIZE.re).
+  // are needs in it; eval staff are safety engineers (heads = team-equivalents × RE_UNIT_HEADS).
   const demand: Record<SafReNeed, number> = {
-    review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
-    removal: removalFte(s), safExp: askSum,
+    review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * RE_UNIT_HEADS,
+    removal: removalFte(s), safExp: askSum / mSaf, // people: the base needs (effective) / m_SAF_EXP
   };
   const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
   const got = allocate(heads, order, demand);
   const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.removal);
-  let left = got.safExp;
+  // L6: the people no need takes go to the line experiments (a player cap on the need still holds): the surplus.
+  const spare = Math.max(0, heads - SAF_RE_NEEDS.reduce((a, k) => a + got[k], 0));
+  if (ids.length && spare > 1e-12) {
+    const sh = order.share.safExp;
+    const lim = Math.min(order.max.safExp ?? Infinity, sh === undefined ? Infinity : sh * heads);
+    got.safExp += Math.max(0, Math.min(spare, lim - got.safExp));
+  }
+  // The pool (effective heads): base needs in priority order (the last partial), then the rest evenly over the programmes.
+  let left = got.safExp * mSaf;
   const re = new Map<string, number>();
   for (const id of ids) {
     const x = Math.min(ask.get(id) ?? 0, left);
     left -= x;
     re.set(id, x);
   }
-  let exp = 0;
-  for (const x of re.values()) exp += x;
+  if (ids.length && left > 1e-12) for (const id of ids) re.set(id, (re.get(id) ?? 0) + left / ids.length);
+  const exp = got.safExp; // people
   // SR-21 compute: the safety line's sub-uses. Cases (their chosen shares of the line) and eval suites (H100e at the
   // engineers they got) ask fixed amounts, filled in the list's order; the rest goes to validation and line experiments.
   const line = safetyLineH100e(s);
   const compute = Object.fromEntries(SAF_RE_NEEDS.map((k) => [k, { ask: 0, got: 0 }])) as Record<SafReNeed, SafCompute>;
   compute.cases.ask = line * openCaseShare(s);
-  compute.evals.ask = evalH100eAsk(s, mSaf, got.evals / TEAM_SIZE.re);
+  compute.evals.ask = evalH100eAsk(s, mSaf, got.evals / RE_UNIT_HEADS);
   let cLeft = line;
   for (const k of order.order) {
     const c = compute[k];
@@ -311,6 +331,9 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   const sci = safSciOn(s, id, truth);
   const capNow = cap ?? sci.cap;
   const m = lineLabourMult(s, ag, truth);
+  // L6: re is EFFECTIVE (the pool carries the safety slot's m). What is line-specific on top of the slot (the agenda's Auto,
+  // a sandbagging model, the AAR finding gain, the readouts' belief) is the line's multiplier over the slot's: m enters once.
+  const kLine = m.exp / evalM(s);
   const speed = researchMods(s).speed;
   const sciRate = sciWorkRate(P.lam, m.ideas, { cap: capNow / SERIOUS_CAP }, speed);
   const re = alloc.re.get(id) ?? 0;
@@ -318,7 +341,7 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   // RD-R02a: shared units. c in the agenda's need of capability C_UNITs, ℓ in RE_LABOUR_UNITs; X ÷ X_ref keeps rate 1
   // (the first result at T₁) at reference inputs (c = 1, ℓ = SAF_RE_ASK^λ).
   const c = flop / (def.computeNeed * C_UNIT_FLOP_PER_DAY);
-  const l = expLabour(P.lam, m.exp, re, HEADS_PER_LABOUR_UNIT);
+  const l = expLabour(P.lam, kLine, re, HEADS_PER_LABOUR_UNIT);
   const X = re > 0 && flop > 0 ? Xces(P, Math.max(1e-12, c), l) : 0;
   const Xref = Xces(P, 1, Math.pow(SAF_RE_ASK, P.lam));
   return { sci: sciRate, exp: (X * speed) / (30 * Xref), c, l, X, re, flop, q: sci.q, cap: capNow };

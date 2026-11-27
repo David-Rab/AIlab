@@ -39,8 +39,8 @@
 // value (auto projects first) under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
-  AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MID_GAME_LINES, PRETRAIN_START_LINES, MAX_DROPS, PACE_BATCH,
+  AUTO_RANK_W, DEFAULT_TEAMS_WANTED, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_FULL_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY, K_READ_SD, KAPPA_MAX, KAPPA_TIER, kappaMean,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -56,7 +56,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, qualityZ, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, researchMods, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -90,9 +90,18 @@ export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: 
 }
 
 /** A line's pool in this world (V3 notes, derivation 1): returns r_l = rShare × the preset's r, and the research input
- *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). */
-export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: number; n0: number } {
+ *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). A mid-game line (MID_GAME_LINES: P24,
+ *  Recurrent architectures) reads the n₀ stored in its tree state the day it opened (openMidGameLines, LABOUR-ROUND §7);
+ *  before it opens, the mean start pool of the pretraining start lines. */
+export function linePool(s: Pick<GameStateV2, 'hidden' | 'player'>, n: TreeNodeDef): { r: number; n0: number } {
   const v3 = s.hidden.timeline.v3;
+  if (MID_GAME_LINES.includes(n.id)) {
+    const r = linePoolAt(v3.r, n).r;
+    const stored = s.player.tree[n.id]?.startPool;
+    if (stored !== undefined) return { r, n0: stored };
+    const ls = PRETRAIN_START_LINES.map((id) => node(id)).filter((l): l is TreeNodeDef => !!l);
+    return { r, n0: ls.reduce((a, l) => a + linePool(s, l).n0, 0) / Math.max(1, ls.length) };
+  }
   const pl = linePoolAt(v3.r, n);
   // Item A: the start pool is stockAgeYears of the line's own start input (the AIFM's initial research stock); 0 or no
   // measured input = n₀ from the first idea's mean.
@@ -100,11 +109,36 @@ export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: n
   const rate = (LINE_START_INPUT.year1[n.id] ?? 0) / LINE_START_INPUT.yearOverStart;
   return age > 0 && rate > 0 ? { r: pl.r, n0: age * rate } : pl;
 }
-/** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01). */
+/** linePool at the world's returns `worldR` (the preset's r), stateless (RD-X01). A mid-game line's n₀ is the mean start
+ *  pool of the pretraining start lines (LABOUR-ROUND §7). */
 export function linePoolAt(worldR: number, n: TreeNodeDef): { r: number; n0: number } {
   const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
+  if (MID_GAME_LINES.includes(n.id)) {
+    const ls = PRETRAIN_START_LINES.map((id) => node(id)).filter((l): l is TreeNodeDef => !!l);
+    return { r, n0: ls.reduce((a, l) => a + freshN0(worldR, l), 0) / Math.max(1, ls.length) };
+  }
+  return { r, n0: freshN0(worldR, n) };
+}
+/** n₀ from the line's first idea's mean (a fresh pool). */
+function freshN0(worldR: number, n: TreeNodeDef): number {
+  const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
   const mu1 = Math.max(1e-9, (n.effect?.mean ?? 0) * LINE_FIT.mu);
-  return { r, n0: 1 / (Math.pow(10, mu1 / r) - 1) };
+  return 1 / (Math.pow(10, mu1 / r) - 1);
+}
+/** LABOUR-ROUND §7: the day a mid-game line opens (its prerequisites known), its n₀ is stored in its tree state: the mean over
+ *  the open pretraining start lines of (n₀_l + pool_l): n₀_l = linePool(l).n0 (the line's start pool), pool_l =
+ *  tree[l].cap.pool (the research input it gained since). Does nothing while none of the three is open. `known` = nodeKnown. */
+export function openMidGameLines(s: GameStateV2, known: (id: string) => boolean): void {
+  for (const id of MID_GAME_LINES) {
+    const n = node(id);
+    if (!n || s.player.tree[id]?.startPool !== undefined) continue;
+    if (!(n.needs ?? []).every(known)) continue;
+    const open = PRETRAIN_START_LINES.map((l) => node(l)).filter((l): l is TreeNodeDef => !!l && (l.needs ?? []).every(known));
+    if (!open.length) continue;
+    const n0 = open.reduce((a, l) => a + linePool(s, l).n0 + (s.player.tree[l.id]?.cap?.pool ?? 0), 0) / open.length;
+    const st = (s.player.tree[id] ??= { status: 'researching', progress: 0, attempts: 1 });
+    st.startPool = n0;
+  }
 }
 /** RD-X01: THE line-rate law, one function for the player's lines (prior means, the expected flow) and the rivals'
  *  recipe parts (actors/rivalModel.ts recipeRates). A line with returns r at pool state M (research input n₀ + R) gains
@@ -203,7 +237,8 @@ export interface SciTaste { cap: number; q: number; qh?: number; qa?: number; s?
 export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdAI: number; sAI: number; m2b: number; tl: number; star?: number }): SciTaste {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
-  const star = inp.star ?? starTaste(s);
+  // LABOUR-ROUND §6.2: the stars lift capability research ideas only (not unlock trials, not safety projects).
+  const star = inp.star ?? (isCapProject(n) && !isUnlockProject(n) ? humanTasteMean(s) : 1);
   const qa = aiTaste(inp.sdAI, inp.m2b, inp.tl);
   let cap = 0;
   let qw = 0;
@@ -212,8 +247,8 @@ export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdA
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
-    hw += c * humanTaste(qualityZ(t.quality), inp.m2b, star);
+    qw += c * teamTaste(0, inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
+    hw += c * humanTaste(0, inp.m2b, star);
   }
   return cap > 0 ? { cap, q: qw / cap, qh: hw / cap, qa, s: inp.sAI } : { cap, q: 1 };
 }
@@ -229,18 +264,19 @@ export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams
 }
 
 /** A project's experiment inputs as the next research day gives them: its research-engineer team-equivalents from the
- *  allocation that day runs (reAllocation; a project not yet in experiments is read at a full project's RE_MAX_PER_PROJECT,
- *  what it gets when its test starts if engineers are free), its experiment compute c (a full project's share of FLOP,
- *  which goes by need, RD-B08; yesterday's unit project), labour ℓ and CES throughput X (0 for a test with no research
+ *  allocation that day runs (reAllocation, EFFECTIVE team-equivalents; a project not yet in experiments is read at
+ *  reIfJoined: at least a full project's RE_FULL_PROJECT, what it gets when its test starts if engineers are free), its
+ *  experiment compute c (a full project's share of FLOP, which goes by need, RD-B08; yesterday's unit project), labour
+ *  ℓ = (re ÷ RE_LABOUR_UNIT)^λ (L5: m_EXP is in the pool already) and CES throughput X (0 for a test with no research
  *  engineers: it waits for them). */
-export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAllocation, 'perProject'> = reAllocation(s)): { re: number; reEval: number; cc: number; l: number; X: number } {
+export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAllocation, 'perProject' | 're' | 'total'> = reAllocation(s)): { re: number; reEval: number; cc: number; l: number; X: number } {
   const P = s.hidden.timeline.prod;
   const x = s.player.research.last?.x;
   const testing = !!s.player.tree[id]?.cap?.test;
   const re = alloc.perProject.get(id) ?? 0;
-  const reEval = re > 0 || testing ? re : RE_MAX_PER_PROJECT;
-  const cc = (x?.c ?? 0) * (RE_MAX_PER_PROJECT / RE_LABOUR_UNIT);
-  const l = expLabour(P.lam, x?.mExp ?? 1, reEval, RE_LABOUR_UNIT);
+  const reEval = re > 0 || testing ? re : reIfJoined(alloc);
+  const cc = (x?.c ?? 0) * (RE_FULL_PROJECT / RE_LABOUR_UNIT);
+  const l = expLabour(P.lam, 1, reEval, RE_LABOUR_UNIT);
   return { re, reEval, cc, l, X: cc > 0 && reEval > 0 ? Xces(P, cc, l) : 0 };
 }
 
@@ -263,7 +299,7 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
   const speed = researchMods(s).speed;
   // The project's experiment CES at its inputs (projectExpInputs' compute; labour at the believed λ), believed, scaled to observed.
   const { cc, reEval } = projectExpInputs(s, id);
-  const X = cc > 0 && reEval > 0 ? Xces(P, cc, expLabour(P.lam, x?.mExp ?? 1, reEval, RE_LABOUR_UNIT)) * observedScale(s, speed) : 0;
+  const X = cc > 0 && reEval > 0 ? Xces(P, cc, expLabour(P.lam, 1, reEval, RE_LABOUR_UNIT)) * observedScale(s, speed) : 0; // L5: reEval is effective
   if (isUnlockProject(n)) {
     // RD-R05: one test, science teams and the experiment CES on the same work.
     const left = st?.trial ? Math.max(0, st.trial.workNeed - st.trial.work) : trialWork(n) * (1 - (st ? capProgress(st) : 0));
@@ -335,7 +371,7 @@ export const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number }, s
   sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * speed) / 30 : 0;
 /** A project's experiment labour ℓ = (m_EXP × research engineers ÷ unit)^λ, the labour input of the experiment CES, for
  *  engineers `re` in the caller's units (`unit` of them make one labour unit: capability team-equivalents ÷ RE_LABOUR_UNIT;
- *  safety heads × quality ÷ HEADS_PER_LABOUR_UNIT). One function for both departments (safety/lineProjects.ts lineRates). */
+ *  safety heads ÷ HEADS_PER_LABOUR_UNIT). One function for both departments (safety/lineProjects.ts lineRates). */
 export const expLabour = (lam: number, mExp: number, re: number, unit: number) => Math.pow(Math.max(1e-12, (mExp * re) / unit), lam);
 /** An unlock project's test state, started on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
@@ -356,7 +392,7 @@ function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectSta
 /** B4: whether a project's teams wanted is "auto". */
 export const wantIsAuto = (s: GameStateV2, id: string) => !!s.player.research.wantAuto?.includes(id);
 /** Teams wanted for a project (default 1; an auto project asks for 1 in the first pass and takes spare teams after). */
-export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? 1)));
+export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? DEFAULT_TEAMS_WANTED)));
 
 /** RD-A03 (CAP-08): a one-off idea (typed effect, not a line) in its small or big test releases its science teams: new
  *  candidates only matter after a drop, so the teams go elsewhere (lines keep ideating; an unlock's test uses them). */
@@ -386,8 +422,8 @@ function tasteOf(s: GameStateV2): (t: Team) => number {
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
   const tl = tasteLimitOf(s.hidden.timeline);
-  const star = starTaste(s);
-  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
+  const star = humanTasteMean(s);
+  return () => teamTaste(0, wc.sdAI, wc.sAI, m2b, star, tl);
 }
 
 /** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×
@@ -481,7 +517,7 @@ export function planAssignment(s: GameStateV2, ready: string[], dept: TeamDept =
     if (released.has(id)) return;
     const n = node(id) as TreeNodeDef;
     const auto = wantIsAuto(s, id);
-    let need = (auto ? 1 : teamsWanted(s, id)) - (count.get(id) ?? 0);
+    let need = (auto ? DEFAULT_TEAMS_WANTED : teamsWanted(s, id)) - (count.get(id) ?? 0);
     while (need > 0 && left.length) {
       left.sort((a, b) => teamCapacity(b, n.column) - teamCapacity(a, n.column) || (a.id < b.id ? -1 : 1));
       const t = left.shift() as Team;
@@ -642,44 +678,72 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
   return !!st && (!!st.test || st.stage === 'test');
 });
 
-/** Today's research-engineer demand per need (human team-equivalents) at the AI labour multiplier m on experiments: run
- *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_MAX_PER_PROJECT per project in experiments. Every need
- *  is finite; spare research engineers are idle (RD-E03: no routine tuning). */
-export function reDemand(s: GameStateV2, m = Math.max(1, workContext(s).slots.EXP.m)): Record<ReNeed, number> {
+/** Today's research-engineer base need per need, in EFFECTIVE team-equivalents (L5: the pool is m_EXP × heads, so the
+ *  needs are not divided by m): run operations (reOpsNeed), RE_FULL_PROJECT per project in experiments. Every need is
+ *  finite; what is left after them goes to the projects in experiments (reAllocation). SR-21: eval suites are a safety
+ *  engineers' need, not on this list. */
+export function reDemand(s: GameStateV2): Record<ReNeed, number> {
   return {
-    ops: reOpsNeed(s) / m, exp: experimenting(s, s.player.research.queue).length * RE_MAX_PER_PROJECT,
+    ops: reOpsNeed(s), exp: experimenting(s, s.player.research.queue).length * RE_FULL_PROJECT,
   };
 }
 
-/** Research engineers by need and per project (human team-equivalents) for today. AI labour in experiments (m_EXP)
- *  carries part of the run operations and evals, so their human need is the effective need ÷ m_EXP. Capacity no need
- *  takes is idle. */
-export interface ReAllocation { re: Record<ReNeed, number>; demand: Record<ReNeed, number>; perProject: Map<string, number>; total: number }
+/** L5 (LABOUR-ROUND §3.1): the capability research engineers as one pool. `total` = m_EXP × `heads` (effective
+ *  team-equivalents: AI agents in experiments are part of the pool; `heads` = the human team-equivalents, capReCapacity).
+ *  The base needs (reDemand) are met in the player's order (s.player.research.re), the last one served taking what is
+ *  left; projects in experiments get RE_FULL_PROJECT each in priority order, the last one partial. Labour left after every
+ *  need is spread evenly over the projects in experiments (Q5), so `idle` (human team-equivalents, the hiring readouts'
+ *  unit) is non-zero only when no project is in experiments. `re`, `demand` and `perProject` are effective. */
+export interface ReAllocation { re: Record<ReNeed, number>; demand: Record<ReNeed, number>; perProject: Map<string, number>; total: number; heads: number; m: number; idle: number }
 export function reAllocation(s: GameStateV2): ReAllocation {
-  const total = capReCapacity(s);
-  const exp = experimenting(s, s.player.research.queue);
+  const heads = capReCapacity(s);
   const m = Math.max(1, workContext(s).slots.EXP.m);
-  const demand = reDemand(s, m);
-  const re = allocate(total, s.player.research.re, demand);
+  const total = m * heads;
+  const exp = experimenting(s, s.player.research.queue);
+  const demand = reDemand(s);
+  const order = s.player.research.re;
+  const re = allocate(total, order, demand);
   const perProject = new Map<string, number>();
   let left = re.exp;
   for (const id of exp) {
-    const x = Math.min(RE_MAX_PER_PROJECT, left);
+    const x = Math.min(RE_FULL_PROJECT, left);
     perProject.set(id, x);
     left -= x;
   }
-  return { re, demand, perProject, total };
+  // Surplus: what no base need took, spread evenly over the projects in experiments (a player cap on 'exp' still holds).
+  let spare = Math.max(0, total - (Object.values(re) as number[]).reduce((a, x) => a + x, 0));
+  if (exp.length && spare > 1e-12) {
+    const sh = order.share.exp;
+    const lim = Math.min(order.max.exp ?? Infinity, sh === undefined ? Infinity : sh * total);
+    const add = Math.max(0, Math.min(spare, lim - re.exp));
+    for (const id of exp) perProject.set(id, (perProject.get(id) ?? 0) + add / exp.length);
+    re.exp += add;
+    spare -= add;
+  }
+  return { re, demand, perProject, total, heads, m, idle: spare / m };
 }
 
-/** Experiment FLOP by need (RD-B08), not by headcount: the pool is divided over RE_MAX_PER_PROJECT for each project in
+/** L5: the effective research engineers a project NOT yet in experiments would read (previews, ETAs): at least its base
+ *  need RE_FULL_PROJECT (what it gets when its test starts if engineers are free), or its even share of the labour the
+ *  experiments hold or leave idle if it joined them. */
+export function reIfJoined(alloc: Pick<ReAllocation, 're' | 'perProject' | 'total'>): number {
+  const others = (Object.entries(alloc.re) as [ReNeed, number][]).reduce((a, [k, x]) => a + (k === 'exp' ? 0 : x), 0);
+  return Math.max(RE_FULL_PROJECT, Math.max(0, alloc.total - others) / (alloc.perProject.size + 1));
+}
+/** L5: the effective research engineers of the unit project (researchInputs' ℓ): the mean over the projects in
+ *  experiments, or what a first project would read (reIfJoined) with none. */
+export const unitProjectRe = (alloc: Pick<ReAllocation, 're' | 'perProject' | 'total'>): number =>
+  alloc.perProject.size > 0 ? alloc.re.exp / alloc.perProject.size : reIfJoined(alloc);
+
+/** Experiment FLOP by need (RD-B08), not by headcount: the pool is divided over RE_FULL_PROJECT for each project in
  *  experiments. A project with research engineers takes its full share; a project with none leaves its share unused
  *  (RD-E03: no routine tuning to take it). So more research engineers never take FLOP from a project. units = the
  *  demands' team-equivalents the pool is divided over. */
 export function expShares(alloc: ReAllocation, avail: number): { units: number; perProject: Map<string, number> } {
-  const units = alloc.perProject.size * RE_MAX_PER_PROJECT;
+  const units = alloc.perProject.size * RE_FULL_PROJECT;
   const per = units > 0 ? Math.max(0, avail) / units : 0;
   const perProject = new Map<string, number>();
-  for (const [id, re] of alloc.perProject) perProject.set(id, re > 0 ? RE_MAX_PER_PROJECT * per : 0);
+  for (const [id, re] of alloc.perProject) perProject.set(id, re > 0 ? RE_FULL_PROJECT * per : 0);
   return { units, perProject };
 }
 
@@ -697,9 +761,11 @@ export function expPoolH100e(s: GameStateV2): number {
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
  *  treaty, siloing, migrations; RD-A07: a pause is no experiment FLOP, applied by capResearchDay), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
- *  expShares, so c is a full project's) and the X of a unit project. */
+ *  expShares, so c is a full project's) and the X of a unit project. L5: the unit project's labour ℓ = (reEff ÷
+ *  RE_LABOUR_UNIT)^λ at its EFFECTIVE research engineers `reEff` (unitProjectRe: m_EXP is already in the pool, so it is
+ *  not applied again; mExp is a readout here). */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
-export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s)): ResearchInputs {
+export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s), reEff = unitProjectRe(reAllocation(s))): ResearchInputs {
   const wc = workContext(s);
   const P = s.hidden.timeline.prod;
   const mExp = wc.slots.EXP.m;
@@ -707,7 +773,7 @@ export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectF
   const speed = researchMods(s).speed;
   const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
   const c = flopDay / units / C_UNIT_FLOP_PER_DAY;
-  const l = Math.pow(Math.max(1e-12, mExp), P.lam);
+  const l = expLabour(P.lam, 1, reEff, RE_LABOUR_UNIT);
   return { mExp, mIdeas, speed, flopDay, reRes, c, l, X: reRes > 0 ? Xces(P, Math.max(1e-12, c), l) * speed : 0 };
 }
 
@@ -901,12 +967,13 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   }
 }
 
-/** A project's experiment work per day (team-months) from its research engineers `re` and experiment FLOP `flopDay`:
- *  the CES X(c, ℓ) × the speed modifiers × √RE_LABOUR_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
-export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, re: number, flopDay: number): number {
+/** A project's experiment work per day (team-months) from its research engineers `re` (EFFECTIVE team-equivalents, L5:
+ *  reAllocation's perProject, m_EXP already in) and experiment FLOP `flopDay`: the CES X(c, ℓ) × the speed modifiers ×
+ *  √RE_LABOUR_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
+export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'speed'>, re: number, flopDay: number): number {
   if (re <= 0 || flopDay <= 0) return 0;
   const P = s.hidden.timeline.prod;
-  const l = expLabour(P.lam, inp.mExp, re, RE_LABOUR_UNIT);
+  const l = expLabour(P.lam, 1, re, RE_LABOUR_UNIT);
   return (Xces(P, flopDay / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
 }
 
@@ -1317,9 +1384,9 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const avail = expFlopAllowed(s, 'cap', projectFlopPerDay(s)); // RD-A07: a pause = none
   // Experiment FLOP by need (RD-B08): each project in experiments with research engineers a full share.
   const sh = expShares(alloc, avail);
-  // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first
-  // project when nothing else wants FLOP).
-  const inp = researchInputs(s, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
+  // The unit project's inputs: a full project's share (RE_FULL_PROJECT of the needs' units; the whole pool for the first
+  // project when nothing else wants FLOP), at the mean project's effective research engineers (L5).
+  const inp = researchInputs(s, Math.max(sh.units, RE_FULL_PROJECT), avail, unitProjectRe(alloc));
   let used = 0;
   for (const id of ready) {
     const n = node(id) as TreeNodeDef;
@@ -1333,7 +1400,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const g = stacksGEquiv(s);
   p.research.last = {
     re: { ops: r3(alloc.re.ops), exp: r3(alloc.re.exp) },
-    idle: r3(Math.max(0, alloc.total - alloc.re.ops - alloc.re.exp)),
+    idle: r3(alloc.idle),
     opsServed: opsServed(alloc),
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
     flopProj: Object.fromEntries(sh.perProject), flopUsed: used, flopAvail: avail,

@@ -2,6 +2,9 @@
 // Constants of the capability-project lifecycle (models/research.ts), the recipe stacks (models/stacks.ts) and the broad
 // allocations of research engineers and engineers. Tags: [R20 xx] research/20, [D] design value, [fit] fitted by the
 // calibration harness (scripts/v2/calib.ts --fit-lines).
+import { CAPACITY_UNIT } from './tree';
+import { TEAM_SIZE } from './teams';
+import { RE_UNIT_HEADS } from './workTypes';
 import type { Allocation, EngNeed, ReNeed, RiskPolicy, SafReNeed, StackKey } from '../../engine/v2/types';
 
 // ───────────────────────────── start priority list (model v3 V4.0) ─────────────────────────────
@@ -16,6 +19,11 @@ import type { Allocation, EngNeed, ReNeed, RiskPolicy, SafReNeed, StackKey } fro
 export const DEFAULT_LINES: { id: string; w: number }[] = [
   { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 }, { id: 'L.infer', w: 0.1 },
 ];
+
+/** Lines that open mid-game (P24 AI-designed successor, Recurrent architectures opened by P17): on the day one opens, its n₀
+ *  is the mean of (n₀_l + pool_l) over the open PRETRAIN_START_LINES instead of a fresh pool (design/bal/LABOUR-ROUND.md §7). */
+export const MID_GAME_LINES: string[] = ['P24', 'L.latent'];
+export const PRETRAIN_START_LINES: string[] = ['L.scale', 'L.data', 'L.opt'];
 
 // ───────────────────────────── lifecycle ─────────────────────────────
 
@@ -167,8 +175,17 @@ export const ADOPT_TW = { base: 0.5, perOom: 2, unlock: 1, max: 8 };
 
 // ───────────────────────────── allocation ─────────────────────────────
 
-/** Most science teams one capability project takes ("max" teams wanted) [D: √capacity returns]. */
-export const PROJECT_MAX_TEAMS = 6;
+/** L15: science teams that make one standard science team of capacity (CAPACITY_UNIT, 40 people): 40 ÷ the real team size
+ *  (20 since L15) = 2. Every count of science teams below is the old count (of 40) times this, so the same people are meant. */
+export const SCI_TEAMS_PER_STD = CAPACITY_UNIT / TEAM_SIZE.sci;
+/** Most science teams one capability project takes ("max" teams wanted): 6 standard teams (240 people) [D: √capacity returns]. */
+export const PROJECT_MAX_TEAMS = 6 * SCI_TEAMS_PER_STD;
+/** Science teams a project is wanted to have by default, and the first team an "auto" project gets in the first pass:
+ *  one standard team's worth (40 people) [D]. */
+export const DEFAULT_TEAMS_WANTED = SCI_TEAMS_PER_STD;
+/** L15: research-engineer teams that make one reference research-engineer unit (RE_UNIT_HEADS, 100 people): 100 ÷ the real
+ *  team size (50) = 2. Bots' counts of research-engineering teams are the old count times this. */
+export const RE_TEAMS_PER_UNIT = RE_UNIT_HEADS / TEAM_SIZE.re;
 /** B4 "auto" teams wanted: a spare science team goes to the project (auto ones first) where it adds the most expected
  *  value per day (RD-A03, models/research.ts projectValue), weighted by this factor per rank down the list, so higher
  *  priority wins close calls [D]. */
@@ -181,15 +198,18 @@ export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
  *  safety department is planned on its own, so only ratios between lines matter). 1 for every line until a line's
  *  results are priced (SAFETY-REDESIGN §3.1); a line listed here counts that much more or less. */
 export const SAF_LINE_WEIGHT: Partial<Record<string, number>> = {};
-/** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
- *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
-export const RE_MAX_PER_PROJECT = 2;
+/** L5 (LABOUR-ROUND §3.1): a full project's labour, the base need of one project in experiments, in EFFECTIVE
+ *  research-engineer team-equivalents (m_EXP × human team-equivalents: AI agents are part of the pool). Not a cap: labour
+ *  left after every need is spread evenly over the projects in experiments (models/research.ts reAllocation). A policy
+ *  number, not the labour unit RE_LABOUR_UNIT, though both are 2 today [D]. */
+export const RE_FULL_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
  *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
  *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (RE_MAX_PER_PROJECT each, no
- *  share cap: RD-B08); the rest are idle (RD-E03: no routine tuning);
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_FULL_PROJECT each as the
+ *  base need, no share cap: RD-B08); L5: the rest spread evenly over the projects in experiments, idle only with none
+ *  (RD-E03: no routine tuning);
  *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. SR-21: eval suites are a safety engineers' need. */
 export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'exp'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };

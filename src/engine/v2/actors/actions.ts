@@ -18,7 +18,7 @@ import { addPosture, openWeightsReleased, ownProgressDays } from './rivals';
 import * as shock from '../npc/shocks';
 import { tacitLeakG } from '../production/diffusion';
 import { ws4, ws4r } from './state';
-import { changeHeads } from '../departments/teams';
+import { changeHeads, headsMoved } from '../departments/teams';
 import { addKnowledge } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
@@ -323,7 +323,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     available: (s) => (activeRivals(s).length ? true : 'No active rivals'),
     preview: (s, p) => {
       const r = poachTarget(s, p);
-      return pv([L('cash', 0.5)], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined), L('leadDays', r ? Math.round(shock.poachInDays(s, r, poachHeads(r))) : 0, r ? `days ${r.core.name} falls back (its heads carry the same share)` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
+      return pv([L('cash', 0.5)], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined), L('leadDays', r ? Math.round(shock.poachInDays(s, r, headsMoved(s.player, 'cap', poachHeads(r)))) : 0, r ? `days ${r.core.name} falls back (its heads carry the same share)` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
     },
     apply(s, ctx, p) {
       const r = poachTarget(s, p);
@@ -332,9 +332,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = poachHeads(r);
       // RD-X04b: tacit knowledge (c4TacitG, sized before the heads move) enters the pretraining stack as public ideas.
       const tacit = c4TacitG(s, r);
-      shock.poachIn(s, r, n); // N6: the rival's lag rises by the tacit share (sized before the heads move)
-      r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
-      changeHeads(s, 'cap', n);
+      // Staff arrive as whole teams (changeHeads rounds). The poach-in shock (npc/shocks.ts, one rule for every route) by the
+      // heads that moved, sized before the rival's staff drops; the preview reads the same count (headsMoved).
+      const moved = changeHeads(s, 'cap', n);
+      shock.poachIn(s, r, moved);
+      r.core.staff.cap = Math.max(0, r.core.staff.cap - moved);
       addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
       talent(ctx, 4, 'C4 poaching');
       morale(ctx, -3, 'culture dilution', r.core.name);

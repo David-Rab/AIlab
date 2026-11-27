@@ -1,11 +1,11 @@
 // Compute (design/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
-// compute (chips, data centres, cloud) with fine options folded away. Tabs (L2): Sites and Orders & market (deliveries, cloud
-// and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
+// compute (chips, data centres, cloud) with fine options folded away, and the Sites rows under the chart. Tab (L2): Orders &
+// market (deliveries, cloud and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, the split, orders, cloud contracts and the
 // chip market. Compute online lives in Company (its flow tab) and is only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER } from '../../../engine/v2';
-import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
+import { actionView, campusMW, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtMonth, leaseGuarantor, leaseRate, leverEffects, oppositionLevel, oppositionOdds, oppositionParts, payOptions, qOf, refWaitQ, rentQuote, siteBars, siteBuildingLiveInQ, siteBuildingsView, siteBuildQ, siteCapex, siteCapexParts, siteFit, siteLeasePerYear, siteLiveMW, sitePermitQ, sitePowerQ, siteRVG, siteSchedule, siteSizeError, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER, waitBreakdown } from '../../../engine/v2';
+import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, LeverEffect, LeverKey, PayOption, Site, SiteBars, SiteBuildingsView } from '../../../engine/v2';
 
 /** The lessor's rate at your rating (FIN4b: below B only with a partner's guarantee, named). */
 const leaseLimit = (s: GameStateV2) => {
@@ -13,12 +13,12 @@ const leaseLimit = (s: GameStateV2) => {
   const g = leaseGuarantor(s);
   return r === undefined ? `no lease at ${s.player.finance.rating}` : `lease ${F.pct(r)} at ${s.player.finance.rating}${g ? ` · ${g} guarantee` : ''}`;
 };
-import { CHIP_TIERS, SITE_PATHS, SITE_TIERS } from '../../../data/v2/deals';
+import { CAMPUS, CHIP_TIERS, LEVERS, OPPOSITION, RENT, SITE_TIERS, SOURCES, type CampusBuildings } from '../../../data/v2/deals';
 import { store } from '../store';
 import { act as engineAct, runwayOf } from '../../../engine/v2';
-import type { CostLine } from '../../../engine/v2';
-import { ActBtn, Limit, Gate, Seg, Term, Tip, TipCard, Toggle } from '../ui';
-import { Card, HBar, KV, OptionTile, PanelHead, Pill, Ref, Spark2, tabOf, Tabs } from '../kit';
+import type { ActionView, CostLine } from '../../../engine/v2';
+import { ActBtn, Limit, Gate, Rich, Seg, Term, Tip, TipCard, Toggle } from '../ui';
+import { Card, HBar, KV, OptionTile, PanelHead, Ref, Spark2, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -26,12 +26,10 @@ import './compute.css';
 import { payOptionsPV } from '../../../engine/v2/finance/pv';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
-  { id: 'lease', label: 'Colo', term: 'colo', icon: ICON.pathLease }, { id: 'brownfield', label: 'Brownfield', term: 'brownfield', icon: ICON.pathBrownfield },
-  { id: 'gas', label: 'Gas', term: 'gasPower', icon: ICON.pathGas }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid }, { id: 'nuclear', label: 'Nuclear', term: 'nuclearPower', icon: ICON.pathNuclear },
+  { id: 'rent', label: 'Rent', term: 'rent', icon: ICON.pathLease }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid },
+  { id: 'gas', label: 'Gas', term: 'gasPower', icon: ICON.pathGas },
 ];
 const STAGE_COLOR: Record<Site['stage'], string> = { permitting: '#8a9bb0', power: C.watch, building: C.you, live: C.good, blocked: C.bad };
-const STAGE_LABEL: Record<Site['stage'], string> = { permitting: 'permitting', power: 'power', building: 'construction', live: 'live', blocked: 'blocked' };
-const STAGE_TERM: Partial<Record<Site['stage'], string>> = { permitting: 'permitting', power: 'gridPool', building: 'capex' };
 const KIND_COLOR: Record<ChipOrder['kind'], string> = { spot: C.watch, standard: '#8a9bb0', lta: C.you };
 const COMP: { k: 'Kpkg' | 'Khbm' | 'Kwafer'; bind: string; label: string; term: string }[] = [
   { k: 'Kpkg', bind: 'packaging', label: 'Packaging', term: 'packaging' }, { k: 'Khbm', bind: 'hbm', label: 'HBM', term: 'hbm' }, { k: 'Kwafer', bind: 'wafer', label: 'Wafer', term: 'wafer' },
@@ -42,7 +40,7 @@ const qLabel = (s: GameStateV2, q: number) => {
   return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${String(d.getUTCFullYear()).slice(2)}`;
 };
 const evText = (e: ForecastEvent) =>
-  e.kind === 'siteLive' ? `${e.name} live · +${F.power(e.mw)}` : e.kind === 'delivery' ? 'Chips delivered' : e.kind === 'cloudStart' ? `${e.name} starts` : `${e.name} ends`;
+  e.kind === 'siteLive' ? `${e.name} live · +${F.power(e.mw)}${e.buildings ? ` · ${e.buildings.live} of ${e.buildings.of}` : ''}` : e.kind === 'delivery' ? 'Chips delivered' : e.kind === 'cloudStart' ? `${e.name} starts` : `${e.name} ends`;
 const evSigned = (e: ForecastEvent) => F.count(e.kind === 'cloudEnd' ? -e.h : e.h, true);
 
 // ═════════════════════════ Overview ═════════════════════════
@@ -107,8 +105,8 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   const binds = s.market.demandQ >= 0.95 * s.market.supplyQ;
   const comp = <Term id={s.market.binding === 'hbm' ? 'hbm' : s.market.binding === 'wafer' ? 'wafer' : 'packaging'}>{COMP.find((c) => c.bind === s.market.binding)?.label ?? 'Packaging'}</Term>;
   const t3 = { tone: fill >= 0.9 ? 'ok' : fill >= 0.7 ? 'warn' : 'bad', icon: ICON.supply, v: F.pct(fill), l: <Term id="vendorFill">vendor fill</Term>, sub: binds ? <>{comp}-bound</> : <>supply above demand · tightest: {comp}</> };
-  const tile = (t: typeof t1, home: string, tab: string) => (
-    <button className={`cst ${t.tone}`} data-home={home} onClick={() => store.goto('compute', { tab })}>
+  const tile = (t: typeof t1, home: string, tab: string, anchor?: string) => (
+    <button className={`cst ${t.tone}`} data-home={home} onClick={() => store.goto('compute', { tab, anchor })}>
       <span className="cst-ic"><t.icon size={19} /></span>
       <span className="cst-body">
         <span className="cst-top">{t.v && <b className="num">{t.v}</b>}<span>{t.l}</span></span>
@@ -119,7 +117,7 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   );
   return (
     <div className="cst-row">
-      {tile(t1, 'idleChips', 'sites')}
+      {tile(t1, 'idleChips', 'overview', 'siteRows')}
       {tile(t2, 'emptyRacks', 'orders')}
       {tile({ ...t3 }, 'vendorFill', 'orders')}
     </div>
@@ -252,7 +250,19 @@ function whatIf(s: GameStateV2, id: string, params: Record<string, number | stri
   if (engineAct(c, id, params)) return undefined;
   return { cash: c.player.finance.cash - s.player.finance.cash, runway: runwayOf(c).q, racks: peakNoRacks(c) };
 }
-function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string; params: Record<string, number | string | boolean>; arrives: ReactNode }) {
+/** One payment of a commitment (when it falls due); `tail` follows it on the same line. */
+function PaymentLine({ c, tail }: { c: CostLine; tail?: ReactNode }) {
+  const when = c.lagDays ? `in ${F.days(c.lagDays)}` : 'now';
+  return (
+    <span className="cac-line">
+      <Tip content={() => <TipCard title="Payment" value={F.money(c.amount, { signed: true })} rows={[{ label: 'When', value: when }, ...(c.target ? [{ label: 'What', value: c.target }] : [])]}>Every payment of this commitment, in the quarter it falls due.</TipCard>}><span><span className="dim">{c.target ?? when}</span> <b className="num tone-neg">{F.money(c.amount, { signed: true })}</b></span></Tip>
+      {tail}
+    </span>
+  );
+}
+/** `custom` lets a card draw its own cost and gain lines from the action's preview (and what applying it does to cash,
+ *  once computed); the cash and runway line below stays. */
+function ComputePreview({ s, id, params, arrives, custom }: { s: GameStateV2; id: string; params: Record<string, number | string | boolean>; arrives?: ReactNode; custom?: (v: ActionView, w: WhatIf | undefined) => ReactNode }) {
   const v = actionView(s, id, params);
   const week = Math.floor(s.time.day / 7);
   const key = `${week}|${id}|${JSON.stringify(params)}`;
@@ -261,15 +271,16 @@ function ComputePreview({ s, id, params, arrives }: { s: GameStateV2; id: string
     if (memo?.key === key) return;
     setMemo({ key, r: whatIf(s, id, params), rw: runwayOf(s).q, racks: peakNoRacks(s) });
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const lbl = (c: CostLine) => c.target ?? (c.lagDays ? `in ${F.days(c.lagDays)}` : 'now');
   const m = memo?.key === key ? memo : undefined;
   const w = m?.r;
   const runCap = 8;
   return (
     <div className="cac-pv2" data-test={`preview.${id}`}>
       <div className="cac-lines">
-        {v.costs.filter((c) => c.amount !== 0).map((c, i) => <Tip key={`c${i}`} content={() => <TipCard title="Payment" value={F.money(c.amount, { signed: true })} rows={[{ label: 'When', value: c.lagDays ? `in ${F.days(c.lagDays)}` : 'now' }, ...(c.target ? [{ label: 'What', value: c.target }] : [])]}>Every payment of this commitment, in the quarter it falls due.</TipCard>}><span className="cac-line"><span className="dim">{lbl(c)}</span> <b className="num tone-neg">{F.money(c.amount, { signed: true })}</b></span></Tip>)}
-        {v.gains.filter((c) => c.amount !== 0 && c.currency === 'compute').map((c, i) => <Tip key={`g${i}`} content={() => <TipCard title="Capacity" value={`+${F.count(c.amount)} H100e`} rows={[{ label: 'Arrives', value: c.lagDays ? `in ${F.days(c.lagDays)}` : 'next quarter' }]}>{id === 'cmp.newSite' ? 'Racks for this many H100e when the site goes live.' : 'Chips (or rented capacity) this adds.'}</TipCard>}><span className="cac-line"><span className="dim">{arrives}</span> <b className="num tone-pos">+{F.count(c.amount)} H100e</b></span></Tip>)}
+        {custom ? custom(v, w) : <>
+          {v.costs.filter((c) => c.amount !== 0).map((c, i) => <PaymentLine key={`c${i}`} c={c} />)}
+          {v.gains.filter((c) => c.amount !== 0 && c.currency === 'compute').map((c, i) => <Tip key={`g${i}`} content={() => <TipCard title="Capacity" value={`+${F.count(c.amount)} H100e`} rows={[{ label: 'Arrives', value: c.lagDays ? `in ${F.days(c.lagDays)}` : 'next quarter' }]}>{id === 'cmp.newSite' ? 'Racks for this many H100e when the site goes live.' : 'Chips (or rented capacity) this adds.'}</TipCard>}><span className="cac-line"><span className="dim">{arrives}</span> <b className="num tone-pos">+{F.count(c.amount)} H100e</b></span></Tip>)}
+        </>}
       </div>
       {m && w && (
         <Tip content={() => <TipCard title="Before → after" rows={[
@@ -400,60 +411,373 @@ function OrderCard({ s }: { s: GameStateV2 }) {
   );
 }
 
+// ───── tooltip rows (DC-10a; DC-10b reuses them) ─────
+type SiteOpts = Parameters<typeof siteFit>[0];
+type TipLine = { label: ReactNode; value: ReactNode; kind?: 'sub' | 'sum'; tone?: 'pos' | 'neg' | 'neutral' } | false;
+/** A group of tooltip rows: `sub` rows are quieter and indented, a `sum` row carries a rule and the total. */
+function TipRows({ rows }: { rows: TipLine[] }) {
+  return (
+    <div className="tipcard-rows">
+      {rows.map((r, i) => r && <div key={i} className={`tipcard-row ${r.kind ?? ''}`}><span>{r.label}</span><span className={r.tone ? `tone-${r.tone}` : ''}>{r.value}</span></div>)}
+    </div>
+  );
+}
+/** A wide tooltip card made of row groups and drawings: title and value, a body sentence, the groups, a foot line. */
+function DcTip({ title, value, body, foot, children }: { title: ReactNode; value?: ReactNode; body?: string; foot?: string; children?: ReactNode }) {
+  return (
+    <div className="tipcard dc-wide">
+      <div className="tipcard-head"><span className="tipcard-title">{title}</span>{value !== undefined && <span className="tipcard-value">{value}</span>}</div>
+      {body && <div className="tipcard-body"><Rich text={body} /></div>}
+      {children}
+      {foot && <div className="tipcard-foot">{foot}</div>}
+    </div>
+  );
+}
+
+/** Racks the engine's build preview adds for these card options, all buildings together (H100e). */
+const siteGains = (s: GameStateV2, params: Record<string, number | string | boolean>) =>
+  actionView(s, 'cmp.newSite', params).gains.filter((g) => g.currency === 'compute').reduce((a, g) => a + g.amount, 0);
+/** Quarter label of `q` quarters from now. */
+const qAhead = (s: GameStateV2, q: number) => qLabel(s, qOf(s) + q);
+const gwLabel = (gw: number) => `${gw >= 10 ? Math.round(gw) : gw.toFixed(1)} GW`;
+const WAIT_FROM = 2023;
+/** Per source: the wait's name and the two things it is a ratio of (glossary ids and titles). */
+const WAIT_TERM: Record<Site['path'], { wait: string; name: string; queue: string; queueName: string; rate: string; rateName: string }> = {
+  rent: { wait: 'rentWait', name: 'Rent wait', queue: 'hallsWanted', queueName: 'Halls wanted', rate: 'hallsPerYear', rateName: 'halls finished per year' },
+  grid: { wait: 'gridWait', name: 'Grid wait', queue: 'firmQueue', queueName: 'Grid queue', rate: 'connectionsPerYear', rateName: 'connections per year' },
+  gas: { wait: 'turbineWait', name: 'Turbine wait', queue: 'turbineBacklog', queueName: 'Turbine backlog', rate: 'turbinesPerYear', rateName: 'turbines delivered per year' },
+};
+
+/** The campus on a quarter axis from commitment: permits, power, then one bar per building ending in a diamond at its
+ *  go-live, with the quarter it goes live and what it adds. */
+function CampusSchedule({ s, o, perBuilding }: { s: GameStateV2; o: SiteOpts; perBuilding: number }) {
+  const P = sitePermitQ(o), W = sitePowerQ(s, o), B = siteBuildQ(o), L = siteBuildingLiveInQ(s, o);
+  const w = 394, lx = 62, rx = 76, rh = 15, nq = Math.max(4, L[L.length - 1] + 1);
+  const x = (q: number) => lx + (q / nq) * (w - lx - rx);
+  const rows = [
+    { l: 'Permits', a: 0, b: P, c: TRACK.permits, d: '', live: false },
+    { l: 'Power', a: P, b: P + W, c: TRACK.power, d: `ready ${qAhead(s, P + W)}`, live: false },
+    ...L.map((q, k) => ({ l: `Building ${k + 1}`, a: q - B, b: q, c: TRACK.cons, d: `${qAhead(s, q)} +${F.count(perBuilding)}`, live: true })),
+  ];
+  const h = rows.length * rh + 18;
+  const ticks = Array.from({ length: Math.floor(nq / 4) + 1 }, (_, i) => i * 4);
+  return (
+    <svg className="dc-gt" width={w} height={h}>
+      {ticks.map((q) => <g key={q}><line x1={x(q)} x2={x(q)} y1={0} y2={h - 14} stroke="#243041" /><text className="vl dim" x={x(q)} y={h - 3} textAnchor="middle">{qAhead(s, q)}</text></g>)}
+      {rows.map((r, i) => {
+        const y = i * rh + 2;
+        return (
+          <g key={r.l}>
+            <text className="lb" x={0} y={y + 10}>{r.l}</text>
+            {r.b > r.a && <rect x={x(r.a)} y={y + 2} width={x(r.b) - x(r.a)} height={8} rx={2} fill={r.c} />}
+            {r.live && <path d={`M${x(r.b)} ${y} l5 6 l-5 6 l-5 -6z`} fill={C.good} />}
+            {r.d && <text className={`vl ${r.live ? 'hi' : 'dim'}`} x={w} y={y + 10} textAnchor="end">{r.d}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** What a campus is and what it costs (the Buildings row's tooltip): schedule, price, saving, what is shared. */
+function BuildingsTip({ s, o, params }: { s: GameStateV2; o: SiteOpts; params: Record<string, number | string | boolean> }) {
+  const n = o.buildings ?? 1;
+  const c = siteCapexParts(o);
+  const L = siteBuildingLiveInQ(s, o);
+  const g3 = siteBuildingLiveInQ(s, { ...o, path: 'grid', mw: 300, buildings: 3 });
+  const differ = (q: number[]) => q.some((v) => v !== q[0]);
+  const levers: [string, string, number][] = [['crashBuild', 'Crash construction', c.crash], ['rushPower', 'Rush power', c.rush], ['fastTrack', 'Fast-track permits', c.fastTrack], ['communityPackage', 'Community package', c.community]];
+  return (
+    <DcTip title={<Term id="campus">Buildings</Term>} value={`${n} × ${F.power(o.mw)} = ${F.power(campusMW(o))}`} foot="A block stops every building; money paid so far is lost."
+      body="Copies of one building on one [[site]]. They start one per quarter and go live one by one as each is finished, or all together when power arrives later.">
+      <div className="tipcard-rows dc-blk"><CampusSchedule s={s} o={o} perBuilding={siteGains(s, params) / n} /></div>
+      <TipRows rows={[
+        { label: `Building · ${n} × ${F.money(c.building / n)}`, value: F.money(c.building) },
+        n > 1 && { label: <><Term id="repeatDesign">Repeat design</Term> · {n} buildings</>, value: `−${F.pct(CAMPUS.discount[n])} · −${F.money(c.repeatSaving)}`, kind: 'sub' },
+        o.path === 'gas' ? { label: `Turbines · ${n} × ${F.money(c.extra / n)}`, value: F.money(c.extra) } : { label: 'Utility upgrades', value: F.money(c.extra) },
+        ...levers.filter(([, , v]) => v > 0).map(([id, label, v]): TipLine => ({ label: <Term id={id}>{label}</Term>, value: F.money(v) })),
+        { label: 'Upfront', value: F.money(c.total), kind: 'sum' },
+      ]} />
+      <TipRows rows={[
+        { label: 'Saving by count', value: CAMPUS.counts.map((k) => `${k}: ${k === 1 ? '0%' : `−${F.pct(CAMPUS.discount[k])}`}`).join(' · ') },
+        { label: 'Shared', value: <><Term id="permitting">permit</Term> · <Term id="opposition">opposition</Term> roll · <Term id="powerStage">power</Term> connection</> },
+        { label: 'Largest campus', value: `grid ${F.power(SOURCES.grid.maxMW)} · gas ${F.power(SOURCES.gas.maxMW)}` },
+        differ(L) && !differ(g3) && { label: `Grid · 3 × ${F.power(300)}`, value: `all live ${qAhead(s, g3[0])}: power is slower`, kind: 'sub' },
+      ]} />
+    </DcTip>
+  );
+}
+
+/** One power source's tile tooltip: the live date it would give, the schedule behind it, what fits, and its wait. */
+function PowerTip({ s, p, o, f }: { s: GameStateV2; p: (typeof PATHS)[number]; o: SiteOpts; f: SiteOpts }) {
+  const rent = p.id === 'rent';
+  const wt = WAIT_TERM[p.id];
+  const n = f.buildings ?? 1;
+  const P = sitePermitQ(f), B = siteBuildQ(f), W = sitePowerQ(s, f), W0 = sitePowerQ(s, { ...f, rush: false });
+  const L = siteBuildingLiveInQ(s, f), last = L[L.length - 1];
+  const a = L[0] - P, z = last - P;
+  const odds = oppositionOdds(s, { path: p.id, crash: !!f.crash, communityPackage: !!f.community });
+  const src = SOURCES[p.id];
+  const one = siteCapexParts({ path: p.id, mw: 1000, buildings: 1 });
+  const wb = waitBreakdown(s, p.id);
+  const bodies: Record<Site['path'], string> = {
+    rent: 'A hall a landlord builds. You rent it from the day it opens.',
+    grid: "A new connection from the utility. Your site keeps today's wait from the day you commit.",
+    gas: "Your own gas turbines. Your site keeps today's turbine wait from the day you commit.",
+  };
+  const cut = n < (o.buildings ?? 1);
+  const cutNote = !cut ? '' : rent ? ` Rent is one hall: choosing Rent rents one ${F.power(f.mw)} hall.` : ` ${p.label} sites take up to ${F.power(src.maxMW)}: choosing ${p.label} cuts this campus to ${n} × ${F.power(f.mw)}.`;
+  const construction = `${B} q${W >= B + n - 1 ? ', timed to end with power' : n > 1 ? ', one starts each quarter' : ''}${f.crash ? ' (crash)' : ''}`;
+  const live = qRange(s, qOf(s) + L[0], qOf(s) + last);
+  const fits = [...SITE_TIERS].reverse().map((t) => ({ mw: t.mw, n: [...CAMPUS.counts].reverse().find((k) => !siteSizeError({ path: p.id, mw: t.mw, buildings: k })) ?? 1 }));
+  const waitName = <><Term id={wt.wait}>{wt.name}</Term> today</>;
+  return (
+    <DcTip title={<Term id={p.term}>{p.label}</Term>} value={`live ${live}${rent ? '' : ` · +0–${OPPOSITION.delayQ[1]}q`}`} body={bodies[p.id] + cutNote}
+      foot={`A new 1 GW ${rent ? 'rented hall' : `${p.id} site`} adds ${wb.perGWQ.toFixed(1)} q to everyone's wait.`}>
+      <TipRows rows={rent ? [
+        { label: waitName, value: `${W} q` },
+        { label: 'Live', value: `${W} q · ${qAhead(s, W)}`, kind: 'sum' },
+      ] : [
+        { label: <Term id="permitting">Permits</Term>, value: `${P} q` },
+        { label: waitName, value: `${W0} q` },
+        !!f.rush && { label: <Term id="rushPower">Rush power</Term>, value: p.id === 'grid' ? `−${F.pct(1 - LEVERS.rushGrid.waitMult)} → ${W} q` : `used turbines → ${W} q`, kind: 'sub' },
+        { label: <Term id="construction">Construction</Term>, value: construction },
+        { label: 'Live', value: n > 1 && a !== z ? `${P} + ${a}…${z} = ${L[0]}…${last} q · ${live}` : `${P} + ${a} = ${L[0]} q · ${live}`, kind: 'sum' },
+        { label: <><Term id="opposition">Opposition</Term> delay · {F.pct(odds.delay)}</>, value: `+${OPPOSITION.delayQ[0]} to ${OPPOSITION.delayQ[1]} q` },
+        { label: <><Term id="opposition">Block</Term> · {F.pct(odds.block)}</>, value: 'money spent is lost' },
+      ]} />
+      <TipRows rows={[
+        rent ? { label: 'Largest site', value: F.power(src.maxMW) } : { label: `Fits on ${p.id}`, value: fits.map((t) => `${t.n} × ${F.power(t.mw)}`).join(' · ') },
+        { label: 'Upfront per GW', value: F.money(one.building + one.extra) },
+        { label: 'Power price', value: rent ? `${F.money(RENT.perGWYear)} per GW-yr + grid` : `×${src.powerCostMult.toFixed(1)} grid` },
+      ]} />
+      <div className="tipcard-rows dc-blk">
+        <div className="tipcard-row"><span><Term id={wt.wait}>{wt.name}</Term>, {WAIT_FROM} → today</span><span>{Math.round(refWaitQ(p.id, WAIT_FROM))} → {Math.round(wb.waitQ)} q</span></div>
+        <WaitSpark s={s} p={p.id} now={wb.waitQ} />
+      </div>
+      <TipRows rows={[
+        { label: <Term id={wt.queue}>{wt.queueName}</Term>, value: gwLabel(wb.youGW + wb.othersGW) },
+        { label: `you${wb.you.length ? ` (${wb.you.map((y) => y.name).join(', ')})` : ''}`, value: gwLabel(wb.youGW), kind: 'sub' },
+        { label: 'everyone else', value: gwLabel(wb.othersGW), kind: 'sub' },
+        { label: <>÷ <Term id={wt.rate}>{wt.rateName}</Term></>, value: gwLabel(wb.rateGWPerYear) },
+        { label: 'Wait', value: `${(wb.waitQ / 4).toFixed(1)} yr = ${Math.round(wb.waitQ)} q`, kind: 'sum' },
+      ]} />
+    </DcTip>
+  );
+}
+
+/** One source's wait by quarter: the no-build reference from Q1 2023 to the game's start, then what the game recorded,
+ *  ending on today's wait; years on the axis. */
+function WaitSpark({ s, p, now }: { s: GameStateV2; p: Site['path']; now: number }) {
+  const start = dateOf(s, 0);
+  const i0 = (start.getUTCFullYear() - WAIT_FROM) * 4 + Math.floor(start.getUTCMonth() / 3);
+  const hist = s.power.waitHist[p];
+  const ys = [...Array.from({ length: i0 }, (_, i) => refWaitQ(p, WAIT_FROM + i / 4)), ...hist, ...(hist.length <= qOf(s) ? [now] : [])];
+  const w = 368, h = 46, pad = 4, lo = Math.min(...ys), span = Math.max(1, Math.max(...ys) - lo);
+  const X = (i: number) => pad + (i / (ys.length - 1)) * (w - 2 * pad), Y = (v: number) => h - pad - ((v - lo) / span) * (h - 2 * pad);
+  return (
+    <svg className="dc-gt" width={w} height={h + 14}>
+      <polyline points={ys.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} fill="none" stroke={C.watch} strokeWidth={1.6} />
+      <circle cx={X(ys.length - 1)} cy={Y(ys[ys.length - 1])} r={2.5} fill={C.watch} />
+      {Array.from({ length: Math.floor((ys.length - 1) / 4) + 1 }, (_, k) => <text key={k} className="vl dim" x={X(k * 4)} y={h + 11}>{WAIT_FROM + k}</text>)}
+    </svg>
+  );
+}
+
+/** The quarters a lever saves, first building to last: "−2 q", "−1 to −5 q", "0 q". */
+const savesText = (e: LeverEffect) => (e.savesQ === e.savesLastQ ? (e.savesQ === 0 ? '0 q' : `−${e.savesQ} q`) : `−${e.savesQ} to −${e.savesLastQ} q`);
+
+const LEVER_TERM: Record<LeverKey, { id: string; label: string }> = {
+  crash: { id: 'crashBuild', label: 'Crash construction' },
+  rush: { id: 'rushPower', label: 'Rush power' },
+  fastTrack: { id: 'fastTrack', label: 'Fast-track permits' },
+  community: { id: 'communityPackage', label: 'Community package' },
+};
+
+/** One speed-up's tooltip: what it does, the quarters it saves (first and last building) and what its price is of. */
+function LeverTip({ k, e, path, n }: { k: LeverKey; e: LeverEffect; path: Site['path']; n: number }) {
+  const basis: Record<LeverKey, string> = {
+    crash: `${F.pct(LEVERS.crash.buildingShare)} of the building`,
+    rush: path === 'grid' ? `$${LEVERS.rushGrid.perGW}B per GW` : `${F.pct(LEVERS.rushGas.turbineShare)} of the turbines`,
+    fastTrack: `${F.pct(LEVERS.fastTrack.buildingShare)} of the building`,
+    community: `$${LEVERS.community.perGW}M per MW`,
+  };
+  const body: Record<LeverKey, string> = {
+    crash: `Construction takes ${F.pct(1 - LEVERS.crash.buildMult)} less time, and local opposition grows.`,
+    rush: path === 'grid' ? `Pay for the substation and lines yourself: the grid wait is ${F.pct(1 - LEVERS.rushGrid.waitMult)} shorter.` : `Buy used turbines: the turbine wait falls to ${LEVERS.rushGas.waitQ} q.`,
+    fastTrack: `Permits take ${LEVERS.fastTrack.permitQ} q less.`,
+    community: `Block odds ×${e.blockMult}.`,
+  };
+  const t = LEVER_TERM[k];
+  return (
+    <TipCard title={<Term id={t.id}>{t.label}</Term>} value={k === 'community' ? `block ×${e.blockMult}` : savesText(e)} rows={[
+      ...(k === 'community' ? [] : [{ label: n > 1 ? 'Saves, first building' : 'Saves', value: `${e.savesQ} q` }, ...(n > 1 ? [{ label: 'Saves, last building', value: `${e.savesLastQ} q` }] : [])]),
+      { label: `Price · ${basis[k]}`, value: F.money(e.cost, { signed: true }) },
+      ...(k === 'crash' ? [{ label: 'Opposition odds', value: `×${LEVERS.crash.oddsMult}` }] : []),
+    ]}>{body[k]}</TipCard>
+  );
+}
+
+/** What sets a campus's go-live dates: building k is set by power when the power wait W is at least its construction B + k. */
+function datesSetBy(s: GameStateV2, o: SiteOpts): ReactNode {
+  const n = o.buildings ?? 1;
+  if (o.path === 'rent') return <>the hall sets the date</>;
+  const W = sitePowerQ(s, o), B = siteBuildQ(o);
+  const j = Array.from({ length: n }, (_, k) => k).filter((k) => W >= B + k).length;
+  const power = <Term id="powerStage">power</Term>, cons = <Term id="construction">construction</Term>;
+  if (j === n) return n === 1 ? <>{power} sets the date</> : <>{power} sets the date, all go live together</>;
+  if (j === 0) return <>{cons} sets the {n === 1 ? 'date' : 'dates'}</>;
+  return <>{power} sets the first{j > 1 ? ` ${j}` : ''}, {cons} the rest</>;
+}
+
+/** The campus's opposition tooltip: the odds and what they are made of (one roll for the whole site). */
+function BuildOppositionTip({ s, o, paidNow }: { s: GameStateV2; o: SiteOpts; paidNow: number | undefined }) {
+  const p = oppositionParts(s, { path: o.path, crash: !!o.crash, communityPackage: !!o.community });
+  const n = o.buildings ?? 1;
+  const source = PATHS.find((x) => x.id === o.path)!.label;
+  return (
+    <DcTip title={<Term id="opposition">Opposition</Term>} value={oppositionLevel(p.block)} foot={o.crash ? 'Crash construction raises both.' : undefined}
+      body={`Local opposition decides when permits end, ${qAhead(s, sitePermitQ(o))}.${n > 1 ? ' One roll for the whole campus.' : ''}`}>
+      <TipRows rows={[
+        { label: `${source} site`, value: F.pct(p.blockBase) },
+        { label: <Term id="dcPublic">Public against data centres</Term>, value: `×${p.mood.toFixed(2)}` },
+        p.crashMult !== 1 && { label: <Term id="crashBuild">Crash construction</Term>, value: `×${p.crashMult}` },
+        p.communityMult !== 1 && { label: <Term id="communityPackage">Community package</Term>, value: `×${p.communityMult}`, tone: 'pos' },
+      ]} />
+      <TipRows rows={[
+        { label: 'Blocked', value: F.pct(p.block), kind: 'sum' },
+        { label: 'money spent so far is lost', value: paidNow === undefined ? '' : `≈ ${F.money(paidNow)}`, kind: 'sub' },
+        { label: 'Delayed', value: F.pct(p.delay), kind: 'sum' },
+        { label: 'live date slips', value: `+${OPPOSITION.delayQ[0]} to ${OPPOSITION.delayQ[1]} q`, kind: 'sub' },
+      ]} />
+    </DcTip>
+  );
+}
+
+/** The build card's cost and gain lines (grid and gas): capex with the repeat-design saving, the campus's racks and what
+ *  sets their dates, the opposition odds and when they are decided. */
+function BuildLines({ s, v, w, o }: { s: GameStateV2; v: ActionView; w: WhatIf | undefined; o: SiteOpts }) {
+  const n = o.buildings ?? 1;
+  const c = siteCapexParts(o);
+  const gains = v.gains.filter((g) => g.amount !== 0 && g.currency === 'compute');
+  const total = gains.reduce((a, g) => a + g.amount, 0);
+  const odds = oppositionOdds(s, { path: o.path, crash: !!o.crash, communityPackage: !!o.community });
+  const P = sitePermitQ(o);
+  const tail = c.repeatSaving > 0 && (
+    <Tip content={() => <TipCard title={<Term id="repeatDesign">Repeat design</Term>} value={`−${F.pct(CAMPUS.discount[n as CampusBuildings])}`} rows={[
+      { label: `Building · ${n} × ${F.money(c.building / n)}`, value: F.money(c.building) },
+      { label: 'Saving on the building', value: `−${F.money(c.repeatSaving)}`, tone: 'pos' },
+    ]}>Building the same design again costs less each time.</TipCard>}>
+      <span> <span className="dim">· <Term id="repeatDesign">repeat design</Term> saves</span> <b className="num tone-pos">{F.money(c.repeatSaving)}</b></span>
+    </Tip>
+  );
+  return (
+    <>
+      {v.costs.filter((x) => x.amount !== 0).map((x, i) => <div key={i} className="cac-full"><PaymentLine c={x} tail={i === 0 ? tail : undefined} /></div>)}
+      {total > 0 && (
+        <div className="cac-full">
+          <Tip content={() => <TipCard title="Capacity" value={`+${F.count(total)} H100e`} rows={gains.map((g) => ({ label: qAhead(s, (g.lagDays ?? 0) / 91), value: `+${F.count(g.amount)} H100e` }))}>Racks for this many H100e as each building goes live.</TipCard>}>
+            <span className="cac-line"><span className="dim">racks for</span> <b className="num tone-pos">+{F.count(total)} H100e</b>
+              <span className="dim">{n > 1 && <> · {F.count(total / n)} per <Term id="building">building</Term> live</>} · {datesSetBy(s, o)}</span></span>
+          </Tip>
+        </div>
+      )}
+      <div className="cac-full">
+        <Tip content={() => <BuildOppositionTip s={s} o={o} paidNow={w ? -w.cash : undefined} />}>
+          <span className="cac-line"><span className="dim"><Term id="opposition">opposition</Term> decides {P === 0 ? 'now' : qAhead(s, P)}</span> <b className="num tone-warn">block {F.pct(odds.block)} · delay {F.pct(odds.delay)}</b></span>
+        </Tip>
+      </div>
+    </>
+  );
+}
+
 function BuildCard({ s }: { s: GameStateV2 }) {
   const [tier, setTier] = useState(2);
+  const [buildings, setBuildings] = useState<CampusBuildings>(1);
   const [path, setPath] = useState<Site['path']>('gas');
   const [crash, setCrash] = useState(false);
+  const [rush, setRush] = useState(false);
+  const [fastTrack, setFastTrack] = useState(false);
   const [communityIn, setCommunity] = useState<boolean | undefined>(undefined);
   const [pay, setPay] = useState<PayOption['id']>('cash');
   const [open, setOpen] = useState(false);
   const community = communityIn ?? s.player.policies.communityBenefits;
-  const max = SITE_PATHS[path].maxMW;
-  const fits = (i: number) => SITE_TIERS[i].mw <= max;
-  const t = fits(tier) ? tier : SITE_TIERS.reduce((a, x, i) => (x.mw <= max ? i : a), 0);
-  const mw = SITE_TIERS[t].mw;
   const kW = s.power.kWPerH100e;
-  const eta = siteEtaQ(s, { path, mw, crash });
-  const colo = path === 'lease';
-  const sched = siteSchedule(s, { path, mw, crash });
-  const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', sched);
-  const payNow = colo || pays.find((o) => o.id === pay)?.blocked ? 'cash' : pay;
-  const params = { path, mw, crash, community, pay: payNow };
-  const liveQ = qOf(s) + eta;
-  const pickPath = (p: Site['path']) => {
-    setPath(p);
-    if (SITE_TIERS[tier].mw > SITE_PATHS[p].maxMW) setTier(SITE_TIERS.reduce((a, x, i) => (x.mw <= SITE_PATHS[p].maxMW ? i : a), 0));
-  };
+  const o = siteFit({ path, mw: SITE_TIERS[tier].mw, buildings, crash, rush, fastTrack, community });
+  const n = o.buildings ?? 1;
+  const colo = path === 'rent';
+  const sched = siteSchedule(s, o);
+  const pays = payOptions(s, siteCapex(o), 'site', sched);
+  const payNow = colo || pays.find((x) => x.id === pay)?.blocked ? 'cash' : pay;
+  const params = { path, mw: o.mw, buildings: n, crash, rush, fastTrack, community, pay: payNow };
+  const effects = leverEffects(s, o);
+  const levers: [LeverKey, boolean, (v: boolean) => void][] = [['crash', crash, setCrash], ['rush', rush, setRush], ['fastTrack', fastTrack, setFastTrack], ['community', community, setCommunity]];
+  // The footer names the speed-ups taken: the first in bold (crash, rush, fast-track), the others after it.
+  const taken = colo ? [] : levers.filter(([k, on]) => on && k !== 'community').map(([k]) => LEVER_TERM[k].label);
+  // Choosing a source or a size cuts the campus to what fits (siteFit), as the other tiles already showed.
+  const pickPath = (p: Site['path']) => { setPath(p); setBuildings(siteFit({ ...o, path: p }).buildings as CampusBuildings); };
+  const pickTier = (i: number) => { setTier(i); setBuildings(siteFit({ ...o, mw: SITE_TIERS[i].mw }).buildings as CampusBuildings); };
   return (
     <Card title={<span className="row-i"><ICON.sites size={14} />Build data centre</span>} className="cac" id="ctl-sites"
       right={<Tip content={() => <TipCard title={<Term id="kwPerH100e">Power per chip</Term>} value={`${kW.toFixed(2)} kW per H100e`}>A gigawatt of racks holds this many H100e at today's chip efficiency.</TipCard>}><span className="dim small"><b className="num">{F.count(1e6 / kW)}</b> H100e per GW</span></Tip>}>
-      <div className="cac-tiles c5">
-        {SITE_TIERS.map((x, i) => (
-          <OptionTile key={x.id} label={x.name} glyphs={<span>{F.power(x.mw)}</span>} active={t === i} locked={fits(i) ? undefined : F.power(x.mw)} onClick={() => setTier(i)} testId={`site-${x.id}`}
-            tip={() => <TipCard title={x.full} value={F.power(x.mw)} rows={[{ label: 'Holds today', value: `${F.count((x.mw * 1000) / kW)} H100e` }]}><Term id="siteTier">Data-centre size</Term></TipCard>} />
-        ))}
-      </div>
-      <div className="cac-lbl">Power</div>
-      <div className="cac-tiles c5">
-        {PATHS.map((p) => {
-          const q = siteEtaQ(s, { path: p.id, mw: Math.min(mw, SITE_PATHS[p.id].maxMW), crash });
+      <div className="cac-tiles c3">
+        {SITE_TIERS.map((x, i) => {
+          const bq = siteBuildQ({ ...o, mw: x.mw });
           return (
-            <OptionTile key={p.id} label={p.label} icon={p.icon} glyphs={<span>{p.id === 'lease' ? '1–3q' : `${q}q`}</span>} active={path === p.id} onClick={() => pickPath(p.id)} testId={`path-${p.id}`}
-              tip={() => <TipCard title={<Term id={p.term}>{p.label}</Term>} rows={[{ label: 'Live in', value: p.id === 'lease' ? '1–3 quarters' : `≈ ${q} quarters` }, { label: 'Largest', value: F.power(SITE_PATHS[p.id].maxMW) }, { label: 'Power price', value: `×${SITE_PATHS[p.id].powerCostMult}` }]} />} />
+            <OptionTile key={x.id} label={F.power(x.mw)} glyphs={<span className="dc-sz">{colo ? 'rented hall' : `${bq} q to build`}</span>} active={o.mw === x.mw} onClick={() => pickTier(i)} testId={`site-${x.id}`}
+              tip={() => <TipCard title={<Term id="building">Building</Term>} value={F.power(x.mw)} rows={[
+                { label: 'Holds today', value: `${F.count(siteGains(s, { ...params, mw: x.mw, buildings: 1 }))} H100e` },
+                ...(colo ? [] : [{ label: <Term id="construction">Construction</Term>, value: `${bq} q${crash ? ' crash' : ''}` }]),
+              ]}>One data-centre building. A [[campus|campus]] repeats it.</TipCard>} />
+          );
+        })}
+      </div>
+      {!colo && (
+        <Tip as="div" content={() => <BuildingsTip s={s} o={o} params={params} />}>
+          <div className="dc-bld" data-test="site-buildings">
+            <Term id="campus">Buildings</Term>
+            <Seg value={n} onChange={setBuildings} options={CAMPUS.counts.map((k) => ({ v: k, label: String(k), locked: siteSizeError({ ...o, buildings: k }) }))} />
+            {n > 1 && <b className="num tone-pos">−{F.pct(CAMPUS.discount[n])}</b>}
+            <span className="sp" />
+            <span className="num dim">{n} × {F.power(o.mw)} =</span><b className="num">{F.power(campusMW(o))}</b>
+          </div>
+        </Tip>
+      )}
+      <div className="cac-lbl">Power</div>
+      <div className="cac-tiles c3">
+        {PATHS.map((p) => {
+          const f = siteFit({ ...o, path: p.id });
+          const L = siteBuildingLiveInQ(s, f);
+          const cut = p.id !== 'rent' && (f.buildings ?? 1) < n;
+          return (
+            <OptionTile key={p.id} label={p.label} icon={p.icon} active={path === p.id} onClick={() => pickPath(p.id)} testId={`path-${p.id}`}
+              glyphs={<span className="dc-gl"><b>{qRange(s, qOf(s) + L[0], qOf(s) + L[L.length - 1])}</b>
+                {p.id === 'rent' ? <span className="cp">≤ {F.power(SOURCES.rent.maxMW)}</span> : <span><span className="bd">+0–{OPPOSITION.delayQ[1]}q</span> <span className={`cp ${cut ? 'bind' : ''}`}>· {cut ? `${f.buildings} × ${F.power(f.mw)}` : `≤ ${F.power(SOURCES[p.id].maxMW)}`}</span></span>}</span>}
+              tip={() => <PowerTip s={s} p={p} o={o} f={f} />} />
           );
         })}
       </div>
       {!colo && <><div className="cac-lbl"><Term id="payOption">Pay with</Term></div><PayTiles s={s} opts={pays} value={payNow} onChange={setPay} testPrefix="site-pay" asset="site" timing={{ site: sched }} /></>}
-      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qLabel(s, liveQ)}</>} />{(() => { const z = siteSizeView(s, path); const short = z.leaseGW !== undefined && z.leaseGW * 1000 < mw; return <Limit id="site.mw" tone={short ? 'bind' : 'quiet'}>{F.power(z.min)}–{F.power(z.max)}{z.leaseGW !== undefined ? ` · lease pool ${F.power(z.leaseGW * 1000)}` : ''}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
-      {open && (
+      <div className="cac-pv"><ComputePreview s={s} id="cmp.newSite" params={params} arrives={<>racks for, live ≈ {qAhead(s, siteBuildingLiveInQ(s, o)[0])}</>} custom={colo ? undefined : (v, w) => <BuildLines s={s} v={v} w={w} o={o} />} />{(() => { const z = siteSizeView(s, path); return <Limit id="site.mw" tone="quiet">{F.power(z.min)}–{F.power(z.max)}</Limit>; })()}{!colo && <Limit id="lease.rating" tone={leaseRate(s) === undefined ? 'bind' : 'quiet'}>{leaseLimit(s)}</Limit>}</div>
+      {open && !colo && (
         <div className="cac-opts">
-          <Toggle on={crash} onChange={setCrash} label={<><Term id="crashBuild">Crash build</Term> · 4q, +35%</>} />
-          {!colo && <Toggle on={community} onChange={setCommunity} label={<><Term id="communityPackage">Community package</Term> · +3% capex, block risk ×0.5{s.player.policies.communityBenefits ? ' · company default' : ''}</>} />}
+          {levers.map(([k, on, set]) => {
+            const e = effects[k]!;
+            const t = LEVER_TERM[k];
+            return (
+              <Tip key={k} as="div" content={() => <LeverTip k={k} e={e} path={path} n={n} />}>
+                <span data-lever={k}><Toggle on={on} onChange={set} label={<>
+                  <Term id={t.id}>{t.label}</Term> · {k === 'community' ? `block ×${e.blockMult}` : savesText(e)}, {F.money(e.cost, { signed: true })}{k === 'crash' ? ', odds up' : ''}{k === 'community' && s.player.policies.communityBenefits ? ' · company default' : ''}
+                </>} /></span>
+              </Tip>
+            );
+          })}
           {!s.player.policies.communityBenefits && <span className="row-i small"><span className="dim">Company default</span><ActBtn id="cmp.community" label="Package every site" /></span>}
         </div>
       )}
       <div className="cac-foot">
-        <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-site"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{crash ? 'Crash build' : 'Normal build'}</b>{community && !colo ? ' · community package' : ''}{payNow === 'lease' ? ' · lease' : ''}</button>
+        {colo ? <span className="cac-more static"><b>Normal build</b></span>
+          : <button className="cac-more" onClick={() => setOpen(!open)} data-test="opt-site"><ICON.go size={12} className={open ? 'rot' : ''} /><b>{taken[0] ?? 'Normal build'}</b>{[...taken.slice(1), ...(community && !colo ? ['community package'] : []), ...(payNow === 'lease' ? ['lease'] : [])].map((x) => <span key={x} className="dim"> · {x}</span>)}</button>}
         <span className="sp" />
         <Gate s={s} k="compute"><ActBtn id="cmp.newSite" testId={payNow === 'lease' ? 'cmp.newSite.lease' : undefined} params={params} primary label="Build" icon={ICON.sites} /></Gate>
       </div>
@@ -514,101 +838,171 @@ function Overview({ s }: { s: GameStateV2 }) {
           <BuildCard s={s} />
           <CloudCard s={s} />
         </div>
+        <SiteRows s={s} />
       </div>
     </>
   );
 }
 
-// ═════════════════════════ Sites ═════════════════════════
+// ═════════════════════════ Sites (rows under the chart) ═════════════════════════
 
-function SiteTimeline({ s }: { s: GameStateV2 }) {
-  const now = s.time.day;
-  const sites = [...s.player.sites].sort((a, b) => (a.stage === 'live' ? 1 : 0) - (b.stage === 'live' ? 1 : 0) || a.stageEndDay - b.stageEndDay);
-  const liveAt = (x: Site) => (x.stage === 'live' ? now : x.stage === 'building' ? x.stageEndDay : x.stageEndDay + (x.ws3?.buildQ ?? 8) * 91);
-  const lo = now - 120;
-  const hi = Math.max(now + 365, ...sites.filter((x) => x.stage !== 'blocked').map((x) => liveAt(x) + 45));
-  const X = (d: number) => `${((Math.max(lo, Math.min(hi, d)) - lo) / (hi - lo)) * 100}%`;
-  const W = (a: number, b: number) => `${((Math.max(lo, Math.min(hi, b)) - Math.max(lo, Math.min(hi, a))) / (hi - lo)) * 100}%`;
-  const ticks: number[] = [];
-  const yearly = hi - lo > 600;
-  for (let d = lo; d <= hi; d += 7) { const t = dateOf(s, d); if (t.getUTCDate() <= 7 && t.getUTCMonth() % (yearly ? 12 : 6) === 0 && Math.abs(d - now) > (hi - lo) * 0.08) ticks.push(d); }
+const TRACK = { permits: '#8a9bb0', cons: C.you, power: C.watch, live: 'rgba(76,195,138,.55)' };
+const SOURCE_NAME: Record<Site['path'], string> = { rent: 'Rent', grid: 'Grid', gas: 'Gas' };
+const POWER_WAIT: Record<Site['path'], string> = { rent: 'a hall', grid: 'grid', gas: 'turbines' };
+
+interface SiteRow { x: Site; bars?: SiteBars; view?: SiteBuildingsView; full: boolean }
+
+/** One quarter range as `Q3 29` or `Q3 29 → Q3 30`. */
+const qRange = (s: GameStateV2, a: number, b: number) => (a === b ? qLabel(s, a) : `${qLabel(s, a)} → ${qLabel(s, b)}`);
+
+/** The community package's price for one site: what the action's preview charges. */
+const packagePrice = (s: GameStateV2, x: Site) => -actionView(s, 'cmp.community', { siteId: x.id }).costs.filter((c) => c.currency === 'cash').reduce((a, c) => a + c.amount, 0);
+
+/** What a site's opposition odds are made of (the block pill's tooltip). */
+function OppositionTip({ s, x }: { s: GameStateV2; x: Site }) {
+  const p = oppositionParts(s, x);
   return (
-    <div className="stl" data-home="sites">
-      <div className="stl-row stl-axis">
-        <span /><span />
-        <span className="stl-track">
-          {ticks.map((d) => <span key={d} className="stl-tick" style={{ left: X(d) }}>{yearly ? dateOf(s, d).getUTCFullYear() : fmtMonth(dateOf(s, d))}</span>)}
-          <span className="stl-now" style={{ left: X(now) }}>today</span>
-        </span>
-        <span /><span />
-      </div>
-      {sites.map((x) => {
-        const odds = oppositionOdds(s, x);
-        const start = x.ws3?.startDay ?? now;
-        const live = liveAt(x);
+    <TipCard title={<Term id="opposition">Opposition</Term>} value={`block ${F.pct(p.block)}`} rows={[
+      { label: 'Block, before modifiers', value: F.pct(p.blockBase) },
+      { label: <Term id="dcPublic">Public mood</Term>, value: `×${p.mood.toFixed(2)}` },
+      ...(p.crashMult !== 1 ? [{ label: <Term id="crashBuild">Crash construction</Term>, value: `×${p.crashMult}` }] : []),
+      ...(p.communityMult !== 1 ? [{ label: <Term id="communityPackage">Community package</Term>, value: `×${p.communityMult}`, tone: 'pos' as const }] : []),
+      { label: 'Delay odds', value: F.pct(p.delay) },
+    ]}>One roll when permits end, for the whole site. A block loses what you have paid so far; a delay adds 1 to 3 quarters.</TipCard>
+  );
+}
+
+function SiteTip({ s, r }: { s: GameStateV2; r: SiteRow }) {
+  const { x, bars, view } = r;
+  const of = view?.of ?? x.ws3.buildings ?? 1;
+  const bmw = x.ws3.buildingMW ?? x.mw / of;
+  const liveMW = siteLiveMW(x, s.time.day);
+  const odds = oppositionOdds(s, x);
+  const taken: ReactNode[] = [];
+  if (x.crash) taken.push(<Term key="crash" id="crashBuild">crash</Term>);
+  if (x.ws3.rush) taken.push(<Term key="rush" id="rushPower">rush power</Term>);
+  if (x.ws3.fastTrack) taken.push(<Term key="fast" id="fastTrack">fast-track</Term>);
+  if (x.communityPackage) taken.push(<Term key="pack" id="communityPackage">community package</Term>);
+  const stage = x.stage === 'blocked' ? 'blocked' : r.full ? 'live' : x.stage === 'live' ? `${view?.live} of ${of} live` : x.stage === 'permitting' ? 'permits' : x.stage === 'power' ? 'waiting for power' : 'construction';
+  const rows: { label: ReactNode; value: ReactNode; tone?: 'neg' | 'neutral' | 'pos' }[] = [
+    { label: <Term id="sitePath">Power source</Term>, value: `${SOURCE_NAME[x.path]} · ${x.region}` },
+    { label: of > 1 ? <Term id="campus">Buildings</Term> : <Term id="mw">Capacity</Term>, value: of > 1 ? `${of} × ${F.power(bmw)} = ${F.power(x.mw)}` : F.power(x.mw) },
+  ];
+  if (view && !r.full && x.stage === 'live') rows.push({ label: 'Live now', value: F.power(liveMW) });
+  if (bars && !r.full) {
+    if (bars.permits) rows.push({ label: <Term id="permitting">Permits end</Term>, value: qLabel(s, bars.permits[1]) });
+    if (bars.power) rows.push({ label: <Term id="powerStage">Power ready</Term>, value: qLabel(s, bars.power[1]) });
+    if (bars.construction) rows.push({ label: <Term id="construction">Construction</Term>, value: `${qLabel(s, bars.construction[0])} – ${qLabel(s, bars.construction[1])}` });
+  }
+  if (view && of > 1) rows.push({ label: <Term id="buildingsLive">Buildings live</Term>, value: view.buildings.map((b) => `${qLabel(s, b.liveQ)}${b.live ? ' ✓' : ''}`).join(' · ') });
+  if (x.stage === 'permitting' && !x.ws3.rolled && x.path !== 'rent') rows.push({ label: <Term id="opposition">Block / delay</Term>, value: `${F.pct(odds.block)} / ${F.pct(odds.delay)}`, tone: odds.block > 0.1 ? 'neg' : 'neutral' });
+  rows.push(
+    { label: 'Speed-ups taken', value: taken.length ? taken.reduce<ReactNode[]>((a, n, i) => (i ? [...a, ' · ', n] : [n]), []) : 'none' },
+    { label: <Term id="capex">Capex paid</Term>, value: `${F.money(x.capexPaid)} / ${F.money(x.capex)}` },
+    { label: 'Chips installed', value: `${F.count(x.installed)} H100e` },
+    { label: <Term id="payOption">Paid with</Term>, value: x.ws3?.lease ? `lease ${F.pct(x.ws3.lease.rate)} · ${F.money(siteLeasePerYear(x, x.stage === 'live' ? x.ws3.lease.funded : x.ws3.lease.funded + (x.capex - x.capexPaid) * x.spvFunded), { perYear: true })} × 15 y` : 'cash' },
+  );
+  if (x.ws3?.lease) rows.push({ label: <Term id="rvg">Residual-value guarantee</Term>, value: F.money(siteRVG(s, x.id)) });
+  return <TipCard title={x.name} value={stage} rows={rows} />;
+}
+
+/** The Sites section under the chart: one row per site, with its permits, construction and power bars on a shared
+ *  quarter axis, one diamond per building, and the live range and stage at the right. */
+function SiteRows({ s }: { s: GameStateV2 }) {
+  const q0 = qOf(s);
+  const d0 = dayOfQuarter(s.time.startDate, q0);
+  const now = q0 + (s.time.day - d0) / Math.max(1, dayOfQuarter(s.time.startDate, q0 + 1) - d0);
+  const kW = s.power.kWPerH100e;
+  const rows: SiteRow[] = s.player.sites.map((x) => {
+    const bars = siteBars(s, x), view = siteBuildingsView(s, x);
+    return { x, bars, view, full: !!view && x.stage === 'live' && view.live >= view.of };
+  });
+  const rank = (r: SiteRow) => (r.x.stage === 'blocked' ? 2 : r.full ? 0 : 1);
+  rows.sort((a, b) => rank(a) - rank(b) || (a.bars?.liveQ ?? 0) - (b.bars?.liveQ ?? 0));
+  const liveMW = s.player.sites.reduce((a, x) => a + siteLiveMW(x, s.time.day), 0);
+  const usedMW = s.player.sites.reduce((a, x) => a + Math.min(siteLiveMW(x, s.time.day), (x.installed * kW) / 1000), 0);
+  // axis: from five quarters back (earlier if a site not yet fully live began earlier) to eight ahead (later if a building goes live later)
+  const starts = rows.filter((r) => r.bars && !r.full).flatMap((r) => [r.bars!.permits?.[0], r.bars!.power?.[0], r.bars!.construction?.[0]]).filter((q): q is number => q !== undefined);
+  const ends = rows.flatMap((r) => (r.bars ? [(r.bars.lastLiveQ ?? r.bars.liveQ) + 1] : []));
+  const Q0 = Math.floor(Math.min(q0 - 5, ...starts)), Q1 = Math.ceil(Math.max(q0 + 8, ...ends));
+  const frac = (q: number) => Math.max(0, Math.min(1, (q - Q0) / (Q1 - Q0)));
+  const X = (q: number) => `${frac(q) * 100}%`;
+  const W = (a: number, b: number) => `${(frac(b) - frac(a)) * 100}%`;
+  const years: number[] = [];
+  for (let q = Q0; q <= Q1; q++) if (dateOf(s, dayOfQuarter(s.time.startDate, q)).getUTCMonth() < 3 && Math.abs(q - now) > 0.8 && frac(q) > 0.03 && frac(q) < 0.94) years.push(q);
+  /** A bar from quarter a to b: solid up to today, hatched after. */
+  const part = (k: string, cls: string, a: number, b: number, bg: string) => [
+    a < now && <i key={`${k}p`} className={cls} style={{ left: X(a), width: W(a, Math.min(b, now)), background: bg }} />,
+    b > now && <i key={`${k}f`} className={`${cls} pl`} style={{ left: X(Math.max(a, now)), width: W(Math.max(a, now), b), background: bg }} />,
+  ];
+  const track = (r: SiteRow) => {
+    const { bars, view } = r;
+    const out: ReactNode[] = [<span key="nl" className="nl" style={{ left: X(now) }} />];
+    if (r.full) out.push(<i key="live" className="f" style={{ left: 0, width: '100%', background: TRACK.live }} />);
+    else if (bars && view) {
+      const last = bars.lastLiveQ ?? bars.liveQ;
+      if (bars.permits) out.push(...part('pe', 'f', bars.permits[0], bars.permits[1], TRACK.permits));
+      if (bars.construction) out.push(...part('co', 't', bars.construction[0], bars.construction[1], TRACK.cons));
+      if (bars.power) out.push(...part('po', 'b', bars.power[0], bars.power[1], TRACK.power));
+      if (view.live > 0) {
+        out.push(...part('l1', 'b', bars.liveQ, last, TRACK.live));
+        out.push(...part('l2', 'f', last, Q1, TRACK.live));
+      }
+      view.buildings.forEach((b, k) => out.push(<span key={`d${k}`} className={`lv ${b.live ? '' : 'rk'}`} style={{ left: X(b.liveQ) }} />));
+    }
+    return out;
+  };
+  const status = (r: SiteRow): ReactNode => {
+    const { x, bars, view } = r;
+    if (x.stage === 'blocked') return <><span className="tone-neg">blocked</span><Tip content={() => <TipCard title={<Term id="capex">Capex lost</Term>} value={F.money(x.capexPaid)} rows={[{ label: 'Planned capex', value: F.money(x.capex) }]}>Paid on the site before opposition blocked it.</TipCard>}><span className="dim">{F.money(x.capexPaid)} lost</span></Tip></>;
+    if (!view || !bars) return null;
+    if (r.full) return <><span className="tone-pos">live</span><span className="dim">since {qLabel(s, view.buildings[0].liveQ)}</span></>;
+    if (x.stage === 'live') {
+      const next = view.buildings.find((b) => !b.live);
+      return <><span className="tone-pos"><Term id="buildingsLive">{view.live} of {view.of} live</Term></span>{view.inConstruction > 0 ? <span className="dim">{view.inConstruction} in construction</span> : next ? <span className="dim">next {qLabel(s, next.liveQ)}</span> : null}</>;
+    }
+    if (x.stage === 'permitting') {
+      const odds = oppositionOdds(s, x);
+      const canPackage = !x.communityPackage && !x.ws3.rolled && x.path !== 'rent';
+      return (
+        <>
+          <Term id="permitting">Permits</Term>
+          {!x.ws3.rolled && odds.block >= 0.005 && <Tip content={() => <OppositionTip s={s} x={x} />}><span className={`dc-pill ${odds.block > 0.1 ? '' : 'warn'}`}>block {F.pct(odds.block)}</span></Tip>}
+          {canPackage && <ActBtn id="cmp.community" params={{ siteId: x.id }} label={`Community package · ${F.money(packagePrice(s, x))}`} />}
+        </>
+      );
+    }
+    if (x.stage === 'power') return <><Term id="powerStage">Waiting for {POWER_WAIT[x.path]}</Term>{x.path !== 'rent' && bars.construction && <span className="dim">build from {qLabel(s, bars.construction[0])}</span>}</>;
+    return <><Term id="construction">Construction</Term><span className="dim">until {qLabel(s, bars.lastLiveQ ?? bars.liveQ)}</span></>;
+  };
+  return (
+    <Card title="Sites" term="site" home="sites" id="ctl-siteRows" className="dcs"
+      right={<span className="row-i small"><span className="dim">racks used / live</span><HBar v={usedMW} max={Math.max(1, liveMW)} w={110} h={8} color={chipFit(s).idle > 0 ? C.bad : usedMW > liveMW * 0.95 ? C.watch : C.good} />
+        <Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(usedMW) }, { label: 'Live capacity', value: F.power(liveMW) }]}>Power of your live buildings and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed"><span data-test="sites-used">{F.power(usedMW)}</span> / <span data-test="sites-live">{F.power(liveMW)}</span></b></Tip></span>}>
+      <div className="dcs-row ax"><span /><span /><span className="dcs-tr">
+        {years.map((q) => <span key={q} className="tk" style={{ left: X(q) }}>{dateOf(s, dayOfQuarter(s.time.startDate, q)).getUTCFullYear()}</span>)}
+        <span className="tk now" style={{ left: X(now) }}>today</span>
+      </span><span className="dim small">live</span><span /></div>
+      {rows.map((r) => {
+        const { x, view } = r;
+        const times = view && x.stage !== 'blocked' && !r.full ? qRange(s, view.buildings[0].liveQ, view.buildings[view.buildings.length - 1].liveQ) : '';
         return (
-          <Tip as="div" key={x.id} content={() => (
-            <TipCard title={x.name} value={STAGE_LABEL[x.stage]} rows={[
-              { label: <Term id="sitePath">Power</Term>, value: `${PATHS.find((p) => p.id === x.path)?.label} · ${x.region}` }, { label: <Term id="mw">Capacity</Term>, value: F.power(x.mw) },
-              { label: 'Stage ends', value: x.stage === 'live' ? '—' : fmtDate(dateOf(s, x.stageEndDay)) }, { label: 'Live ≈', value: x.stage === 'blocked' ? 'blocked' : fmtMonth(dateOf(s, live)) },
-              { label: 'Block / delay risk', value: `${F.pct(odds.block)} / ${F.pct(odds.delay)}`, tone: odds.block > 0.1 ? 'neg' : 'neutral' },
-              { label: <Term id="capex">Capex paid</Term>, value: `${F.money(x.capexPaid)} / ${F.money(x.capex)}` }, { label: 'Chips installed', value: `${F.count(x.installed)} H100e` },
-              { label: <Term id="communityPackage">Community package</Term>, value: x.communityPackage ? 'yes' : 'no' }, { label: <Term id="crashBuild">Crash build</Term>, value: x.crash ? 'yes' : 'no' },
-              { label: <Term id="payOption">Paid with</Term>, value: x.ws3?.lease ? `lease ${F.pct(x.ws3.lease.rate)} · ${F.money(siteLeasePerYear(x, x.stage === 'live' ? x.ws3.lease.funded : x.ws3.lease.funded + (x.capex - x.capexPaid) * x.spvFunded), { perYear: true })} × 15 y` : 'cash' },
-              ...(x.ws3?.lease ? [{ label: <Term id="rvg">Residual-value guarantee</Term>, value: F.money(siteRVG(s, x.id)) }] : []),
-            ]} />
-          )}>
-            <div className="stl-row" data-site={x.id}>
-              <span className="stl-name"><span className="dot" style={{ background: STAGE_COLOR[x.stage] }} /><span className="ellip">{x.name}</span><span className="dim small">{PATHS.find((p) => p.id === x.path)?.label.toLowerCase()}</span></span>
-              <span className="num stl-mw">{F.power(x.mw)}</span>
-              <span className="stl-track">
-                <span className="stl-now-line" style={{ left: X(now) }} />
-                {x.stage === 'live' && <i className="stl-seg live" style={{ left: X(lo), width: W(lo, hi) }} />}
-                {x.stage !== 'live' && x.stage !== 'blocked' && (
-                  <>
-                    <i className="stl-seg past" style={{ left: X(start), width: W(start, now) }} />
-                    <i className="stl-seg" style={{ left: X(now), width: W(now, x.stageEndDay), background: STAGE_COLOR[x.stage] }} />
-                    {x.stage !== 'building' && <i className="stl-seg plan" style={{ left: X(x.stageEndDay), width: W(x.stageEndDay, live) }} />}
-                    <b className="stl-live" style={{ left: X(live) }} title="goes live" />
-                  </>
-                )}
-                {x.stage === 'blocked' && <i className="stl-seg blocked" style={{ left: X(start), width: W(start, now) }} />}
-              </span>
-              <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">until {fmtMonth(dateOf(s, x.stageEndDay))} · live ≈ {qLabel(s, qOf(s, live))}</span></>}</span>
-              <span className="stl-act">
-                {x.stage === 'permitting' && odds.block > 0.005 && <Pill kind={odds.block > 0.1 ? 'bad' : 'warn'} title="chance local opposition blocks the site">block {F.pct(odds.block)}</Pill>}
-                {x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'lease' && <ActBtn id="cmp.community" params={{ siteId: x.id }} label="Community package" />}
-              </span>
+          <Tip as="div" key={x.id} content={() => <SiteTip s={s} r={r} />}>
+            <div className="dcs-row" data-site={x.id}>
+              <span className="dcs-name"><span className="dot" style={{ background: STAGE_COLOR[x.stage] }} /><span className="ellip">{x.name}</span><span className="dim">{x.path}</span></span>
+              <span className="dcs-mw">{view && view.of > 1 && <span className="dcs-bl">{view.buildings.map((b, k) => <i key={k} className={b.live ? 'on' : ''} />)}</span>}{F.power(x.mw)}</span>
+              <span className="dcs-tr">{track(r)}</span>
+              <span className="dcs-lv">{times}</span>
+              <span className="dcs-st">{status(r)}</span>
             </div>
           </Tip>
         );
       })}
-      {!sites.length && <div className="dim small">No sites yet.</div>}
-      <div className="stl-leg legend2">
-        {(['permitting', 'power', 'building', 'live', 'blocked'] as const).map((st) => <span key={st}><i style={{ background: STAGE_COLOR[st] }} />{STAGE_LABEL[st]}</span>)}
-        <span><i className="hatch" />planned build</span>
-      </div>
-    </div>
-  );
-}
-
-function SitesTab({ s }: { s: GameStateV2 }) {
-  const kW = s.power.kWPerH100e;
-  const live = s.player.sites.filter((x) => x.stage === 'live');
-  const mwCap = live.reduce((a, x) => a + x.mw, 0);
-  const mwUsed = live.reduce((a, x) => a + Math.min(x.mw, (x.installed * kW) / 1000), 0);
-  const full = chipFit(s).idle > 0;
-  const pw = s.power.ws3;
-  return (
-    <Card title={<Term id="site">Sites & power</Term>} className="cmp-sites"
-      right={<span className="row-i small"><span className="dim">MW used / cap</span><HBar v={mwUsed} max={Math.max(1, mwCap)} w={110} h={8} color={full ? C.bad : mwUsed > mwCap * 0.95 ? C.watch : C.good} /><Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(mwUsed) }, { label: 'Live capacity', value: F.power(mwCap) }]}>Power of your live sites and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed">{F.power(mwUsed)} / {F.power(mwCap)}</b></Tip></span>}>
-      <SiteTimeline s={s} />
-      <div className="cmp-power">
-        <KV k="Grid pool left" term="gridPool">{F.power(pw.poolLeftGW * 1000)}</KV>
-        <KV k="Spare transformers" term="transformers">{F.power(pw.transformersGW * 1000)}</KV>
-        <KV k="Transformer lead time" term="transformers">{s.power.transformerLeadQ}q</KV>
-        <KV k="kW per H100e" term="kwPerH100e">{kW.toFixed(2)}</KV>
-        <Gate s={s} k="compute"><ActBtn id="cmp.preorderTransformers" params={{ gw: 2 }} label="Pre-order 2 GW transformers" icon={ICON.power} /></Gate>
+      {!rows.length && <div className="dim small">No sites yet.</div>}
+      <div className="dcs-leg">
+        <span><i style={{ background: TRACK.permits }} /><Term id="permitting">permits</Term></span><span><i style={{ background: TRACK.cons }} /><Term id="construction">construction</Term></span>
+        <span><i style={{ background: TRACK.power }} /><Term id="powerStage">power</Term></span><span><i style={{ background: TRACK.live }} />live</span>
+        <span><i className="dm" /><Term id="building">building</Term> live</span><span><i className="pl" style={{ background: TRACK.cons }} />planned</span>
       </div>
     </Card>
   );
@@ -718,15 +1112,13 @@ function Market({ s }: { s: GameStateV2 }) {
 
 export function Compute({ s }: { s: GameStateV2 }) {
   const tab0 = tabOf('compute', 'overview');
-  const tab = tab0 === 'split' ? 'overview' : tab0; // UB-5: the allocation moved to LAB
-  const sitesBadge = chipFit(s).idle > 0 || s.player.sites.some((x) => x.stage === 'permitting' && !x.ws3?.rolled && oppositionOdds(s, x).block > 0.1) ? '!' : undefined;
+  const tab = tab0 === 'split' || tab0 === 'sites' ? 'overview' : tab0; // UB-5: the allocation moved to LAB; the Sites tab became rows under the chart
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
         right={<span className="row-i"><Ref id="split" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
-      {tab === 'sites' && <SitesTab s={s} />}
       {/* Jank C4: orders, cloud and the chip market share one tab (each used under 40% of the screen alone). */}
       {(tab === 'orders' || tab === 'market') && <div className="g3"><Deliveries s={s} /><Cloud s={s} /><Market s={s} /></div>}
     </div>
