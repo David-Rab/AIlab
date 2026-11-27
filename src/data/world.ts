@@ -158,6 +158,9 @@ export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, _
       w = build('AI 2027 scenario', { h0: 22, T: 4.74, growth: 'super', decay: 0.1, g0: 28.5, cs: 3.9, share: 0.5, pEx: 0.25, sEx: 4, G: [4.19, 16, 49.5] });
       break;
     case 'authors2026':
+    case 'tl-fast': // R3.1: the per-game draw worlds share the authors2026 compute table and timeline (their settings are the draw's, world/hidden.ts)
+    case 'tl-central':
+    case 'tl-slow':
       // Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y.
       w = build("Authors' 2026 model", { h0: 38, T: 4.5, growth: 'super', decay: 0.08, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 17, share: 0.6, pEx: 0.1, sEx: 2, G: [1.52, 101, 1340] });
       w.aifm = true;

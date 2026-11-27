@@ -38,6 +38,7 @@ import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId }
 const ME = fileURLToPath(import.meta.url);
 const HERE = dirname(ME);
 const BOTGAME = join(HERE, 'botgame.ts');
+const MATCHED = join(HERE, 'matched.ts');
 const PARAMOVR = join(HERE, 'paramOverride.ts');
 const FORCEDIN = join(HERE, 'forcedInputs.ts');
 const PRELOAD = pathToFileURL(join(HERE, 'overridePreload.ts')).href;
@@ -52,6 +53,8 @@ export interface GameRecord {
   forced?: string;
   /** Harness exceptions active in this forced run (forcedInputs.ts). */
   harnessExceptions?: string[];
+  /** R3.1 (world tl-fast / tl-central / tl-slow): the AI Futures Model run this game's settings were drawn from (id, and its index in the timeline's group). */
+  aifmRun?: string; aifmDraw?: number;
   overrides?: Record<string, number | string | boolean | number[]>;
   overrideSet?: string;
   endDay: number; ending: string; verdict: 'win' | 'mixed' | 'loss';
@@ -70,7 +73,7 @@ type Body = Omit<GameRecord, 'run'>;
 interface Job { id: number; cell: Cell; seed: number; set: number }
 interface OSet { name: string; set: Record<string, number | string | boolean | number[]> }
 
-const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'slow'];
+const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'slow', 'tl-fast', 'tl-central', 'tl-slow'];
 const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
 const STARTS: StartType[] = ['spinout', 'challenger', 'bigtech', 'leader'];
 
@@ -86,6 +89,8 @@ async function loadGame() {
 // ───────────────────────────── Playing one game ─────────────────────────────
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
+const aifmRunOf = (s: GameStateV2) => { const a = s.hidden.timeline.aifmRun; return a ? { aifmRun: a.id, aifmDraw: a.index } : {}; };
+
 function playForcedOne(cell: Cell, seed: number): Body {
   const t0 = performance.now();
   const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
@@ -94,7 +99,7 @@ function playForcedOne(cell: Cell, seed: number): Body {
   const ms: Record<string, number> = {};
   for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) if (md[i] !== undefined) ms[k] = md[i]!;
   return {
-    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced, harnessExceptions: HARNESS_EXCEPTIONS,
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced, harnessExceptions: HARNESS_EXCEPTIONS, ...aifmRunOf(s),
     endDay: s.time.day, ending: 'forced-end', verdict: 'mixed', milestones: ms, revenueByYear: [], series,
     ms: Math.round(performance.now() - t0),
   };
@@ -130,7 +135,7 @@ function playOne(cell: Cell, seed: number): Body {
   const asiOwn = e.epilogue.asiLab === 'player' && e.epilogue.misAtAsi !== undefined;
   const cashes = S.cash.filter((c) => Number.isFinite(c));
   return {
-    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy,
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, ...aifmRunOf(s),
     endDay: e.day, ending: e.id, verdict: e.verdict, milestones: ms,
     pMisAtEnd: r3(pMis(s, mis)), ...(asiOwn ? { pMisAtASI: r3(pMis(s, e.epilogue.misAtAsi!)) } : {}),
     revenueByYear,
@@ -146,7 +151,7 @@ function playOne(cell: Cell, seed: number): Body {
 const OVR: Record<string, unknown> = process.env.BAL_OVERRIDES ? JSON.parse(process.env.BAL_OVERRIDES) : {};
 const OVR_NAME = process.env.BAL_SET_NAME;
 const playCached = (cell: Cell, seed: number): Body =>
-  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, PARAMOVR, FORCEDIN, ...(cell.forced ? [AIFM_CSV] : [])], () => playOne(cell, seed));
+  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, MATCHED, PARAMOVR, FORCEDIN, ...(cell.forced ? [AIFM_CSV] : [])], () => playOne(cell, seed));
 
 // ───────────────────────────── CLI ─────────────────────────────
 const argv = process.argv.slice(2);
@@ -304,7 +309,7 @@ async function parent() {
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
   writeFileSync(join(dir, 'config.json'), JSON.stringify({
     name, args: argv, ...(forced ? { forced, harnessExceptions: HARNESS_EXCEPTIONS } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
-    gitCommit: git, codeHash: codeHash([ME, BOTGAME, PARAMOVR, FORCEDIN]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
+    gitCommit: git, codeHash: codeHash([ME, BOTGAME, MATCHED, PARAMOVR, FORCEDIN]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
   }, null, 2));
 
   const total = jobs.length;

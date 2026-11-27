@@ -55,6 +55,37 @@ const horizonLawParams = (): Param[] => R23_PRESETS.flatMap((p): Param[] => [
   },
 ]);
 
+// R3.1 (design/BAL-TASKS.md round 3): the per-game draw worlds tl-fast / tl-central / tl-slow. One row of src/data/v2/timelineDraws.ts
+// per AI Futures Model run of the timeline's SAR group, translated per run (design/bal/FIXC-TRANSLATION.md section 2); a game plays the
+// row its seed picks (world/hidden.ts aifmDrawOf). One entry per setting, a field family over the three timelines and every run
+// (path '*' = timeline, rows, run); the value of a game's setting is the drawn run's, the world's belief the group median (TL_MEDIAN).
+const DRAW_SOURCE = 'AIFM per-run draw (timelineDraws.ts): aifm-public 1c40ecd, Eli Q2 config, 3,000 runs split on the SAR date into fast / central / slow groups (FIXC-TRANSLATION section 1)';
+const drawParam = (field: string, col: number, unit: string, how: string, range?: { lo: number; hi: number }): Param => ({
+  id: `cap.TIMELINE_DRAWS.${field}`,
+  ref: { kind: 'export', module: 'src/data/v2/timelineDraws.ts', symbol: 'TIMELINE_DRAWS', path: ['*', 'rows', '*', col] },
+  unit,
+  area: 'capability', layer: 'world',
+  kind: 'sourced',
+  evidence: `timelineDraws.ts header: "one row per run of each calibration timeline's SAR group"; column ${col} (${field}): ${how}`,
+  source: DRAW_SOURCE,
+  ...(range ? { range: { ...range, from: 'the game valid range; draws outside it are clamped and counted in the timelineDraws.ts header' } } : {}),
+  perPreset: true,
+});
+const timelineDrawParams = (): Param[] => [
+  drawParam('gSC', 0, 'OOM', 'G(V0) of the preset + the run AIFM progress at AC minus at V0 (SC read as AC), CAL2-T route'),
+  drawParam('sdSC', 1, 'SD', 'ai_research_taste_at_coding_automation_anchor_sd, 1:1', { lo: -10, hi: 3.0902 }),
+  drawParam('dBM', 2, 'OOM', 'TOP_SD / (ai_research_taste_slope / anchor_progress_rate)'),
+  drawParam('r', 3, 'x', 'results.r_software (calibrated per run), approximate meaning'),
+  drawParam('tasteLimit', 4, 'x', 'taste_limit, 1:1', { lo: 0, hi: 100 }),
+  drawParam('m2b', 5, 'x', 'median_to_top_taste_multiplier, 1:1', { lo: 1.01, hi: 100 }),
+  drawParam('lam', 6, 'x', 'parallel_penalty, 1:1', { lo: 0, hi: 1 }),
+  drawParam('rc', 7, 'x', 'rho_coding_labor, 1:1 (discrete draw -5 / -2 / -1)'),
+  drawParam('La', 8, 'x', 'inf_labor_asymptote, 1:1'),
+  drawParam('Ca', 9, 'x', 'inf_compute_asymptote, 1:1'),
+  drawParam('slow10', 10, 'x', 'inv_compute_anchor_exp_cap, 1:1'),
+  drawParam('stockAgeYears', 11, 'years of start input', 'research_stock / research_efforts at 2025.5 (RS(0) = E(0)/g_E)'),
+];
+
 export const PARAMS_CAPABILITY = defineParams([
   {
     id: 'cap.V3_CAL.ai2027.gSC',
@@ -3580,4 +3611,5 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'workTypes.ts: "the smallest base of the horizon law (1 - A x/T) the game evaluates ... the floor keeps it finite [D]"; used only with h50Accel != 0',
   },
   ...horizonLawParams(),
+  ...timelineDrawParams(),
 ]);

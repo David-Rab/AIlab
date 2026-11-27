@@ -204,3 +204,4 @@ table.cal-grid tr.cal-tot td { border-top: 1px solid var(--axis); }
 .cal-twin summary { cursor: pointer; font-weight: 600; }
 .scn-forcednote .sub { margin-top: 2px; }
 .cal-key .cal-c { min-width: 0; padding: 0 5px; }
+table.cal-grid tr.cal-readout td { opacity: 0.7; font-style: italic; }

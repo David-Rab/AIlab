@@ -50,7 +50,8 @@ for (const c of CHECKPOINTS) {
   if (p90 !== undefined && (hi === undefined || p90 < hi)) err(c, `p90 ${p90} must be set with hi and be >= hi ${hi}`);
   if ((p10 !== undefined || p90 !== undefined) && c.bandFrom !== 'source') err(c, 'has p10/p90 but bandFrom is not source');
   if (c.neverBy2100 !== undefined && !(c.neverBy2100 >= 0 && c.neverBy2100 <= 1)) err(c, `neverBy2100 ${c.neverBy2100} is not a share between 0 and 1`);
-  if (c.series !== undefined && (c.layer !== 'timeline' || c.date === undefined)) err(c, 'series needs a dated timeline checkpoint');
+  if (c.series !== undefined && (c.layer !== 'timeline' || (c.date === undefined) === (c.phase === undefined))) err(c, 'series needs a timeline checkpoint with a date or a phase (exactly one)');
+  if (c.phase !== undefined && (c.layer !== 'timeline' || c.date !== undefined || !Number.isFinite(c.phase) || !(c.phase >= -3 && c.phase <= 5))) err(c, 'phase needs a timeline checkpoint with no date and a phase in -3..5 years');
   if ((lo !== undefined || hi !== undefined) && c.bandFrom === 'none') err(c, 'has lo/hi but bandFrom is none');
   if (c.bandFrom === 'source' && lo === undefined && hi === undefined) err(c, 'bandFrom source but no lo/hi');
 

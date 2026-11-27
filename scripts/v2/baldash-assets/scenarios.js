@@ -7,7 +7,7 @@ const LIVE = D.live || null; // set by --scenarios-live: the timeline layer come
 const BASE_CPS = (SC.checkpoints || []).filter((c) => c.layer !== 'timeline');
 const SPLIT_NAME = { ac: 'Coder date', sar: 'SAR date', matrix: 'Coder × takeoff' };
 const SPLIT_WHAT = { ac: 'when AI first codes better than any human (AC)', sar: 'when AI first does AI research better than any human (SAR)' };
-const LAYERS = { ac: { timelines: SC.timelines || [], cps: (SC.checkpoints || []).filter((c) => c.layer === 'timeline'), clusterN: LIVE ? LIVE.clusterN || {} : {} } };
+const LAYERS = { ac: { timelines: SC.timelines || [], cps: (SC.checkpoints || []).filter((c) => c.layer === 'timeline' && c.phase == null), clusterN: LIVE ? LIVE.clusterN || {} : {} } };
 if (LIVE && LIVE.sar) LAYERS.sar = { timelines: LIVE.sar.timelines, cps: LIVE.sar.checkpoints, clusterN: LIVE.sar.clusterN || {} };
 const MATRIX = LIVE && LIVE.matrix && LIVE.matrix.cells ? LIVE.matrix : null;
 const SPLITS = ['ac', ...(LAYERS.sar ? ['sar'] : []), ...(MATRIX ? ['matrix'] : [])];
@@ -670,7 +670,7 @@ function renderScenarios() {
     timeLogChart(hHost, { cal: view.h === 'horizon50' ? 'h50' : 'h80', key: view.h, conv: toMin, ticks: horizonTicks, dom: [1, 1e5], aria: 'AI task length over time, by timeline' });
     if (!hasInputs) timeLogChart(wHost, { key: 'worldCompute', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e7, 1e9], aria: 'World computing power over time, by timeline' });
     if (SPLIT !== 'matrix') milestoneChart(mHost);
-    timeLogChart(uHost, { cal: 'spd', pick: (c) => c.series === 'speedup', hist: (c) => c.id === 'H26.uplift.metr', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => (v >= 1e6 ? fmtCompact(v) : v.toLocaleString('en-US')) + 'x', hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1, 1e3], aria: 'AI research speed-up over time, by timeline' });
+    timeLogChart(uHost, { cal: 'spdM', pick: (c) => c.series === 'speedup', hist: (c) => c.id === 'H26.uplift.metr', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => (v >= 1e6 ? fmtCompact(v) : v.toLocaleString('en-US')) + 'x', hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1, 1e3], aria: 'AI research speed-up over time, by timeline' });
     timeLogChart(eHost, { cal: 'ec', pick: (c) => c.series === 'effCompute', hist: () => false, conv: (c, v) => v, linear: { fmt: (v) => '10^' + v }, dom: [28, 40], aria: 'Effective compute over time, by timeline' });
     if (SPLIT === 'matrix') matrixChart(mxHost);
     if (hasInputs) inputsCharts(inHost, lhHost);

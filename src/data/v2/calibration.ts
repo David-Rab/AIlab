@@ -1,6 +1,7 @@
 // Calibration constants (V2-SPEC §3.1–3.2, §7.1). Owner: WS1.
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
-import type { DomainId, WorldPresetId } from '../../engine/v2/types';
+import type { DomainId, TimelinePresetId, WorldPresetId } from '../../engine/v2/types';
+import { TL_MEDIAN } from './timelineWorlds';
 
 /** RD-X04 (DD-17; research/RD-X04r-diffusion.md §3A) [P]: the recipe replication time constant. Every lab's pretraining
  *  recipe gains (best public-or-open recipe G above it − its own) / τ a day (production/diffusion.ts). τ is the measured
@@ -35,9 +36,12 @@ export const V0_DAY = -20;
  *  start is bit-identical; `g` is what startLab gives the reference base at these recipes. `sampled`: one literal for
  *  every seed (the start is observed history, not a sampled future): the median of playerStart over 400 seeds (b0
  *  p10–p90 0.687–0.935, g 27.48–27.75); the per-seed starts are gone. */
+const START_AUTHORS2026 = { g: 27.627049427807886, b0: 0.82451506849315059, v0: -0.043397260273972567 };
 export const START_STATE: Record<WorldPresetId, { g: number; b0: number; v0: number }> = {
   ai2027: { g: 27.658471072331817, b0: 0.85397260273972597, v0: -0.041095890410958937 },
-  authors2026: { g: 27.627049427807886, b0: 0.82451506849315059, v0: -0.043397260273972567 },
+  authors2026: START_AUTHORS2026,
+  // R3.1: the per-game draw worlds start where authors2026 does (the AIFM start is observed history, the same in every run; startStateOf reads the label)
+  'tl-fast': START_AUTHORS2026, 'tl-central': START_AUTHORS2026, 'tl-slow': START_AUTHORS2026,
   fast: { g: 27.600112150053612, b0: 0.79926575342465744, v0: -0.045369863013698629 },
   slow: { g: 27.766159476245420, b0: 0.95496986301369846, v0: -0.033205479452054765 },
   sampled: { g: 27.691754354575195, b0: 0.8851811569793056, v0: -0.038657722110991784 },
@@ -53,6 +57,8 @@ export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; s
 export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, slow10: 2.5, m2b: 3.25 };
 export const PROD_PRESETS: Partial<Record<WorldPresetId, Partial<ProdPreset>>> = {
   authors2026: { La: 15, slow10: 2.8, m2b: 3.7 },
+  // R3.1: the BELIEF of the per-game draw worlds (production/believed.ts): the group medians; the world itself is the drawn run's (world/hidden.ts prodParamsFor)
+  'tl-fast': TL_MEDIAN['tl-fast'].prod, 'tl-central': TL_MEDIAN['tl-central'].prod, 'tl-slow': TL_MEDIAN['tl-slow'].prod,
 };
 
 /** Reference capabilities headcount H_ref = 2050 + 0.82·60 per month (research/13 §1.2, R11 #12). */
@@ -108,7 +114,7 @@ export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCI
 
 /** Expected golden dates (decimal years), research/11 §5 and V2-SPEC §7.1. null = no target; [lo, hi] = range. */
 export interface GoldenExpect { SC: number | [number, number]; SAR: number | null; SIAR: number | null; ASI: number | null; M?: Record<string, number>; h80?: { year: number; minutes: number } }
-export const GOLDEN_EXPECTED: Record<Exclude<WorldPresetId, 'sampled'>, GoldenExpect> = {
+export const GOLDEN_EXPECTED: Record<Exclude<WorldPresetId, 'sampled' | TimelinePresetId>, GoldenExpect> = {
   ai2027: { SC: 2027.24, SAR: 2027.66, SIAR: 2027.92, ASI: 2028.0, M: { '1.5': 2026.07, '3': 2026.96, '10': 2027.5, '50': 2027.8 } },
   authors2026: { SC: 2029.68, SAR: 2029.89, SIAR: 2031.48, ASI: 2033.73, h80: { year: 2026.27, minutes: 186 } },
   fast: { SC: 2027.91, SAR: null, SIAR: 2028.03, ASI: 2028.12 },

@@ -38,6 +38,7 @@ export interface Checkpoint {
   p10?: number; p90?: number;         // outer band of a distribution (needs lo/hi: p10 <= lo, hi <= p90); a percentile that is not reached is left out
   neverBy2100?: number;               // distribution of a date: the share of samples (0 to 1) that do not reach it by 2100; the percentiles count them as later
   series?: 'speedup' | 'effCompute' | 'trainCompute'; // which chart a dated 'other' timeline value belongs to
+  phase?: number;                     // timeline checkpoint measured relative to the group's own AC (the game's SC) at AC + phase years, instead of at a date (R3.2); then date is unset
   unit: string;                       // 'min', 'H100e', 'USD B', 'year', 'years', 'fraction', ...
   bandFrom: 'source' | 'none' | 'designer';
   source: string;                     // citation in words
@@ -368,6 +369,37 @@ const AIFM_RUN: Record<TimelineId, AifmRun> = {
   },
 };
 
+// By phase (R3.2): the same three series read at AC + tau for EVERY run of the group (tau in years; the model's AC is read as our SC), then
+// the percentiles over the runs. Per run, not the date-aligned percentiles above: a run whose AC falls early and one whose AC falls late
+// are put on the same phase axis, which a date-aligned percentile cannot do. Source: aifm-runs rollouts (the same 869 runs of the three
+// SAR-split groups), extracted by scripts/v2/aifm_phase.py (log-linear interpolation of speed-up and horizon in time, linear for effective
+// compute). Every row is [p10, p25, p50, p75, p90]; n = runs whose time axis reaches AC + tau.
+type PhaseRow = { n: number; speedup: Q5; h80: Q5; effCompute: Q5 };
+const AIFM_PHASES = [-1, 0, 0.5, 1, 2];
+const AIFM_PHASE: Record<TimelineId, Record<number, PhaseRow>> = {
+  fast: {
+    '-1': { n: 290, speedup: [1.05, 1.13, 1.36, 1.85, 2.62], h80: [145, 295, 673, 2250, 30800], effCompute: [27.6, 28.19, 29.13, 30.41, 31.9] },
+    0: { n: 290, speedup: [1.73, 2.17, 3.97, 8.9, 22.1], h80: [847, 2420, 47600, 2.63e+23, 5.41e+46], effCompute: [28.84, 29.63, 31.2, 33.16, 35.9] },
+    0.5: { n: 290, speedup: [3.12, 6.25, 21.8, 312, 281000], h80: [2910, 19200, 3.44e+24, 1.25e+52, 1.05e+73], effCompute: [29.57, 30.7, 33.34, 39.77, 55.93] },
+    1: { n: 290, speedup: [5.52, 17.8, 151, 9110, 164000000], h80: [15000, 885000, 1.48e+37, 2.63e+56, 3.44e+86], effCompute: [30.41, 32.25, 37, 49.43, 71.22] },
+    2: { n: 290, speedup: [21.6, 84.1, 866, 129000, 6330000000], h80: [207000, 640000000000, 1.66e+48, 1.06e+75, 9.55e+113], effCompute: [31.96, 35.34, 43.17, 58.6, 90.77] },
+  },
+  central: {
+    '-1': { n: 289, speedup: [1.17, 1.35, 1.72, 2.38, 4.09], h80: [616, 2580, 44300, 5.13e+30, 1.02e+55], effCompute: [28.82, 29.74, 31.14, 32.85, 36.89] },
+    0: { n: 289, speedup: [1.74, 2.29, 3.86, 7, 19.2], h80: [3320, 19900, 34500000, 1.39e+41, 4.41e+66], effCompute: [29.85, 30.87, 32.68, 34.84, 40.85] },
+    0.5: { n: 289, speedup: [2.37, 3.79, 9.7, 53.2, 1460], h80: [7120, 122000, 262000000000000000, 6.32e+59, 6.13e+85], effCompute: [30.37, 31.6, 33.8, 38.06, 51.45] },
+    1: { n: 289, speedup: [3.3, 6.57, 26.9, 307, 659000], h80: [13500, 1770000, 4.92e+39, 9.15e+69, 7.31e+90], effCompute: [30.91, 32.34, 35.18, 43.39, 65.06] },
+    2: { n: 289, speedup: [6.9, 24.2, 145, 4330, 3920000], h80: [65900, 567000000, 1.97e+46, 6.4e+77, 4e+106], effCompute: [31.98, 34.12, 38.6, 49.34, 77.47] },
+  },
+  slow: {
+    '-1': { n: 290, speedup: [1.26, 1.61, 2.46, 4.68, 10], h80: [1880, 39900, 62600000, 3.35e+54, 2.95e+77], effCompute: [29.95, 32.44, 35.3, 39.31, 47.03] },
+    0: { n: 290, speedup: [1.64, 2.49, 4.18, 9.41, 23.3], h80: [7810, 250000, 571000000000, 6.95e+59, 3.91e+83], effCompute: [31.18, 33.34, 36.21, 40.41, 48.39] },
+    0.5: { n: 290, speedup: [1.92, 3.49, 7.04, 19.2, 106], h80: [15000, 600000, 5.26e+22, 8.08e+62, 1.94e+93], effCompute: [31.8, 33.84, 36.91, 42.39, 53.1] },
+    1: { n: 290, speedup: [2.21, 4.64, 10.8, 49.9, 918], h80: [21400, 1550000, 2.58e+39, 2.07e+67, 1.56e+100], effCompute: [32.19, 34.41, 37.77, 44.36, 57.33] },
+    2: { n: 290, speedup: [2.64, 6.88, 23.7, 218, 24400], h80: [65400, 17700000, 8.76e+44, 6.02e+71, 1.42e+107], effCompute: [32.94, 35.5, 38.85, 48.09, 63.83] },
+  },
+};
+
 const AIFM_MAX_MIN = 1e7; // horizons above this (about 83 work-years) are the model's post-takeoff blow-up: not shown
 const PCT: Record<TimelineId, string> = { fast: '20-30', central: '45-55', slow: '70-80' };
 const aifmSource = (t: TimelineId) => `AI Futures Model, aifm-public 1c40ecdb, Eli's config unchanged (sha256 e9bc58a1…), 3000 runs, SAR-split group ${t} (SAR percentile ${PCT[t]})`;
@@ -428,6 +460,19 @@ function aifmTimeline(t: TimelineId): Checkpoint[] {
     out.push(tl(t, `trainCompute.${y}`, 'other', `Frontier training compute, ${y}`, 'H100e', src, ref,
       { date, value: AIFM_TRAIN[y], series: 'trainCompute',
         notes: `${when} A model input, not an output: the public configs fix it, so it is the same in all three timelines and has no band. The model's inference compute is about 0.71 times this and its experiment compute about 7.1 times.` }));
+  }
+  // by phase: the series at AC + tau (id <timeline>.phase.<series>.<tau>)
+  for (const tau of AIFM_PHASES) {
+    const row = AIFM_PHASE[t][tau];
+    const sign = tau > 0 ? '+' : '', when = `At the model's AC ${sign}${tau} years, per run (the game's SC is compared with the model's AC).`;
+    const at = tau === 0 ? 'at SC' : `at SC ${sign}${tau} y`;
+    const base = { phase: tau, notes: `${when} Percentiles over the ${row.n} runs of this group, each read at its own AC + ${tau} years (scripts/v2/aifm_phase.py).` };
+    out.push(tl(t, `phase.speedup.${sign}${tau}`, 'other', `AI research speed-up, ${at}`, 'x', src, 'scripts/v2/aifm_phase.py (aifm-runs rollouts)',
+      { ...base, ...dist(row.speedup), series: 'speedup', notes: `${base.notes} The model's AI software R&D progress multiplier at present-day resources (compare the game's matched speed-up spdM, not labSpeedRel).` }));
+    if (row.h80[2] <= AIFM_MAX_MIN) out.push(tl(t, `phase.horizon80.${sign}${tau}`, 'horizon80', `AI task length (80% success), ${at}`, 'min', src, 'scripts/v2/aifm_phase.py (aifm-runs rollouts)',
+      { ...base, ...dist(row.h80, AIFM_MAX_MIN), notes: `${base.notes} Percentiles above 1e7 minutes are left out (the model's horizon explodes after takeoff).` }));
+    out.push(tl(t, `phase.effCompute.${sign}${tau}`, 'other', `Effective compute, ${at}`, 'OOM', src, 'scripts/v2/aifm_phase.py (aifm-runs rollouts)',
+      { ...base, ...dist(row.effCompute), series: 'effCompute', notes: `${base.notes} log10 of cumulative effective compute in FLOP.` }));
   }
   return out;
 }

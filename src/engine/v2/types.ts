@@ -37,7 +37,9 @@ export type Money = number; // $B
 export type H100e = number;
 
 export type BaselineId = 'classic' | 'reality';
-export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slow';
+/** R3.1: the per-game draw worlds (data/v2/timelineWorlds.ts). */
+export type TimelinePresetId = 'tl-fast' | 'tl-central' | 'tl-slow';
+export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slow' | TimelinePresetId;
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
 export type EconPresetId = 'normal' | 'ai2027' | 'gate';
 export type StorytellerId = 'rising' | 'measured' | 'chaotic';
@@ -193,6 +195,9 @@ export interface TimelineWorld {
     h50PerOOM?: number; h50Accel?: number; pace?: number;
     /** Item A (workTypes.ts V3Cal): the age of the research lines' start pools, years of their start input. Absent: n₀ from LINE_FIT. */
     stockAgeYears?: number };
+  /** R3.1: the AI Futures Model run this per-game draw world (tl-fast / tl-central / tl-slow) represents: its index in the timeline's
+   *  SAR group and its id (data/v2/timelineDraws.ts). Absent in every other world. */
+  aifmRun?: { index: number; id: string };
 }
 
 export interface ProdParams {

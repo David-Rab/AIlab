@@ -6,6 +6,7 @@
 // measured in effective compute (OOM): F_w = Σ ω_w,d · G_d (engine: departments/workfit.ts). Human reference points sit on
 // the same axis, per domain: the best human in the world at G_SC + δ_d·Δ_bm and the median expert Δ_bm below it.
 import type { DomainId, TeamRole, WorldPresetId } from '../../engine/v2/types';
+import { TL_MEDIAN } from './timelineWorlds';
 
 export type WorkTypeId = 'SWE' | 'EXP' | 'IDEAS' | 'SAF_EXP' | 'SAF_IDEAS' | 'OTHER';
 
@@ -346,4 +347,7 @@ export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
   slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
   sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW }, // timelineFor draws it from TASTE_LIMIT_CI80
+  // R3.1: the per-game draw worlds: the group MEDIAN of the AIFM runs' translated settings (data/v2/timelineWorlds.ts) as the fallback of a
+  // world built without a seed; world/hidden.ts timelineFor replaces them with the game's drawn run. The horizon law and pace stay the defaults.
+  'tl-fast': { ...H50_LAW, ...TL_MEDIAN['tl-fast'].v3 }, 'tl-central': { ...H50_LAW, ...TL_MEDIAN['tl-central'].v3 }, 'tl-slow': { ...H50_LAW, ...TL_MEDIAN['tl-slow'].v3 },
 };

@@ -35,11 +35,12 @@ const calMinus = (s) => s.replace('-', '−');
 const calSigned = (v) => calMinus((v > 0 ? '+' : '') + v.toFixed(1));
 
 // ---- score cell
-const calClass = (r) => (!r || r.score == null ? 'none' : Math.abs(r.score) <= 1 ? 'ok' : Math.abs(r.score) <= 2 ? 'near' : 'miss');
+const calClass = (r) => (!r || r.readout || r.score == null ? 'none' : Math.abs(r.score) <= 1 ? 'ok' : Math.abs(r.score) <= 2 ? 'near' : 'miss');
 const CAL_ICON = { ok: '✓', near: '△', miss: '✕', none: '·' };
 const CAL_CLASS_NAME = { ok: 'within 1 (±1 half-IQR)', near: 'within 2 (±2 half-IQR)', miss: 'beyond 2', none: 'no band to score against' };
 function calText(r) {
   if (!r) return '—';
+  if (r.readout) return 'readout';
   if (r.score == null) return 'no band';
   if (r.score >= 999) return 'never';
   if (r.score <= -999) return '−∞';
@@ -49,7 +50,7 @@ function calVal(r, v) {
   if (v == null) return 'never (or diverged)';
   if (r.unit === 'year') return v.toFixed(2);
   if (r.unit === 'years') return v.toFixed(2) + ' yr';
-  if (r.unit === 'log10 growth') return `×${fmtCompact(Math.pow(10, v))}`;
+  if (r.unit === 'log10 growth' || r.unit === 'log10 multiplier') return `×${fmtCompact(Math.pow(10, v))}`;
   if (r.unit.startsWith('OOM growth')) return `${v >= 0 ? '+' : ''}${v.toFixed(2)} OOM`;
   if (r.unit === 'min') return fmtDur(v);
   return String(v);
@@ -60,11 +61,14 @@ function calTip(r, a, tl, hist) {
     ['Model median', calVal(r, r.target)],
     ['Model range', r.lo != null && r.hi != null ? `${calVal(r, r.lo)} to ${calVal(r, r.hi)}` : 'no range'],
     ['Score', r.score == null ? 'none: the benchmark has no range' : r.score >= 999 ? 'never reached' : `${calSigned(r.score)} half-ranges from the model's median`],
-    ['Games', `${calCol(a.entry, tl).n}`],
+    ['Games', r.n != null ? `${r.n} of ${r.of} (a game with no SC is left out)` : `${calCol(a.entry, tl).n}`],
   ];
+  if (r.readout) lines.push(['Readout, not comparable', 'The game’s own research speed (labSpeedRel) also grows with its compute and its staff; the model’s multiplier holds resources at present day. It is scored through the matched speed-up (the row above), never through this.']);
+  else if (r.id.includes('.speedup.')) lines.push(['What is compared', 'The game’s matched speed-up (spdM): research rate with its AI labour and taste over the rate without AI, both at the lab’s resources of 2026.578, the model’s present day. The model’s value is its progress multiplier.']);
+  if (r.n != null) lines.push(['By phase', 'The game read at its own SC + τ against the model at its own AC + τ: the model’s percentiles are taken over its runs, each read at that run’s AC + τ.']);
   if (hist) lines.push(['How', 'The game’s yearly path is interpolated between samples. Half-range is the source’s interval, or the game’s own tolerance (15% on a horizon, 0.2 OOM on effective compute) where the source gives none.']);
   else if (r.id.endsWith('.SC')) lines.push(['SC convention', `The game’s SC is compared with the model’s AC${D.calib.scShift ? ` + ${D.calib.scShift} yr` : ''}.`]);
-  return { title: r.label, rows: [{ c: calColor(a, tl), v: `${CAL_ICON[calClass(r)]} ${calText(r)}`, n: `${calName(a)}: ${CAL_CLASS_NAME[calClass(r)]}`, hl: true }], lines };
+  return { title: r.label, rows: [{ c: calColor(a, tl), v: `${CAL_ICON[calClass(r)]} ${calText(r)}`, n: `${calName(a)}: ${r.readout ? 'readout, not comparable' : CAL_CLASS_NAME[calClass(r)]}`, hl: true }], lines };
 }
 function calCell(r, a, tl, hist) {
   const k = calClass(r);
@@ -117,18 +121,21 @@ function calKey(act) {
 function calGrid(act) {
   const cols = TIMELINES.map((t) => t.id);
   // rows: history anchors, then the timeline benchmarks, in the order the scoring lists them
-  const histKeys = [], tlKeys = [], label = {};
+  const histKeys = [], tlKeys = [], phKeys = [], label = {}, phLabel = {};
   const note = (list, id, r) => { if (!list.includes(id)) list.push(id); if (!label[id]) label[id] = r; };
-  for (const a of act) for (const t of cols) { const c = calCol(a.entry, t); if (!c) continue; c.history.forEach((r) => note(histKeys, r.id, r)); c.rows.forEach((r) => note(tlKeys, r.id.replace(/^(fast|central|slow)\./, ''), r)); }
+  for (const a of act) for (const t of cols) { const c = calCol(a.entry, t); if (!c) continue; c.history.forEach((r) => note(histKeys, r.id, r)); c.rows.forEach((r) => note(tlKeys, r.id.replace(/^(fast|central|slow)\./, ''), r)); ((c.phase && c.phase.rows) || []).forEach((r) => { const id = r.id.replace(/^(fast|central|slow)\./, ''); if (!phKeys.includes(id)) phKeys.push(id); if (!phLabel[id]) phLabel[id] = r; }); }
   // timeline rows in reading order: milestones, intervals, then each series by year
   const grp = (id) => { const m = /^(horizon80|speedup|effCompute)\.(\d+)/.exec(id); return m ? [{ horizon80: 2, speedup: 3, effCompute: 4 }[m[1]], +m[2]] : [id.startsWith('interval.') ? 1 : 0, 0]; };
   tlKeys.sort((x, y) => { const a = grp(x), b = grp(y); return a[0] - b[0] || a[1] - b[1]; });
-  const unitText = (u) => (u === 'log10 growth' ? 'growth since 2025.5, scored in log10' : u === 'OOM growth' ? 'OOM growth since 2025.5' : u);
-  const find = (a, t, id, hist) => { const c = calCol(a.entry, t); return c ? (hist ? c.history.find((r) => r.id === id) : c.rows.find((r) => r.id === `${t}.${id}`)) || null : null; };
-  const cellFor = (t, id, hist) => {
+  // by-phase rows: the SC-to-SAR gap first, then each series by phase (the speed-up first)
+  const phGrp = (id) => { const m = /^phase\.(speedup|horizon80|effCompute)\.([-+]?[\d.]+)/.exec(id); return m ? [{ speedup: 1, horizon80: 2, effCompute: 3 }[m[1]], +m[2]] : [0, 0]; };
+  phKeys.sort((x, y) => { const a = phGrp(x), b = phGrp(y); return a[0] - b[0] || a[1] - b[1]; });
+  const unitText = (u) => (u === 'log10 growth' ? 'growth since 2025.5, scored in log10' : u === 'log10 multiplier' ? 'matched speed-up (× the human-only rate), scored in log10' : u === 'OOM growth' ? 'OOM growth since 2025.5' : u);
+  const find = (a, t, id, hist, ph) => { const c = calCol(a.entry, t); return c ? (hist ? c.history.find((r) => r.id === id) : ph ? ((c.phase && c.phase.rows) || []).find((r) => r.id === `${t}.${id}`) : c.rows.find((r) => r.id === `${t}.${id}`)) || null : null; };
+  const cellFor = (t, id, hist, ph) => {
     const wrap = H('td', { class: 'cal-td' });
     if (!act.some((a) => calCol(a.entry, t))) { wrap.append(H('span', { class: 'muted', text: '—' })); return wrap; }
-    const kids = act.map((a) => { const r = find(a, t, id, hist); return r ? calCell(r, a, t, hist) : H('span', { class: 'muted', text: '—' }); });
+    const kids = act.map((a) => { const r = find(a, t, id, hist, ph); return r ? calCell(r, a, t, hist) : H('span', { class: 'muted', text: '—' }); });
     kids.forEach((k, i) => { if (i) wrap.append(H('span', { class: 'cal-arr', text: '→' })); wrap.append(k); });
     return wrap;
   };
@@ -138,15 +145,17 @@ function calGrid(act) {
   }));
   const sec = (text, sub) => H('tr', { class: 'cal-sec' }, H('th', { colSpan: 4, text }, sub ? H('span', { class: 'muted', text: ' ' + sub }) : null));
   const body = [];
-  const rowEl = (id, hist) => {
-    const r = label[id];
-    return H('tr', {}, H('td', {}, H('div', { text: r.label }), H('div', { class: 'muted', text: hist ? `scored in ${r.unit === 'min' ? 'log10 minutes' : r.unit}` : unitText(r.unit) })), ...cols.map((t) => cellFor(t, id, hist)));
+  const rowEl = (id, hist, ph) => {
+    const r = ph ? phLabel[id] : label[id];
+    return H('tr', { class: r.readout ? 'cal-readout' : null }, H('td', {}, H('div', { text: r.label }), H('div', { class: 'muted', text: hist ? `scored in ${r.unit === 'min' ? 'log10 minutes' : r.unit}` : r.readout ? 'readout, not comparable and not scored' : unitText(r.unit) })), ...cols.map((t) => cellFor(t, id, hist, ph)));
   };
   if (histKeys.length) { body.push(sec('Shared history', 'the game’s own path against measured data; every timeline starts from the same past')); histKeys.forEach((id) => body.push(rowEl(id, true))); }
   if (tlKeys.length) { body.push(sec('Timeline benchmarks', 'each column against its own timeline')); tlKeys.forEach((id) => body.push(rowEl(id, false))); }
+  if (phKeys.length) { body.push(sec('By phase', 'each game at its own SC + τ against the model at its own AC + τ (τ in years), so an early or late SC is not mistaken for a wrong takeoff')); phKeys.forEach((id) => body.push(rowEl(id, false, true))); }
   // totals
   const tot = H('tr', { class: 'cal-tot' }, H('td', {}, H('b', { text: 'Within ±1, timeline benchmarks' })), ...cols.map((t) => H('td', { class: 'cal-td' }, ...act.flatMap((a, i) => { const c = calCol(a.entry, t); return [i ? H('span', { class: 'cal-arr', text: '→' }) : null, c ? H('b', { text: `${c.within1} of ${c.scored}` }) : H('span', { class: 'muted', text: '—' })]; }).filter(Boolean))));
   body.push(tot);
+  if (phKeys.length) body.push(H('tr', { class: 'cal-tot' }, H('td', {}, H('b', { text: 'Within ±1, by phase' })), ...cols.map((t) => H('td', { class: 'cal-td' }, ...act.flatMap((a, i) => { const c = calCol(a.entry, t); const p = c && c.phase; return [i ? H('span', { class: 'cal-arr', text: '→' }) : null, p ? H('b', { text: `${p.within1} of ${p.scored}` }) : H('span', { class: 'muted', text: '—' })]; }).filter(Boolean)))));
   if (!body.length) return H('div', { class: 'empty', text: 'This run has nothing to score yet.' });
   return H('div', { class: 'tablewrap cal-wrap' }, H('table', { class: 'dt cal-grid' }, H('thead', {}, head), H('tbody', {}, body)));
 }
@@ -163,10 +172,10 @@ function calTwin(act) {
   const msCell = (m) => (m.reached === 0 ? 'never' : `${yrs(m.med)} (${yrs(m.p10)} to ${yrs(m.p90)}), ${m.reached} of ${m.n}`);
   const t1 = H('table', { class: 'dt' }, H('thead', {}, H('tr', {}, ['Run', 'Timeline', ...MS_ORDER.map((m) => `${m}: median (p10 to p90)`)].map((x) => H('th', { style: { cursor: 'default' }, text: x })))),
     H('tbody', {}, rows.map((r) => H('tr', {}, H('td', { text: r.name }), H('td', { text: r.tl }), ...MS_ORDER.map((m) => H('td', { text: msCell(r.ms[m]) }))))));
-  const years = [...new Set(rows.flatMap((r) => ['h50', 'h80', 'spd', 'ec'].flatMap((k) => r.p[k].map((p) => p[0]))))].sort((x, y) => x - y);
-  const at = (r, k, y) => { const p = r.p[k].find((q) => q[0] === y); return p ? (p[1] == null ? 'diverged' : k === 'h50' || k === 'h80' ? fmtDur(p[1]) : k === 'spd' ? fmtCompact(p[1]) + '×' : '10^' + p[1].toFixed(1)) : '—'; };
-  const t2 = H('table', { class: 'dt' }, H('thead', {}, H('tr', {}, ['Run', 'Timeline', 'Year', 'Task length (50%)', 'Task length (80%)', 'Research speed-up', 'Effective compute'].map((x) => H('th', { style: { cursor: 'default' }, text: x })))),
-    H('tbody', {}, rows.flatMap((r) => years.filter((y) => ['h50', 'h80', 'spd', 'ec'].some((k) => r.p[k].some((p) => p[0] === y))).map((y) => H('tr', {}, H('td', { text: r.name }), H('td', { text: r.tl }), H('td', { class: 'num', text: String(y) }), ...['h50', 'h80', 'spd', 'ec'].map((k) => H('td', { class: 'num', text: at(r, k, y) })))))));
+  const years = [...new Set(rows.flatMap((r) => ['h50', 'h80', 'spd', 'spdM', 'ec'].flatMap((k) => (r.p[k] || []).map((p) => p[0]))))].sort((x, y) => x - y);
+  const at = (r, k, y) => { const p = (r.p[k] || []).find((q) => q[0] === y); return p ? (p[1] == null ? 'diverged' : k === 'h50' || k === 'h80' ? fmtDur(p[1]) : k === 'spd' || k === 'spdM' ? fmtCompact(p[1]) + '×' : '10^' + p[1].toFixed(1)) : '—'; };
+  const t2 = H('table', { class: 'dt' }, H('thead', {}, H('tr', {}, ['Run', 'Timeline', 'Year', 'Task length (50%)', 'Task length (80%)', 'Research speed-up (matched)', 'Research speed (labSpeedRel, readout)', 'Effective compute'].map((x) => H('th', { style: { cursor: 'default' }, text: x })))),
+    H('tbody', {}, rows.flatMap((r) => years.filter((y) => ['h50', 'h80', 'spd', 'spdM', 'ec'].some((k) => (r.p[k] || []).some((p) => p[0] === y))).map((y) => H('tr', {}, H('td', { text: r.name }), H('td', { text: r.tl }), H('td', { class: 'num', text: String(y) }), ...['h50', 'h80', 'spdM', 'spd', 'ec'].map((k) => H('td', { class: 'num', text: at(r, k, y) })))))));
   det.append(H('div', { class: 'tablewrap' }, t1), H('div', { class: 'tablewrap' }, t2));
   return det;
 }
@@ -174,7 +183,7 @@ function calTwin(act) {
 function calNote(what) {
   const act = calActive();
   if (!act.length) return null;
-  return H('div', { class: 'cal-note' }, what === 'ms' ? '◆ ' : '╌╌ ', `${what === 'ms' ? 'Game (diamond: median, whisker: 10th to 90th percentile across seeds)' : 'Game (dashed: median across seeds, yearly samples)'}: ${act.map((a) => calName(a) + (a.role === 'old' && act.length > 1 ? ', hollow' : '')).join(', ')}.`);
+  return H('div', { class: 'cal-note' }, what === 'ms' ? '◆ ' : '╌╌ ', `${what === 'ms' ? 'Game (diamond: median, whisker: 10th to 90th percentile across seeds)' : 'Game (dashed: median across seeds, quarterly samples, dots at whole years)'}: ${act.map((a) => calName(a) + (a.role === 'old' && act.length > 1 ? ', hollow' : '')).join(', ')}.`);
 }
 
 // ---- milestone chart: a diamond per game milestone under the model's box
@@ -221,8 +230,8 @@ function calMilestones(f, t, k, cy, LH, X, x1, xEnd, GUT, hits) {
 // ---- line charts: the game's median path, dashed, in the timeline's colour
 function calPaths(f, Y, key, ymax, placed) {
   const hits = [], act = calActive();
-  const fmt = (v) => (key === 'h50' || key === 'h80' ? fmtDur(v) : key === 'spd' ? fmtCompact(v) + '×' : '10^' + v.toFixed(1));
-  const what = { h50: 'Task length (50%)', h80: 'Task length (80%)', spd: 'Research speed-up', ec: 'Effective compute' }[key];
+  const fmt = (v) => (key === 'h50' || key === 'h80' ? fmtDur(v) : key === 'spd' || key === 'spdM' ? fmtCompact(v) + '×' : '10^' + v.toFixed(1));
+  const what = { h50: 'Task length (50%)', h80: 'Task length (80%)', spd: 'Research speed (labSpeedRel, readout)', spdM: 'Research speed-up (matched)', ec: 'Effective compute' }[key];
   for (const a of act) for (const t of TIMELINES) {
     if (a.entry.unmapped && t.id !== TIMELINES[0].id) continue;
     const col = calCol(a.entry, t.id);
@@ -237,10 +246,11 @@ function calPaths(f, Y, key, ymax, placed) {
     }
     f.svg.append(S('polyline', { points: xy.map((p) => p.join(',')).join(' '), fill: 'none', style: `stroke:${color};stroke-width:2.2;stroke-dasharray:${old ? '2 4' : '8 4'};opacity:${old ? 0.7 : 1}`, 'stroke-linejoin': 'round' }));
     pts.slice(0, xy.length).forEach(([yr, v], i) => {
+      if (Math.abs(yr - Math.round(yr)) > 1e-9) return; // the line keeps every quarter, the dots and tooltips sit at whole years
       const [x, y] = xy[i];
       f.svg.append(S('circle', { cx: x, cy: y, r: 3, fill: 'var(--surface)', stroke: color, 'stroke-width': 1.6 }));
       const hit = S('circle', { cx: x, cy: y, r: 9, class: 'hit', tabindex: '0' });
-      const get = () => ({ title: `${what} · game, ${a.entry.unmapped ? 'unmapped' : tlShort(t.id)}, ${yr}`, rows: [{ c: color, v: v == null ? 'diverged' : fmt(v), n: `${calName(a)} (median of ${col.n})`, hl: true }], lines: [['Median across seeds', 'a year is drawn when at least half the games reach it']] });
+      const get = () => ({ title: `${what} · game, ${a.entry.unmapped ? 'unmapped' : tlShort(t.id)}, ${yr}`, rows: [{ c: color, v: v == null ? 'diverged' : fmt(v), n: `${calName(a)} (median of ${col.n})`, hl: true }], lines: [['Median across seeds', 'a sample is drawn when at least half the games reach it'], ...(key === 'spdM' ? [['What it is', 'Research rate with the lab’s AI labour and taste over the rate without AI, both at the lab’s resources of 2026.578 (the model’s present day).']] : [])] });
       hit.setAttribute('aria-label', tipText(get()));
       bindTip(hit, get);
       hits.push(hit);

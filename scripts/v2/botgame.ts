@@ -17,6 +17,7 @@ import { gV0, h50Of } from '../../src/engine/v2/models/capability';
 import { labSpeedRel } from '../../src/engine/v2/production/production';
 import { H50_V0_MIN, H80_OVER_H50 } from '../../src/data/v2/workTypes';
 import { cashFloorStub, refComputeStub } from './lib';
+import { matchedSpeedup } from './matched';
 import type { PolicyId } from './policies';
 import type { AlignDiffId, BotPolicy, GameStateV2, StartType, TickOptions, WorldPresetId } from '../../src/engine/v2/types';
 
@@ -49,9 +50,9 @@ export function playBot(bot: BotPolicy, s: GameStateV2, onTick?: (s: GameStateV2
 }
 
 // ───────────────────────────── Stage 1 forced runs ─────────────────────────────
-/** One yearly sample of a forced game (balrun GameRecord.series): arrays aligned to `year`. */
+/** One sample of a forced game (balrun GameRecord.series): arrays aligned to `year`. `spd` is labSpeedRel (the player's own research speed, a readout: it carries compute and staff growth, so it is not comparable with the AIFM multiplier); `spdM` is the matched speed-up (matched.ts), the quantity the AIFM progress multiplier measures. */
 export interface ForcedSeries {
-  year: number[]; G: (number | null)[]; h50: (number | null)[]; h80: (number | null)[]; spd: (number | null)[]; ec: (number | null)[]; comp: number[]; staff: number[];
+  year: number[]; G: (number | null)[]; h50: (number | null)[]; h80: (number | null)[]; spd: (number | null)[]; spdM: (number | null)[]; ec: (number | null)[]; comp: number[]; staff: number[];
 }
 const sig3 = (x: number) => (!Number.isFinite(x) ? null : x === 0 ? 0 : Number(x.toPrecision(3)));
 const fix3 = (x: number) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
@@ -68,10 +69,15 @@ const fix3 = (x: number) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : 
  * and a tick costs minutes, and nothing after it is compared. A game that never reaches ASI runs to `until`.
  */
 export const POST_ASI_YEARS = 1;
-export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060): ForcedSeries {
+/** Years between samples after 2026 (R3.2: a quarter, so a date relative to SC or AC (SC+0.5 y) falls between samples a quarter apart, not a year). The first two samples stay 2025.5 and 2026. */
+export const SAMPLE_STEP = 0.25;
+export interface ForcedOpts { step?: number; spdM?: boolean }
+export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: ForcedOpts = {}): ForcedSeries {
+  const step = o.step ?? SAMPLE_STEP, withM = o.spdM ?? true;
+  const M = matchedSpeedup();
   s.player.finance.cash = 1e6;
   const opts: TickOptions = { extraSystems: [refComputeStub, cashFloorStub], skip: ['endings'] };
-  const out: ForcedSeries = { year: [], G: [], h50: [], h80: [], spd: [], ec: [], comp: [], staff: [] };
+  const out: ForcedSeries = { year: [], G: [], h50: [], h80: [], spd: [], spdM: [], ec: [], comp: [], staff: [] };
   const w = s.hidden.timeline;
   let next = 2025.5;
   const sample = () => {
@@ -83,10 +89,11 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060): Forced
     out.h50.push(sig3(h50));
     out.h80.push(sig3(h50 * H80_OVER_H50));
     out.spd.push(sig3(labSpeedRel(s)));
+    if (withM) { const m = M.read(s); out.spdM.push(m === null ? null : sig3(m)); } else out.spdM.push(null);
     out.ec.push(fix3(g - gV0(w)));
     out.comp.push(Math.round(s.player.computeOnline));
     out.staff.push(Math.round(s.player.staff.cap));
-    next = next === 2025.5 ? 2026 : next + 1;
+    next = next === 2025.5 ? 2026 : next + step;
   };
   let guard = 0; // the first sample comes after the first tick, once the stub has set the compute
   let stopAt = until;
@@ -97,6 +104,7 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060): Forced
     }
     bot.act(s, engine);
     tick(s, opts);
+    if (withM) M.observe(s);
     if (decimalYear(s) >= next - 1e-9) sample();
     const asi = s.player.milestoneDays[6];
     if (asi !== undefined && POST_ASI_YEARS > 0) stopAt = Math.min(until, decimalYear(s, asi) + POST_ASI_YEARS);
