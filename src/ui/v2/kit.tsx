@@ -162,6 +162,7 @@ export const METERS: Partial<Record<CostLine['currency'], Meter>> = {
   cash: { label: 'Cash', term: 'cash', icon: ICON.cash, get: (s) => s.player.finance.cash, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x), upGood: true },
   revenue: { label: 'Revenue', term: 'revenueRun', icon: ICON.revenue, get: (s) => s.player.finance.revenueRun, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x, { perYear: true }), upGood: true },
   credibility: { label: 'Investor credibility', term: 'investorCred', icon: ICON.credibility, get: (s) => s.player.finance.credibility, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
+  approval: { label: 'Public approval', term: 'approval', icon: ICON.approval, get: (s) => s.public.approval, lo: -100, hi: () => 100, fmt: F.idx, upGood: true },
   boardConf: { label: 'Board', term: 'boardConf', icon: ICON.board, get: (s) => s.player.board.confidence, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   morale: { label: 'Morale', term: 'morale', icon: ICON.morale, get: (s) => s.player.morale.overall, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   leadDays: { label: 'Lead', term: 'lead', icon: ICON.lead, get: bestLead, lo: -365, hi: () => 365, fmt: F.lead, upGood: true },

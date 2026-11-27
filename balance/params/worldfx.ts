@@ -265,6 +265,18 @@ export const PARAMS_WORLDFX = defineParams([
     notes: 'Reference verifiability in the sector coverage threshold; kappaV is data (market chunk).',
   }),
 
+  // ---------------------------------------------------------------- world/public.ts (W4: the public, spec 5)
+  ...(['base', 'milestoneStep', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
+    id: `wfx.PUBLIC.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/public.ts', symbol: 'PUBLIC', path: [k] },
+    value: { base: 50, milestoneStep: 6, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
+    unit: k.endsWith('Days') ? 'days' : k === 'base' || k === 'protestConcern' ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'all',
+    ...(k === 'base'
+      ? { kind: 'sourced' as const, source: 'Pew CNCEXC, Jun 2025: 50% more concerned than excited (design/world/SOURCES.md 3.1)', evidence: 'public.ts PUBLIC "[sourced]"; SOURCES 3.1 plateau 50-52 through 2025' }
+      : { kind: 'designer' as const, evidence: 'public.ts PUBLIC "[D]"; design/world/OUTSIDE-WORLD.md 5', notes: k === 'milestoneStep' ? 'Bounded by the Pew 2022-23 step (+14 in under 8 months).' : 'Fits the shape checks (S3 frozen world holds 50).' }),
+  } as Param)),
+
   // ---------------------------------------------------------------- world/observe.ts (W2: the shared inputs, spec 3.2-3.3)
   ...(['nearFrontierMonths', 'attentionHalvingMonths', 'incidentHalfLifeDays', 'briefing1DelayDays'] as const).map((k): Param => ({
     id: `wfx.OBSERVE.${k}`,

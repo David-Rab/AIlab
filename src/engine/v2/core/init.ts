@@ -341,6 +341,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     rivals,
     china,
     commitments: [],
+    public: { concern: 50, approval: 0 },
     market: initialMarket(),
     power: initialPower(),
     capital: initialCapital(rSector),

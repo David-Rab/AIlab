@@ -34,6 +34,7 @@ import { FINANCE_ACTIONS } from '../finance/actions';
 import { securitySystem } from '../security/security';
 import { rivalsChinaSystem } from '../actors/rivals';
 import { actorsDailySystem } from '../actors/daily';
+import { publicDailySystem } from '../world/public';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
 import { npcQSystem } from '../actors/rivals';
@@ -74,6 +75,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   rivalsChinaSystem, // 100 WS4 daily
   worldDailySystem, // 110 WS5 daily
   actorsDailySystem, // 120 WS4 daily
+  publicDailySystem, // 121 WS4 daily (W4: concern and approval)
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily

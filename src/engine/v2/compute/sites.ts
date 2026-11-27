@@ -10,6 +10,7 @@ import { siteCapacityH, siteLiveMW } from './power';
 
 export { siteLiveMW };
 import { worldWaitQ } from './waits';
+import { PUBLIC } from '../world/public';
 
 /** Player sites at Jul 2025 (DC-TASKS [D-10]; no building above 1 GW): S1 rented hall and S2 grid site live (0.6 GW, 0.5M
  *  H100e), S3 Lone Pine gas campus of 4 × 300 MW (1.2 GW) building, all four live together in Apr 2026, S4 Red River
@@ -27,10 +28,12 @@ export function initialSites(startDate: string): Site[] {
   return sites;
 }
 
-/** Local data-centre opposition 0..100. W1d stand-in until W4: 45, the calibrated F10 case (mood 0.9;
- *  scripts/v2/finance.ts). Tests set `LOCAL_MOOD.dcNimby`. */
-export const LOCAL_MOOD = { dcNimby: 45 };
-export const localMood = (_s: GameStateV2) => LOCAL_MOOD.dcNimby;
+/** Test override of local opposition: when a test sets `LOCAL_MOOD.dcNimby` to a number it wins over the rule below. */
+export const LOCAL_MOOD: { dcNimby: number | undefined } = { dcNimby: undefined };
+/** Local data-centre opposition 0..100 (spec §5; world/public.ts, W4): 45 at concern 50 (the calibrated F10 case, mood 0.9;
+ *  scripts/v2/finance.ts), up with concern, 10 lower under the community package policy. */
+export const localMood = (s: GameStateV2) =>
+  LOCAL_MOOD.dcNimby ?? 45 + PUBLIC.concernToNimby * (s.public.concern - 50) - (s.player.policies.communityBenefits ? PUBLIC.communityNimbyCut : 0);
 /** Local opposition strength 0–1 (AntiAI = localMood / 100). */
 const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, localMood(s) / 100));
 

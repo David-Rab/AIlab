@@ -128,7 +128,11 @@ export interface GameStateV2 {
   ending?: EndingV2;
   /** WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Created lazily by `ws4(s)`. */
   ws4?: Ws4State;
+  /** W4 (world/public.ts): concern about AI (0..100, Pew's question) and the public's approval of the player's lab (-100..100). */
+  public: PublicState;
 }
+
+export interface PublicState { concern: number; approval: number; lastProtestDay?: number }
 
 /** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
  *  a kind share it; heads in labs (E) and outside (U = P - E) are derived each week. */
@@ -2368,7 +2372,7 @@ export interface EngineSystem {
 
 /** Currencies used to express every lever's cost/gain/exposure (§3.9.1, §2.7). */
 export type Currency =
-  | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'credibility' // credibility: the player's investor credibility (finance/promises.ts)
+  | 'cash' | 'revenue' | 'compute' | 'staffTime' | 'progress' | 'leadDays' | 'credibility' | 'approval' // approval: public approval of the lab (world/public.ts); credibility: the player's investor credibility (finance/promises.ts)
   | 'morale' | 'boardConf' | 'security' | 'monitorability'
   | 'alignment' | 'freedom' | 'dilution' | 'valuation'; // valuation: $B of the company's mark (FIN4r L4)
 

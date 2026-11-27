@@ -17,7 +17,10 @@ export function Relations({ s }: { s: GameStateV2 }) {
   const [retire, setRetire] = useState(false);
   return (
     <div className="panel-v2 grid2" data-panel="relations">
-      <div className="span2"><PanelHead icon={ICON.relations} title="Relations" sub="obligations and actions" /></div>
+      <div className="span2"><PanelHead icon={ICON.relations} title="Relations" sub="obligations and actions" right={<span className="row-i small">
+        <Tip content={() => <TipCard title={<Term id="concern">Concern</Term>} value={F.idx(s.public.concern)}>Share of the public more concerned than excited about AI, 0–100 (Pew’s question).</TipCard>}><span><Term id="concern">Concern</Term> <b className="num">{F.idx(s.public.concern)}</b></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="approval">Approval</Term>} value={F.idx(s.public.approval)}>What the public thinks of your lab, −100 to 100. Moves with your incidents, disclosures and pledges, more when you are prominent.</TipCard>}><span><Term id="approval">Approval</Term> <b className="num">{F.idx(s.public.approval)}</b></span></Tip>
+      </span>} /></div>
 
       <Section title={<Term id="commitment">Obligations</Term>} right={<Tip content={() => <TipCard title="Kept" value={pct(keptShare(s))}>Share of your public commitments kept so far.</TipCard>}><span className="small dim">kept {pct(keptShare(s))}</span></Tip>}>
         <Gate s={s} k="commitments">

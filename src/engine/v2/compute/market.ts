@@ -195,7 +195,7 @@ export function setExportPolicy(s: GameStateV2, policy: ChipMarket['exportPolicy
 
 /** Cross-strait tension 0..1. W1d stand-in until W6: China's start value 0.4 (China's tension comes back with W6). */
 const TAIWAN_TENSION = 0.4;
-/** Share of people naming AI the top problem (%). W1d stand-in until W4: the start value 1 (no salience term). */
+/** Share of people naming AI the top problem (%). Kept at the start value 1 (no salience term) until W6 decides China's side. */
 const AI_SALIENCE = 1;
 
 /** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension) × (1 + 2·salience), cap 3% [R15 Design]. */

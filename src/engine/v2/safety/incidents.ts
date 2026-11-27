@@ -11,6 +11,7 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
+import { approvalPush, PUBLIC } from '../world/public';
 import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, UMODE_ACT, V0_V2_LEVEL, type ActDef } from '../../../data/v2/danger';
 import { reviewCatch } from './lineProjects';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
@@ -366,10 +367,12 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
     if (inc.status === 'covered') {
       if (rng.chance(coverUpDiscovery(s))) {
         inc.status = 'leaked';
+        approvalPush(s, ctx, PUBLIC.coverupExposed + PUBLIC.leakedPerSeverity * inc.severity, 'Cover-up exposed: the incident leaks');
         ctx.log('alert', `Cover-up exposed: the incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} leaks.`, 4, inc.id);
       } else inc.status = 'resolved';
     } else {
       inc.status = 'leaked';
+      approvalPush(s, ctx, PUBLIC.leakedPerSeverity * inc.severity, 'An incident leaks');
       ctx.log('alert', `The incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} goes public.`, Math.min(5, inc.severity + 1) as 1 | 2 | 3 | 4 | 5, inc.id);
     }
   }

@@ -7,6 +7,7 @@ import type { Commitment, DomainId, GameStateV2, ModelVersion, SystemCtx, Traini
 import { cash } from './fx';
 import { lawsInForce } from '../../../data/v2/laws';
 import { ws4r } from './state';
+import { approvalPush, PUBLIC } from '../world/public';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
 
@@ -183,12 +184,12 @@ function pledgeEnded(s: GameStateV2) {
   if (!hasCommitment(s, 'monitorabilityPledge')) s.player.safety.monitorabilityCommitment = false;
 }
 
-/** Break. The trust and credibility costs went with the relation stocks (W1c); W4/W5 re-point them to approval and
- *  government trust. */
+/** Break: a public pledge broken costs approval (x attention; W4); W5 adds government trust. */
 export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   c.status = 'broken';
   pledgeEnded(s);
   ctx.log('company', `You broke a commitment: ${c.title}.`, 3, c.id);
+  approvalPush(s, ctx, PUBLIC.pledgeBroken, `Pledge broken: ${c.title}`);
 }
 
 /** Amend ("moving goalposts", E30); after the trigger fired it is a break. */

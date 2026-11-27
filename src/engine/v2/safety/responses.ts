@@ -17,6 +17,7 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { reportingLaw } from '../../../data/v2/laws';
+import { approvalPush, PUBLIC } from '../world/public';
 /** An incident's model, by name, for log lines (VOCAB §4: names, never ids). */
 const incModel = (s: GameStateV2, inc: Incident) => versionById(s, inc.versionId)?.name ?? 'a model';
 
@@ -295,6 +296,7 @@ export function discloseIncident(s: GameStateV2, ctx: SystemCtx, inc: Incident):
   if (typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) revealToWorld(s, inc.trueSource as UModeId);
   inc.status = 'disclosed';
   delete inc.publicTimerDays;
+  approvalPush(s, ctx, PUBLIC.disclosedPerSeverity * inc.severity, 'An incident disclosed');
   ctx.log('company', `Incident on ${incModel(s, inc)} disclosed to government and evaluators.`, 2, inc.id);
 }
 

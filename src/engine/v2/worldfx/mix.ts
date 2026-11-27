@@ -44,6 +44,7 @@ import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CONSUMER_MKT, CUSTOMER_TAU, OPEN_PLAN_SHARE, consumerPlanPrice, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, PRICE_TAU, SEATS, SEED_MARKUP, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
+import { PUBLIC } from '../world/public';
 import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, RivalLab, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
@@ -315,10 +316,10 @@ function access(p: Provider, r: RegionId): number {
   return 1;
 }
 
-/** The player's brand factor on demand: ±0.1 with approval (§3.11.1). W1d stand-in until W4: approval is gone, so ×1.
+/** The player's brand factor on demand: ±0.1 with approval (§3.11.1; world/public.ts, W4).
  *  RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer stock (CUSTOMER_TAU
  *  switching inertia), the same for every provider. */
-const PLAYER_BRAND = 1;
+const playerBrand = (s: GameStateV2) => 1 + PUBLIC.brandSwing * Math.max(-1, Math.min(1, s.public.approval / 50));
 
 /** Compute the world mix (memoised per tick when a ctx is given). */
 export function worldMix(s: GameStateV2, ctx?: SystemCtx): WorldMix {
@@ -424,7 +425,7 @@ const tiersOf = (s: GameStateV2, r: RivalLab) =>
 /** The market's providers (computeMix's list, in its order). */
 function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelVersion>): Provider[] {
   const providers: Provider[] = [];
-  if (paid.length) providers.push({ key: 'player', lab: 'player', paid: true, open: false, brand: PLAYER_BRAND, appeal: 1, markup: 1 });
+  if (paid.length) providers.push({ key: 'player', lab: 'player', paid: true, open: false, brand: playerBrand(s), appeal: 1, markup: 1 });
   const open = s.player.deployments.filter((d) => d.channel === 'open' && d.status !== 'withdrawn');
   if (open.length) {
     let best: ModelVersion | undefined;

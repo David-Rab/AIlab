@@ -13,7 +13,8 @@ import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
 import { whistleOddsYear } from '../../security/security';
-import { L, P, ch, ev, requestOnly } from '../kit';
+import { L, P, ch, ev, pv, requestOnly } from '../kit';
+import { approvalPush, approvalScaled, PUBLIC } from '../../world/public';
 
 /** F6d: what continuing past the flag costs: both "Continue" choices count one red flag (`ws4.redFlags`), which feeds
  *  the whistleblower hazard (security.ts whistleHazard): the odds of a staff leak to the press over a year at today's
@@ -27,10 +28,13 @@ export function redFlagLine(s: GameStateV2) {
 }
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. (Its trust, credibility and
  *  scrutiny effects went with the relation stocks, W1c; W7 redoes the events.) */
+/** The disclose choices' preview: their approval gain at today's attention on the lab (the number approvalPush applies). */
+const discloseGain = (s: GameStateV2) => pv([], [L('approval', approvalScaled(s, PUBLIC.discloseChoice), 'honesty is noticed')]);
 function dilemma(what: string) {
   return [
-    ch('Disclose', ['disclose', 'safety'], P([]), (s: GameStateV2) => {
+    ch('Disclose', ['disclose', 'safety'], discloseGain, (s: GameStateV2, ctx: SystemCtx) => {
       ws4(s).disclosed++;
+      approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
     }),
     ch('Keep it quiet', ['quiet', 'secrecy'], P([]), (s: GameStateV2) => {
       addCoverup(s, what, COVERUP_DISCOVERY_ODDS);
@@ -91,9 +95,10 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (_s, d) => `An internal safety memo is in the press${Number(d.mult) > 1 ? ' — after your own staff warned you' : ''}.`,
     choices: [
-      ch('Full disclosure', ['disclose', 'safety'], P([]), (s, ctx) => {
+      ch('Full disclosure', ['disclose', 'safety'], discloseGain, (s, ctx) => {
         const w = ws4(s);
         w.disclosed++;
+        approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
         w.redFlags = 0;
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
@@ -128,9 +133,10 @@ export const SAFETY_EVENTS: EventDefV2[] = [
           escapeResolved(s, ctx.day, 'captured');
         }
       }),
-      ch('Disclose', ['disclose', 'safety'], P([L('cash', 1, 'markets panic')], [L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
+      ch('Disclose', ['disclose', 'safety'], (s) => pv([L('cash', 1, 'markets panic')], [L('alignment', 0.5, 'the world hunts with you'), L('approval', approvalScaled(s, PUBLIC.discloseChoice), 'honesty is noticed')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'public';
         ws4(s).disclosed++;
+        approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
         if (ctx.rng('events').chance(0.5)) {
           delete ws4(s).loose;
           escapeResolved(s, ctx.day, 'captured');
