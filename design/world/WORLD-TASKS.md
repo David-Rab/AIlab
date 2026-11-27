@@ -55,7 +55,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W4 | Public (spec §5) | Sonnet high | 60 min | W2 | done eb95c5da |
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | done d1e5629d |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | done 0d85b56f |
-| W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
+| W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | done d9c68e02 |
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | done 875af419 |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
@@ -194,3 +194,14 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
     - (2) Milestone 2 goes public in some central seeds in 2026 too: a shared-history issue for the NPC lead lab and
       `bal`.
     - (3) Taiwan disruption frequency.
+- W7 · Sonnet high · ~16 min · 9 events left (E01, E10, E12, E19, E20, E22, E23, E25, E32), each defaulting to the
+  do-nothing or moderate option. E30 became CMT_HONOUR/AMEND/BREAK on a binding pledge (Relations › Obligations); E27
+  became SITE_DEAL/MOVE/SUE on a blocked site (Compute › Sites). E19 Deny and Spin merged; E01's duplicate Deny is gone;
+  two previews showing effects that apply() never applied were fixed. Only the ending blocks the screen; ~16
+  failed-click alerts became action error returns. Headlines went from 24 to 17. ws4.ts failures were checked against
+  the base: the same 5 pre-existing failures remain (canon text, E23 text length, intel estimate, China lead, rival
+  gaps) · d9c68e02
+- Cleanup for the designer or the lead (removal blocked by permissions): worktree ../AI27-w-w7-base (its node_modules
+  is a JUNCTION to AI27-w-w7: run `rmdir` on the junction first, never `worktree remove --force`); untracked scratch:
+  scripts/v2/_w1c (in w-w1c), _probe_w5.ts, _w6dbg.ts, worlddash-assets/_apply*.mjs and _checks/_hist.txt, and
+  scripts/v2/_obsq.mjs in AI27-world.
