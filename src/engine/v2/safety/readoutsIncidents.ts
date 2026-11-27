@@ -14,7 +14,7 @@ import { strengthBelieved } from './techniques';
 import { believedPenalty, combineTools } from './detection';
 import { isDiscovered } from './umodes';
 import { caseComputeScale } from './lineProjects';
-import { CASE_WORK, INV_FTE, caseDailyWork, caseDays, caseH100e, committedFte, defaultTools, safetyReHeads } from './investigations';
+import { CASE_WORK, INV_FTE, caseDailyWork, caseDays, caseH100e, caseRoom, defaultTools, safetyReHeads } from './investigations';
 import { jobAiShare } from './workPackage';
 import { frameworkOf } from './framework';
 import { SEVERITY_WORDS } from './safetyReadouts';
@@ -123,11 +123,11 @@ export function rollbackTarget(s: GameStateV2, versionId: string): { id: string;
  *  Incidents & cases, case card · L1. Unit: %. Basis: F. */
 export const caseAiShare = (s: GameStateV2) => jobAiShare(s, 'case');
 
-/** Safety research engineers free for a case (heads not committed to cases, removals or safeguards), with the
- *  verdict word of the staff chip. Basis: F. */
+/** Safety research engineers a new case could get (the largest case at the cases' place in the needs order: what the
+ *  needs above leave), with the verdict word of the staff chip. Basis: F. */
 export function caseStaff(s: GameStateV2): { heads: number; free: number; word: 'spare' | 'short' } {
   const heads = safetyReHeads(s);
-  const free = Math.max(0, heads - committedFte(s));
+  const free = caseRoom(s, INV_FTE[1]);
   return { heads, free, word: free >= INV_FTE[0] ? 'spare' : 'short' };
 }
 
