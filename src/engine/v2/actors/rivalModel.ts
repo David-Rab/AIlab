@@ -29,16 +29,16 @@ import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVA
 import { DEFAULT_LINES, kappaMean } from '../../../data/v2/research';
 import { P24_RIVAL_IDEA, TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
 import { lineRate, linePoolAt, stagesOf } from '../models/research';
-import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
+import { E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
-import { P05_ORCHESTRATION, TOOL_LAG_DAYS } from '../../../data/v2/features';
-import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
+import { P05_ORCHESTRATION } from '../../../data/v2/features';
+import { PRODUCT_TOOL_BY_ID, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { domainRefShift, domainsOf, equilibriumLagRange, gOfBuild, gV0, levelOfG, startLab, startLabAt, versionDomainG } from '../models/capability';
-import { continueGPre, distillGap, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
+import { continueGPre, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
 import { baseGOf } from '../models/runs';
 import { Q_REF, REF_SHARE, type DataDraw } from '../production/data';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
@@ -46,7 +46,7 @@ import type { DomainMix } from '../../../data/v2/dataAssets';
 import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, tasteLimitOf, teamTaste, workFitW } from '../departments/workfit';
-import { lineupSizes, tokEff } from '../worldfx/serving';
+import { tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, runDutyAt, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
@@ -649,7 +649,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
     // lab's first new release).
     r.publicModel.recG = recipeG(r.phys.rec, RECIPE_F);
   }
-  seedRivalLineup(w, r);
+  r.lineup = []; r.distilling = []; // N4: the lineup is made by npc/market.ts seedRivalLineup (this old initial rival is unused by the game; N12 deletes it)
   const start = r.nextBaseDay - BASE_RUN_DAYS;
   if (start < 0) {
     // The run in flight launched before day 0: its recipe is today's less the lab's own day-0 growth since launch.
@@ -805,66 +805,6 @@ export function rivalDomainDg(r: Pick<RivalLab, 'phys'>): SimpleModel['domainDg'
   return out;
 }
 
-// ───────────────────────────── lineups (RD-P02) ─────────────────────────────
-
-/** RD-P02 [D]: days from a release to its distilled students on sale: Haiku 4.5 matched Sonnet 4 five months after it
- *  (design/V3-TASKS.md TIERS2). One lag for every lab: a stated stand-in for the distill run's length and the release
- *  work (DD-18). */
-export const RIVAL_DISTILL_LAG_DAYS = Math.round(5 * 30.4);
-/** RD-P02 [D]: the most models a rival lineup keeps besides its public model (the oldest on sale leave first; bounds the
- *  market's work): the labs' pricing pages list 4–6 current text models (design/RD-AUDIT/BUILD-NOTES.md RD-P02). */
-export const RIVAL_LINEUP_MAX = 6;
-const STUDENT_SUFFIX = ['mini', 'micro', 'nano'];
-
-/** RD-P02 (DD-01, DD-18): the students a rival's aggregate distill step makes of `teacher` at the lineup sizes
- *  (worldfx/serving.ts lineupSizes: data/v2/serving.ts LINEUP ratios of its active parameters), each a SimpleModel of its
- *  own: G = the teacher's less the distillation gap at full teacher-output tokens (models/effective.ts distillGap at
- *  DISTILL_TPP × N_S, as the player's day-0 minis), active parameters and FLOP per token × r, the teacher's RL part,
- *  domain offsets, traits, U-modes and openness; on sale from `day`. */
-export function distillStudents(w: TimelineWorld, teacher: SimpleModel, day: number): SimpleModel[] {
-  const nT = teacher.params ?? B0_PARAMS;
-  const fpt = fptOfSimpleModel(teacher);
-  return lineupSizes(nT).map((r, k) => {
-    const nS = r * nT;
-    const m: SimpleModel = {
-      ...teacher, id: `${teacher.id}/s${k + 1}`, name: `${teacher.name} ${STUDENT_SUFFIX[k] ?? `s${k + 1}`}`, day, traitsTrue: { ...teacher.traitsTrue }, uModes: [...teacher.uModes],
-      params: nS, fpt: fpt * r, isPublic: true, openWeights: teacher.openWeights, ...(teacher.domainDg ? { domainDg: { ...teacher.domainDg } } : {}),
-    };
-    setModelG(w, m, teacher.G - distillGap(nT, nS, DISTILL_TPP * nS));
-    return m;
-  });
-}
-/** RD-P02: a lineup at the start: the public model's students, made before the game began. */
-export function seedRivalLineup(w: TimelineWorld, r: RivalLab) {
-  r.lineup = r.publicModel ? distillStudents(w, r.publicModel, r.publicModel.day) : [];
-  r.distilling = [];
-}
-/** RD-P02: a rival's lineup day. On a release (`prev`: the public model it replaced, `released` true) the previous public
- *  model stays on sale as a tier and the new one's students enter distillation, on sale RIVAL_DISTILL_LAG_DAYS later.
- *  Students due today go on sale. A tier leaves once another model the lab sells is at least as good and no dearer to
- *  serve (G ≥ and FLOP per token ≤, the newer one on a tie: replaced, as real labs retire a model a newer one beats on
- *  both); past RIVAL_LINEUP_MAX the oldest leave. */
-export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, released: boolean, prev?: SimpleModel) {
-  const pub = r.publicModel;
-  let changed = false;
-  if (released && pub && prev?.id !== pub.id) {
-    if (prev) (r.lineup ??= []).push(prev);
-    (r.distilling ??= []).push(...distillStudents(w, pub, day + RIVAL_DISTILL_LAG_DAYS));
-    changed = true;
-  }
-  if (r.distilling?.some((m) => m.day <= day)) {
-    (r.lineup ??= []).push(...r.distilling.filter((m) => m.day <= day));
-    r.distilling = r.distilling.filter((m) => m.day > day);
-    changed = true;
-  }
-  if (!changed || !r.lineup) return;
-  const list = r.lineup;
-  const sellers = pub ? [...list, pub] : list; // on-sale order, the public model newest
-  const fp = sellers.map((m) => fptOfSimpleModel(m));
-  const keep = list.filter((m, i) => !sellers.some((o, j) => j !== i && o.G >= m.G && fp[j] <= fp[i] && (o.G > m.G || fp[j] < fp[i] || j > i)));
-  r.lineup = keep.slice(Math.max(0, keep.length - RIVAL_LINEUP_MAX));
-}
-
 // ───────────────────────────── product tools (RD-P07, DD-03 rival part) ─────────────────────────────
 
 /** RF-P1, MK-11: whether product tool `id` is new in this game: no lab of the world had it at the start (the rivals'
@@ -886,17 +826,5 @@ export function recordToolShips(s: GameStateV2, day: number) {
       if (s.world.fx.toolShip?.[id] !== undefined || !toolNewInGame(s, id)) continue;
       (s.world.fx.toolShip ??= {})[id] = day;
     }
-  }
-}
-/** RD-P07 (DD-18 stand-in), RF-P1, MK-11: lab r's product tools: what its lab had shipped by the start (data/v2/tools.ts
- *  toolsAtStart, set at creation), plus a tool new in this game TOOL_LAG_DAYS after the player first shipped it
- *  (world.fx.toolShip). It keeps a tool once it has it. */
-export function rivalToolStep(s: GameStateV2, r: RivalLab, day: number) {
-  const ship = s.world.fx.toolShip;
-  if (!ship) return;
-  for (const { id } of PRODUCT_TOOLS) {
-    const d0 = ship[id];
-    if (d0 === undefined || day < d0 + TOOL_LAG_DAYS || r.tools?.includes(id)) continue;
-    (r.tools ??= []).push(id);
   }
 }

@@ -90,6 +90,9 @@ export interface ProductToolDef {
   /** Agent mode: sells autonomous agent-hours on the product, only with a model whose measured 50% time horizon is at
    *  least this many hours (AGENT_TASK_HOURS). */
   agentGateH?: number;
+  /** NPC rule (design/npc/TOOL-REQUIREMENTS.md): a non-player lab may build the tool once its public model's 50% time horizon
+   *  (models/capability.ts h50Of) is at least this many minutes; absent = none (GPT-4 class suffices). */
+  npcHorizonMin?: number;
   /** RD-P11: affordances added to the product's incident site (as FeatureDef.afford). */
   afford?: number;
   /** Incident hazard × per trait, a stated stand-in (as FeatureDef.hazard; Companion only). */
@@ -108,7 +111,7 @@ export const ADAPT_EQUIV_DG = 0.24;
 export const PRODUCT_TOOLS: ProductToolDef[] = [
   // ───────────── harnesses ─────────────
   {
-    id: 'coding', name: 'Coding harness', kind: 'harness', analogue: 'Claude Code, Codex', from: 'codingAgent',
+    id: 'coding', name: 'Coding harness', kind: 'harness', analogue: 'Claude Code, Codex', from: 'codingAgent', npcHorizonMin: 60,
     products: ['api', 'enterprise', 'vetted'], sectors: ['SOFT', 'SCI'], buildTW: 12, cash: 0.1,
     // SOFT: today's Coding agent, +0.3 OOM at ×2 tokens, kept. §5 [P], same model: SWE-bench Verified standard →
     // high-compute scaffold 63.7 → 70.3 (Δℓ 0.30, ΔG 0.24), 72.5 → 79.4 (0.38, 0.30), 72.7 → 80.2 (0.42, 0.34);
@@ -125,7 +128,7 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
     },
   },
   {
-    id: 'research', name: 'Research agent', kind: 'harness', analogue: 'Deep research', from: 'deepResearch', node: 'P05',
+    id: 'research', name: 'Research agent', kind: 'harness', analogue: 'Deep research', from: 'deepResearch', node: 'P05', npcHorizonMin: 11,
     products: ['api', 'enterprise', 'vetted'], sectors: ['SCI', 'FIN', 'LEGAL'], buildTW: 8, cash: 0.05,
     // Today's Deep research, +0.3 OOM at ×3 tokens, kept. §5: BrowseComp GPT-4o 0.6 → 1.9 with browsing [P, same
     // model]: Δℓ 1.17, ΔG 0.93, from a near-zero base (an enabler-like gain, too large for a fit bonus); GAIA prior
@@ -212,7 +215,7 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
   },
   // ───────────── general tools ─────────────
   {
-    id: 'agentMode', name: 'Agent mode', kind: 'general', analogue: 'ChatGPT agent',
+    id: 'agentMode', name: 'Agent mode', kind: 'general', analogue: 'ChatGPT agent', npcHorizonMin: AGENT_TASK_HOURS * 60,
     products: ['api', 'enterprise', 'vetted'], sectors: [], buildTW: 8, cash: 0.05,
     // Sells autonomous agent-hours (today's Agents product, deleted in MK-1) on a product whose model's measured 50%
     // time horizon ≥ AGENT_TASK_HOURS (2 h, see above). §5 SpreadsheetBench o3 23.25 → agent 35.27 and
@@ -228,7 +231,7 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
     },
   },
   {
-    id: 'computerUse', name: 'Computer use', kind: 'general', analogue: 'Operator, Claude computer use', from: 'computerUse', node: 'P06',
+    id: 'computerUse', name: 'Computer use', kind: 'general', analogue: 'Operator, Claude computer use', from: 'computerUse', node: 'P06', npcHorizonMin: 20,
     products: ['api', 'enterprise', 'vetted'], sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], buildTW: 16, cash: 0.15,
     // Today's Computer use, kept: enabler share 0.15 [D stand-in, bounded by Eloundou et al. 2023's zeta − alpha 0.43–
     // 0.63; research/CAL-products-sources.md T1], afford +0.25. §5 OSWorld (Agent S2 over bare Claude 3.7 Sonnet,
