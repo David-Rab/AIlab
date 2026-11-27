@@ -18,12 +18,6 @@ export const SAF_ROLE_SHARE: Record<'re' | 'sci', number> = { re: 90 / 140, sci:
 // Pay, hiring speed and leavers are the labour market's (data/v2/labourMarket.ts W0, F0_PER_MONTH, SEPARATION;
 // departments/market.ts, L12): the fixed TEAM_COST_M, HIRING_BASE and ATTRITION_BASE are retired.
 
-/** Star hire (§3.4.1): +0.05 τ_h each, τ_h capped at 1.5; $0.3B and rival cooperation −20. */
-export const STAR_HIRE = { dTaste: 0.05, maxTaste: 1.5, cost: 0.3, cooperation: -20 };
-/** RD-B18 (B34): the one star-taste factor, 1 + dTaste · stars up to maxTaste. It multiplies every capabilities science
- *  team's human taste (research projects; departments/workfit.ts starTaste) and is the bench the Star hire gate reads. */
-export const starTasteOf = (stars = 0) => Math.min(STAR_HIRE.maxTaste, 1 + STAR_HIRE.dTaste * stars);
-
 /** Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]. */
 export const MOVE_SAFETY_MORALE = -5;
 

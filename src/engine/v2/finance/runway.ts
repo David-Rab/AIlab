@@ -40,7 +40,7 @@ export const RUNWAY_CAP = PROJECTION_Q;
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
   const share = revenueShareRate(s) * p.finance.revenueRun;
-  return payrollOf(p) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
+  return payrollOf(s) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 
 export type CashPart = 'revenue' | 'operating' | 'commitments' | 'chips' | 'sites' | 'funding' | 'debt';

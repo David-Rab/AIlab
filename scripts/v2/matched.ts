@@ -16,7 +16,7 @@
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { PLAYER_ID } from '../../src/engine/v2/models/labs';
 import { expThroughput, labInputs, type LabInputs } from '../../src/engine/v2/production/production';
-import { labourOf, starTaste, tasteLimitOf, teamTaste, workContext } from '../../src/engine/v2/departments/workfit';
+import { labourOf, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../../src/engine/v2/departments/workfit';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
 /** The AIFM's present day in the aifm-public Eli config runs (parameters.present_day). */
@@ -33,7 +33,7 @@ const snapshot = (s: GameStateV2): Ref | undefined => {
 /** The capabilities science teams' mean taste at AI taste sd_AI and AI's ideas share sAI (workfit.ts teamTaste, as production.ts playerInputs). */
 function tasteAt(s: GameStateV2, sdAI: number, sAI: number): number {
   const w = s.hidden.timeline;
-  const m2b = w.prod.m2b, tl = tasteLimitOf(w), star = starTaste(s);
+  const m2b = w.prod.m2b, tl = tasteLimitOf(w), star = humanTasteMean(s);
   let cap = 0, tai = 0;
   for (const t of s.player.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;

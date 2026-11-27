@@ -54,7 +54,7 @@ export function readDay(s: GameStateV2, teams: Team[], edit?: (c: GameStateV2) =
   return readState(c);
 }
 /** Today's read and the changed reads, memoised per state, day and staffing (every hire chip compares against it). */
-const teamsKey = (s: GameStateV2) => `${s.time.day}|${s.player.research.queue.join(',')}|${s.player.teams.map((t) => `${t.id}:${t.heads}:${t.projectId ?? ''}:${t.dept}`).join(',')}`;
+const teamsKey = (s: GameStateV2) => `${s.time.day}|${s.labour.stars.filter((x) => x.employer === 'player').map((x) => x.id).join(',')}|${s.player.research.queue.join(',')}|${s.player.teams.map((t) => `${t.id}:${t.heads}:${t.projectId ?? ''}:${t.dept}`).join(',')}`;
 const readMemo = new WeakMap<GameStateV2, { key: string; m: Map<string, DayRead> }>();
 function memoRead(s: GameStateV2, tag: string, teams: () => Team[], edit?: (c: GameStateV2) => void): DayRead {
   const key = teamsKey(s);
@@ -105,10 +105,10 @@ export function teamGain(s: GameStateV2, t: TeamSpec): CostLine {
   const add = previewTeam(s, t);
   return effectLine(s, baseRead(s), memoRead(s, `add:${add.role}:${add.dept}:${add.specialty ?? ''}:${add.heads}`, () => [...s.player.teams, add]), add);
 }
-/** What one more star hire adds: the copy with one more star (star taste, data/v2/teams.ts starTasteOf) after one
- *  research day, as the capability project it speeds most. */
-export function starGain(s: GameStateV2): CostLine {
-  const after = memoRead(s, 'star', () => s.player.teams, (c) => { c.player.stars = (c.player.stars ?? 0) + 1; });
+/** What hiring this star adds: the copy with the star on staff (it joins the researchers' taste mean, workfit.ts
+ *  humanTasteMean) after one research day, as the capability project it speeds most. */
+export function starGain(s: GameStateV2, starId: string): CostLine {
+  const after = memoRead(s, `star:${starId}`, () => s.player.teams, (c) => { const x = c.labour.stars.find((y) => y.id === starId); if (x) x.employer = 'player'; });
   return effectLine(s, baseRead(s), after, { role: 'sci', dept: 'cap' }, 'no capability project moves today (star taste acts on new ideas: no project is finding ideas)');
 }
 /** What `n` more standard teams of a kind add (Keep hiring). */

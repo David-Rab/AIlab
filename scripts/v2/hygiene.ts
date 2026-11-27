@@ -195,7 +195,7 @@ function leaderChecks(s: GameStateV2, setup: SetupV2, tag: string) {
   check(Math.abs(g0 - v0G) < 1e-9 && Math.abs(e0) < 0.05 && postG(L.phys.base, L.phys.rec) >= g0,
     `${tag}: leader start model = the reference V0, on its start base at the leader's day-0 recipe`, `G ${g0} vs ${v0G}; e ${e0.toFixed(4)}`);
   check(L.phys.eff === 1, `${tag}: leader research efficiency = 1 (no per-lab factor)`, String(L.phys.eff));
-  check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9 && L.core.tasteHire === 1, `${tag}: leader compute = refTotal, staff = hRef`);
+  check(Math.abs(L.core.computeOnline / refTotal(s.hidden.timeline, yr) - 1) < 1e-9 && Math.abs(L.core.staff.cap / hRef(yr) - 1) < 1e-9, `${tag}: leader compute = refTotal, staff = hRef`);
   check(postureOf(s, L.core.id).bindingness <= 0.3, `${tag}: leader bindingness ≤ 0.3`, postureOf(s, L.core.id).bindingness.toFixed(2));
   const off = newGame({ ...setup, leaderLab: false });
   const strip = (x: GameStateV2) => {

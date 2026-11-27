@@ -30,7 +30,7 @@ import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
 import { believedProd, believedWorld, elasticitiesAt } from './believed';
-import { believedTasteInputs, effLabour, measuredLabour, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, effLabour, measuredLabour, researchMods, speedOfCopy, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
@@ -119,7 +119,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
   const tl = tasteLimitOf(w);
-  const star = starTaste(s);
+  const star = humanTasteMean(s);
   let cap = 0;
   let tai = 0;
   for (const t of p.teams) {
@@ -194,7 +194,7 @@ export function believedInputs(s: GameStateV2, inp: LabInputs): LabInputs {
   const wc = workContext(s);
   const ml = measuredLabour(s, wc.slots.EXP);
   const { sAI, sdAI, m2b, tl } = believedTasteInputs(s);
-  const star = starTaste(s);
+  const star = humanTasteMean(s);
   let cap = 0, tai = 0;
   for (const tm of s.player.teams) {
     if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
@@ -222,7 +222,7 @@ export function aiStaffSpeedPart(s: GameStateV2): { total: number; experiments: 
   let ideas = 1;
   const { sAI, sdAI, tl } = believedTasteInputs(s);
   if (sAI > 0) {
-    const star = starTaste(s);
+    const star = humanTasteMean(s);
     let w = 0, a = 0, h = 0;
     for (const tm of s.player.teams) {
       if (tm.role !== 'sci' || tm.dept !== 'cap') continue;

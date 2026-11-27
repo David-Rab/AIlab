@@ -65,7 +65,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const rw = runwayOf(s);
   const p = rw.parts;
   const pl = s.player;
-  const payQ = payrollOf(pl) / 4;
+  const payQ = payrollOf(s) / 4;
   const secQ = pl.security.spendRate / 4;
   const fundQ = pl.policies.transitionFund / 4;
   const intQ = interestPerYear(s) / 4;

@@ -79,7 +79,7 @@ export const payrollSystem: EngineSystem = {
     const p = s.player;
     const f = p.finance;
     const ys = yearStats(s);
-    const payroll = payrollOf(p) / 12;
+    const payroll = payrollOf(s) / 12;
     bookCash(s, ctx, -payroll, 'payroll', 'payroll');
     ys.payroll += payroll;
     const security = p.security.spendRate / 12;

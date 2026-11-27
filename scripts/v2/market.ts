@@ -132,9 +132,10 @@ const fmt = (x: number, d = 4) => x.toFixed(d);
   for (let w = 0; w < 30; w++) marketWeek(s, undefined);
   const p = s.player;
   const manual = kinds.reduce((a, k) => a + playerHeads(p, k) * p.pay[k], 0) / 1000;
-  check(near(payrollOf(p), manual, 1e-12), 'payroll = Σ heads x pay[k]', `${fmt(payrollOf(p), 3)} $B/yr`);
-  const split = payrollOf(p, 'cap') + payrollOf(p, 'saf');
-  check(near(split, manual, 1e-12), 'capabilities + safety payroll = total');
+  const starPay = s.labour.stars.reduce((a, x) => a + (x.employer === 'player' ? x.pay : 0), 0) / 1000;
+  check(near(payrollOf(s), manual + starPay, 1e-12), 'payroll = Σ heads x pay[k] + the star pay', `${fmt(payrollOf(s), 3)} $B/yr`);
+  const split = payrollOf(s, 'cap') + payrollOf(s, 'saf');
+  check(near(split, manual + starPay, 1e-12), 'capabilities + safety payroll = total');
   const reCap = p.teams.filter((t) => t.role === 're' && t.dept === 'cap').length;
   check(reCap >= 13, 're.cap teams arrive through the market', `${reCap} re.cap teams after 30 weeks, ${p.hiring.filling.length} filling`);
 }
@@ -142,7 +143,7 @@ const fmt = (x: number, d = 4) => x.toFixed(d);
 // Day-1 payroll at the default start.
 {
   const s = fresh();
-  console.log(`info: day-1 payroll ${fmt(payrollOf(s.player), 3)} $B/yr (cap ${fmt(payrollOf(s.player, 'cap'), 3)}, saf ${fmt(payrollOf(s.player, 'saf'), 3)})`);
+  console.log(`info: day-1 payroll ${fmt(payrollOf(s), 3)} $B/yr (cap ${fmt(payrollOf(s, 'cap'), 3)}, saf ${fmt(payrollOf(s, 'saf'), 3)})`);
 }
 
 console.log(fails ? `${fails} FAIL` : 'ALL PASS');
