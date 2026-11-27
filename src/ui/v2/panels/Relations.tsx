@@ -4,7 +4,7 @@
 // (ends the game) stands apart behind a confirm.
 import { useState } from 'react';
 import { RELATION_ACTION_META } from '../../../data/v2/actions';
-import { activeRivals, dateOf, fmtDate, keptShare, usgovView } from '../../../engine/v2';
+import { activeRivals, chinagovView, dateOf, fmtDate, keptShare, usgovView } from '../../../engine/v2';
 import { lawName } from '../../../data/v2/laws';
 import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Gate, pct, Section, Seg, Term, Tip, TipCard } from '../ui';
@@ -16,6 +16,18 @@ const ACT_GROUPS = ['A', 'C', 'F'] as const;
 /** Glossary term of each law id. */
 const LAW_TERM: Record<string, string> = { licensing: 'lawLicensing', relief: 'lawRelief', ubi: 'lawUbi', hitl: 'lawHitl', sez: 'lawSez', fdaFastTrack: 'lawFda', sb243: 'lawSb243' };
 const CONSOLIDATED: Record<string, string> = { none: 'none', dpa: 'the frontier labs are pooled under the DPA', nationalized: 'your lab was taken over' };
+
+/** The China government: its tension, the talks and the treaty (with your AI R&D compute cap under a verified one). */
+function China({ s }: { s: GameStateV2 }) {
+  const g = chinagovView(s);
+  return (
+    <Section title="China">
+      <div className="obl-row"><span><Term id="chinaTension">Tension</Term></span><span className="small">{g.tensionName}{g.centralised && g.tension !== 2 ? <> · <Term id="nationalCollective">national collective</Term></> : null}</span></div>
+      <div className="obl-row"><span><Term id="chinaTalks">Talks</Term></span><span className="small">{g.rejected && g.talks === 0 ? 'the treaty was rejected' : g.talksName}</span></div>
+      {g.cap !== undefined && <div className="obl-row"><span><Term id="treaty">AI R&amp;D compute cap</Term></span><span className="small num">{F.h100e(g.cap)}</span></div>}
+    </Section>
+  );
+}
 
 /** The US government: its security stage, trust in you, the laws it passed, oversight and consolidation, and briefing. */
 function UsGov({ s }: { s: GameStateV2 }) {
@@ -53,6 +65,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
       </Section>
 
       <UsGov s={s} />
+      <China s={s} />
 
       <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'lab', tab: 'security' }}>Lab › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'blueprint', tab: 'data' }}>Training › Data</Ref></span>}>
         <div className="rel-groups" data-test="rel-groups"><Seg value={grp} options={ACT_GROUPS.map((x) => ({ v: x, label: GROUPS[x] }))} onChange={setGrp} /></div>

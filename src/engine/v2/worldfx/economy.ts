@@ -12,6 +12,7 @@ import type { EngineSystem, GameStateV2, RegionId } from '../types';
 import { ws4r } from '../actors/state';
 import { automationShare } from './readouts';
 import { worldTechEffects } from './techtree';
+import { CHINAGOV } from '../world/chinagov';
 
 /** Baseline GDP growth by region: US = CBO potential (SOURCES §2); CN, ROW [D]. */
 export const G_BASE: Record<RegionId, number> = { US: 0.022, CN: 0.04, ROW: 0.028 };
@@ -21,8 +22,7 @@ export const ECONOMY = { lambda: 0.6 };
 /** Days a severity-5 misuse incident (the player's, WS2's stamp, or a rival's) keeps the economy in shock [D]. */
 export const MISUSE_SHOCK_DAYS = 180;
 /** US output shock, a growth penalty per year [D]: Taiwan chip disruption 3%/yr while it lasts; a severity-5 misuse
- *  incident in the last MISUSE_SHOCK_DAYS days 2%/yr. (A China war's 5% went with the China actor, W1d; W6 re-adds
- *  it.) */
+ *  incident in the last MISUSE_SHOCK_DAYS days 2%/yr; China on war footing (tension 4) CHINAGOV.warShock (world/chinagov.ts). */
 export const OUTPUT_SHOCK = { taiwan: 0.03, misuse: 0.02 };
 
 /** The US output shock today (growth penalty per year). */
@@ -31,7 +31,7 @@ export function outputShock(s: GameStateV2): number {
   const day = s.time.day;
   const last = s.flags['ws2.sev5MisuseDay'];
   const sev5 = (typeof last === 'number' && day - last < MISUSE_SHOCK_DAYS) || w.rivalIncidents.some((i) => i.misuse && i.severity >= 5 && day - i.day < MISUSE_SHOCK_DAYS);
-  return (w.taiwanDisrupted ? OUTPUT_SHOCK.taiwan : 0) + (sev5 ? OUTPUT_SHOCK.misuse : 0);
+  return (w.taiwanDisrupted ? OUTPUT_SHOCK.taiwan : 0) + (sev5 ? OUTPUT_SHOCK.misuse : 0) + (s.chinagov.tension >= 4 ? CHINAGOV.warShock : 0);
 }
 
 /** Total AI-lab revenue run-rate ($B/yr): player + rivals + DeepCent. */

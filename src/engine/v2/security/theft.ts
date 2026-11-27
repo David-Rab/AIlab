@@ -7,24 +7,21 @@ import { bestPlayerVersion, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
+import { CHINAGOV, theftIntent } from '../world/chinagov';
+import { USGOV, playerAttention } from '../world/usgov';
+import { attention, frontier } from '../world/observe';
 import { adopted } from '../models/paradigms';
 import { stolenModelG } from '../production/diffusion';
 import { usgovTheftDetected } from '../world/usgov';
-
-/** China's posture rung (0 coexistence … 6 war footing; research/10 §1.4). W1d stand-in until W6: the start value 0,
- *  so China's weight theft stays off (theftMinRung 2) exactly as at the start of today's game. */
-export const CHINA_RUNG = 0;
-/** China's theft intent 0..100. W1d stand-in until W6: the start value 20. */
-export const CHINA_THEFT_INTENT = 20;
 
 /** P(successful theft in 2 months) = 1/(1 + 19·6^(d−a)) (R11 #24: 5% at d = a, base 6 per level). */
 export function theftP2mo(defence: number, attacker: number): number {
   return 1 / (1 + 19 * Math.pow(6, defence - attacker));
 }
 
-/** Attacker level a = 4 + [China rung ≥ 3] + 0.5·min(1, theftIntent/50), capped at 5 (R11 #24). */
-export function attackerLevel(_s: GameStateV2): number {
-  return Math.min(5, 4 + (CHINA_RUNG >= 3 ? 1 : 0) + 0.5 * Math.min(1, CHINA_THEFT_INTENT / 50));
+/** Attacker level a = 4 + [China tension ≥ 3] + 0.5·min(1, theftIntent/50), capped at 5 (R11 #24; world/chinagov.ts). */
+export function attackerLevel(s: GameStateV2): number {
+  return Math.min(5, 4 + (s.chinagov.tension >= 3 ? 1 : 0) + 0.5 * Math.min(1, theftIntent(s) / 50));
 }
 
 /** Share of the player's compute hosted at Gulf sites (sovereign strings lower effective WSL by 0.3 there). */
@@ -44,17 +41,26 @@ export function effectiveDefence(sec: SecurityState, gulf = 0): number {
  *  tree preview reads it). */
 export const P25_DEFENCE = 0.5;
 
-/** Daily theft hazard on a target with security `sec` holding a model `leadDays` ahead of China (§3.6). */
-export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: number, gulf = 0): number {
-  if (leadDays <= 90 || s.china.lab.core.status !== 'active' || CHINA_RUNG < WS4_TUNING.theftMinRung) return 0; // China holds nothing worth stealing
+/** Daily theft hazard on a target with security `sec` holding a model `leadDays` ahead of China, with attention `att` on
+ *  it (§3.6; W6: China attempts from tension CHINAGOV.theftRung, on labs outsiders pay attention to, observe.ts). */
+export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: number, att: number, gulf = 0): number {
+  if (leadDays <= 90 || att < USGOV.attentionMin || s.china.lab.core.status !== 'active' || s.chinagov.tension < CHINAGOV.theftRung) return 0; // nothing worth stealing, or no push to steal
   // P25 Formal verification at scale (model v3 V2): verified infrastructure, +0.5 defence level for the player.
   const p = theftP2mo(effectiveDefence(sec, gulf) + (sec === s.player.security && adopted(s, 'P25') ? P25_DEFENCE : 0), attackerLevel(s));
-  return (-Math.log(1 - Math.min(0.999, p)) / 61) * (CHINA_THEFT_INTENT / 100);
+  return (-Math.log(1 - Math.min(0.999, p)) / 61) * (theftIntent(s) / 100);
 }
 
 /** Daily theft hazard against the player (§3.6). */
-export function theftHazardDaily(s: GameStateV2): number {
-  return theftHazardOn(s, s.player.security, lagDays(s, CHINA_ID, 'player'), gulfShare(s));
+export function theftHazardDaily(s: GameStateV2, ctx?: SystemCtx): number {
+  if (s.chinagov.tension < CHINAGOV.theftRung) return 0;
+  return theftHazardOn(s, s.player.security, lagDays(s, CHINA_ID, 'player'), playerAttention(s, ctx), gulfShare(s));
+}
+
+/** Daily theft hazard against an NPC US lab (half the player's rate: §3.6). */
+export function rivalTheftHazard(s: GameStateV2, r: RivalLab): number {
+  const lead = lagDays(s, CHINA_ID, r.core.id);
+  if (s.chinagov.tension < CHINAGOV.theftRung || lead <= 90) return 0;
+  return 0.5 * theftHazardOn(s, r.core.security, lead, attention(s, r.core.id, frontier(s)));
 }
 
 /** The strength of the secrets-leak channel: the share of the gap to the player China closes a day, k·spies·clamp(3.5 − ssl, 0, 2)

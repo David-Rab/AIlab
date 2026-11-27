@@ -132,6 +132,8 @@ export interface GameStateV2 {
   public: PublicState;
   /** W5 (world/usgov.ts): the US government (security stage, trust in the player, oversight, consolidation, laws it passed). */
   usgov: UsGovState;
+  /** W6 (world/chinagov.ts): the China government (tension, talks, the treaty, the national collective). */
+  chinagov: ChinaGovState;
 }
 
 export interface PublicState { concern: number; approval: number; lastProtestDay?: number }
@@ -160,6 +162,34 @@ export interface UsGovState {
   thefts: Day[];
   /** The day each government decision was put to the player (E12, E20, E22; each once). */
   asked: Partial<Record<'E12' | 'E20' | 'E22', Day>>;
+}
+
+/** The China government (W6, world/chinagov.ts; design/world/OUTSIDE-WORLD.md §7). */
+export interface ChinaGovState {
+  /** 0 competition, 1 acquisition push, 2 national collective, 3 coercion over Taiwan, 4 war footing. */
+  tension: 0 | 1 | 2 | 3 | 4;
+  /** 0 none, 1 talks, 2 restraint, 3 verified treaty. */
+  talks: 0 | 1 | 2 | 3;
+  treaty: 'none' | 'restraint' | 'verified';
+  /** The treaty was rejected (the player opposed it in E23 and the public did not override). */
+  rejected: boolean;
+  /** The national collective was formed (tension 2; sticky): China pools more of its compute into its lab. */
+  centralised: boolean;
+  centralisedDay?: Day;
+  /** Consecutive days: 'up' the next rung's condition, 'down' the current rung's failing, 'quiet' talks without a
+   *  provocation, 'held' talks held at restraint. */
+  holdDays: Record<string, number>;
+  /** The US lead over China (months) at each quarter start, oldest first (the last 5). */
+  leadHist: number[];
+  /** Last day of a provocation China answers like strict export controls: a detected Chinese theft, or one made public (E10). */
+  provokedDay?: Day;
+  /** E23 was put to the player (once). */
+  asked?: Day;
+  /** The verified treaty: the day it was signed and the player's AI R&D compute cap (H100e; its pool that day). */
+  signedDay?: Day;
+  cap?: number;
+  /** Reference-clock days a verified treaty has held back (npc/shocks.ts refYear). */
+  clockLostDays: number;
 }
 
 /** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
@@ -2168,11 +2198,11 @@ export interface RivalIntel {
   knownIncidents: string[];
 }
 
-/** China: just its NPC lab until W6 rebuilds the government (W1d). `computeAbs`: China's accessible compute (H100e),
- *  DeepCent's base (npc/china.ts). */
+/** China's lab (the government is s.chinagov, world/chinagov.ts). `access`: its chip-access multiplier on the common NPC
+ *  plan (export controls, the national collective; npc/china.ts). */
 export interface ChinaActor {
-  lab: RivalLab; // DeepCent-style collective
-  computeAbs: H100e;
+  lab: RivalLab;
+  access: number;
 }
 
 // ───────────────────────────── Commitments (§3.9.4) ─────────────────────────────

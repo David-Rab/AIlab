@@ -11,9 +11,8 @@ import { footholdFromEscape } from '../safety/footholds';
 import { escapeNoticed } from '../safety/control';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
 import { openWeightsReleased, postureOf } from '../actors/rivals';
-import { lagDays } from '../models/capability';
 import { request, ws4 } from '../actors/state';
-import { CHINA_RUNG, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
+import { executeTheft, rivalTheftHazard, secretsLeakDaily, theftHazardDaily } from './theft';
 import { secretsLeak } from '../npc/shocks';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
@@ -31,9 +30,8 @@ export function privilegedOf(staff: Pick<StaffByRole, 'cap' | 'saf'>, siloing: n
   return (staff.cap + staff.saf) * (1 - 0.3 * siloing);
 }
 
-/** Spy rate per privileged staffer: 0.005, rising to 0.01 at China rung ≥ 2 (R11 verified). The rung is the W1d
- *  stand-in (security/theft.ts CHINA_RUNG) until W6. */
-export const spyRate = (_s: GameStateV2) => (CHINA_RUNG >= 2 ? 0.01 : 0.005);
+/** Spy rate per privileged staffer: 0.005, rising to 0.01 at China tension ≥ 2 (R11 verified; world/chinagov.ts). */
+export const spyRate = (s: GameStateV2) => (s.chinagov.tension >= 2 ? 0.01 : 0.005);
 
 export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2.4): SecurityState {
   const privileged = privilegedOf(staff, 0);
@@ -74,7 +72,7 @@ export const securitySystem: EngineSystem = {
     // Security spend is charged only by WS3's payroll system (finance ledger); this system keeps its effects.
 
     // Theft against the player, then against active rivals holding a model worth stealing.
-    if (rng.chance(theftHazardDaily(s))) {
+    if (rng.chance(theftHazardDaily(s, ctx))) {
       w.theftAttempts++;
       executeTheft(s, ctx, 'player');
     }
@@ -83,7 +81,7 @@ export const securitySystem: EngineSystem = {
       rs.wsl = Math.max(rs.wsl, floor + 0.4 * postureOf(s, r.core.id).safetyInvestment);
       rs.ssl = rs.wsl - 0.6;
       rs.spies = privilegedOf(r.core.staff, 0) * spyRate(s);
-      if (rng.chance(0.5 * theftHazardOn(s, rs, lagDays(s, CHINA_ID, r.core.id)))) executeTheft(s, ctx, r.core.id);
+      if (rng.chance(rivalTheftHazard(s, r))) executeTheft(s, ctx, r.core.id);
     }
 
     // RD-X04: distillation is a level at each lab's post-training (production/diffusion.ts distillLift), not a daily

@@ -215,7 +215,7 @@ export function compactRetired(s: GameStateV2, keep = 12) {
 }
 
 /** Distillation access of a receiving lab: China 1 (its distillation-access meter at its start value 60, /60; the meter
- *  went with the China actor, W1d; W6 may bring a lever back); US rivals 0.3 (§3.3.5). */
+ *  went with the China actor, W1d; China's tension acts on its open weights instead, world/chinagov.ts); US rivals 0.3 (§3.3.5). */
 export function distillationAccess(_s: GameStateV2, lab: LabId): number {
   return lab === CHINA_ID ? 1 : 0.3;
 }

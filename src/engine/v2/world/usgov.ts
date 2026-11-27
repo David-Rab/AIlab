@@ -16,6 +16,7 @@ import { unemploymentChange12m } from '../worldfx/readouts';
 import { worldMix } from '../worldfx/mix';
 import { COND_LAWS, lawIdsInForce } from '../../../data/v2/laws';
 import { attention, frontier, govMilestones, incidentHeat, type MilestoneBoard } from './observe';
+import { provokeChina } from './chinagov';
 import type { ActionDef, CondLawId, EngineSystem, GameStateV2, ModelVersion, SystemCtx, UsGovState } from '../types';
 
 /** The US government's constants. [D] designer stand-ins unless marked. Registered in balance/params/worldfx.ts. */
@@ -109,7 +110,7 @@ function seenSince(b: MilestoneBoard, i: number): number | undefined {
 const earliest = (...xs: (number | undefined)[]) => xs.reduce<number | undefined>((a, x) => (x === undefined ? a : a === undefined ? x : Math.min(a, x)), undefined);
 
 /** The player's attention (0..1), or 0 when the player is out of the game. */
-function playerAttention(s: GameStateV2, ctx?: SystemCtx): number {
+export function playerAttention(s: GameStateV2, ctx?: SystemCtx): number {
   if (s.player.status !== 'active') return 0;
   return attention(s, PLAYER_ID, frontier(s), ctx ? worldMix(s, ctx) : undefined);
 }
@@ -121,9 +122,11 @@ export function trustPush(s: GameStateV2, ctx: SystemCtx, base: number, why: str
   return ctx.bump('usgov.trust', d, why);
 }
 
-/** A detected theft from a US lab (security/theft.ts): it counts toward the stage; one from the player costs trust. */
+/** A detected theft from a US lab (security/theft.ts): it counts toward the stage; one from the player costs trust. It
+ *  also provokes China (world/chinagov.ts: like strict export controls). */
 export function usgovTheftDetected(s: GameStateV2, ctx: SystemCtx, victim: string): void {
   s.usgov.thefts.push(ctx.day);
+  provokeChina(s, ctx.day);
   if (victim === PLAYER_ID) trustPush(s, ctx, USGOV.theftFromYou, 'Weights stolen from your lab');
 }
 

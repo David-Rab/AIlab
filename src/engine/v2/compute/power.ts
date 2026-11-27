@@ -5,6 +5,7 @@ import { ensureWs3 } from '../finance/ext';
 import { labCore } from '../models/labs';
 import { hiddenComputeH } from '../safety/footholds';
 import { allocOf, emptySplit, SPLIT_KEYS } from '../departments/split';
+import { treatyCap } from '../world/chinagov';
 
 /** kW/H100e 0.93 → 0.70 (Q4 2026) [R15]; the waits' history starts empty (sitesQ appends one value a quarter). */
 export function initialPower(): PowerGrid {
@@ -53,7 +54,7 @@ export function poolsOf(s: GameStateV2, lab: LabId = 'player'): ComputeSplit {
   if (!c) return out;
   const a = lab === 'player' ? allocOf(s) : c.split;
   for (const k of SPLIT_KEYS) out[k] = c.computeOnline * (a[k] ?? 0);
-  return out;
+  return lab === 'player' ? treatyCap(s, out) : out; // W6: a verified treaty caps the player's AI R&D compute
 }
 
 /** Power + O&M of owned sites, $B/yr: kW × 8760 h × $0.083/kWh × source multiplier (gas 0.5×), plus 3% a year of the

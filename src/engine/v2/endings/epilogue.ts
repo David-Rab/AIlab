@@ -75,7 +75,7 @@ const KIND_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech
 
 /** Power outcome when lab X's ASI is aligned (§5.2 priority table). */
 export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
-  // 'treaty' (a verified treaty): nothing sets it until W6 (W1d).
+  if (s.chinagov.treaty === 'verified') return 'treaty'; // a verified US–China treaty (world/chinagov.ts)
   if (lab === 'china') return 'beijing';
   const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(lagDays(s, id, lab)) < 90 && (id !== 'player' || s.player.status === 'active'));
   if (lab !== 'player') {

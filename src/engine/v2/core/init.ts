@@ -59,6 +59,7 @@ import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
 import { START_DATE } from './time';
 import { initialUsgov } from '../world/usgov';
+import { initialChinagov } from '../world/chinagov';
 
 export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
   const world = over.world ?? 'tl-central';
@@ -344,6 +345,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     commitments: [],
     public: { concern: 50, approval: 0 },
     usgov: initialUsgov(),
+    chinagov: initialChinagov(),
     market: initialMarket(),
     power: initialPower(),
     capital: initialCapital(rSector),

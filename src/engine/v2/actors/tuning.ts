@@ -9,7 +9,4 @@ export const WS4_TUNING = {
   leakK: 0.0003,
   /** Distillation: daily share of the gap to the best US public model China recovers at access 60. [fit, T3] */
   distillK: 0.00006,
-  /** China attempts weight theft only from this posture rung (R10 §1.4 rung 2 "intensified acquisition … cyber
-   *  recon of labs"; R8 is an escalation path). [D] deviation from §3.6, which has no rung gate. */
-  theftMinRung: 2,
 };

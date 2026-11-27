@@ -369,7 +369,7 @@ if (!SMOKE && !CAL_ONLY) {
   const leads = t3.leads;
   if (leads.length < 18) console.log(`      T3: first theft on day ${t3.day}; ${leads.length} monthly samples before it`);
   const mean = leads.reduce((a, x) => a + x, 0) / leads.length;
-  // M2: informational. The stub pins China's compute to the reference path; with WS4's China compute (computeAbs) and
+  // M2: informational. The stub pins China's compute to the reference path; with China's lab on the chip market (W6: its orders × its chip access) and
   // the WS1 distillation leak live, the binding T3 is the integrated one in scripts/v2/ws4.ts (CHINA_CAL deleted in CP3k).
   console.log(`INFO  T3 (stub compute) China mean lead before theft: ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
   }

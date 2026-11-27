@@ -16,7 +16,8 @@ import { rivalMoneyQ } from '../finance/rivalFinance';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, SafetyPosture, SystemCtx } from '../types';
 import * as shock from '../npc/shocks';
 import { rivalLineupStep, rivalToolStep } from '../npc/market';
-import { chinaComputeDaily } from '../npc/china';
+import { chinaAccessDaily } from '../npc/china';
+import { chinaSafetyConcern } from '../world/chinagov';
 import { reportingLaw } from '../../../data/v2/laws';
 import { cPlanQ, growLabStaff, labReferenceSplit, npcCapabilityDay, persOf } from '../npc/lab';
 import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
@@ -46,14 +47,10 @@ export function labOf(s: GameStateV2, id: LabId): RivalLab | undefined {
   return id === 'china' ? s.china.lab : s.rivals.find((r) => r.core.id === id);
 }
 
-/** China's safety concern 0..100, the base of its lab's safety investment (§3.10.4). W1d stand-in until W6: its start
- *  value 30. */
-const CHINA_SAFETY_CONCERN = 30;
-
 /** Effective (dynamic) posture = hidden posture + WS4 deltas (moving goalposts, joint evals); China's safety
- *  investment follows its safety concern (§3.10.4). Hidden: engine use only. */
+ *  investment follows its safety concern (§3.10.4; world/chinagov.ts chinaSafetyConcern). Hidden: engine use only. */
 export function postureOf(s: GameStateV2, lab: LabId): SafetyPosture {
-  const base = lab === 'china' ? { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + (0.4 * CHINA_SAFETY_CONCERN) / 100 } : s.hidden.rivalPostures[lab];
+  const base = lab === 'china' ? { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + (0.4 * chinaSafetyConcern(s)) / 100 } : s.hidden.rivalPostures[lab];
   const d = s.ws4?.postureDelta[lab];
   if (!base) return { safetyInvestment: 0.3, evalRigor: 0.3, externalAccess: 0.3, disclosureRate: 0.3, raceRelaxation: 0.5, bindingness: 0.3 };
   if (!d) return base;
@@ -208,10 +205,17 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     // N8b: chip orders top compute up to next quarter's plan (start compute × 2.25 a year, one rate for every lab), net of
     // what is already on order, through the chip market shared with everyone. Money never limits an NPC lab's orders; a
     // supply shortfall leaves it behind the plan, and the next quarter's order is larger by the gap.
-    const plan = r.npc ? cPlanQ(s, r, 1) : r.core.computeOnline * (1 + RIVAL_GROWTH_Q);
-    const pending = s.market.ws3.labOrders.reduce((t, o) => (o.lab === r.core.id ? t + Math.max(0, o.qty - o.delivered) : t), 0);
-    placeLabOrder(s, r.core.id, Math.max(0, plan - r.core.computeOnline - pending), 1, 1.2);
+    labOrderQ(s, r, r.npc ? cPlanQ(s, r, 1) : r.core.computeOnline * (1 + RIVAL_GROWTH_Q));
   }
+  // W6: China's lab orders by the same rule, its plan × its chip access (export controls, the national collective).
+  const cn = s.china.lab;
+  if (cn.core.status === 'active') labOrderQ(s, cn, cPlanQ(s, cn, 1) * s.china.access);
+}
+
+/** A lab's quarterly chip order: up to `plan`, net of what is online and already on order. */
+function labOrderQ(s: GameStateV2, r: RivalLab, plan: number) {
+  const pending = s.market.ws3.labOrders.reduce((t, o) => (o.lab === r.core.id ? t + Math.max(0, o.qty - o.delivered) : t), 0);
+  placeLabOrder(s, r.core.id, Math.max(0, plan - r.core.computeOnline - pending), 1, 1.2);
 }
 
 /** Quarterly moving-goalposts roll (research/17 §1.6.5 #3): pressure > 0.6 for 90 d → P = raceRelaxation·0.3. */
@@ -237,12 +241,12 @@ export const npcQSystem: EngineSystem = {
   },
 };
 
-/** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China's compute. */
+/** rivalsChina (100, daily): their runs, releases, posture pressure and incidents; China's chip access. */
 export const rivalsChinaSystem: EngineSystem = {
   id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100, system: 'relations',
   run(s, ctx) {
     for (const r of activeRivals(s)) labDaily(s, ctx, r);
     if (s.china.lab.core.status === 'active') labDaily(s, ctx, s.china.lab);
-    chinaComputeDaily(s);
+    chinaAccessDaily(s);
   },
 };

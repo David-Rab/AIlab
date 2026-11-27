@@ -9,7 +9,7 @@ import {
   securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
 } from '../../../engine/v2';
 import { privilegedOf } from '../../../engine/v2/security/security';
-import { CHINA_THEFT_INTENT } from '../../../engine/v2/security/theft';
+import { theftIntent } from '../../../engine/v2/world/chinagov';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
 import { P0, PREMIUM_STEPS, W0 } from '../../../data/v2/labourMarket';
@@ -433,7 +433,7 @@ function WeightSecurity({ s }: { s: GameStateV2 }) {
 
 function TheftRisk({ s }: { s: GameStateV2 }) {
   const sec = s.player.security;
-  const intent = CHINA_THEFT_INTENT;
+  const intent = theftIntent(s);
   const p = believedTheftChance(sec.wsl, intent);
   const partW = Math.max(0, 0.05 + (3.5 - sec.wsl) * 0.15);
   const partI = Math.max(0, Math.min(100, intent)) / 300;

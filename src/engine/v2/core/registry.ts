@@ -36,6 +36,7 @@ import { rivalsChinaSystem } from '../actors/rivals';
 import { actorsDailySystem } from '../actors/daily';
 import { publicDailySystem } from '../world/public';
 import { BRIEF_OFFICIALS, usgovDailySystem } from '../world/usgov';
+import { chinagovDailySystem } from '../world/chinagov';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
 import { npcQSystem } from '../actors/rivals';
@@ -78,6 +79,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   actorsDailySystem, // 120 WS4 daily
   publicDailySystem, // 121 WS4 daily (W4: concern and approval)
   usgovDailySystem, // 122 WS4 daily (W5: the US government)
+  chinagovDailySystem, // 123 WS4 daily (W6: the China government)
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily

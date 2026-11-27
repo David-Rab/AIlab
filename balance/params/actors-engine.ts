@@ -1,7 +1,7 @@
 // B3 inventory: actors engine (src/engine/v2/actors/*): rivals, China, government, public, intel, rival model.
 // Prefix `act`. Named constants first (exports, then non-exported ones as inline refs: an export ref needs an export),
 // then notable inline literals (the last block, capped at 40; the rest are listed in design/bal/inv/actors-engine-notes.md).
-import { defineParams } from '../schema';
+import { defineParams, type Param } from '../schema';
 
 const RIVALS = 'src/engine/v2/actors/rivals.ts';
 const RMODEL = 'src/engine/v2/npc/market.ts';
@@ -67,13 +67,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     notes: 'T3 (China lead / gap behaviour); no script named in the comment.',
   },
   {
-    id: 'act.WS4_TUNING.theftMinRung',
-    ref: { kind: 'export', module: TUNING, symbol: 'WS4_TUNING', path: ['theftMinRung'] },
-    value: 2,
-    unit: 'rung', area: 'actors', layer: 'policy', actor: 'china', kind: 'designer',
-    evidence: 'tuning.ts:11-13 "China attempts weight theft only from this posture rung (R10 §1.4 rung 2 ...). [D] deviation from §3.6"',
-  },
-  {
     id: 'act.RIVAL_DISTILL_LAG_DAYS',
     ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_DISTILL_LAG_DAYS' },
     value: 152,
@@ -124,30 +117,14 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
 
   // ───────────────────────── notable inline literals (40) ─────────────────────────
   // china.ts
-  {
-    id: 'act.china.deepCentComputeShare',
-    ref: { kind: 'inline', file: CHINA, anchor: '(0.4 + 0.5 * Math.min(1, centralization / 75))' },
-    value: [0.4, 0.5, 75],
-    unit: 'fraction', area: 'actors', layer: 'world', actor: 'china', kind: 'sourced',
-    evidence: 'china.ts:23-25 "China\'s accessible compute × its AGI share (AI 2027 compute forecast: 40% → 90% as the collective centralizes, research/11 #16)"',
-    source: 'research/11 #16 (AI 2027 compute forecast)',
-    notes: 'AGI share = 0.4 + 0.5 min(1, centralization/75): 40% rising to 90%. The R&D share 0.6 on the same line is untagged (overflow).',
-  },
-  {
-    id: 'act.china.computeGrowth',
-    ref: { kind: 'inline', file: CHINA, anchor: 'const g = Math.pow(2, 1 / 365) - 1;' },
-    value: 2,
-    unit: 'x per year', area: 'actors', layer: 'world', actor: 'china', kind: 'sourced',
-    evidence: 'china.ts:140 "Compute ≈ ×2/yr (IFP), slower under strict export policy; centralization pools it for DeepCent (R11 #16b)."',
-    source: 'IFP (named in china.ts:140); R11 #16b',
-  },
-  {
-    id: 'act.china.exportPolicyComputeFactor',
-    ref: { kind: 'inline', file: CHINA, anchor: "s.market.exportPolicy === 'strict' ? 0.8 : s.market.exportPolicy === 'open' ? 1.1 : 1" },
-    value: [0.8, 1.1],
-    unit: 'multiplier on compute growth', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged',
-    evidence: 'no tag; china.ts:142 (strict 0.8, open 1.1)',
-  },
+  ...(['strict', 'caseByCase', 'open'] as const).map((k): Param => ({
+    id: `act.china.CHINA_EXPORT_GROWTH.${k}`,
+    ref: { kind: 'export', module: CHINA, symbol: 'CHINA_EXPORT_GROWTH', path: [k] },
+    value: { strict: 0.8, caseByCase: 1, open: 1.1 }[k],
+    unit: 'exponent on the common plan growth', area: 'actors', layer: 'world', actor: 'china', kind: 'designer',
+    evidence: 'npc/china.ts CHINA_EXPORT_GROWTH "[repo]": the old China-compute rule\'s factors (strict 0.8, open 1.1 on its x2/yr growth, IFP)',
+    notes: 'W6: China\'s chip access drifts off the common NPC plan (RIVAL_GROWTH) by RIVAL_GROWTH^(factor - 1) a year.',
+  })),
   // economy.ts (moved from gov.ts in W1d; the China-war 5% went with the China actor)
   {
     id: 'act.gov.outputShocks',
@@ -199,7 +176,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
   },
   {
     id: 'act.rivals.chinaSafetyInvestment',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'safetyInvestment: 0.1 + (0.4 * CHINA_SAFETY_CONCERN) / 100' },
+    ref: { kind: 'inline', file: RIVALS, anchor: 'safetyInvestment: 0.1 + (0.4 * chinaSafetyConcern(s)) / 100' },
     value: [0.1, 0.4],
     unit: 'fraction', area: 'actors', layer: 'policy', actor: 'china', kind: 'designer', source: 'V2-SPEC §3.10.4', notes: 'A8c: spec states safetyInvestment 0.10 + 0.4 x safetyConcern / 100.',
     evidence: 'no tag; rivals.ts:183-184 "China\'s safety investment follows its safety concern (§3.10.4)."',
@@ -209,10 +186,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
   {
     id: 'act.npc.DAYS_PER_MONTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'DAYS_PER_MONTH' }, value: 30.4,
     unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "Days per month for the cast lags in months [D]"', source: 'design/archive/npc/N2b1-RESULT.md',
-  },
-  {
-    id: 'act.npc.CHINA_PLAN_GROWTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'CHINA_PLAN_GROWTH' }, value: 2,
-    unit: 'x per year', area: 'actors', layer: 'world', actor: 'china', kind: 'derived', evidence: 'npc/lab.ts "the growth of China compute meter without export policy, x2 a year (actors/china.ts chinaDaily, IFP)"', notes: 'copy of the China compute meter rate',
   },
   {
     id: 'act.npc.SLOPE_FLOOR_PER_YEAR', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'SLOPE_FLOOR_PER_YEAR' }, value: 0.01,

@@ -145,7 +145,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['runs', 'WS1', 'daily', 40], ['continual', 'WS1', 'daily', 45], ['milestones', 'WS1', 'daily', 50],
   ['revenue', 'WS5', 'daily', 60], ['safetyResearch', 'WS2', 'daily', 70], ['traitsDaily', 'WS2', 'daily', 75],
   ['incidents', 'WS2', 'daily', 80], ['security', 'WS4', 'daily', 90], ['rivalsChina', 'WS4', 'daily', 100],
-  ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['publicDaily', 'WS4', 'daily', 121], ['usgovDaily', 'WS4', 'daily', 122], ['opex', 'WS3', 'daily', 130],
+  ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['publicDaily', 'WS4', 'daily', 121], ['usgovDaily', 'WS4', 'daily', 122], ['chinagovDaily', 'WS4', 'daily', 123], ['opex', 'WS3', 'daily', 130],
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
   ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
