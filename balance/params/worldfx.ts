@@ -21,7 +21,7 @@ const USGOV_VALUES: Record<string, number> = {
 const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'licensingFriction', 'reliefRetrain', 'ubiExitMult', 'fdaLagMult', 'governmentTrust']);
 /** world/chinagov.ts CHINAGOV, every key (registry-lint checks each value against the module). */
 const CHINAGOV_VALUES: Record<string, number> = {
-  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, lead2: 9, coerceAfterDays: 365, provokeDays: 180, provokeHold: 30,
+  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, leadQuarters: 4, collectiveMilestone: 2, coerceMilestone: 4, coerceStage: 3, provokeDays: 180, provokeHold: 30,
   centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 1,
   theftIntentBase: 20, theftIntentPerRung: 20, taiwanPerRung: 0.5, taiwanCoercion: 0.15, warPerQuarter: 0.25, warShock: 0.05,
   safetyBase: 30, safetyPerTalks: 10, safetyPerRung: -5, goPublicApproval: 2, treatyClockRate: 0.65,

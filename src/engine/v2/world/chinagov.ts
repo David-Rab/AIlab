@@ -12,7 +12,8 @@ import { hasCommitment } from '../actors/commitments';
 import { centraliseChina } from '../npc/china';
 import { poolsOf } from '../compute/power';
 import { USGOV, playerAttention } from './usgov';
-import { frontier, incidentHeat, usLeadOverChinaMonths } from './observe';
+import { frontier, incidentHeat, publicMilestones, usLeadOverChinaMonths } from './observe';
+import { CHINA_ID } from '../models/labs';
 import type { ChinaGovState, ComputeSplit, EngineSystem, GameStateV2, SystemCtx } from '../types';
 
 /** The China government's constants. [D] designer stand-ins unless marked. Registered in balance/params/worldfx.ts. */
@@ -25,12 +26,16 @@ export const CHINAGOV = {
   holdDays: 60,
   /** Days the current rung's condition must fail before tension falls one rung (rungs 3-4 do not fall) [D]. */
   downDays: 180,
-  /** US lead (months) for rung 1 (acquisition push) and to keep rung 4's large lead [D]. */
+  /** Smoothed US lead (months; the mean of the last leadQuarters quarterly values, so release timing and report noise do not
+   *  swing it) above which rung 1 (acquisition push) and rung 2 (national collective) climb, and rung 4's large lead [D]. */
   lead1: 6,
-  /** US lead (months) for rung 2 (national collective, while widening over 4 quarters) and for rung 3 [D]. */
-  lead2: 9,
-  /** Rung 3 also comes when the lead is still above lead2 this long (days) after the collective formed [D]. */
-  coerceAfterDays: 365,
+  leadQuarters: 4,
+  /** What is at stake, as milestones the US shows publicly in the game (observe.ts publicMilestones, any US lab; index in
+   *  data/world.ts MILESTONES): rung 2 needs milestone collectiveMilestone (Agent-2), rung 3 milestone coerceMilestone (SAR)
+   *  or the US at stage coerceStage [D]. */
+  collectiveMilestone: 2,
+  coerceMilestone: 4,
+  coerceStage: 3,
   /** A provocation (a detected theft, or one made public) counts like strict export controls this long (days), and adds
    *  provokeHold days to the climbing hold [D]. */
   provokeDays: 180,
@@ -159,24 +164,28 @@ export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
   const lead = usLeadOverChinaMonths(s, frontier(s)) ?? 0;
   if (cadencesDue(s.time.startDate, day).includes('quarterly')) {
     g.leadHist.push(lead);
-    if (g.leadHist.length > 5) g.leadHist.shift();
+    if (g.leadHist.length > CHINAGOV.leadQuarters) g.leadHist.shift();
   }
+  // Tension reads the smoothed lead (the mean of the last quarters), never the noisy day's.
+  const hist = g.leadHist.slice(-CHINAGOV.leadQuarters);
+  const sLead = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : lead;
+  const board = publicMilestones(s);
+  const us = (i: number) => board[i] !== undefined && board[i]!.lab !== CHINA_ID; // a US lab shows milestone i publicly
   const T = (m: number) => m / CHINAGOV.aggression;
-  const big = lead > T(CHINAGOV.lead2);
-  const pushed = lead > T(CHINAGOV.lead1) || s.market.exportPolicy === 'strict' || (g.provokedDay !== undefined && day - g.provokedDay < CHINAGOV.provokeDays);
-  const widening = g.leadHist.length >= 5 && lead > g.leadHist[0]!;
+  const long = sLead > T(CHINAGOV.lead1);
+  const pushed = long || s.market.exportPolicy === 'strict' || (g.provokedDay !== undefined && day - g.provokedDay < CHINAGOV.provokeDays);
   const t = g.tension;
   // Climbing: the condition for the next rung, held CHINAGOV.holdDays.
   const climb = [
     pushed,
-    big && widening,
-    s.usgov.stage >= 3 || (g.centralisedDay !== undefined && day - g.centralisedDay >= CHINAGOV.coerceAfterDays && big),
-    g.rejected && lead > T(CHINAGOV.lead1),
+    us(CHINAGOV.collectiveMilestone) && long,
+    us(CHINAGOV.coerceMilestone) || s.usgov.stage >= CHINAGOV.coerceStage,
+    g.rejected && long,
     false,
   ][t];
   g.holdDays.up = climb ? (g.holdDays.up ?? 0) + 1 : 0;
-  // Descending: rungs 1-2 fall after CHINAGOV.downDays without their condition (rung 2 holds on the large lead).
-  const keep = t === 1 ? pushed : t === 2 ? big : true;
+  // Descending: rungs 1-2 fall after CHINAGOV.downDays without their condition (rung 2 holds on the long lead).
+  const keep = t === 1 ? pushed : t === 2 ? long : true;
   g.holdDays.down = keep ? 0 : (g.holdDays.down ?? 0) + 1;
   if (t < 4 && g.holdDays.up >= CHINAGOV.holdDays) setTension(s, ctx, (t + 1) as ChinaGovState['tension']);
   else if (t >= 1 && t <= 2 && g.holdDays.down >= CHINAGOV.downDays) setTension(s, ctx, (t - 1) as ChinaGovState['tension']);
