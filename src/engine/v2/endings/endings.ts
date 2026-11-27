@@ -78,14 +78,19 @@ export const endingsSystem: EngineSystem = {
     const rng = ctx.rng('endings');
     const day = ctx.day;
 
+    // TEST INSTRUMENT, not a game mechanic: scripts/v2/observer.ts sets s.flags['harness:observer'] for runs with no player.
+    // The player's company endings are then off (acquired, insolvent, ousted, nationalized, the player's own ASI, overtaken,
+    // retired and the 2050 cap) and another lab's aligned ASI does not end the run (the harness stops itself 3 years later);
+    // world endings (catastrophe, rogue, a misaligned lab's takeover) still do.
+    const observer = s.flags['harness:observer'] === true;
     // 1. Insolvent / acquired. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the
     //    revolver exhausted (the E26 distress menu is WS3's too).
-    if (soldControl(s)) return lossEnding(s, ctx, 'acquired');
-    if (s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
+    if (!observer && soldControl(s)) return lossEnding(s, ctx, 'acquired');
+    if (!observer && s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
     // 2. Ousted: WS3's quarterly board ouster roll (finance/board.ts) stamps the day.
-    if (s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
+    if (!observer && s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
     // 3. Nationalized (hard path).
-    if (w.nationalizedHard) return lossEnding(s, ctx, 'nationalized');
+    if (!observer && w.nationalizedHard) return lossEnding(s, ctx, 'nationalized');
     // 4. Catastrophe.
     const cat = catastropheCheck(s, ctx);
     if (cat) return endGame(s, ctx, cat, 'none');
@@ -114,17 +119,18 @@ export const endingsSystem: EngineSystem = {
       const d = r.core.milestoneDays[6];
       if (d !== undefined && (pAsi === undefined || d < pAsi)) {
         const res = resolveAsi(s, r.core.id);
+        if (observer && !/Takeover$/.test(res.id)) continue;
         return endGame(s, ctx, res.id, res.power, { asiDay: d, asiLab: r.core.id, misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, r.core.id);
       }
     }
     // 8. Player ASI: kept or lost control (model v3 E9: the effective-control process, no roll).
-    if (pAsi !== undefined) {
+    if (!observer && pAsi !== undefined) {
       const res = resolveAsi(s, 'player');
       return endGame(s, ctx, res.id, res.power, { asiDay: pAsi, asiLab: 'player', misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, 'player');
     }
     // 9. Overtaken.
     const pSAR = s.player.milestoneDays[4];
-    for (const r of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])] as RivalLab[]) {
+    for (const r of (observer ? [] : [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) as RivalLab[]) {
       const id = r.core.id;
       if (r.core.milestoneDays[5] !== undefined && pSAR === undefined) return lossEnding(s, ctx, 'overtaken', id);
       if (r.core.milestoneDays[3] !== undefined && lagDays(s, 'player', id) >= 365) w.overtakenDays[id] = (w.overtakenDays[id] ?? 0) + 1;
@@ -132,7 +138,7 @@ export const endingsSystem: EngineSystem = {
       if ((w.overtakenDays[id] ?? 0) >= 180) return lossEnding(s, ctx, 'overtaken', id);
     }
     // 10. Retired (player's choice, or the 2050-12-31 technical cap: "The long road").
-    if (w.retired || decimalYear(s) >= 2051) return lossEnding(s, ctx, 'retired');
+    if (!observer && (w.retired || decimalYear(s) >= 2051)) return lossEnding(s, ctx, 'retired');
   },
 };
 
