@@ -194,3 +194,12 @@ Only if takeoff still runs short after M3: the untested mechanism suspects (the 
 - Open: P24 fresh-pool decision (options A/B/C; lead recommends A).
 - **P24: option A approved** (start pool from the pretraining research stock like the other lines; no fresh-pool lump).
 - **Quality tiers removed for ALL kinds, scientists included.** New 4th kind: the **star**, a single person who only adds research taste. Explicit, tangible, discrete, scarce and expensive (replaces today's star hire +0.05 τ_h).
+
+## Labour round: APPROVED (designer, 2026-11-27): design/bal/LABOUR-ROUND.md
+All of C1–C7 and every open-question recommendation are approved (Q3: stars at the AIFM size, named, lab-wide; Q6: L.latent gets the P24 rule).
+| Task | Status | Branch / worktree |
+|---|---|---|
+| L10 sourcing | running | bal (docs only) |
+| L1 split rule | running | lab-l1 / ../AI27-l1 |
+| L4 P24 + L.latent pools | running | lab-l4 / ../AI27-l4 |
+| L2, L3, L5–L9, L11–L19, CP, M4 | todo | order per LABOUR-ROUND §10 |
