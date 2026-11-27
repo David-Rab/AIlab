@@ -17,6 +17,11 @@ export const DEFAULT_LINES: { id: string; w: number }[] = [
   { id: 'L.scale', w: 0.25 }, { id: 'L.env', w: 0.3 }, { id: 'L.data', w: 0.15 }, { id: 'L.opt', w: 0.1 }, { id: 'L.rlalg', w: 0.2 }, { id: 'L.infer', w: 0.1 },
 ];
 
+/** Lines that open mid-game (P24 AI-designed successor, Recurrent architectures opened by P17): on the day one opens, its n₀
+ *  is the mean of (n₀_l + pool_l) over the open PRETRAIN_START_LINES instead of a fresh pool (design/bal/LABOUR-ROUND.md §7). */
+export const MID_GAME_LINES: string[] = ['P24', 'L.latent'];
+export const PRETRAIN_START_LINES: string[] = ['L.scale', 'L.data', 'L.opt'];
+
 // ───────────────────────────── lifecycle ─────────────────────────────
 
 /** A team picks a candidate to test once it has this many (more ideation = more to pick from) [D]. */

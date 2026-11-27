@@ -32,7 +32,7 @@ import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetS
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, believedSciOn, sciWorkRate, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, openMidGameLines, planAssignment, believedSciOn, sciWorkRate, stepProject, takesTeams,
   type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
@@ -397,6 +397,8 @@ function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNod
 export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   const p = s.player;
   const q = p.research.queue;
+  // LABOUR-ROUND §7: a line that opens today (P24, Recurrent architectures) stores its start pool.
+  openMidGameLines(s, (id) => nodeKnown(s, id));
   // Known or unrunnable projects leave the queue / free their teams.
   for (let i = q.length - 1; i >= 0; i--) if (nodeKnown(s, q[i]) || !node(q[i])) q.splice(i, 1);
   for (const t of p.teams) {
