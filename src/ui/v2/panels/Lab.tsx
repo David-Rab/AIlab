@@ -323,11 +323,11 @@ function boardRows(s: GameStateV2): RowData[] {
         : eng.idle / Math.max(1e-9, eng.cap) > 0.02 ? { kind: 'spare', text: `${F.pct(eng.idle / Math.max(1e-9, eng.cap))} spare`, tip: 'Engineering capacity no need takes this week.' } : { kind: 'ok', text: 'All in use', tip: 'Every need gets its share; nothing spare.' } },
     { ...base('re.cap'),
       status: reShort.length ? { kind: 'short', text: `Short ${t1(reShort.reduce((a, n) => a + n.short, 0))} teams`, tip: `${reShort.map(needWord).join(', ')} get less than they need.` }
-        : re.idle >= 0.05 ? { kind: 'spare', text: `${t1(re.idle)} teams spare`, tip: 'Research-engineer capacity no need takes (at most two teams per programme).' } : { kind: 'ok', text: 'All in use', tip: 'Every need gets what it asks; nothing spare.' } },
+        : re.idle >= 0.05 ? { kind: 'spare', text: `${t1(re.idle)} teams idle`, tip: re.idleWhy } : { kind: 'ok', text: 'All in use', tip: re.surplus >= 0.05 ? `Every need is served; the ${t1(re.surplus)} teams left speed up the running programmes.` : 'Every need gets what it asks.' } },
     { ...base('sci.cap'), ...sciRow('sci.cap') },
     { ...base('re.saf'), aiNote: `AI share allowed ${F.pct(allowed)}`,
       status: safTotalShort > 0.05 ? { kind: 'short', text: `Short ${t1(safTotalShort)} people`, tip: `${safShort.map((n) => `${needWord(n)} short ${t1(n.short)} people`).join('; ')}.` }
-        : saf.idle >= 0.5 ? { kind: 'spare', text: `${t1(saf.idle)} people spare`, tip: 'Safety research-engineer capacity no need takes.' } : { kind: 'ok', text: 'All needs met', tip: 'Every safety need gets its people.' } },
+        : saf.idle >= 0.5 ? { kind: 'spare', text: `${t1(saf.idle)} people idle`, tip: saf.idleWhy } : { kind: 'ok', text: 'All needs met', tip: saf.surplus >= 0.5 ? `Every safety need gets its people; the ${t1(saf.surplus)} left speed up the running programmes.` : 'Every safety need gets its people.' } },
     { ...base('sci.saf'), ...sciRow('sci.saf'), aiNote: `AI share allowed ${F.pct(allowed)}` },
   ];
 }
@@ -361,7 +361,7 @@ function WorkRow({ s, r, maxM }: { s: GameStateV2; r: RowData; maxM: number }) {
         <Tip content={() => <TipCard title={<Term id="workDone">Work done</Term>} value={xm(m)} rows={w ? [{ label: 'People alone', value: '×1' }, { label: 'Added by AI staff', value: m - 1 >= 10 ? xm(m - 1) : `×${(m - 1).toFixed(2)}` }] : []}>This job's work, people and AI staff together, as × what the people alone would do.{maxM > 10 ? ' Bars on a log scale (each step ×10).' : ''}</TipCard>}>
           <span className="wd"><span className="lab-ebar"><span className="hp" style={{ flex: '100 0 0' }} />{m > 1.01 && <span className="ap" style={{ flex: `${(wu(m, maxM) - 1) * 100} 0 0` }} />}<span style={{ flex: `${Math.max(0, wu(maxM, maxM) - wu(m, maxM)) * 100} 0 0` }} /></span><b className="num">{xm(m)}</b></span>
         </Tip>
-        <Tip content={() => <TipCard title={r.status.kind === 'short' ? 'Short' : r.status.kind === 'spare' ? <Term id="overflow">Spare</Term> : 'Staffing'} value={r.status.text}>{r.status.tip} Click the row for its needs on AI staff &amp; needs.</TipCard>}>
+        <Tip content={() => <TipCard title={r.status.kind === 'short' ? 'Short' : r.status.kind === 'spare' ? <Term id="overflow">{r.k === 're.cap' || r.k === 're.saf' ? 'Idle' : 'Spare'}</Term> : 'Staffing'} value={r.status.text}>{r.status.tip} Click the row for its needs on AI staff &amp; needs.</TipCard>}>
           <span className={`lab-stc ${r.status.kind}`} data-test={`status.${r.k}`}>{r.status.kind === 'short' ? <ICON.alert size={14} /> : r.status.kind === 'spare' ? <i className="sparesw" /> : <ICON.check size={14} />} {r.status.text}</span>
         </Tip>
         <span className="dim"><ChevronRight size={16} /></span>
@@ -498,7 +498,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     cards.push({ id, kind: 'hire', what, target: target2, eff, cost: `${note}${hireCost(k)}`, act: { id: 'teams.target', params: { key: k, n: target(k) + 1 } }, ...(mt ? {} : { other: true }) });
   };
   const re = reAllocView(s);
-  if (re.idle >= 0.5) wont.push(`Research engineers: ${t1(re.idle)} teams spare`);
+  if (re.idle >= 0.5) wont.push(`Research engineers: ${t1(re.idle)} teams idle`);
   else if (rc && speed > 0 && re.cap > 0) {
     const g = at(rc.humans, (re.cap + 1) / re.cap) - 1;
     if (g >= MIN_GAIN) hire('re.cap', '+1 research-engineer team', 'Research speed', `+${F.pct(g, 1)}`, g * speed, 'research');
@@ -521,7 +521,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     if (g.currency === 'alignment' && g.amount > 0.005) {
       const note = k === 're.saf' && safShort.length ? `ends the ${t1(safShort.reduce((a, n) => a + n.short, 0))}-person shortage on ${needWord(safShort[0]).toLowerCase()} · ` : '';
       hire(k, name, 'Safety results', `+${F.num(g.amount, g.amount < 0.1 ? 2 : 1)} /yr`, g.amount, 'safety', note);
-    } else wont.push(k === 'sci.saf' ? 'Safety scientists: no programme waits for them' : `Safety research engineers: ${saf.idle >= 0.5 ? `${t1(saf.idle)} people spare` : 'no gain'}`);
+    } else wont.push(k === 'sci.saf' ? 'Safety scientists: no programme waits for them' : `Safety research engineers: ${saf.idle >= 0.5 ? `${t1(saf.idle)} people idle` : 'no gain'}`);
   }
   const ranked = rankMoves(s, moves);
   const byId = new Map(cards.map((c) => [c.id, c]));

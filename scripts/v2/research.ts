@@ -59,17 +59,27 @@ if (process.argv.includes('--rd-e03')) {
   const keys = [...new Set(STACK_KEYS.flatMap((k) => s.player.research.stacks[k].buckets.flatMap((b) => Object.keys(b))))].sort().join(',');
   check(ad?.id === n.id && Math.abs(ad.eff) > 0 && Math.abs(dv - ad.eff) < 1e-4 && keys === 'a,s',
     'RD-E03 an adopted idea adds its full true effect to its stack at build-in (no headroom part)', `effect ${ad?.eff} → stack +${dv.toFixed(5)}; bucket fields ${keys}`);
-  // No 'tune' need: research engineers serve run operations, evaluations and the projects; the rest show as idle.
+  // No 'tune' need: research engineers serve run operations and the projects (L5 pooled rule: the engineers left after the base
+  // needs speed up the projects in experiments, so they are idle only when no project is in experiments).
   for (let d = 0; d < 5; d++) tick(s, { skip: ['endings'] });
+  // Run on until a project is in experiments (the pooled rule leaves nobody idle then).
+  for (let d = 0; d < 400 && reAllocation(s).perProject.size === 0; d++) tick(s, { skip: ['endings'] });
+  tick(s, { skip: ['endings'] }); // the readout (last) is the day just run
   const al = reAllocation(s);
   const last = s.player.research.last;
-  // The readout is the last tick's: its needs plus idle make up the (unchanged) capacity.
+  // The readout is the last tick's (EFFECTIVE team-equivalents; last.idle is in people): its needs make up the whole pool.
   const sum = last ? last.re.ops + last.re.exp : NaN;
+  const nProj = al.perProject.size;
+  const empty = deserialize(serialize(s));
+  empty.player.research.queue = [];
+  resetWorkContext(empty);
+  const ae = reAllocation(empty);
   act(s, 'research.reAlloc', { order: 'ops,exp,tune,evals' });
   const order = s.player.research.re.order.join(',');
-  check(Object.keys(al.demand).sort().join(',') === 'evals,exp,ops' && DEFAULT_RE_ALLOC.order.join(',') === 'ops,evals,exp' && !('tune' in (last?.re ?? {}))
-    && last?.idle !== undefined && last.idle > 0 && Math.abs(last.idle + sum - al.total) < 0.01 && order === 'ops,evals,exp',
-    'RD-E03 no routine-tuning need; spare research engineers are idle (readout); an order naming tune is ignored', `needs ${Object.keys(al.demand).join(',')}; idle ${last?.idle} + needs ${sum.toFixed(3)} of ${al.total.toFixed(3)}; order after a tune order ${order}`);
+  check(Object.keys(al.demand).sort().join(',') === 'exp,ops' && !('tune' in (last?.re ?? {})) && order === DEFAULT_RE_ALLOC.order.join(',') && !order.includes('tune')
+    && nProj > 0 && last?.idle === 0 && Math.abs(sum - al.total) < 0.01 && ae.perProject.size === 0 && ae.re.exp === 0 && ae.idle > 0 && Math.abs(ae.idle * ae.m + ae.re.ops - ae.total) < 1e-9,
+    'RD-E03 / L7 no routine-tuning need; research engineers are idle only when no project is in experiments (the rest speed the projects up); an order naming tune is ignored',
+    `needs ${Object.keys(al.demand).join(',')}; ${nProj} projects: idle ${last?.idle}, needs ${sum.toFixed(3)} of ${al.total.toFixed(3)} team-eq; with none: idle ${ae.idle.toFixed(2)} of ${ae.heads.toFixed(2)} people (run operations take the rest); order after a tune order ${order}`);
   finish('research');
 }
 
@@ -449,10 +459,15 @@ if (process.argv.includes('--rd-a03')) {
   };
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
-  // (a) Research engineers are idle only when every project in experiments has its full RE_FULL_PROJECT (INP-V01).
-  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_FULL_PROJECT - 1e-9));
+  // (a) L5/L7 pooled rule: research engineers are idle only when no project is in experiments; every project gets its full
+  // RE_FULL_PROJECT once the pool covers every base need, and the surplus is spread evenly over the projects.
+  const bad = vs.filter((v) => {
+    const vals = [...v.a.perProject.values()];
+    const covered = v.a.total - v.a.re.ops >= vals.length * RE_FULL_PROJECT - 1e-9;
+    return (vals.length > 0 && v.a.idle > 1e-9) || (covered && (vals.some((re) => re < RE_FULL_PROJECT - 1e-9) || Math.max(...vals) - Math.min(...vals) > 1e-9));
+  });
   check(bad.length === 0,
-    'RD-B08: research engineers are idle only after every project in experiments has its full need',
+    'RD-B08 / L7: research engineers are idle only when no project is in experiments; the surplus after every base need is spread evenly',
     `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; violations ${bad.map((v) => v.k).join(',') || 'none'}`);
   // (b) More research engineers never lower a project's research engineers, FLOP or rate. The FLOP is by need, so it is
   // exactly flat; the rate may dip by the AI labour multiplier m_EXP = L/H, which spreads the same AI labour over the
@@ -474,13 +489,14 @@ if (process.argv.includes('--rd-a03')) {
   check(worstRe >= -1e-9 && worstFlop >= 1 - 1e-9 && worstRate >= 0.995,
     'RD-B08: adding research engineers never lowers a project\'s research engineers, experiment FLOP or rate (FLOP by need, not headcount)',
     `worst step: RE ${worstRe.toFixed(3)}, FLOP ×${worstFlop.toFixed(4)}, rate ×${worstRate.toFixed(4)}`);
-  // (c) With research engineers to spare, the projects take the whole pool and the rest of the engineers are idle.
+  // (c) With research engineers to spare, the projects take the whole pool (nobody idle) and each gets more than its base need.
   const top = vs[vs.length - 1];
   const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
   const usedTop = top.a.re.ops + top.a.re.exp;
-  check(Math.abs(projFlop - top.avail) < 1e-6 * top.avail && top.a.total - usedTop > 0,
-    'RD-B08 / RD-E03: with research engineers to spare the projects take the whole pool; spare research engineers are idle',
-    `projects ${(100 * projFlop / top.avail).toFixed(1)}% of FLOP; idle ${(top.a.total - usedTop).toFixed(2)} team-eq`);
+  const minTop = Math.min(...top.a.perProject.values());
+  check(Math.abs(projFlop - top.avail) < 1e-6 * top.avail && Math.abs(top.a.total - usedTop) < 1e-9 && top.a.idle === 0 && minTop > RE_FULL_PROJECT,
+    'RD-B08 / L7: with research engineers to spare the projects take the whole pool and none is idle; each project gets more than its base need',
+    `projects ${(100 * projFlop / top.avail).toFixed(1)}% of FLOP; idle ${(top.a.total - usedTop).toFixed(2)} team-eq; least per project ${minTop.toFixed(2)} (base ${RE_FULL_PROJECT})`);
 }
 
 // ---------- RD-B09: run operations have one owner (research engineers); a shortfall slows runs ----------
