@@ -169,7 +169,7 @@ export function costPerWorkHour(s: GameStateV2, fpt: number): { ai: number; huma
 export function labourSplit(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: number, assist = 1): { L: number; wH: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
   const h = Math.max(1e-12, H * assist);
   if (a <= 1e-9) return { L: h, wH: 1, aiTaskShare: 0, regime: 'shared' };
-  const r = optimalLabour(P.rc, a, h, Math.max(1e-12, AI));
+  const r = optimalLabour(P.rc, a, h, Math.max(0, AI));
   const wH = r.regime === 'shared' ? h / r.L : (Math.pow(1 - a, 1 - P.rc) * Math.pow(h, P.rc)) / Math.pow(r.L, P.rc);
   return { ...r, wH };
 }
