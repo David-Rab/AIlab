@@ -1,6 +1,6 @@
 # Data centres and power (redesign)
 
-Status: draft for designer approval (2026-11-27). Replaces the site/power model of V2-SPEC §3.8 and research/15 §1.3.
+Status: approved by the designer 2026-11-27 (mockup design/ux/mockups/dc/build.png). Replaces the site/power model of V2-SPEC §3.8 and research/15 §1.3.
 **Scope: sites and power only.** Financing (pay options, capex leases, debt), the chip market, cloud rental and
 everything else stay as they are.
 Data: research/23-datacenter-sites.md. Values marked **[design]** have no source and are ours to set.
@@ -91,7 +91,7 @@ Overlap; random power-wait draw; grid pool and queue credit; transformer stock a
 - **Bots** (finance/plan.ts) choose brownfield or gas: switch them to the three sources.
 - **Outside-world demand** for grid connections, turbines and halls: a reference path calibrated to §4, like the chip market's outside buyers.
 - **Rivals** have no sites today. They count in the waits only through outside-world demand **[design: or give rivals sites later]**.
-- **Saves:** a migration for sites on removed paths.
+- **Saves:** no migration; old saves may break (bump the schema rev).
 - **Glossary:** rewrite the site, power-source, wait and lever terms.
 
 ## 8. Open values to set
