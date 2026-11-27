@@ -63,7 +63,7 @@ export function BuildLoad({ s, compact = false, inUse }: { s: GameStateV2; compa
   const seg = (x: number, c: string, key: string) => x > 1e-6 && <i key={key} style={{ flex: x, background: c }} />;
   const tip = () => (
     <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-weeks/week`} rows={[
-      { label: 'People (teams × quality)', value: bc.human.toFixed(1) },
+      { label: 'People on teams', value: bc.human.toFixed(1) },
       { label: <><Term id="engAgents">With AI staff</Term></>, value: `${F.mult(bc.capacity / Math.max(1e-9, bc.human))} · can do alone ${F.pct(bc.aEng)} of software engineering` },
       { label: <span className="row-i"><i className="drv-sw" style={{ background: SEG.products }} /><Term id="productUpkeep">Upkeep</Term></span>, value: `${u.products.toFixed(1)} team-weeks/week`, ...(short > 0 ? { tone: 'neg' as const } : {}) },
       ...lines.filter((l) => l.kind !== 'suite').map((l) => ({ label: <span className="dim">· {upkeepLabel(s, l)}</span>, value: l.tw.toFixed(l.tw < 0.1 ? 2 : 1) })),

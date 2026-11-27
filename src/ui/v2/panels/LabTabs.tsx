@@ -129,7 +129,7 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
           <Tip content={() => <TipCard title={<Term id="keepHiring">Hiring target</Term>} value={`${target} teams`} rows={[{ label: 'Teams now', value: String(ts.length) }, { label: 'Filling', value: String(fills.length) }]}>Keep-hiring opens a team whenever you have fewer than the target.</TipCard>}><b className="num" data-test={`target-${k}`}>{target}</b></Tip>
           <ActBtn id="teams.target" testId={`teams.target.up.${k}`} params={{ key: k, n: target + 1 }} icon={ICON.plus} label="" ariaLabel="Raise the hiring target" />
         </span>
-        <Tip content={() => <TipCard title="Cost of a team" value={F.money(perTeam, { perYear: true })}>A full Strong team&apos;s yearly pay.</TipCard>}><div className="small dim"><span className="num">{F.money(perTeam)}</span>/yr a team</div></Tip>
+        <Tip content={() => <TipCard title="Cost of a team" value={F.money(perTeam, { perYear: true })}>A full team&apos;s yearly pay.</TipCard>}><div className="small dim"><span className="num">{F.money(perTeam)}</span>/yr a team</div></Tip>
       </div>
       <div className="lh-pay">
         <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1}`, value: F.money(teamPayroll(t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>

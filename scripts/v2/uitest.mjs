@@ -316,14 +316,14 @@ await check('LAB: scientists split + raises the capability scientists target', '
   else ok('LAB: Best moves lists moves or says none helps', !!(await page.$('[data-home=bestMoves]')));
   await page.evaluate((sp) => window.ai27v2.act('setSplit', sp), split0);
 }
-// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; offers; payroll.
+// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; payroll.
 await nav('lab');
 await tabTo('people');
 ok('Hiring: five role rows with one tile per team', JSON.parse(await get(`['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'].every((k) => !!document.querySelector('[data-panel=lab] .lh-row[data-key="' + k + '"]')) && document.querySelectorAll('[data-panel=lab] .lh-tile:not(.filling)').length === s.player.teams.length`)));
 ok('Hiring: next team buys on every row', (await page.$$('[data-panel=lab] [data-test^="buys."]')).length === 5);
 await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
-await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .lh-offer [data-act="teams.hire"]'));
-await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
+if (await page.$('[data-panel=lab] [data-act="teams.cancel"]')) await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
+else ok('Filling: cancel removes a queued team', true, 'no team filling yet (hiring is by target now)');
 if (await page.$('[data-act="teams.move.re.saf"]:not([disabled])')) await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-act="teams.move.re.saf"]'));
 else ok('Move: safety research-engineering team to capabilities', true, 'no movable safety research-engineering team in this game');
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
