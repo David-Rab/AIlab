@@ -53,8 +53,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | done d057cabd |
 | W3 | (folded into W1b) | | | | |
 | W4 | Public (spec §5) | Sonnet high | 60 min | W2 | done eb95c5da |
-| W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | running |
-| W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
+| W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | done d1e5629d |
+| W6 | China government (spec §7) | Sonnet high | 75 min | W5 | running (+ China lab compute fix) |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | done 875af419 |
@@ -134,3 +134,11 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   tl-central: concern 50 through 2027, ~70 at the first public SC (2030), 86 at the end. Note: a covered incident that
   leaks takes both the leak and the cover-up push (judged fine: the lie is its own penalty) · eb95c5da
 - Dashboard follow-up (after W5/W6): wire public/usgov/china into the History (concern vs Pew) and Reactions rows
+- W5 · Opus high · ~38 min · world/usgov.ts: stage 0–4 from govMilestones (milestones 2/3/4/5 + thefts, 90-d lag; stage
+  4 also needs stage 3 held 180 d), trust (start 55, pushes × attention), E12/E20/E22 rebuilt (neutral defaults; DPA
+  pools 50% of US NPC compute into the player as a rent-free cloud contract), hard path → nationalized. Conditional laws
+  in laws.ts: exportStrict, licensing, relief → UBI, hitl, sb243 (dated), sez, fdaFastTrack. Support channel DROPPED
+  (sitePermitQ has no state and 8 callers incl. UI previews). B7 moved; actors/actions.ts deleted. Smoke tl-central:
+  stage 0 to Nov 2026, then stages 1/2/3/4 in 2028-05 / 2030-04 / 2031-08 / 2032-02; strict exports 2030-05; licensing
+  2030-07; no relief (12-month rise never > 1 pt). SCHEMA 122 · d1e5629d. Open: ws4.ts shows 5 failures (canon text,
+  intel, China lead, rival gaps), not confirmed pre-existing; hygiene timed out on a shared CPU.
