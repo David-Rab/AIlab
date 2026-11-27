@@ -199,3 +199,11 @@ kind, status, computeOnline, milestoneDays, security), an `internal` and a `publ
 | Core | init.ts, registry.ts, record.ts, runs.ts `rivalRunFlop`, save.ts | constructors, NPC system, series, base-run FLOP, migrations | New constructors; series from G; largest run from compute × a typical run share; migrations dropped |
 | Bots | common.ts `mergerChoice`, ref.ts `bestRivalChatFit` | finance, public model | Unchanged |
 | UI | kit.tsx, Relations, RiskMap, World, LabTabs, FinanceStory, selectors, store | names, kind, lead, poach aggression, openness | Names, kind, public lag, openness; the RiskMap poach edge from race response |
+
+## Decisions after draft 2
+
+- **Funding (designer, 2026-11-27, option 1):** a private NPC lab raises what its compute plan needs while its story
+  holds (its revenue keeps growing: today's Credible rung). When revenue stalls, raises stop, chip orders fall below
+  plan, and the existing distress → E32 offer → license-and-hire or bankruptcy chain follows. When raises resume, orders
+  top back up toward the plan. Parent-funded and state labs order their plan. No leader special case. Task N8.
+- **Worlds without a draw** (tests only) use the central timeline's median run as the reference (lead).
