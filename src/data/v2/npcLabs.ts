@@ -50,11 +50,8 @@ export interface Personality {
   chinaDirected?: true;
 }
 
-/** How the internal model at the start is found (NPC-LABS §15 O5): the lab's next public release if it comes within its
- *  release lag of the start date; otherwise the public model advanced by one release lag. */
-export type InternalModelRule =
-  | { rule: 'nextRelease'; model: string; lagMonths: number; shipsInDays: number }
-  | { rule: 'advanceByReleaseLag' };
+/** The internal model at the start is the public model advanced by one release lag (generic; no per-lab bookkeeping). */
+export type InternalModelRule = { rule: 'advanceByReleaseLag' };
 
 export interface NpcStart {
   startDate: string;
@@ -96,10 +93,11 @@ const BASE_GROWTH = 2.25; // [repo src/engine/v2/compute/market.ts:121]
 
 // Release lag, days: today's RELEASE_LAG [repo src/engine/v2/actors/rivals.ts:56], unsourced [D] (CAST-2025 §5b: only a
 // lower bound for OpenAI, 28 days from METR's GPT-5 access; the system-card sourcing pass is open).
-// Release cadence, days: today's BASE_MONTHS x 30.4 [repo rivals.ts:58, [D] there too: 9-15 months by archetype].
-// NOTE for N2b: the observed public flagship steps (Epoch ECI file, CAST-2025 §5a) are 1.5-2 months (OpenAI) to ~4.5
-// (Meta); BASE_MONTHS is a base-model cadence. Which one "release cadence" means is a design question, left open.
-const cadence = (months: number) => Math.round(months * 30.4);
+// Release cadence, days: ONE typical public-flagship interval for every kind (designer: the background labs need the right
+// shape, not reality lab by lab). Median of 27 intervals between successive new-best-ECI models of OpenAI, Anthropic, Google
+// DeepMind, xAI, Meta and DeepSeek, Jan 2023 to 1 Jul 2025; range 15-317 days [P epoch.ai/data/eci_scores.csv, fetched
+// 2026-11-27; per-lab lists in design/npc/N2a2-RESULT.md].
+export const RELEASE_CADENCE_DAYS = 119;
 
 // Safety emphasis = today's safetyInvestment, race response = today's raceRelaxation [repo src/data/v2/postures.ts:6-16].
 
@@ -113,7 +111,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: 4.5, // [P Epoch, derived]
     funding: 'private', // [P CAST §3: private, capped-profit LP under a nonprofit until Oct 2025]
     releaseLagDays: 30, // [repo rivals.ts:56 leader 30] [D]
-    releaseCadenceDays: cadence(9), // [repo rivals.ts:58 leader 9 months] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [P CAST §5a: closed; first open weights gpt-oss 5 Aug 2025, after the start]
     focus: {
       channels: { consumer: 0.37, api: 0.23, enterprise: 0.4 }, // [press, unverified] api 3/13; consumer 4.8/13 (a floor); enterprise the rest [derived]
@@ -127,7 +125,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: BASE_GROWTH * 1.0, // mid [D]
     funding: 'private', // [P anthropic.com Series E post; PBC + Long-Term Benefit Trust, CAST §3]
     releaseLagDays: 120, // [repo rivals.ts:56 safety 120] [D], no source (CAST §5b)
-    releaseCadenceDays: cadence(13), // [repo rivals.ts:58 safety 13] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [P CAST §5a]
     focus: {
       channels: { consumer: 0.15, api: 0.55, enterprise: 0.3 }, // [D] (company names the segments, no percentages: CAST §6)
@@ -141,7 +139,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: BASE_GROWTH * 1.2, // high [D]
     funding: 'parent', // [P Alphabet Q2 2025 earnings post: capex guide $85B, CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 bigtech 60] [D]
-    releaseCadenceDays: cadence(12), // [repo rivals.ts:58 bigtech 12] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // flagship closed [P CAST §5a]; the open Gemma family is not modelled
     focus: {
       channels: { consumer: 0.5, api: 0.2, enterprise: 0.3 }, // [D] the parent's products (Gemini app >450M MAU [repo research/18:136])
@@ -155,7 +153,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: BASE_GROWTH * 1.2, // high [D]
     funding: 'parent', // [repo research/18:133: 2025 capex guide $66-72B; press, unverified]
     releaseLagDays: 60, // [repo rivals.ts:56 openweights 60] [D]
-    releaseCadenceDays: cadence(12), // [repo rivals.ts:58 openweights 12] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'open' }, // [P CAST §5a: Llama open weights; the spec's "open near the frontier" is N2b's use of this rule]
     focus: {
       channels: { consumer: 0.8, api: 0.1, enterprise: 0.1 }, // [D] Meta AI in its apps; no revenue (CAST §6)
@@ -169,7 +167,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: BASE_GROWTH * 1.5, // very high [D]
     funding: 'private', // [P CAST §3: founder-controlled, X merger]
     releaseLagDays: 15, // [repo rivals.ts:56 maverick 15] [D]; the one start observation: Grok 4 shipped 8 days after the start (CAST §1)
-    releaseCadenceDays: cadence(9), // [repo rivals.ts:58 maverick 9] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'partial' }, // [D] spec: "partly open"; no checked open-weights release in CAST (Grok 4 closed [press, unverified])
     focus: {
       channels: { consumer: 0.6, api: 0.3, enterprise: 0.1 }, // [D] Grok in X and the Grok app; API (CAST §6)
@@ -183,7 +181,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: BASE_GROWTH * 0.8, // low [D]
     funding: 'private', // [press, unverified: CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 upstart 60] [D]
-    releaseCadenceDays: cadence(15), // [repo rivals.ts:58 upstart 15] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [D] spec: closed
     focus: {
       channels: { consumer: 0, api: 0.7, enterprise: 0.3 }, // [D] research; no product at the start (CAST §6)
@@ -197,7 +195,7 @@ export const KINDS: Record<NpcKindId, Personality> = {
     computeGrowthPerYear: null, // China's compute meter (actors/china.ts), not the lab's own growth
     funding: 'state', // spec §5; self-funded by High-Flyer at the start [P arXiv 2408.14158, CAST §3]
     releaseLagDays: 45, // [repo rivals.ts:56 deepcent 45] [D]
-    releaseCadenceDays: cadence(12), // [repo rivals.ts:58 deepcent 12] [D]
+    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'chinaRung', belowRung: 3 }, // [spec §5: open while China's rung < 3]; MIT-licensed open weights at the start [repo research/10-china.md:270]
     focus: {
       channels: { consumer: 0.4, api: 0.5, enterprise: 0.1 }, // [D] free app, API, open weights (CAST §6)
@@ -223,9 +221,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 0, // [P Epoch ECI: o3-pro 147.47 is the frontier itself; CAST §1]
-      // GPT-5 (150.0) ships 7 Aug = 37 days after the start [P eci_scores.csv]. It is ahead of the public frontier by
-      // (150.0 - 147.47) / ~1.2 ECI per month = 2.1 months [derived; pace CAST §8].
-      internalModel: { rule: 'nextRelease', model: 'GPT-5', lagMonths: -2.1, shipsInDays: 37 },
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 0.82e6, // [derived] 386K -> 1.743M log-linear [P Epoch]
       revenueRunB: 12, // [P company disclosure, CFO: $12B run-rate on 30 Jul 2025; CAST §3 (Confident); 10 on 9 Jun is [press]]
       valuationB: 300, // [P SoftBank press release 1 Apr 2025: $300B post-money]
@@ -239,9 +235,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 3.0, // [P Epoch ECI first crossing: Opus 4 142.85 first crossed by Gemini 2.5 Pro Mar 143.98 on 31 Mar; CAST §1]
-      // Claude Opus 4.1 (144.76) ships 5 Aug = 35 days after the start, inside the 120-day release lag [P eci_scores.csv].
-      // First crossed by o4-mini 145.21 on 16 Apr = 2.5 months before the start [derived, CAST §1 method].
-      internalModel: { rule: 'nextRelease', model: 'Claude Opus 4.1', lagMonths: 2.5, shipsInDays: 35 },
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 0.5e6, // [D] repo back-cast 0.4-0.6M (research/18:102); Epoch end-2025 1.19M [P] is the check
       revenueRunB: 4, // [derived] between $3B on 30 May and $5B on 29 Jul, both company-disclosed [P Epoch revenue CSV]
       valuationB: 61.5, // [P anthropic.com Series E post, 3 Mar 2025]
@@ -255,7 +249,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 2.5, // [P Epoch ECI first crossing: Gemini 2.5 Pro Jun 144.88 first crossed by o4-mini / o3 on 16 Apr; CAST §1]
-      internalModel: { rule: 'advanceByReleaseLag' }, // no ECI-listed release within its 60-day lag after the start (Deep Think is not in the file)
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 1.0e6, // [D] repo back-cast (research/18:135); Epoch end-2025 1.583M [P] is the check; the lab's share of Google's compute is wide (CI 1.0-2.5M)
       revenueRunB: null, // not reported separately (inside Google Cloud and Search; CAST §3)
       valuationB: null,
@@ -269,8 +263,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 6.5, // [P Epoch ECI: Grok-3 mini 139.88 on 24 Jun, first crossed by o1 141.16 on 17 Dec 2024; CAST §1]
-      // Grok 4 (146.91, o3 first crossed it on 16 Apr = 2.5 months) ships 9 Jul = 8 days after the start [P eci_scores.csv].
-      internalModel: { rule: 'nextRelease', model: 'Grok 4', lagMonths: 2.5, shipsInDays: 8 },
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 0.28e6, // [D] Colossus 1 ~200K GPUs = ~0.28M H100e (repo research/18:102, U/D); Epoch end-2025 0.615M [P] (CI 0.55-0.70M)
       revenueRunB: 0.236, // [press, unverified] Epoch Q2 2025 $59M annualised (Likely)
       valuationB: 150, // [press, unverified] ~$150B at the 30 Jun 2025 raise, "believed, not confirmed" (Epoch Likely)
@@ -284,7 +277,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 9.6, // [P Epoch ECI first crossing: Llama 4 Maverick 132.19, o1-preview 133.58 on 12 Sep 2024; CAST §1]
-      internalModel: { rule: 'advanceByReleaseLag' }, // no release scheduled within its 60-day lag (Behemoth not released)
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 0.6e6, // [D] repo back-cast (research/18:135); Epoch end-2025 0.996M [P] (CI 0.61-1.64M)
       revenueRunB: null, // not separate (CAST §3)
       valuationB: null,
@@ -299,7 +292,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       startDate: START,
       publicLagMonths: null, // no public model and no product at the start (CAST §1)
       publicLagBandMonths: 3, // [D] wide band: capability unknown
-      internalModel: { rule: 'advanceByReleaseLag' }, // its start lag is the [D] below
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 0.03e6, // [D] repo design placeholder for a spinout: 10-50K H100e rented (research/18:61)
       revenueRunB: 0, // none (CAST §3)
       valuationB: 32, // [press, unverified] SSI $32B, Apr 2025 (TechCrunch); TML $12B was 2 weeks after the start
@@ -313,7 +306,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
     start: {
       startDate: START,
       publicLagMonths: 6.5, // [P Epoch ECI first crossing: R1-0528 140.73, o1 141.16 on 17 Dec 2024; CAST §1]
-      internalModel: { rule: 'advanceByReleaseLag' }, // V3.1 (21 Aug) is 51 days out, past its 45-day lag
+      internalModel: { rule: 'advanceByReleaseLag' },
       computeH100e: 'china-meter', // China actor's compute meter (actors/china.ts): no number here
       revenueRunB: null, // no Epoch row before 2026
       valuationB: null, // self-funded by High-Flyer
