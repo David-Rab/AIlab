@@ -64,8 +64,8 @@ Written 2026-11-27 by the session that built this (branch `bal`, worktree `C:\Us
   - **Hypothesis, untested:** the game's labour CES (ρc = −2, complements) has no optimal choice, so when AI copies are few relative to humans, automating work reduces effective labour (L < H). The AIFM's optimal CES never lets automation lower labour. Candidate fix: a `max(H, L)` or optimal-allocation rule (humans keep doing what AI can't staff).
   - Run `balance/runs/r33check`.
   - **Test this before M3:** a small counterfactual probe, then a proposal to the designer.
+- **Designer decision (2026-11-27): the labour-CES problem is DEFERRED.** Diagnosis: the game always gives AI *every* AI-capable task (coverage A), with no optimal split. Proposed fix: AI takes the output-maximising share up to A, as in the AIFM. It's in the deferred list; don't implement it without the designer's go. Until then, the central/slow pre-SC speed-up stays under 1 on `tl-*` worlds; keep that in mind when reading M3.
 - **Next steps:**
-  0. **Resolve the R3.3 labour-CES problem above** (probe, then a designer decision).
   1. **M3 measurement:** forced run, `--world tl-fast,tl-central,tl-slow`, policy `reflines`, about 8+ seeds per timeline (draws vary, so use many seeds), read on the dashboard.
   2. **Fit the residuals within the source ranges** (the SC threshold, the P24 line strength `[D]`, and the takeoff if still short).
   3. If takeoff still runs short, take the mechanism suspects to the designer: the CES-free ideation channel and the experiment-share ramp.

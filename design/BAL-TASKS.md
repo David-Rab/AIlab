@@ -161,3 +161,4 @@ This replaces the scattered round-2 notes above as the working list. No new inve
 | R3.3 | Pre-SC AI coverage from the AIFM automation-fraction path | source-derived | **done**; open: labour-CES problem (spdM falls), see HANDOFF-CALIBRATION §2 |
 | M3 | One measurement with R3.1–R3.3, on the dashboard | measure | after |
 Only if takeoff still runs short after M3: the untested mechanism suspects (the CES-free ideation channel, the experiment-share ramp) go to the designer.
+- 2026-11-27: the labour-CES / optimal task-split fix is **deferred** by the designer (memory `ai27-balance-deferred`, item 8). Session wrapping up; next session starts from design/bal/HANDOFF-CALIBRATION.md.
