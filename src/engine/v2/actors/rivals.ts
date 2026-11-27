@@ -6,19 +6,17 @@
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
-import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
+import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_START } from '../../../data/v2/traits';
 import { toolsAtStart, type LabArchetype } from '../../../data/v2/tools';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
-import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
 import { domainsOf, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
 import { CHINA_ID, LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
-import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
-import { drawSeverity, labModelHazards } from '../safety/incidents';
+import { drawSeverity, type HazardRow } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 import { initialSecurity } from '../security/security';
 import { labMarketRevenue } from '../worldfx/revenue';
@@ -31,11 +29,12 @@ import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, rivalLineupStep, rivalToolStep, recordToolShips, setModelG } from './rivalModel';
+import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, rivalLineupStep, rivalToolStep, recordToolShips } from './rivalModel';
 import { chinaDaily } from './china';
 import { npcCapabilityDay, npcGrowthQ } from '../npc/lab';
+import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
 import { KINDS } from '../../../data/v2/npcLabs';
-import { ws4, ws4r } from './state';
+import { ws4 } from './state';
 
 export { activeRivals } from '../models/labs';
 
@@ -214,13 +213,8 @@ export function leaderOf(s: GameStateV2): LabId {
   return best;
 }
 
-/** Race pressure (§3.10.3): clamp(months behind the leader / 6, 0, 1); a leader with bindingness > 0.5 → 0. */
-export function racePressure(s: GameStateV2, lab: LabId): number {
-  const leader = leaderOf(s);
-  if (leader === lab) return 0;
-  const months = (lagDays(s, lab, leader) / 365) * 12;
-  return clamp(months / 6, 0, 1);
-}
+/** Race pressure (N2b-2, NPC-LABS §4): clamp(1 − months to the nearest competitor, ahead or behind, ÷ 3, 0, 1) (npc/risk.ts). */
+export const racePressure = (s: GameStateV2, lab: LabId): number => npcRacePressure(s, lab);
 
 /** Research-speed multiplier of a non-player lab (research/17 §1.6.5): the leader lab with bindingness > 0.5 slows by
  *  0.2·bindingness; 1 for every other lab. production.ts rivalResearch applies it (with the treaty factor) to the
@@ -231,45 +225,16 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
   return b > 0.5 ? 1 - 0.2 * b : 1;
 }
 
-/**
- * Projected hidden Mis of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts):
- * its trait cadence fast-forwarded with the rule labDaily runs in play: WS2's rivalTraitStep after every post-training
- * (the mean of POST_DAYS apart, the first at the lab's scheduled one) and after every base run (BASE_MONTHS by
- * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at LATENT_ERA_OOM above V0
- * (LATENT_P). The stated stand-in (DD-18): capability rises linearly in G from the internal model's to `asiG` over
- * `days`, every base starts a new lineage, and race pressure stays at today's. At most 120 steps (a guard: a ten-year
- * projection is ≈ 75). Pure: works on a clone and draws from a hash of the seed, lab and day (no stream).
- */
-export function projectLabMis(s: GameStateV2, r0: RivalLab, asiG: number, days: number): number {
-  const r: RivalLab = JSON.parse(JSON.stringify(r0));
-  const id = r.core.id;
-  const day0 = s.time.day;
-  const end = day0 + days;
-  const rng = new Rng(hash32(s.setup.seed, `projectMis:${id}:${day0}`));
-  const postEvery = (POST_DAYS[0] + POST_DAYS[1]) / 2;
-  const baseEvery = (BASE_MONTHS[r.archetype] ?? 12) * 30.4;
-  const lk = s.flags[`latent:${id}`];
-  let latent = lk === undefined ? undefined : lk === true;
-  let nextPost = Math.max(day0, ws4r(s).nextPost[id] ?? day0 + postEvery);
-  let nextBase = Math.max(day0, r.nextBaseDay);
-  const G0 = r.internal.G;
-  const G1 = Math.max(G0, asiG);
-  for (let n = 0; n < 120 && days > 0; n++) {
-    const d = Math.min(nextPost, nextBase);
-    if (d > end) break;
-    setModelG(s.hidden.timeline, r.internal, G0 + ((G1 - G0) * (d - day0)) / days);
-    if (latent === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
-    if (d === nextBase) {
-      nextBase += baseEvery;
-      ws2RivalTraitStep(s, rng, r, 'base');
-    } else nextPost = d + postEvery;
-    ws2RivalTraitStep(s, rng, r, 'post', { latent: latent === true });
-  }
-  return rivalMis(r);
+/** Projected hidden m of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts): m at
+ *  the ASI capability `asiG` under the lab's current race pressure (N2b-2, NPC-LABS §7; no trait projection). `days` is
+ *  unused (kept for the caller's signature). */
+export function projectLabMis(s: GameStateV2, r: RivalLab, asiG: number, _days: number): number {
+  const p = postureOf(s, r.core.id);
+  return npcM(s, Math.max(asiG, r.internal.G), p.safetyInvestment, p.raceRelaxation, r.npc?.p ?? 0);
 }
 
-/** Hidden Mis of a non-player lab's internal frontier. */
-export const rivalMis = (r: RivalLab) => misalignment(r.internal.traitsTrue, r.internal.uModes);
+/** Hidden m of a non-player lab's internal frontier (stored daily on its npc state, npc/risk.ts). */
+export const rivalMis = (r: RivalLab) => npcMisOf(r);
 
 /** One non-player lab's daily behaviour (N2b-1, design/npc/NPC-LABS.md §4): its capability day (npc/lab.ts: the lag
  *  relaxes to its target, the internal model follows the reference frontier, releases on the shared cadence), its
@@ -289,19 +254,18 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);
+  r.npc!.p = r.pressure;
   r.pressureDays = r.pressure > 0.6 ? r.pressureDays + 1 : 0;
 
   // Latent reasoning adoption at the era (LATENT_ERA_OOM above V0) — once per lab (S4).
   const lk = `latent:${id}`;
   if (s.flags[lk] === undefined && r.internal.G - gV0(wl) >= LATENT_ERA_OOM) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
 
-  // N2b-1: the capability day. On a release the public model is replaced; the trait graph steps once per release (it
-  // stepped after each post-training before; N2b-2 replaces the traits with m). Openness: the kind's rule
+  // N2b-1: the capability day. On a release the public model is replaced; m is recomputed daily below (npc/risk.ts). Openness: the kind's rule
   // (npc/lab.ts opensRelease); a 'partial' lab opens the model its release replaces.
   const { released, prev } = npcCapabilityDay(s, r, day);
   if (released && r.publicModel) {
     w.internalDay[id] = day;
-    ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
     const pub = r.publicModel;
     if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G, pub.recG ?? recipeOf(s, r));
     if (prev && r.npc && KINDS[r.npc.kind].openness.mode === 'partial' && !prev.openWeights) {
@@ -313,14 +277,15 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // RD-P07: a tool new in this game, TOOL_LAG_DAYS after the player first shipped it (RF-P1).
   rivalToolStep(s, r, day);
 
-  // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
-  // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety
-  // investment]; visibility = disclosure + 0.5·access + leak, statutory floor (research/17 §1.6.5 #4).
+  // N2b-2 (NPC-LABS §4, §7): m = M_world(G) x (1 - 0.5 x safety emphasis x (1 - race response x p)), then the incidents:
+  // model incidents at H0 x (m / M_world(G(V0))) x (1 - 0.8 x safety emphasis) a year on one generic row, plus a misuse
+  // hazard like the player's (standard safeguards; safety emphasis where eval rigor stood); visibility = disclosure +
+  // 0.5 x access + leak, statutory floor (research/17 §1.6.5 #4).
   const p = postureOf(s, id);
+  r.npc!.m = npcM(s, r.internal.G, p.safetyInvestment, p.raceRelaxation, r.npc!.p);
   const dep = r.publicModel ?? r.internal;
-  const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
-  const rows = labModelHazards(s.hidden.timeline, dep, mitigation);
-  const misuseH = MISUSE_PER_OOM * Math.max(0, dep.G - gV0(s.hidden.timeline) - MISUSE_FROM_OOM) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
+  const rows: HazardRow[] = [npcModelRow(s, r.internal.G, r.npc!.m, p.safetyInvestment)];
+  const misuseH = MISUSE_PER_OOM * Math.max(0, dep.G - gV0(s.hidden.timeline) - MISUSE_FROM_OOM) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.safetyInvestment);
   if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, sev: 3, disposition: 1, capability: 1, opportunity: 1, block: 0 });
   const H = rows.reduce((a, x) => a + x.h, 0);
   if (H > 0 && rng.chance(Math.min(0.5, H))) {
