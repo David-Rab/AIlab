@@ -5,10 +5,11 @@
 //   E, U      E_k = heads of kind k in AI labs (the player, plus the rivals' and China's PLACEHOLDER heads); U_k = P_k − E_k
 //   wage      w_k = w0_k · [(E_k / U_k) / (E0_k / U0_k)]^(1/η)            (E0, U0 at game start, startMarket)
 //   hires     min(V_k, μ_k · U_k^α · V_k^(1−α) · (1 + π_k)^ε · pull · morale / 52)
+//   poach     share 1 − (1+π)^(−ε) of the rivals' leavers (heads · SEPARATION / 52) join the player, up to the V left
 //   pay       new hires at the offer w_k (1 + π_k); every head's pay relaxes toward the offer at 1/T per year
 // V_k = the player's open positions of kind k: vacancies in arrived teams, the queued teams' unfilled seats and the
 // keep-hiring targets' seats not yet queued (the whole hiring-target gap). Automation enters only through V (the
-// player's own targets). No poaching here (L13), no stars (L17).
+// player's own targets). Poaching (L13): with a premium, a share of the rivals' leavers joins the player. No stars (L17).
 import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS, SEPARATION, W0 } from '../../../data/v2/labourMarket';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE, TEAM_KEYS } from '../../../data/v2/teams';
 import { applyTargets, attritionMorale, laneWeights, moraleFactor, moraleOf, teamLabel } from './teams';
@@ -27,10 +28,12 @@ export function playerHeads(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole)
 }
 
 /**
- * PLACEHOLDER (LABOUR-ROUND §4.2 item 2; the full version belongs to the rival session, L14): the rivals' and China's
- * heads of kind k. Their staff follow today's paths (rivalModel.ts growLabStaff, the hRef growth) as departments
- * (`core.staff.cap/saf`), split here by REF_ROLE_SHARE (capabilities) and SAF_ROLE_SHARE (safety; no safety engineers).
- * They count in E but are never rationed and do not respond to wages or automation.
+ * PLACEHOLDER (LABOUR-ROUND §4.2 item 2, L14; "the full version belongs to the rival session", §4.2.2): the rivals' and
+ * China's heads of kind k. Their staff follow today's paths (rivalModel.ts growLabStaff, the hRef growth, run for China's
+ * lab too: rivals.ts labDaily) as departments (`core.staff.cap/saf`), split here by REF_ROLE_SHARE (capabilities) and
+ * SAF_ROLE_SHARE (safety; no safety engineers). They count in E (the rivals AND China) but are never rationed by the pool
+ * and do not respond to wages or automation. The only thing that moves them is the player's poaching (poachFromRivals,
+ * rivals only, never China).
  */
 export function otherLabHeads(s: Pick<GameStateV2, 'rivals' | 'china'>, k: TeamRole): number {
   let n = 0;
@@ -76,7 +79,7 @@ export function marketWage(s: GameStateV2, k: TeamRole): number {
   return ratio0 > 0 ? W0[k] * Math.pow(ratio / ratio0, 1 / ETA) : W0[k];
 }
 
-/** The player's premium π_k (p.hiring.premium; L13 adds the action). */
+/** The player's premium π_k (p.hiring.premium; set by the 'hiring.premium' action, teamActions.ts). */
 export const premiumOf = (p: Pick<PlayerLab, 'hiring'>, k: TeamRole) => Math.max(0, p.hiring.premium?.[k] ?? 0);
 /** The player's offer per head, $M/yr: the market wage × (1 + π_k). */
 export const offerOf = (s: GameStateV2, k: TeamRole) => s.labour.pools[k].w * (1 + premiumOf(s.player, k));
@@ -139,6 +142,45 @@ export function weeklyHires(s: GameStateV2, k: TeamRole): number {
   const byDept = openPositionsByDept(s.player, k);
   const V = byDept.cap + byDept.saf;
   return Math.min(V, matchRate(s, k, V, kindMorale(s, k, byDept)));
+}
+
+// ───────── Poaching (L13) ─────────
+
+/** The share of a rival's leavers that joins the player at premium π: 1 − (1 + π)^(−ε) (0 at π = 0). */
+export const poachShare = (pi: number) => (pi > 0 ? 1 - Math.pow(1 + pi, -EPS) : 0);
+
+/**
+ * PLACEHOLDER (LABOUR-ROUND §4.2 item 5; the full version belongs to the rival session): this week's poaching of kind k
+ * from the rivals (never China). Each active rival's leavers of the kind are heads_k × SEPARATION / 52; a share
+ * poachShare(π_k) of them joins the player, at most `room` heads in all (the player's open positions left after the normal
+ * hires; the rivals are scaled down together when it binds). The rival loses exactly the poached number of heads, split
+ * between `core.staff.cap` and `core.staff.saf` by where the kind's heads sit (the roster keeps its fixed REF_ROLE_SHARE /
+ * SAF_ROLE_SHARE mix, so the other kinds shrink with it). growLabStaff multiplies the lower number from then on: the loss
+ * is not refilled. Returns the heads poached.
+ */
+export function poachFromRivals(s: GameStateV2, k: TeamRole, room: number): number {
+  const share = poachShare(premiumOf(s.player, k));
+  if (share <= 0 || room <= 0) return 0;
+  const rows: { r: GameStateV2['rivals'][number]; capK: number; safK: number; leavers: number }[] = [];
+  let total = 0;
+  for (const r of s.rivals) {
+    if (r.core.status !== 'active') continue;
+    const capK = r.core.staff.cap * REF_ROLE_SHARE[k];
+    const safK = k === 'eng' ? 0 : r.core.staff.saf * SAF_ROLE_SHARE[k];
+    const leavers = ((capK + safK) * SEPARATION * share) / WEEKS;
+    rows.push({ r, capK, safK, leavers });
+    total += leavers;
+  }
+  if (total <= 0) return 0;
+  const scale = Math.min(1, room / total);
+  for (const { r, capK, safK, leavers } of rows) {
+    const n = leavers * scale;
+    const h = capK + safK;
+    if (n <= 0 || h <= 0) continue;
+    r.core.staff.cap = Math.max(0, r.core.staff.cap - (n * capK) / h);
+    r.core.staff.saf = Math.max(0, r.core.staff.saf - (n * safK) / h);
+  }
+  return total * scale;
 }
 
 // ───────── Weekly flows ─────────
@@ -220,7 +262,11 @@ export function marketWeek(s: GameStateV2, ctx: SystemCtx | undefined) {
     const offer = offerOf(s, k);
     // 4. Hires (the matching function), placed into vacancies then queued teams.
     const before = playerHeads(p, k);
-    const hired = placeHires(s, ctx, k, weeklyHires(s, k));
+    const V = openPositions(p, k);
+    let hired = placeHires(s, ctx, k, weeklyHires(s, k));
+    // 5. Poaching (premium only): a share of the rivals' leavers fills the positions the matching left open.
+    const poached = poachFromRivals(s, k, V - hired);
+    if (poached > 0) hired += placeHires(s, ctx, k, poached);
     // 6. Pay: new hires at the offer, everyone toward it.
     p.pay[k] = repriceWeek(p.pay[k], before, hired, offer);
   }
