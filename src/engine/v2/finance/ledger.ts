@@ -2,6 +2,7 @@
 import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { BaselineId, CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
 import { defaultFinanceWS3, yearStats } from './ext';
+import { RENT } from '../../../data/v2/deals';
 import { START_CREDIBILITY } from './promises';
 
 /** Player finance at Jul 2025 (§3.7.2). Reality scales commitments by 0.85. */
@@ -14,8 +15,8 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
     { id: 'L-cloud0', payee: 'Northwind Cloud', kind: 'cloud', perQuarter: 2.275 * k, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
-    // S1 Abilene North is colocation: 0.3 GW at ~$1.2B per GW-year (R15 lease ≈ 12%/yr of $10B/GW) [D].
-    { id: 'L-lease-S1', payee: 'Colocation lease', kind: 'lease', perQuarter: (0.3 * 1.2) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 },
+    // S1 Abilene North is a rented hall: 0.3 GW at the rent price (DC-TASKS [D-12]).
+    { id: 'L-rent-S1', payee: 'Data-centre rent', kind: 'lease', perQuarter: (0.3 * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 },
   ];
   const cash = reality ? 45 : 40;
   const f: FinanceState = {
