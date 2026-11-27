@@ -31,7 +31,7 @@ function state(heads: number, m: number, nExp: number, ops: boolean): GameStateV
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8')) as GameStateV2;
   const p = s.player;
   const re = p.teams.filter((t) => t.role === 're' && t.dept === 'cap');
-  const keep = { ...re[0], heads: heads * TEAM_SIZE.re, quality: 'strong' as const };
+  const keep = { ...re[0], heads: heads * TEAM_SIZE.re };
   p.teams = [...p.teams.filter((t) => !(t.role === 're' && t.dept === 'cap')), keep];
   if (!ops) {
     p.models.runs = [];

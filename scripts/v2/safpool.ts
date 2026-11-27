@@ -7,7 +7,7 @@
 import { AGENDA_IDS, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { lineNodeId } from '../../src/data/v2/tree';
 import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
-import { QUALITY, TEAM_SIZE } from '../../src/data/v2/teams';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { safetyLabour } from '../../src/engine/v2/departments/workfit';
 import { expLabour } from '../../src/engine/v2/models/research';
@@ -33,7 +33,7 @@ function lab(hx: number, m: number, n: number, ai = false): { s: GameStateV2; id
   const re = p.teams.find((t) => t.role === 're' && t.dept === 'saf') as Team;
   p.teams = p.teams.filter((t) => !(t.dept === 'saf' && t.role === 'sci'));
   ids.slice(0, n).forEach((id, i) => {
-    p.teams.push({ ...sci, id: `${sci.id}-l6-${i}`, quality: 'strong', heads: 40 * SERIOUS_CAP, projectId: id, manual: true, specialty: undefined } as Team);
+    p.teams.push({ ...sci, id: `${sci.id}-l6-${i}`, heads: 40 * SERIOUS_CAP, projectId: id, manual: true, specialty: undefined } as Team);
     p.tree[id] = { status: 'researching', progress: 0, attempts: 1 };
   });
   p.research.queue = ids;
@@ -44,7 +44,6 @@ function lab(hx: number, m: number, n: number, ai = false): { s: GameStateV2; id
     if (v.build) v.build.dg += 6;
     p.policies.trustedToAI = 1;
   }
-  re.quality = 'strong';
   const setM = () => {
     resetSafAllocation(s);
     if (!ai) safetyLabour(s).exp.m = m;
@@ -54,7 +53,7 @@ function lab(hx: number, m: number, n: number, ai = false): { s: GameStateV2; id
   setM();
   let other = 0;
   for (const [k, v] of Object.entries(safAllocation(s).demand)) if (k !== 'safExp') other += v;
-  re.heads = (other + hx) / QUALITY.strong.out;
+  re.heads = (other + hx);
   setM();
   return { s, ids };
 }
