@@ -11,7 +11,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) => {
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
 
 // No sites: the reference path
-for (const [y, w] of [[2023, 12], [2024, 16], [2025.5, 19], [2026, 20], [2030, 16], [2032, 16], [2021, 12]] as const) near(refWaitQ('grid', y), w, `grid wait ${y}`);
+for (const [y, w] of [[2023, 12], [2024, 16], [2025.5, 19], [2026, 20], [2030, 10], [2032, 10], [2021, 12]] as const) near(refWaitQ('grid', y), w, `grid wait ${y}`);
 near(refWaitQ('gas', 2025.5), 8.5, 'gas wait 2025.5'); near(refWaitQ('gas', 2026), 9, 'gas wait 2026');
 near(refWaitQ('rent', 2025.5), 3.5, 'rent wait 2025.5'); near(refWaitQ('rent', 2026), 4, 'rent wait 2026');
 near(outsideGW('grid', 2026), 150, 'outside grid GW 2026');
@@ -23,7 +23,7 @@ near(waitQ('rent', 2026, 1), 4.66666666666667, 'rent +1 GW at 2026.0 (4.6667)', 
 
 // pendingGW
 const site = (path: string, mw: number, stage: string, ws3: QueueSite['ws3'] = {}): QueueSite => ({ path, mw, stage, ws3 });
-near(pendingGW([site('gas', 1000, 'power', { rush: true })], 'gas', 100), 0, 'rushed gas site counts 0');
+near(pendingGW([site('gas', 1000, 'power', { rush: true })], 'gas', 100), 1, 'rushed gas site counts in the backlog (DATACENTERS §5b)');
 near(pendingGW([site('gas', 1000, 'power')], 'gas', 100), 1, 'unrushed gas site counts its GW');
 near(pendingGW([site('grid', 1000, 'building', { powerDay: 90 })], 'grid', 100), 0, 'grid site with powerDay <= day counts 0');
 near(pendingGW([site('grid', 1000, 'power', { powerDay: 300 })], 'grid', 100), 1, 'grid site with powerDay > day counts');

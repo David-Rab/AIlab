@@ -59,11 +59,11 @@ Reference schedule (the waits when the player builds nothing; your and rivals' b
 
 | Wait | 2023 | 2024 | 2025 | 2026 | 2027 | 2028 | 2029 | 2030 |
 |---|---|---|---|---|---|---|---|---|
-| Grid | 12 q | 16 q | 18 q | 20 q | 20 q | 20 q | 18 q | 16 q |
+| Grid | 12 q | 16 q | 18 q | 20 q | 20 q | 17 q | 13 q | 10 q |
 | Turbines | 4 q | 6 q | 8 q | 9 q | 9 q | 8 q | 7 q | 6 q |
 | Rent | 1 q | 2 q | 3 q | 4 q | 4 q | 4 q | 4 q | 4 q |
 
-Sources: grid 3–4 yr typical before 2024 → up to 7 yr (Dominion 2024), 5–7+ yr (PNNL 2025), 10+ yr in some markets (CBRE 2026), taken as a national middle; small turbines ~12 months (2023) → 12–36 (2025) → 15–36 (2026) (SemiAnalysis); rent as above. **Every 2027–30 value is [design]**: grid eases after reforms and new transmission (ERCOT batch studies, PJM expedited track), turbines ease as makers expand (GE → 24 GW/yr, Siemens → 30+ GW/yr by 2028–30), rent stays tight (JLL: tight through 2030).
+Sources: grid 3–4 yr typical before 2024 → up to 7 yr (Dominion 2024), 5–7+ yr (PNNL 2025), 10+ yr in some markets (CBRE 2026), taken as a national middle; small turbines ~12 months (2023) → 12–36 (2025) → 15–36 (2026) (SemiAnalysis); rent as above. **Every 2027–30 value is [design]**: grid eases from 2028 to 10 q by 2030 after reforms and new transmission (ERCOT batch studies, PJM expedited track, FERC large-load rules; designer 2026-11-27: grid becomes the sensible default late, gas the fast expensive bet early), turbines ease as makers expand (GE → 24 GW/yr, Siemens → 30+ GW/yr by 2028–30), rent stays tight (JLL: tight through 2030).
 
 No cap on how many GW a player can start. Building more lengthens your own and everyone's waits.
 

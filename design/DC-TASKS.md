@@ -136,7 +136,7 @@ UI lane after L1 and DC-17, sequential (one file, Compute.tsx): DC-9 → DC-10a 
   export const RENT = { perGWYear: 1.8, years: 5 } as const;
   /** Waits with the player building nothing (DATACENTERS §4), quarters, at 1 January of each year [D-3]. */
   export const WAIT_REF = { years: [2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030],
-    grid: [12, 16, 18, 20, 20, 20, 18, 16], gas: [4, 6, 8, 9, 9, 8, 7, 6], rent: [1, 2, 3, 4, 4, 4, 4, 4] } as const;
+    grid: [12, 16, 18, 20, 20, 17, 13, 10], gas: [4, 6, 8, 9, 9, 8, 7, 6], rent: [1, 2, 3, 4, 4, 4, 4, 4] } as const;
   /** What clears each queue, GW per year in 2026 and growth per year [D-2, design]. */
   export const WAIT_RATE: Record<SiteSource, { gwPerYear2026: number; growth: number }> = {
     grid: { gwPerYear2026: 30, growth: 1.1 }, gas: { gwPerYear2026: 60, growth: 1.12 }, rent: { gwPerYear2026: 6, growth: 1.3 } };
