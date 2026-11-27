@@ -11,7 +11,7 @@ import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { H50_V0_MIN } from '../../src/data/v2/workTypes';
 import { gOfLevel, gV0, h50Growth, levelOfG } from '../../src/engine/v2/models/capability';
-import { mWorld, mWorldGrid, referenceLineage, sigmaCyc } from '../../src/engine/v2/npc/misalignment';
+import { mWorld, mWorldGrid, referenceLineage } from '../../src/engine/v2/npc/misalignment';
 import { tierOfLevel } from '../../src/engine/v2/safety/common';
 import { basePrior, misalignment, playerEnv, postHack, postSignals, stepTraits, zeroSignals, S5_AI, K_S5G, G_S5_0, RHO_REF } from '../../src/engine/v2/safety/traits';
 import type { GameStateV2, TraitVector } from '../../src/engine/v2/types';
@@ -67,7 +67,6 @@ const builds: number[] = [];
 const withTools: Record<string, number[]> = {};
 for (const [name, al, extra, want] of cases) {
   const at: Record<string, number[]> = { V0: [], SC: [], SAR: [], ASI: [] };
-  const sigAt: Record<string, number[]> = { V0: [], SC: [], ASI: [] };
   for (let i = 0; i < N; i++) {
     const s = newGame(defaultSetupV2({ seed: 1000 + i, alignment: al, world: 'tl-central' }));
     if (extra) shiftWorld(s, extra);
@@ -78,7 +77,6 @@ for (const [name, al, extra, want] of cases) {
     builds.push(ms);
     const G = { V0: gV0(w), SC: gOfLevel(w, LEVEL_KNOTS[3]), SAR: gOfLevel(w, LEVEL_KNOTS[4]), ASI: gOfLevel(w, LEVEL_KNOTS[6]) };
     for (const k of Object.keys(at)) at[k].push(mWorld(s, G[k as keyof typeof G]));
-    for (const k of Object.keys(sigAt)) sigAt[k].push(sigmaCyc(s, G[k as keyof typeof G]));
     (withTools[name] ??= []).push(mean(referenceLineage(s.hidden, G.ASI, START_TOOL_MODS)));
     // monotone in G: along the grid, the largest fall
     const c = mWorldGrid(s);
@@ -89,11 +87,11 @@ for (const [name, al, extra, want] of cases) {
       for (let j = 0; j < 7; j++) maxProbeDiff = Math.max(maxProbeDiff, Math.abs(a[j] - b[j]));
     }
   }
-  console.log(`${name.padEnd(20)} M_world median  V0 ${med(at.V0).toFixed(3)}  SC ${med(at.SC).toFixed(3)}  SAR ${med(at.SAR).toFixed(3)}  ASI ${med(at.ASI).toFixed(3)} (mean ${mean(at.ASI).toFixed(3)})   sigma_cyc median V0 ${med(sigAt.V0).toFixed(4)} SC ${med(sigAt.SC).toFixed(3)} ASI ${med(sigAt.ASI).toFixed(3)}`);
+  console.log(`${name.padEnd(20)} M_world median  V0 ${med(at.V0).toFixed(3)}  SC ${med(at.SC).toFixed(3)}  SAR ${med(at.SAR).toFixed(3)}  ASI ${med(at.ASI).toFixed(3)} (mean ${mean(at.ASI).toFixed(3)})`);
   check(Math.abs(med(at.ASI) - want) <= 0.02, `${name}: median M at ASI ${med(at.ASI).toFixed(3)} within 0.02 of ${want}`);
 }
 console.log(`largest fall of M_world between adjacent grid levels (all worlds, seeds): ${maxDrop.toFixed(4)}`);
-check(maxDrop <= 0.02, 'M_world non-decreasing in G within 0.02 (the lineage sawtooth, sigma_cyc up to ~0.08 at the frontier)');
+check(maxDrop <= 0.02, 'M_world non-decreasing in G within 0.02 (the lineage sawtooth)');
 check(maxProbeDiff < 1e-6, `state-free reference equals the probe's player-day-0 lineage (max diff ${maxProbeDiff.toExponential(2)})`);
 console.log('median M at ASI if the start tools (T-PROP, T-NOISE, T-TMON) are kept, as the probe had them: ' + Object.entries(withTools).map(([k, v]) => `${k} ${med(v).toFixed(3)}`).join('  '));
 console.log(`curve build ms: median ${med(builds).toFixed(1)}, max ${Math.max(...builds).toFixed(1)} over ${builds.length} worlds`);

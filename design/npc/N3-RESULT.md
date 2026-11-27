@@ -1,6 +1,9 @@
 # N3 result: M_world(G) and the state-free reference environment
 
-Branch `npc-n3` (off `npc`), 2026-11-27. Spec: `MISALIGNMENT.md` §2, §4 (σ_cyc), `NPC-LABS.md` §8a. Nothing reads it yet.
+Branch `npc-n3` (off `npc`), 2026-11-27. Spec: `MISALIGNMENT.md` §2, `NPC-LABS.md` §8a. Nothing reads it yet.
+
+**Scope change (lead, designer-approved simpler NPC model):** only `mWorld`. `sigmaCyc` and its grid were built first and then
+removed; nothing for per-lab draws or U-mode terms is built.
 
 ## What was built
 - `safety/traits.ts` (refactor, player path unchanged):
@@ -10,7 +13,7 @@ Branch `npc-n3` (off `npc`), 2026-11-27. Spec: `MISALIGNMENT.md` §2, §4 (σ_cy
     `graderSound`, `missedExploit`, `healRate` were split the same way (`graderSoundOf`, `missedExploitOf`, `healRateOf`).
   - **Environment:** `runEnv` is now the player's `EnvLab` plus the shared `buildEnv`. `referenceEnv(hidden, x, sg, ω, post, G)`
     builds the reference lab's `EnvLab` from the world.
-- `src/engine/v2/npc/misalignment.ts`: `mWorld(s, G)`, `sigmaCyc(s, G)`, `mWorldGrid(s)`, `referenceLineage(hidden, G)`.
+- `src/engine/v2/npc/misalignment.ts`: `mWorld(s, G)`, `mWorldGrid(s)`, `referenceLineage(hidden, G)`.
   61-point level grid (L 0..15 step 0.25, mapped by `gOfLevel`), linear in G between points, flat outside; memo in a
   `WeakMap` keyed on `s.hidden`; no RNG; not saved.
 - `scripts/v2/npcMisalignment.ts`: the test.
@@ -26,7 +29,7 @@ Branch `npc-n3` (off `npc`), 2026-11-27. Spec: `MISALIGNMENT.md` §2, §4 (σ_cy
 - **S8:** `S8_REFERENCE_FTE` = 562,328 AI FTE (S8 0.079), the leader start's day-0 value, the same in every world and seed
   [D stand-in, as the proposal says].
 
-## Decision to flag (the proposal says "no lab-wide methods" but its probe had the start tools)
+## Start tools: decided by the lead, reference built WITHOUT them (the 0.015 difference is below what the design needs)
 The probe used the player's day-0 state, which carries three active start tools: T-PROP (E01 ×0.7), T-NOISE (E18 ×0.6),
 T-TMON (E22 ×0.5). I built the spec text (none). `referenceEnv` takes an optional `extraMods` and the test uses it to
 reproduce the probe. Effect on the median M at ASI (12 `tl-central` seeds 1000-1011):
@@ -46,7 +49,6 @@ Both variants are within ±0.02 of §7 except easy-with-tools (0.033 under; the 
 - **How the worlds are set:** `defaultSetupV2({ seed: 1000+i, alignment: easy|medium|hard, world: 'tl-central' })`, 12 seeds;
   "central-hard" is `medium` with the latents shifted by 0.4 and D and E19 recomputed (the probe's `shiftWorld`).
 - **Sanity at ASI (median over 12 seeds):** easy 0.292, medium 0.433, central-hard 0.507, hard 0.599 vs 0.31 / 0.42 / 0.492 / 0.59: all within ±0.02.
-- **σ_cyc (median):** V0 0.008-0.022, SC 0.05-0.07, ASI 0.055-0.069 (§4: 0.002-0.008 at V0 and 0.04-0.08 from SC to ASI; hard worlds run higher at V0).
 - **Monotone in G:** the largest fall between adjacent grid levels over 48 worlds is 0.0000.
 - **Probe identity:** with the three start tools passed as `extraMods`, the state-free lineage equals the probe's player-day-0 lineage to 6.5e-9 (the S8 constant's rounding).
 - **No player read:** the curve is identical with `s.player` removed.
