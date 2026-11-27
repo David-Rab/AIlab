@@ -26,7 +26,7 @@ the merge wave.
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | done, merged |
 | N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | running |
 | N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b (funding option 1) | superseded by N8b (designer: NPC money is display-only) |
-| N8b | Simple NPC money: one compute growth 2.25×/yr through the chip market, money display-only, failure only through the bust; keeps N8's LEADER_ID removal and order top-up | Sonnet high | — | running |
+| N8b | Simple NPC money: one compute growth 2.25×/yr through the chip market, money display-only, failure only through the bust; keeps N8's LEADER_ID removal and order top-up | Sonnet high | — | done, merged |
 | N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | done, merged |
 | N10 | Setup UI: Realistic default + advanced "Create rivals" (good-ui skill) | Sonnet high | N2a, N2b | done, merged (override field renamed pers) |
 | N12 | Remove the old NPC simulation and dead state (spec §13) | Sonnet medium | wave 3 | wave 4 |
@@ -47,3 +47,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N3 fingerprint | identical | ~25 min | botfingerprint --seeds 2 --bots ref (6 games, tl-fast/central/slow): 35b24c9 vs npc f7b6d1d, byte-identical. N3 refactor proven behaviour-neutral for the player. |
 | N2b-1 | accepted (lead re-ran tsc and scripts/v2/npcLabs.ts after the merge: all ok) | 2 h 20 min (over budget; stopped during the whole-game comparison) | SCHEMA_REV 113, no migration: ws4/control/products crash on stale fixtures (expected; regenerate). Open: private labs cannot fund their compute appetite (Marenth 111 d behind by day 900; Lanternworks, Zorvane distressed ~mid-2027) — designer decision. Leftover worktree AI27-npc-n2b1-base for the designer to remove. |
 | N5 | accepted | ~15 min | Rule 7 already read npc.m; projectedMisAtAsi = npcM at max(ASI G, internal G); projectLabMis deleted; otherContain 0.2 × safety emphasis. Moves calibration: maybe (epilogue). |
+| N8b | accepted | ~5 min | Plan = start × 2.25/yr for all (China: meter); cash never limits orders; shortfalls top back up; distress only via the bust. Stale: scripts/v2/finance.ts FIN5b checks (~1750-1850), glossary npcAppetite (N12). |
