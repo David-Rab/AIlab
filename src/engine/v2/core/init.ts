@@ -17,7 +17,7 @@ import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
 import { FIN } from '../actors/rivals';
-import { ARCHETYPE_OF_KIND, initialNpcLab, npcGrowthQ, postureOfKind, usCast } from '../npc/lab';
+import { ARCHETYPE_OF_KIND, initialNpcLab, castOf, npcGrowthQ, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 
 import { initialMarket } from '../compute/market';
@@ -68,17 +68,14 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     world,
     alignment: 'sampled',
     econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
-    gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic',
-    rivalCount: 4,
+    gov: 'realistic', public: 'realistic', china: 'realistic', cast: 'realistic',
     governance: 'legacyNonprofit',
     storyteller: 'rising',
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
     ...over,
-    // R9: the start type (default the frontier leader) sets the leader lab (D1) unless the caller sets it.
     start: over.start ?? 'leader',
-    leaderLab: over.leaderLab ?? START_BY_ID[over.start ?? 'leader'].leaderLab,
   };
 }
 
@@ -275,7 +272,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // R9: the start type sets the leader lab (D1) unless the caller sets it, and (other than the leader's) the board.
   const start = setupIn.start ?? 'leader';
   const def = START_BY_ID[start];
-  const setup: SetupV2 = { ...setupIn, start, leaderLab: setupIn.leaderLab ?? def.leaderLab, ...(start === 'leader' ? {} : { governance: def.board }) };
+  const setup: SetupV2 = { ...setupIn, start, ...(start === 'leader' ? {} : { governance: def.board }) };
   const startDate = START_DATE;
   const rngState = seedStreams(setup.seed);
   const worldRng = new Rng(rngState.world);
@@ -288,16 +285,16 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   const g0 = gV0(w);
   // N2b-1 (design/npc/NPC-LABS.md §10): the US NPC labs and China's lab are the Realistic cast (data/v2/npcLabs.ts),
   // placed on the reference frontier at their measured lags; the leader-kind lab is absent when the player starts as
-  // the frontier leader. setup.rivals / rivalCount / leaderLab are not read (N10 replaces the setup). Their postures
-  // come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
-  const cast = usCast(start);
+  // the frontier leader. N10: the cast is setup.cast ('realistic', or the player's custom list; npc/lab.ts castOf). Their
+  // postures come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
+  const cast = castOf(setup);
   const nNpc = cast.length + 1;
   hidden.actorPresets.rivals = {};
   hidden.rivalPostures = {};
-  const rivals = cast.map((e, i) => {
-    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[ARCHETYPE_OF_KIND[e.kind]] ?? FIN.bigtech);
+  const rivals = cast.map(({ e, p }, i) => {
+    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[ARCHETYPE_OF_KIND[e.kind]] ?? FIN.bigtech, p);
     hidden.actorPresets.rivals[r.core.id] = r.archetype;
-    hidden.rivalPostures[r.core.id] = postureOfKind(e.kind);
+    hidden.rivalPostures[r.core.id] = postureOfKind(e.kind, undefined, p);
     return r;
   });
   const china = initialChina(hidden, setup, cast.length, nNpc);

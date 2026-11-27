@@ -45,7 +45,7 @@ function play(p: Point, seed: number): Partial<Record<MilestoneIdx, number>> {
       runRef(s, 365 * 16, (x) => x.player.milestoneDays[last] !== undefined);
       return s.player.milestoneDays;
     }
-    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
+    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false }));
     const L = s.rivals.find((r) => r.core.id === LEADER_ID);
     if (!L) throw new Error('no leader lab');
     while (s.time.day < 365 * 16 && L.core.milestoneDays[last] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });

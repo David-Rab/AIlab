@@ -145,9 +145,11 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   const china = pickWeighted(rng, CHINA_PRESETS, setup.china).id;
   const rivals: Record<LabId, string> = {};
   const rivalPostures: Record<LabId, SafetyPosture> = {};
-  const noise = setup.rivals === 'realistic' ? 0.15 : 0;
-  for (let i = 0; i < setup.rivalCount; i++) {
-    const arch = pickWeighted(rng, LAB_ARCHETYPES, setup.rivals).id;
+  // The NPC cast is built from setup.cast (core/init.ts, which replaces these); the four draws stay so every later draw
+  // of the world stream keeps its value.
+  const noise = 0.15;
+  for (let i = 0; i < 4; i++) {
+    const arch = pickWeighted(rng, LAB_ARCHETYPES, 'realistic').id;
     rivals[rivalId(i)] = arch;
     rivalPostures[rivalId(i)] = noisyPosture(rng, ARCHETYPE_POSTURES[arch] ?? ARCHETYPE_POSTURES.bigtech, noise);
   }

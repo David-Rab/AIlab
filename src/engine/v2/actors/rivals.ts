@@ -33,8 +33,7 @@ import type {
 import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
 import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, rivalLineupStep, rivalToolStep, recordToolShips, setModelG } from './rivalModel';
 import { chinaDaily } from './china';
-import { npcCapabilityDay, npcGrowthQ } from '../npc/lab';
-import { KINDS } from '../../../data/v2/npcLabs';
+import { npcCapabilityDay, npcGrowthQ, persOf } from '../npc/lab';
 import { ws4, ws4r } from './state';
 
 export { activeRivals } from '../models/labs';
@@ -127,11 +126,11 @@ export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60
  *  default policy may read the reference path, MODEL-V3 §13). Appended after the sampled rivals with the fixed id
  *  LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))), never from 'world'. Its posture and
  *  archetype are written into `h` here. Research efficiency 1: the aggregate function as is, no per-lab factor (DD-18, RF-R1). */
-export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerG: number): RivalLab {
+export function initialLeaderLab(rng: Rng, h: HiddenWorld, _setup: Pick<SetupV2, 'world'>, playerG: number): RivalLab {
   const id = LEADER_ID;
   const w = h.timeline;
   const yr0 = yearOfDay(0);
-  const posture = noisyPosture(rng, ARCHETYPE_POSTURES.leader, setup.rivals === 'realistic' ? 0.15 : 0);
+  const posture = noisyPosture(rng, ARCHETYPE_POSTURES.leader, 0.15);
   posture.bindingness = Math.min(posture.bindingness, LEADER_MAX_BINDINGNESS);
   h.actorPresets.rivals[id] = 'leader';
   h.rivalPostures[id] = posture;
@@ -304,7 +303,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
     const pub = r.publicModel;
     if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G, pub.recG ?? recipeOf(s, r));
-    if (prev && r.npc && KINDS[r.npc.kind].openness.mode === 'partial' && !prev.openWeights) {
+    if (prev && r.npc && persOf(r.npc).openness.mode === 'partial' && !prev.openWeights) {
       prev.openWeights = true;
       openWeightsReleased(s, ctx, id, prev.G, prev.recG ?? recipeOf(s, r));
     }

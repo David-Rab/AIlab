@@ -7,7 +7,7 @@
 //   RELEASE_CADENCE_DAYS (the labs' release days staggered by cast order).
 // The outward contract (Appendix A: core, internal, publicModel, lineup, tools, finance, ...) is kept; the old physical
 // state `phys` is an adapter filled from these headline values (npcPhys) until N12 removes it.
-import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS, type NpcCastEntry, type NpcKindId } from '../../../data/v2/npcLabs';
+import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS, type NpcCastEntry, type NpcKindId, type Personality } from '../../../data/v2/npcLabs';
 import { DIFFUSION_TAU_DAYS } from '../../../data/v2/calibration';
 import { RIVAL_TPP } from '../../../data/v2/rivalModel';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
@@ -26,7 +26,7 @@ import { hash32 } from '../core/rng';
 import { Rng } from '../../rng';
 import { TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
-import type { GameStateV2, HiddenWorld, LabId, NpcLabState, RivalLab, SafetyPosture, SimpleModel, StaffByRole, TimelineWorld, UModeId } from '../types';
+import type { GameStateV2, HiddenWorld, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture, SimpleModel, StaffByRole, TimelineWorld, UModeId } from '../types';
 
 
 // ───────────────────────────── parameters (N2b-1; new, listed in design/npc/N2b1-RESULT.md) ─────────────────────────────
@@ -89,15 +89,17 @@ export function refSlopePerDay(s: Pick<GameStateV2, 'setup' | 'hidden'>, y: numb
 // ───────────────────────────── the rules ─────────────────────────────
 
 /** The kind's yearly compute growth (China: its meter's plan, CHINA_PLAN_GROWTH). */
-export const appetiteOf = (kind: NpcKindId) => KINDS[kind].computeGrowthPerYear ?? CHINA_PLAN_GROWTH;
+export const appetiteOf = (n: Pick<NpcLabState, 'kind' | 'p'>) => persOf(n).computeGrowthPerYear ?? CHINA_PLAN_GROWTH;
+/** The lab's seven values: its kind's, or the player's adjusted set (setup.cast, NpcLabState.p). */
+export const persOf = (n: Pick<NpcLabState, 'kind' | 'p'>): Personality => n.p ?? KINDS[n.kind];
 /** Quarterly chip-order growth of an NPC lab at its appetite (actors/rivals.ts rivalFinanceQ; compute/market.ts netting). */
-export const npcGrowthQ = (r: Pick<RivalLab, 'npc'>, fallback: number) => (r.npc ? Math.pow(appetiteOf(r.npc.kind), 0.25) - 1 : fallback);
+export const npcGrowthQ = (r: Pick<RivalLab, 'npc'>, fallback: number) => (r.npc ? Math.pow(appetiteOf(r.npc), 0.25) - 1 : fallback);
 /** The compute the lab planned to have online today: its start compute grown at its appetite, a step each quarter (its
  *  chip orders are placed and delivered quarterly, compute/market.ts). The step counts from the day after a quarter
  *  starts: the quarter's deliveries clear (marketQ, order 400) after the NPC labs' day (rivalsChina, order 100). */
 export function cPlan(s: GameStateV2, r: RivalLab): number {
   const n = r.npc!;
-  return n.c0 * Math.pow(appetiteOf(n.kind), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
+  return n.c0 * Math.pow(appetiteOf(n), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
 }
 /** Compute shortfall (OOM ≥ 0) and the target lag d* = d₀ + shortfall ÷ today's reference slope (days). */
 export function npcTarget(s: GameStateV2, r: RivalLab): { short: number; slope: number; dStar: number } {
@@ -113,7 +115,7 @@ export const npcG = (s: GameStateV2, r: RivalLab) => refGAt(s, decimalYear(s) - 
  *  is that long (the first weeks), the reference a release lag further back at today's lag. */
 export function npcPublicG(s: GameStateV2, r: RivalLab): number {
   const n = r.npc!;
-  const L = KINDS[n.kind].releaseLagDays;
+  const L = persOf(n).releaseLagDays;
   return n.hist.length > L ? n.hist[n.hist.length - 1 - L] : refGAt(s, decimalYear(s) - (n.d + L) / 365.25);
 }
 /** The lab's recipe as OOM over the leader's day-0 recipe (the unit of the player's recipe and the diffusion rules): its
@@ -157,8 +159,8 @@ export const lastReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.fl
 export const nextReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.max(0, Math.ceil((day - n.phase) / RELEASE_CADENCE_DAYS)) * RELEASE_CADENCE_DAYS;
 
 /** Whether the lab's release today is open weights (the kind's openness rule; 'partial' opens the model it replaces). */
-export function opensRelease(s: GameStateV2, kind: NpcKindId): boolean {
-  const o = KINDS[kind].openness;
+export function opensRelease(s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'p'>): boolean {
+  const o = persOf(n).openness;
   return o.mode === 'open' || (o.mode === 'chinaRung' && s.china.rung < o.belowRung);
 }
 
@@ -176,7 +178,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   const C = r.core.computeOnline;
   setNpcModel(w, r.internal, npcG(s, r), C, yr);
   n.hist.push(r.internal.G);
-  if (n.hist.length > KINDS[n.kind].releaseLagDays + 1) n.hist.shift();
+  if (n.hist.length > persOf(n).releaseLagDays + 1) n.hist.shift();
   n.rec = npcRecipe(w, r.internal.G, C);
   let out: { released: boolean; prev?: SimpleModel } = { released: false };
   if (isReleaseDay(n, day)) {
@@ -184,7 +186,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
     n.rel++;
     const pub: SimpleModel = {
       ...r.internal, id: `${r.core.id}-v${n.rel}`, name: `${n.family}-${n.rel}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes],
-      isPublic: true, openWeights: opensRelease(s, n.kind),
+      isPublic: true, openWeights: opensRelease(s, n),
     };
     setNpcModel(w, pub, npcPublicG(s, r), C, yr);
     pub.recG = npcRecipe(w, pub.G, C);
@@ -201,8 +203,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
 
 /** Posture of a kind (the readers of SafetyPosture: postureOf, intel, traits): today's archetype posture with safety
  *  investment = the kind's safety emphasis and race relaxation = its race response (NPC-LABS §4). */
-export function postureOfKind(kind: NpcKindId, base: SafetyPosture = ARCHETYPE_POSTURES[ARCHETYPE_OF_KIND[kind]] ?? ARCHETYPE_POSTURES.bigtech): SafetyPosture {
-  const k = KINDS[kind];
+export function postureOfKind(kind: NpcKindId, base: SafetyPosture = ARCHETYPE_POSTURES[ARCHETYPE_OF_KIND[kind]] ?? ARCHETYPE_POSTURES.bigtech, k: Personality = KINDS[kind]): SafetyPosture {
   return { ...base, safetyInvestment: k.safetyEmphasis, raceRelaxation: k.raceResponse };
 }
 
@@ -225,19 +226,19 @@ export function startLagDays(e: NpcCastEntry): number {
 
 /** Build an NPC lab from a cast entry at day 0. `i`/`n`: its place among the NPC labs (release days staggered evenly over
  *  one cadence). `C0`: its start compute (China: its compute meter's). */
-export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>, e: NpcCastEntry, i: number, n: number, C0: number, fin: Fin): RivalLab {
+export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>, e: NpcCastEntry, i: number, n: number, C0: number, fin: Fin, p?: Personality): RivalLab {
   const h = s.hidden;
   const w = h.timeline;
   const kind = e.kind;
-  const k = KINDS[kind];
+  const k = p ?? KINDS[kind];
   const arch = ARCHETYPE_OF_KIND[kind];
   const china = kind === 'china';
   const id: LabId = china ? 'china' : e.id;
-  const posture = china ? h.chinaPosture : postureOfKind(kind);
+  const posture = china ? h.chinaPosture : postureOfKind(kind, undefined, k);
   const d0 = startLagDays(e);
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
-  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [] };
+  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [] };
   const uModes = uModesOf(h, s.setup.seed, id);
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], traitsTrue: { ...TRAIT_START }, uModes: [...uModes], isPublic, openWeights: false,
@@ -295,4 +296,34 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
 /** The US NPC labs of the Realistic cast for a game: every cast entry but China's, without the leader-kind lab when the
  *  player starts as the frontier leader (the player takes its place). */
 export const usCast = (start: string | undefined) => REALISTIC_CAST.filter((e) => e.kind !== 'china' && !(e.kind === 'leader' && (start ?? 'leader') === 'leader'));
+
+/** Roman suffix of the n-th lab of a kind (n >= 2): "II", "III", ... */
+const ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI'];
+/** One US NPC lab to build: its cast entry (a custom lab's: the kind's entry with the chosen lag, its own id, name and
+ *  family) and its adjusted seven values (only when the player changed any). */
+export interface CastLab { e: NpcCastEntry; p?: Personality }
+/** The US NPC labs a game starts with (NPC-LABS §10): 'realistic' is the cast (usCast); a custom list is one lab per
+ *  item: the kind's cast entry (compute, money, tools, staff: one typical start per kind) with the item's start lag, and
+ *  the item's overrides on the kind's seven values. Names: the first lab of a kind keeps the kind's invented name and
+ *  family; the n-th later one adds a Roman numeral ("Lanternworks II" / "Ouvril II", id "lanternworks2"). The
+ *  leader-kind lab is left out when the player starts as the frontier leader (the player takes its place). */
+export function castOf(setup: Pick<SetupV2, 'cast' | 'start'>): CastLab[] {
+  const start = setup.start ?? 'leader';
+  if (!setup.cast || setup.cast === 'realistic') return usCast(start).map((e) => ({ e }));
+  const seen: Partial<Record<NpcKindId, number>> = {};
+  const out: CastLab[] = [];
+  for (const c of setup.cast) {
+    if (c.kind === 'china' || (c.kind === 'leader' && start === 'leader')) continue;
+    const base = REALISTIC_CAST.find((x) => x.kind === c.kind)!;
+    const nth = (seen[c.kind] = (seen[c.kind] ?? 0) + 1);
+    const m = Math.max(0, Math.min(36, c.lagMonths));
+    const sfx = nth > 1 ? ' ' + (ROMAN[nth] ?? String(nth)) : '';
+    const e: NpcCastEntry = {
+      ...base, id: nth > 1 ? base.id + nth : base.id, name: base.name + sfx, family: base.family + sfx,
+      start: { ...base.start, ...(base.start.publicLagMonths === null ? { publicLagBandMonths: m } : { publicLagMonths: m }) },
+    };
+    out.push({ e, ...(c.personality ? { p: { ...KINDS[c.kind], ...c.personality } } : {}) });
+  }
+  return out;
+}
 export const chinaCast = () => REALISTIC_CAST.find((e) => e.kind === 'china')!;
