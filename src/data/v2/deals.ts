@@ -173,7 +173,6 @@ export const MARKET = {
   nonTWPremium: 1.3, spotPremiumShare: 0.5,
   // Expected path (FIN1, spec §5): at D/S = 1 the premium update π' = π − 0.25π decays by 0.75 a quarter [R15 §1.2].
   premiumReversionQ: 0.75,
-  inventoryDecayQ: 0.06, // idle chips lose 6%/q [R15]
   rationW: { firm: 0.5, prepay: 0.5, strategic: 0.5, track: 0.3 }, // firm = take-or-pay order (was: LTA ≥ 4 q old) [R15]
   exoWeight: 1.6, // hyperscalers: LTAs + prepay + track record [D]
   spotRentalPoolShare: 0.1, // spot rental ≤ 10% of the rental pool [R15]
