@@ -168,3 +168,4 @@ Only if takeoff still runs short after M3: the untested mechanism suspects (the 
 2. **Fit** what we have, as well as possible **without mechanism changes** (source-range parameters only: SC threshold, P24 line strength, takeoff residuals).
 3. **Merge `bal` into master** (designer approved, after the fit).
 4. Then **discuss the full list of relevant deferred mechanisms** (memory `ai27-balance-deferred`, incl. the labour task split) and work on them.
+5. **While the mechanism work runs, the designer playtests master** (the merged fit) to judge whether balance improved the feel. So mechanism work goes on a branch off master and master stays stable and playable; playtest notes are judged against principles, not patched one by one.
