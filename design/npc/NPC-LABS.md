@@ -54,7 +54,7 @@ its inverse `clockOfG(s, G)` (on the running maximum if the series ever dips).
 One release cadence for every lab: a new public flagship every 119 days (Epoch ECI, median of 27 flagship steps;
 src/data/v2/npcLabs.ts).
 
-**Start state:** its normal lag d₀ (measured), compute, money. The Realistic cast is in src/data/v2/npcLabs.ts.
+**Start state:** its normal lag d₀, compute, money. d₀ = 30.4 × (its measured public lag − the leader's) days, so the leader sits on the reference (d₀ = 0). The Realistic cast is in src/data/v2/npcLabs.ts.
 
 **The four numbers that move:**
 
