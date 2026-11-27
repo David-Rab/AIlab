@@ -154,3 +154,14 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   - (3) Strict exports never switch off after the first Chinese theft.
   - Taiwan disruptions: 18 in slow.
 - W6b · Sonnet high · fixes (1)–(3) · running. W10c · Sonnet high · dashboard rows for public/usgov/china · running
+- W10c · Sonnet high · ~7 min · dashboard: concern vs Pew; Reactions rows (concern, approval, US stage, trust, China
+  tension, talks, lanes for laws/export/treaty/collective, attention); "Timeline of beats"; live checks B2/C/D/E/F ·
+  6959242b. Live checks on obs-w6:
+  - Dated laws pass.
+  - C fails: stage 1 on day 159 and strict exports in 2025, from a Chinese theft of an NPC lab on ~day 69 in every run.
+    W6 put theft at tension ≥ 1; the old rule was rung ≥ 2.
+  - E fails: the collective forms in Dec 2026.
+  - Fast concern is 58.7 at Nov 2026: milestone 1 goes public in 2026.
+  - Approval falls for an invisible player.
+  - All of these were added to W6b as fixes 4–6 (theft from tension 2; concern steps from milestone 2; approval
+    baseline × attention).
