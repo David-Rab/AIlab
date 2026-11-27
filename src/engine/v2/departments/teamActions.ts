@@ -149,7 +149,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const t = hireSpec(p);
       const weeks = fillWeeks(s, { ...t, size: TEAM_SIZE[t.role], heads: 0 });
       return {
-        costs: [{ currency: 'cash', amount: fullTeamPayroll(t.role, t.dept), target: '$B/yr payroll' }],
+        costs: [{ currency: 'cash', amount: fullTeamPayroll(s, t.role), target: '$B/yr payroll' }],
         gains: [{ ...teamGain(s, t), ...(Number.isFinite(weeks) ? { lagDays: weeks * 7 } : {}) }],
         exposure: [],
       };
@@ -168,7 +168,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const pct = (100 * t.heads) / Math.max(1, staffOf(s.player.teams)[t.dept]);
       return {
         costs: [{ currency: 'morale', amount: -Math.min(15, pct), target: t.dept === 'saf' ? 'safety staff' : 'staff' }, ...(t.heads > 0 && s.player.teams.includes(t) ? [teamLoss(s, t)] : [])],
-        gains: [{ currency: 'cash', amount: teamPayroll(t), target: '$B/yr payroll saved' }],
+        gains: [{ currency: 'cash', amount: teamPayroll(s.player, t), target: '$B/yr payroll saved' }],
         exposure: [],
       };
     },
@@ -204,7 +204,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const n = Math.max(0, Math.round(num(p, 'n', (s.player.hiring.targets[k] ?? 0) + 1)));
       const d = Math.max(0, n - have);
       return d > 0
-        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(role, dept), target: '$B/yr payroll' }], gains: [teamsGain(s, { role, dept }, d)], exposure: [] }
+        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(s, role), target: '$B/yr payroll' }], gains: [teamsGain(s, { role, dept }, d)], exposure: [] }
         : { costs: [{ currency: 'cash', amount: 0, target: 'no new teams (it never lays off)' }], gains: [], exposure: [] };
     },
     apply: (s, _ctx, p) => {

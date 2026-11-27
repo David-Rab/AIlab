@@ -773,8 +773,8 @@ export const PARAMS_CORE = defineParams([
     id: 'core.teams.attritionMorale',
     ref: { kind: 'inline', file: 'src/engine/v2/departments/teams.ts', anchor: 'Math.max(0.2, 1.5 - moraleOf(p, dept) / 100)' },
     value: [0.2, 1.5], unit: 'attrition multiplier (floor, intercept at morale 0)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; teams.ts:5 "attrition heads −= heads · 12%/yr · max(0.2, 1.5 − morale/100) / 52"',
-    notes: 'The 12%/yr base is ATTRITION_BASE in data/v2/teams.ts (another chunk). The same formula recurs at teams.ts:218.',
+    evidence: 'no tag; teams.ts attritionMorale "Leavers multiplier from morale: max(0.2, 1.5 − morale/100) (V2-SPEC §3.4.1), on SEPARATION"',
+    notes: 'L12: the base is SEPARATION (15.6%/yr) in data/v2/labourMarket.ts; teams.ts attritionMorale is the one home of this factor (departments/market.ts reads it).',
   },
   {
     id: 'core.workfit.silo',

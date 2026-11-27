@@ -39,7 +39,7 @@ export function safetySpend(s: GameStateV2): SafetySpend {
   const a = safAllocation(s);
   let payroll = 0;
   let q = 0;
-  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') { payroll += teamPayroll(t); q += t.heads; }
+  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') { payroll += teamPayroll(s.player, t); q += t.heads; }
   const perHead = q > 0 ? payroll / q : 0;
   const perH100e = (dollarsPerH100eHour(s) * HOURS_PER_YEAR) / 1e9;
   const eps = 1e-9;

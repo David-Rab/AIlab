@@ -1,6 +1,7 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
+import { startMarket } from '../departments/market';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { deriveNames } from '../models/naming';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
@@ -375,6 +376,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   for (const i of updateMilestones(s, 0)) if (i > 0) s.flags[`seenMilestone${i}`] = 0;
   // CP3k: the non-player labs start in distillation equilibrium (actors/rivalModel.ts startDistillEquilibrium).
   for (const r of [...s.rivals, s.china.lab]) startDistillEquilibrium(s, r);
+  startMarket(s); // L12: the labour market's start reference E0, U0 per kind (departments/market.ts)
   // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
   // actors/rivalModel.ts initRivalPhys).
   for (const id of labIds) {

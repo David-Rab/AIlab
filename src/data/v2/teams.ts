@@ -12,19 +12,8 @@ export const REF_ROLE_SHARE: Record<TeamRole, number> = { eng: 0.3, re: 0.55, sc
 /** Reference split of safety staff: 90 research engineers + 50 scientists of 140 (research/19 §1.1) [Design]. */
 export const SAF_ROLE_SHARE: Record<'re' | 'sci', number> = { re: 90 / 140, sci: 50 / 140 };
 
-/** Cost $M per person-year (research/19 §1.2; weighted means 0.80 cap, 0.70 safety). Engineers are
- *  one shared pool on the capabilities budget. */
-export const TEAM_COST_M: Record<TeamDept, Record<TeamRole, number>> = {
-  cap: { eng: 0.7, re: 0.8, sci: 1.0 },
-  saf: { eng: 0.7, re: 0.65, sci: 0.8 },
-};
-
-/** Weekly hires per department lane, before talent pull and morale (cap ≈ +60/month, R11 #12). Safety 8/wk since R8
- *  (was 3): research lines need whole safety science teams and tool upkeep needs research engineers, where before R8 the
- *  start staff could fund several agendas at once; at 3/wk a safety-minded lab needed years to staff them [D, R8]. */
-export const HIRING_BASE: Record<TeamDept, number> = { cap: 15, saf: 8 };
-/** Attrition 12%/yr × (1.5 − morale/100), floor 0.2 (V2-SPEC §3.4.1). */
-export const ATTRITION_BASE = 0.12;
+// Pay, hiring speed and leavers are the labour market's (data/v2/labourMarket.ts W0, F0_PER_MONTH, SEPARATION;
+// departments/market.ts, L12): the fixed TEAM_COST_M, HIRING_BASE and ATTRITION_BASE are retired.
 
 /** Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]. */
 export const MOVE_SAFETY_MORALE = -5;

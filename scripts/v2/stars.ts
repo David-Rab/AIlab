@@ -25,6 +25,7 @@ const near = (a: number, b: number, tol = 1e-12) => Math.abs(a - b) <= tol * Mat
 
 const fresh = (): GameStateV2 => newGame(defaultSetupV2({ seed: 1 } as never));
 const sciHeads = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap').reduce((a, t) => a + t.heads, 0);
+const teamsSaf = (s: GameStateV2) => s.player.teams.filter((t) => t.dept === 'saf').concat(s.player.hiring.filling.filter((t) => t.dept === 'saf')).reduce((a, t) => a + (t.heads * s.player.pay[t.role]) / 1000, 0);
 const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'player');
 
 // 1. T_h = (S + sum T_star) / (S + n), computed independently, for 0, 1 and 7 stars.
@@ -78,13 +79,13 @@ const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'pl
 {
   const s = fresh();
   const star = s.labour.stars.find((x) => x.employer === 'outside') as Star;
-  const before = payrollOf(s.player, undefined, s.labour.stars);
+  const before = payrollOf(s);
   const n0 = mine(s).length;
   const err = act(s, 'starHire', { star: star.id });
-  const after = payrollOf(s.player, undefined, s.labour.stars);
+  const after = payrollOf(s);
   check(!err && star.employer === 'player' && mine(s).length === n0 + 1, 'hiring an outside star makes it the player\'s', String(err ?? ''));
   check(near(after - before, W_STAR0 / 1000, 1e-9) && star.pay === W_STAR0, 'its pay enters payroll in $B/yr (asking pay W_STAR0, no premium)', `${((after - before) * 1000).toFixed(3)} $M/yr`);
-  check(near(payrollOf(s.player, 'saf', s.labour.stars), payrollOf({ teams: s.player.teams, hiring: s.player.hiring }, 'saf'), 1e-12), 'star pay counts in the capabilities department only');
+  check(near(payrollOf(s, 'saf'), teamsSaf(s), 1e-12), 'star pay counts in the capabilities department only');
   check(act(s, 'starHire', { star: star.id }) !== undefined, 'a star already on staff cannot be hired again');
 }
 
@@ -95,11 +96,11 @@ const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'pl
   const rival = s.rivals.find((r) => r.core.id === star.employer);
   const others = s.rivals.filter((r) => r !== rival).map((r) => r.meters.cooperation);
   const coop0 = rival ? rival.meters.cooperation : NaN;
-  const before = payrollOf(s.player, undefined, s.labour.stars);
+  const before = payrollOf(s);
   const step = PREMIUM_STEPS[2];
   const pay0 = star.pay;
   const err = act(s, 'starHire', { star: star.id, premium: step });
-  const after = payrollOf(s.player, undefined, s.labour.stars);
+  const after = payrollOf(s);
   check(!err && star.employer === 'player', 'poaching a rival\'s star makes it the player\'s', String(err ?? ''));
   check(near(star.pay, pay0 * (1 + step)) && near(after - before, (pay0 * (1 + step)) / 1000, 1e-9), `pay = star pay x (1 + ${step}) and enters payroll`, `${star.pay} $M/yr`);
   check(!!rival && near(rival.meters.cooperation, Math.max(-100, coop0 + STAR_POACH_COOPERATION)), `that rival's cooperation ${STAR_POACH_COOPERATION}`, `${coop0} -> ${rival?.meters.cooperation}`);
