@@ -114,7 +114,7 @@ const HISTORY: Checkpoint[] = [
   hist('H2.metr.h80.2025-12', 'horizon80', 'METR 80% horizon of the frontier, Dec 2025 (GPT-5.2)', 2025.96, 'min', 'METR TH1.1', 'research/09:59; research/03:262-274',
     { value: 66, status: 'unsure', notes: 'Source conflict: 32 min (AI Futures model anchor, research/03:203) vs 66 min (GPT-5.2, research/09:59, research/03:269). SC1 uses 66.' }),
   hist('H2.metr.h80.2026-04', 'horizon80', 'METR 80% horizon of the frontier, Apr 2026', 2026.27, 'min', 'METR TH1.1 (95% CI [97, 399])', 'research/09:59; research/03:262-274',
-    { value: 186, lo: 97, hi: 399, bandFrom: 'source', targetId: 'GOLD.authors2026.h80', notes: 'Game tolerance +-15% (targets.ts:109). Today only the v1 integrator is tested against it, on authors2026.' }),
+    { value: 186, lo: 97, hi: 399, bandFrom: 'source', notes: 'Game tolerance +-15% (targets.ts:109). Today only the v1 integrator is tested against it, on authors2026.' }),
   // H3 METR 50% horizon
   hist('H3.metr.h50.2025-08', 'horizon50', 'METR 50% horizon, Aug 2025', 2025.62, 'min', 'METR TH1.1 (95% CI as listed)', 'research/03:262-274',
     { value: 203, lo: 113, hi: 406, bandFrom: 'source', notes: 'The game start V0 is 203 min (H50_V0_MIN, workTypes.ts:143).' }),
