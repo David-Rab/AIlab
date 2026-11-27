@@ -1303,12 +1303,12 @@ export const PARAMS_CAPABILITY = defineParams([
   {
     id: 'cap.PROJECT_MAX_TEAMS',
     ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'PROJECT_MAX_TEAMS' },
-    value: 6,
+    value: 12,
     unit: 'teams',
     area: 'research', layer: 'policy',
     kind: 'designer',
     evidence: 'research.ts:131 "Most science teams one capability project takes (\\"max\\" teams wanted) [D: √capacity returns]"',
-    notes: 'Cap on allocation; see Q-capability-3 (world or policy).',
+    notes: 'Cap on allocation; see Q-capability-3 (world or policy). L15: 12 teams of 20 = the old 6 teams of 40 (240 people); = 6 * SCI_TEAMS_PER_STD.',
     actor: 'player',
   },
   {

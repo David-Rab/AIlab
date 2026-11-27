@@ -37,7 +37,7 @@ import {
 } from './research';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding, nodeTestResult } from '../safety/findings';
-import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC, SAF_LINE_WEIGHT } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_TEAMS_WANTED, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC, SAF_LINE_WEIGHT } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
@@ -78,7 +78,7 @@ export function initialResearch(teams: Team[] = []): ResearchState {
     const n = node(l.id);
     if (!n || (n.needs ?? []).length) continue;
     queue.push(l.id);
-    cap.want[l.id] = Math.max(1, Math.round((l.w / wSum) * sci));
+    cap.want[l.id] = Math.max(DEFAULT_TEAMS_WANTED, Math.round((l.w / wSum) * sci));
   }
   return { queue, ...cap };
 }

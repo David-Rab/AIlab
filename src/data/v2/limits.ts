@@ -20,7 +20,7 @@ export interface LimitDef {
 
 export const LIMITS: readonly LimitDef[] = [
   // ── models and research ──
-  { id: 'research.maxTeams', title: 'Teams per project', rule: 'One capability project takes at most 6 science teams (teams wanted 0–6); progress grows with the square root of capacity.', source: 'MODEL-V3 §5.6 [D]', engine: 'models/research.ts', home: { panel: 'research', tab: 'projects' } },
+  { id: 'research.maxTeams', title: 'Teams per project', rule: 'One capability project takes at most 12 science teams (240 people; teams wanted 0–12); progress grows with the square root of capacity.', source: 'MODEL-V3 §5.6 [D]', engine: 'models/research.ts', home: { panel: 'research', tab: 'projects' } },
   { id: 'research.rePerProject', title: 'Research engineers: base need', rule: 'A project in experiments needs 2 research-engineer team-equivalents of work (people × AI help); the engineers left after every need are shared evenly over the projects in experiments.', source: 'MODEL-V3 §5.6 [D]', engine: 'models/research.ts', home: { panel: 'research', tab: 'projects' } },
   { id: 'run.stream', title: 'Continual-learning share', rule: 'A continual-learning stream takes 15% of the training pool before any run.', source: 'V2-SPEC §3.3.6 [D]', engine: 'models/runs.ts', home: { panel: 'blueprint', tab: 'runs' } },
   { id: 'model.dataSpec', title: 'Data specialisation cap', rule: 'A base\'s data mix moves a domain by at most ±1.3 OOM of effective compute (what a 50% share of one domain gains).', source: 'research/20 A2', engine: 'production/data.ts', home: { panel: 'blueprint', tab: 'next' } },

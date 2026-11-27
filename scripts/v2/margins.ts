@@ -9,7 +9,7 @@ import { deserialize } from '../../src/engine/v2/core/save';
 import { agentsView, workTypeViews } from '../../src/engine/v2';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { believedProd } from '../../src/engine/v2/production/believed';
-import { handedLabour, labourMargins, labourOf, measuredLabour, resetSafetyLabour, resetWorkContext, safetyLabour, workContext, type CapSlot, type LabourSlot } from '../../src/engine/v2/departments/workfit';
+import { handedLabour, labourMargins, marginTeamH, labourOf, measuredLabour, resetSafetyLabour, resetWorkContext, safetyLabour, workContext, type CapSlot, type LabourSlot } from '../../src/engine/v2/departments/workfit';
 import { FIXTURE_DIR } from './lib';
 
 let fails = 0;
@@ -40,16 +40,16 @@ for (const day of [0, 400, 900]) {
       const base = Lof(sl.H, sl.AI);
       const rel = (L: number) => (base.L > 1e-12 ? L / base.L - 1 : 0);
       const dC = rel(Lof(sl.H, sl.AI * 1.1).L);
-      const dT = rel(Lof(sl.H + 1, sl.AI).L);
+      const dT = rel(Lof(sl.H + marginTeamH(slot), sl.AI).L);
       check(near(m.plusCompute, dC, 1e-9), `${tag} ${slot}: +10% compute ${pct(m.plusCompute)} = finite difference ${pct(dC)}`);
       check(near(m.plusTeam, dT, 1e-9), `${tag} ${slot}: +1 team ${pct(m.plusTeam)} = finite difference ${pct(dT)}`);
       if (slot === 'SWE' || slot === 'EXP' || slot === 'IDEAS') {
         // The capabilities slots through labourOf's own scale paths (k scales the agents' compute, h the humans).
         const cs = slot as CapSlot;
         const lk = measuredLabour(s, labourOf(s, cs, { k: 1.1 })).L;
-        const lh = measuredLabour(s, labourOf(s, cs, { h: sl.H > 1e-12 ? (sl.H + 1) / sl.H : 1 })).L;
+        const lh = measuredLabour(s, labourOf(s, cs, { h: sl.H > 1e-12 ? (sl.H + marginTeamH(slot)) / sl.H : 1 })).L;
         check(near(m.plusCompute, base.L > 1e-12 ? lk / base.L - 1 : 0, 1e-9), `${tag} ${slot}: +10% compute equals labourOf(scale.k = 1.1)`);
-        if (sl.H > 1e-12) check(near(m.plusTeam, lh / base.L - 1, 1e-9), `${tag} ${slot}: +1 team equals labourOf(scale.h = (H + 1) / H)`);
+        if (sl.H > 1e-12) check(near(m.plusTeam, lh / base.L - 1, 1e-9), `${tag} ${slot}: +1 team equals labourOf(scale.h = (H + one team) / H)`);
       }
       const shareOf = Math.min(ml.A, sl.AI / (sl.H * (base.assist) + sl.AI));
       check(m.doingNow <= m.canDo + 1e-12, `${tag} ${slot}: doing now ${pct(m.doingNow)} <= can do ${pct(m.canDo)}`);

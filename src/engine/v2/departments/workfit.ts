@@ -25,7 +25,7 @@ import {
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { starTasteOf } from '../../../data/v2/teams';
+import { starTasteOf, TEAM_SIZE } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { optimalLabour, Phi, tasteSigma } from '../production/ces';
@@ -397,11 +397,11 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
 
 /** LABOUR-ROUND.md §2.1: the margins of one labour job, on the BELIEVED labour (measuredLabour: the same inputs as Best
  *  moves, never the true hidden fit). The two steps are definitions, not tuned numbers: +10% AI compute (the AI
- *  team-equivalents scale with the agents' compute, as labourOf's scale.k) and +1 team (one team-equivalent of the job's
- *  role: H counts heads ÷ the job's team size WORK_TYPES[wt].heads, so +1 is one team of 150 engineers / 100 research
- *  engineers / 40 scientists / the safety roles' sizes). */
+ *  team-equivalents scale with the agents' compute, as labourOf's scale.k) and +1 team (one real team of the job's role,
+ *  TEAM_SIZE: H counts heads ÷ the job's reference unit WORK_TYPES[wt].heads, so one team is TEAM_SIZE ÷ that unit of H:
+ *  100 engineers / 50 research engineers / 20 scientists, the same sizes in safety; L15). */
 export const MARGIN_COMPUTE = 1.1;
-export const MARGIN_TEAMS = 1;
+export const marginTeamH = (slot: LabourSlot) => TEAM_SIZE[WORK_TYPES[slot].who as 'eng' | 're' | 'sci'] / WORK_TYPES[slot].heads;
 export interface LabourMargins {
   /** What AI can do alone on this job: its coverage a (safety: t × a). */
   canDo: number;
@@ -423,7 +423,7 @@ export function labourMargins(s: GameStateV2, slot: LabourSlot): LabourMargins {
     doingNow: Math.min(ml.A, ml.aiTaskShare),
     bottleneck: ml.regime === 'shared' ? 'ai' : 'people',
     plusCompute: rel({ ...sl, AI: sl.AI * MARGIN_COMPUTE }),
-    plusTeam: rel({ ...sl, H: sl.H + MARGIN_TEAMS }),
+    plusTeam: rel({ ...sl, H: sl.H + marginTeamH(slot) }),
   };
 }
 

@@ -21,10 +21,10 @@ import type { AgendaId, FindingType, GameStateV2, ModelVersion, SystemCtx, Team 
 import { stepProject } from '../../src/engine/v2/models/research';
 import { check, finish } from './lib';
 import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
-import { TEAM_SIZE } from '../../src/data/v2/teams';
+import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 
 /** A serious programme's line-experiment engineers in heads × quality (RD-R02a: SAF_RE_ASK labour units). */
-const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * TEAM_SIZE.re;
+const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * RE_UNIT_HEADS;
 
 
 /** A leader-start lab with one research line staffed: science capacity `cap` (× SERIOUS_CAP) on the line's follow-up

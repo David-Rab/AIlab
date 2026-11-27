@@ -1369,7 +1369,7 @@ export interface PendingLaunch {
   kyc?: 0 | 1 | 2 | 3;
   monitorId?: string;
 }
-/** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */
+/** One item on the engineers' build queue. Work is in team-weeks (one reference engineering team of ENG_UNIT_HEADS = 150 people for a week). */
 export interface BuildItem {
   id: string;
   kind: BuildKind;
@@ -1410,7 +1410,7 @@ export interface Team {
   id: string;
   role: TeamRole;
   dept: TeamDept;
-  /** Fixed size per role (150 / 100 / 40). */
+  /** Fixed size per role (data/v2/teams.ts TEAM_SIZE: 100 / 50 / 20). */
   size: number;
   /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
   heads: number;

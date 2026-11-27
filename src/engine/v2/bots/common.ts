@@ -143,8 +143,8 @@ export function answerFramework(s: GameStateV2, api: EngineApi) {
   }
 }
 
-/** Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40). */
-const LEADER_CAP_STAFF = 2020;
+/** Leader-start capabilities staff (data/v2/teams.ts START_TEAMS: 6·100 + 21·50 + 14·20 = 1,930; L15, was 2,020). */
+const LEADER_CAP_STAFF = 1930;
 /** A bot's safety-team target sized to the company (R9): a follower start smaller than the leader's scales its plan by
  *  its capabilities staff (at least one team); the leader start (and a larger big-tech division) keep it. */
 export function sizedTarget(s: GameStateV2, n: number): number {
