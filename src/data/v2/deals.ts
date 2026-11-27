@@ -143,9 +143,11 @@ export const SOURCES: Record<SiteSource, SourceDef> = {
   gas: { permitQ: 2, buildQ: 8, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
 };
 export const SITE_MIN_MW = 100;
+/** Size scaling (DATACENTERS §5b): construction quarters × (GW / refGW)^buildTimeExp; building $ per GW × (GW / refGW)^costExp. [design] pending research/23 §9 */
+export const SCALE = { refGW: 1, buildTimeExp: 0.3, costExp: -0.1 } as const;
 /** Speed-ups (DATACENTERS §5). */
 export const LEVERS = {
-  crash: { buildQ: 4, buildingShare: 0.35, oddsMult: 1.5 },      // Colossus 2 in ~4 q (Epoch); premium, odds [design]
+  crash: { buildMult: 0.5, buildingShare: 0.35, oddsMult: 1.5 },  // Colossus 2 in ~4 q for 1 GW (Epoch): half the construction time; premium, odds [design]
   rushGrid: { waitMult: 0.75, perGW: 0.3 },                         // self-built substation (LBNL Speed to Power 2026) [design]
   rushGas: { waitQ: 4, turbineShare: 0.3 },                         // used/refurbished turbines < 12 months (SemiAnalysis) [design]
   fastTrack: { permitQ: 1, buildingShare: 0.05 },                   // EO 14318 FAST-41 for > 100 MW [design price]

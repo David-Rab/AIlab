@@ -1,6 +1,6 @@
 // Data-centre sites: permits → power and construction side by side → live; installs (DATACENTERS.md §3, DC-TASKS
 // [D-4]..[D-7]). The power wait is fixed at commitment from the world wait (compute/waits.ts). Owner: WS3.
-import { BUILD_Q, BUILDING_PER_GW, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SITE_MIN_MW, SOURCES, type SiteSource } from '../../../data/v2/deals';
+import { BUILD_Q, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SCALE, SITE_MIN_MW, SOURCES, type SiteSource } from '../../../data/v2/deals';
 import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
 import { dayOfDate, dayOfQuarter } from '../core/time';
 import type { BaselineId, Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
@@ -59,8 +59,10 @@ const levers = (o: SiteOpts): SiteOpts => (o.path === 'rent' ? { ...o, crash: fa
 
 /** Permit quarters: the source's, − 1 with fast-track (gas 2 → 1, grid 1 → 0). */
 export const sitePermitQ = (o: SiteOpts) => Math.max(0, SOURCES[o.path].permitQ - (levers(o).fastTrack ? LEVERS.fastTrack.permitQ : 0));
-/** Construction quarters: rent 0 (the landlord builds), crash 4, else 8. */
-export const siteBuildQ = (o: SiteOpts) => (o.path === 'rent' ? 0 : levers(o).crash ? LEVERS.crash.buildQ : SOURCES[o.path].buildQ);
+/** Construction quarters: rent 0 (the landlord builds); else the source's × (GW / refGW)^0.3 (bigger sites take longer,
+ *  more slowly than their size), × 0.5 with crash construction, at least 1. */
+export const siteBuildQ = (o: SiteOpts) => (o.path === 'rent' ? 0
+  : Math.max(1, Math.round(SOURCES[o.path].buildQ * Math.pow(o.mw / 1000 / SCALE.refGW, SCALE.buildTimeExp) * (levers(o).crash ? LEVERS.crash.buildMult : 1))));
 
 /** Power wait in whole quarters, fixed at commitment from today's world wait before the new site joins the queue
  *  [D-4]: grid max(1, round(W × 0.75 if rushed)); gas rushed min(round(W), 4), else max(1, round(W)); rent max(1, round(W)). */
@@ -81,13 +83,16 @@ export function siteLiveInQ(s: GameStateV2, o: SiteOpts): number {
 export const siteEtaQ = siteLiveInQ;
 
 /** Capex ($B) of a new site: GW × (source upfront + extra, + crash 35% of the building, + rush (grid $0.3B/GW; gas 30%
- *  of the turbines), + fast-track 5% of the building, + community $1B/GW). Rent: the network fit-out only. */
+ *  of the turbines), + fast-track 5% of the building, + community $1B/GW). The building (grid/gas upfront) falls per GW
+ *  with size, × (GW / refGW)^−0.1, and crash and fast-track are shares of that scaled building. Rent: the network
+ *  fit-out only, unscaled. */
 export function siteCapex(o: SiteOpts): Money {
   const x = levers(o);
   const src = SOURCES[o.path];
   const rush = x.rush ? (o.path === 'grid' ? LEVERS.rushGrid.perGW : o.path === 'gas' ? LEVERS.rushGas.turbineShare * src.extraPerGW : 0) : 0;
-  const perGW = src.upfrontPerGW + src.extraPerGW + (x.crash ? LEVERS.crash.buildingShare * BUILDING_PER_GW : 0) + rush
-    + (x.fastTrack ? LEVERS.fastTrack.buildingShare * BUILDING_PER_GW : 0) + (x.community ? LEVERS.community.perGW : 0);
+  const building = o.path === 'rent' ? src.upfrontPerGW : src.upfrontPerGW * Math.pow(o.mw / 1000 / SCALE.refGW, SCALE.costExp);
+  const perGW = building + src.extraPerGW + (x.crash ? LEVERS.crash.buildingShare * building : 0) + rush
+    + (x.fastTrack ? LEVERS.fastTrack.buildingShare * building : 0) + (x.community ? LEVERS.community.perGW : 0);
   return (o.mw / 1000) * perGW;
 }
 

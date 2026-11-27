@@ -34,11 +34,10 @@ export function outsideGW(src: SiteSource, year: number): number {
 const queueSites = (s: GameStateV2): readonly (QueueSite & { name: string })[] => s.player.sites;
 
 /** Is this site in its source's queue on `day`? Rent: every rent site not live (blocked ones drop out). Grid and gas:
- *  until the site's power is ready (`powerDay`); rushed gas sites use used turbines and are not in the backlog [D-5]. */
+ *  until the site's power is ready (`powerDay`). Rushed gas sites count too (DATACENTERS §5b). */
 function inQueue(site: QueueSite, src: SiteSource, day: number): boolean {
   if (site.path !== src) return false;
   if (site.stage === 'live' || site.stage === 'blocked') return false;
-  if (src === 'gas' && site.ws3.rush) return false;
   if (src === 'rent') return true;
   const pd = site.ws3.powerDay;
   return pd === undefined || pd > day;
