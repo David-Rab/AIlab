@@ -51,7 +51,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.REF_IDEA_TEAMS',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['ideaTeams'] },
-    value: 3, unit: 'teams per paradigm project', ...BOT, kind: 'designer',
+    value: 6, unit: 'teams (of 20) per paradigm project', ...BOT, kind: 'designer',
     evidence: 'ref.ts:89 "Teams wanted on each of RefBot\'s paradigm projects [D]"',
     notes: 'The comment says a fixed 70% line share was tried and moved the ai2027 takeoff out of tolerance (V3-BUILD V2 notes).',
   },
@@ -135,12 +135,12 @@ export const PARAMS_CORE = defineParams([
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['lines', '*'] },
     ...BOT, kind: 'untagged',
     evidence: 'no tag; ref.ts:123-128 "one safety science team on each of AG18, AG02, AG08 and AG07 (≈ the pre-R8 Seed funding of those four ...)"',
-    notes: 'Each line has teams: 1; ideas in order.',
+    notes: 'Each line has teams: 2 (L15: was 1 team of 40; now 2 teams of 20 = the same 40 people); ideas in order.',
   },
   {
     id: 'bots.ref.REF_SAFETY_SCI_TEAMS',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['safetySciTeams'] },
-    value: 4, unit: 'teams', ...BOT, kind: 'untagged',
+    value: 8, unit: 'teams (of 20; was 4 of 40)', ...BOT, kind: 'untagged',
     evidence: 'no tag; ref.ts:135 (target for sci.saf at day 0, sized by sizedTarget)',
   },
   {
@@ -356,13 +356,13 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.mixed.MIXED_SCI_TEAMS',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_MIXED', path: ['sciTeams'] },
-    value: 12, unit: 'safety science teams', ...BOT, kind: 'untagged',
+    value: 24, unit: 'safety science teams (of 20; was 12 of 40)', ...BOT, kind: 'untagged',
     evidence: 'no tag; mixed.ts:17 (header :2-3 "R8: a science team each, a second on AG08/AG18/AG02")',
   },
   {
     id: 'bots.mixed.MIXED_RE_TEAMS',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_MIXED', path: ['reTeams'] },
-    value: 5, unit: 'safety research-engineering teams', ...BOT, kind: 'untagged',
+    value: 10, unit: 'safety research-engineering teams (of 50; was 5 of 100)', ...BOT, kind: 'untagged',
     evidence: 'no tag; mixed.ts:18; header :3 says "three safety research-engineering teams for tool upkeep"',
     notes: 'See Q-core-1: header says three, constant is five.',
   },
@@ -484,7 +484,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.safe.SAFE_SCI_TEAMS',
     ref: { kind: 'export', module: SAFE, symbol: 'SAFE_SCI_TEAMS' },
-    value: 23, unit: 'safety science teams', ...BOT, kind: 'untagged',
+    value: 46, unit: 'safety science teams (of 20; was 23 of 40)', ...BOT, kind: 'untagged',
     evidence: 'no tag; safe.ts:22 (comment :14-16 "(23 teams; ...)")',
   },
   {
@@ -583,8 +583,8 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'bots.common.LEADER_CAP_STAFF',
-    ref: { kind: 'inline', file: COM, anchor: 'const LEADER_CAP_STAFF = 2020;' },
-    value: 2020, unit: 'heads', ...BOT, kind: 'untagged', notes: 'A7: literal copy of mkt.START_TEAMS.classic (4 x 150 + 11 x 100 + 8 x 40 = 2020); original untagged.',
+    ref: { kind: 'inline', file: COM, anchor: 'const LEADER_CAP_STAFF = 1930;' },
+    value: 1930, unit: 'heads', ...BOT, kind: 'untagged', notes: 'A7: literal copy of the leader start (L15: 6 x 100 + 21 x 50 + 14 x 20 = 1930; was 4 x 150 + 11 x 100 + 8 x 40 = 2020); original untagged.',
     evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40)" = 2020',
   },
   // ───────────────────────────── core/ ─────────────────────────────

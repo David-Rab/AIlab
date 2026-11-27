@@ -17,6 +17,7 @@ import {
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
+import { ENG_UNIT_HEADS } from '../../../data/v2/workTypes';
 import { FORCING } from '../core/forcing';
 import { decimalYear } from '../core/time';
 import { Phi } from '../production/ces';
@@ -171,14 +172,14 @@ export function fillWeeks(s: GameStateV2, team: Pick<Team, 'role' | 'dept' | 'si
 }
 
 /** Build capacity (team-weeks per week) = effective software-engineering labour (model v3 V3.3): the engineers' team-
- *  equivalents (heads/150) and the engineering agents' AI labour in the optimal human/AI task split at the
+ *  equivalents (heads/ENG_UNIT_HEADS = 150, the reference unit, not the real team size) and the engineering agents' AI labour in the optimal human/AI task split at the
  *  agents' SWE coverage, with the assist speed-up on the human share (departments/workfit.ts, production/ces.ts
  *  optimalLabour). The split is never below the humans alone, so there is no separate floor; no cap: once AI is plentiful
  *  the coding CES's human bottleneck on the uncovered work, (1 − a)^((1−ρc)/ρc), is the limit (×1.4 at 2025's coverage,
  *  ×32 at 0.9). No engineers, no capacity (nobody to run the builds). Works the build queue (departments/build.ts, R5). */
 export function buildCapacity(s: GameStateV2): { human: number; aEng: number; capacity: number } {
   let human = 0;
-  for (const t of s.player.teams) if (t.role === 'eng') human += t.heads / TEAM_SIZE.eng;
+  for (const t of s.player.teams) if (t.role === 'eng') human += t.heads / ENG_UNIT_HEADS;
   const swe = workContext(s).slots.SWE;
   return { human, aEng: swe.fit.a, capacity: human > 0 ? swe.L : 0 };
 }

@@ -26,8 +26,7 @@
 // models/research.ts sciTasteOf, on the safety model's SAF_IDEAS fit) is a readout here; no safety rate reads it.
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
-import { TEAM_SIZE } from '../../../data/v2/teams';
+import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT, RE_UNIT_HEADS } from '../../../data/v2/workTypes';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS } from '../../../data/v2/research';
 import { evalH100eAsk, evalM, evalReDemand } from '../models/evals';
@@ -50,8 +49,8 @@ import { aarAuto, aarFindingOom } from './ideas';
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 
 /** RD-R02a: safety research-engineer heads (the allocator's unit) in one experiment-labour unit
- *  (RE_LABOUR_UNIT team-equivalents of TEAM_SIZE.re heads; departments/capacity.ts reCapacity). */
-const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * TEAM_SIZE.re;
+ *  (RE_LABOUR_UNIT team-equivalents of RE_UNIT_HEADS heads; departments/capacity.ts reCapacity). */
+const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * RE_UNIT_HEADS;
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
 
 // ───────────────────────────── state ─────────────────────────────
@@ -235,9 +234,9 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   }
   const mSaf = evalM(s);
   // SR-21: one needs list; human review (SR-13b's pre-commit) and eval suites (the capability engineers' 'evals' need)
-  // are needs in it; eval staff are safety engineers (heads = team-equivalents × TEAM_SIZE.re).
+  // are needs in it; eval staff are safety engineers (heads = team-equivalents × RE_UNIT_HEADS).
   const demand: Record<SafReNeed, number> = {
-    review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
+    review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * RE_UNIT_HEADS,
     removal: removalFte(s), safExp: askSum / mSaf, // people: the base needs (effective) / m_SAF_EXP
   };
   const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
@@ -265,7 +264,7 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   const line = safetyLineH100e(s);
   const compute = Object.fromEntries(SAF_RE_NEEDS.map((k) => [k, { ask: 0, got: 0 }])) as Record<SafReNeed, SafCompute>;
   compute.cases.ask = line * openCaseShare(s);
-  compute.evals.ask = evalH100eAsk(s, mSaf, got.evals / TEAM_SIZE.re);
+  compute.evals.ask = evalH100eAsk(s, mSaf, got.evals / RE_UNIT_HEADS);
   let cLeft = line;
   for (const k of order.order) {
     const c = compute[k];

@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import type { WorkTypeView } from '../../../engine/v2';
 import { WORK_TYPES } from '../../../data/v2/workTypes';
+import { TEAM_SIZE } from '../../../data/v2/teams';
 import { Term, Tip, TipCard } from '../ui';
 import * as F from '../fmt';
 import './agents.css';
@@ -47,7 +48,7 @@ function MarginBlock({ w, label }: { w: WorkTypeView; label?: string }) {
   const mg = w.margins;
   if (!mg) return null;
   const noStaff = !(w.humans > 1e-9);
-  const heads = WORK_TYPES[w.wt].heads;
+  const heads = TEAM_SIZE[WORK_TYPES[w.wt].who as 'eng' | 're' | 'sci']; // one real team (L15: the work type's unit is a reference size)
   if (noStaff) {
     return (
       <div className="la-mgb" data-test={`margins.${w.wt}`}>

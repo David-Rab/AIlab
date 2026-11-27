@@ -2,6 +2,9 @@
 // Constants of the capability-project lifecycle (models/research.ts), the recipe stacks (models/stacks.ts) and the broad
 // allocations of research engineers and engineers. Tags: [R20 xx] research/20, [D] design value, [fit] fitted by the
 // calibration harness (scripts/v2/calib.ts --fit-lines).
+import { CAPACITY_UNIT } from './tree';
+import { TEAM_SIZE } from './teams';
+import { RE_UNIT_HEADS } from './workTypes';
 import type { Allocation, EngNeed, ReNeed, RiskPolicy, SafReNeed, StackKey } from '../../engine/v2/types';
 
 // ───────────────────────────── start priority list (model v3 V4.0) ─────────────────────────────
@@ -172,8 +175,17 @@ export const ADOPT_TW = { base: 0.5, perOom: 2, unlock: 1, max: 8 };
 
 // ───────────────────────────── allocation ─────────────────────────────
 
-/** Most science teams one capability project takes ("max" teams wanted) [D: √capacity returns]. */
-export const PROJECT_MAX_TEAMS = 6;
+/** L15: science teams that make one standard science team of capacity (CAPACITY_UNIT, 40 people): 40 ÷ the real team size
+ *  (20 since L15) = 2. Every count of science teams below is the old count (of 40) times this, so the same people are meant. */
+export const SCI_TEAMS_PER_STD = CAPACITY_UNIT / TEAM_SIZE.sci;
+/** Most science teams one capability project takes ("max" teams wanted): 6 standard teams (240 people) [D: √capacity returns]. */
+export const PROJECT_MAX_TEAMS = 6 * SCI_TEAMS_PER_STD;
+/** Science teams a project is wanted to have by default, and the first team an "auto" project gets in the first pass:
+ *  one standard team's worth (40 people) [D]. */
+export const DEFAULT_TEAMS_WANTED = SCI_TEAMS_PER_STD;
+/** L15: research-engineer teams that make one reference research-engineer unit (RE_UNIT_HEADS, 100 people): 100 ÷ the real
+ *  team size (50) = 2. Bots' counts of research-engineering teams are the old count times this. */
+export const RE_TEAMS_PER_UNIT = RE_UNIT_HEADS / TEAM_SIZE.re;
 /** B4 "auto" teams wanted: a spare science team goes to the project (auto ones first) where it adds the most expected
  *  value per day (RD-A03, models/research.ts projectValue), weighted by this factor per rank down the list, so higher
  *  priority wins close calls [D]. */

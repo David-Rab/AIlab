@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { RE_FULL_PROJECT } from '../../src/data/v2/research';
 import { PROJECT_BY_ID } from '../../src/data/v2/tree';
 import { RE_LABOUR_UNIT, C_UNIT_FLOP_PER_DAY } from '../../src/data/v2/workTypes';
-import { TEAM_SIZE } from '../../src/data/v2/teams';
+import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { workContext } from '../../src/engine/v2/departments/workfit';
 import {
@@ -31,7 +31,7 @@ function state(heads: number, m: number, nExp: number, ops: boolean): GameStateV
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8')) as GameStateV2;
   const p = s.player;
   const re = p.teams.filter((t) => t.role === 're' && t.dept === 'cap');
-  const keep = { ...re[0], heads: heads * TEAM_SIZE.re };
+  const keep = { ...re[0], heads: heads * RE_UNIT_HEADS };
   p.teams = [...p.teams.filter((t) => !(t.role === 're' && t.dept === 'cap')), keep];
   if (!ops) {
     p.models.runs = [];

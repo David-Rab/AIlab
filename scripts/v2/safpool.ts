@@ -7,7 +7,7 @@
 import { AGENDA_IDS, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { lineNodeId } from '../../src/data/v2/tree';
 import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
-import { TEAM_SIZE } from '../../src/data/v2/teams';
+import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { safetyLabour } from '../../src/engine/v2/departments/workfit';
 import { expLabour } from '../../src/engine/v2/models/research';
@@ -17,7 +17,7 @@ import { lineLabourMult, lineRates, resetSafAllocation, safAllocation, safSciOn,
 import type { GameStateV2, ModelVersion, Team } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
-const UNIT = RE_LABOUR_UNIT * TEAM_SIZE.re; // heads x quality in one experiment-labour unit
+const UNIT = RE_LABOUR_UNIT * RE_UNIT_HEADS; // heads x quality in one experiment-labour unit
 const N = 6; // programmes in experiments
 const near = (a: number, b: number, eps = 1e-9) => Math.abs(a - b) < eps * Math.max(1, Math.abs(a), Math.abs(b));
 

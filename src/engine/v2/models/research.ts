@@ -40,7 +40,7 @@
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MID_GAME_LINES, PRETRAIN_START_LINES, MAX_DROPS, PACE_BATCH,
-  AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_FULL_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
+  AUTO_RANK_W, DEFAULT_TEAMS_WANTED, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_FULL_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY, K_READ_SD, KAPPA_MAX, KAPPA_TIER, kappaMean,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -391,7 +391,7 @@ function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectSta
 /** B4: whether a project's teams wanted is "auto". */
 export const wantIsAuto = (s: GameStateV2, id: string) => !!s.player.research.wantAuto?.includes(id);
 /** Teams wanted for a project (default 1; an auto project asks for 1 in the first pass and takes spare teams after). */
-export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? 1)));
+export const teamsWanted = (s: GameStateV2, id: string) => Math.max(0, Math.min(PROJECT_MAX_TEAMS, Math.round(s.player.research.want[id] ?? DEFAULT_TEAMS_WANTED)));
 
 /** RD-A03 (CAP-08): a one-off idea (typed effect, not a line) in its small or big test releases its science teams: new
  *  candidates only matter after a drop, so the teams go elsewhere (lines keep ideating; an unlock's test uses them). */
@@ -516,7 +516,7 @@ export function planAssignment(s: GameStateV2, ready: string[], dept: TeamDept =
     if (released.has(id)) return;
     const n = node(id) as TreeNodeDef;
     const auto = wantIsAuto(s, id);
-    let need = (auto ? 1 : teamsWanted(s, id)) - (count.get(id) ?? 0);
+    let need = (auto ? DEFAULT_TEAMS_WANTED : teamsWanted(s, id)) - (count.get(id) ?? 0);
     while (need > 0 && left.length) {
       left.sort((a, b) => teamCapacity(b, n.column) - teamCapacity(a, n.column) || (a.id < b.id ? -1 : 1));
       const t = left.shift() as Team;
