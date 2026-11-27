@@ -15,7 +15,7 @@ import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
 import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
-import { newSite, oppositionOdds, reactiveUnblockOdds, siteSchedule } from '../../src/engine/v2/compute/sites';
+import { newSite, oppositionOdds, reactiveUnblockOdds, siteLiveMW, siteSchedule } from '../../src/engine/v2/compute/sites';
 import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { chipCollateral, creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
@@ -120,7 +120,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
     }
     if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) firstDistress = s.time.day;
     if (s.time.day === END_2026 - 1) {
-      const liveMW = s.player.sites.reduce((a, x) => a + (x.stage === 'live' ? x.mw : 0), 0);
+      const liveMW = s.player.sites.reduce((a, x) => a + siteLiveMW(x, s.time.day), 0);
       const cloud = s.player.cloud.reduce((a, c) => a + (c.startDay <= s.time.day && c.endDay > s.time.day ? c.h100e : 0), 0);
       gw2026 = liveMW / 1000 + (cloud * s.power.kWPerH100e) / 1e6;
       v2026 = s.player.finance.valuation;

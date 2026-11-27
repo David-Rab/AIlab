@@ -1,7 +1,7 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
 // Every preview shows what apply() does (§2.7 preview truth). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
-import { CAPEX_LEASE, DEBT_SIZING, LEVERS, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, RENT, SITE_MIN_MW, SOURCES, type CampusBuildings, type PartnerSupply } from '../../../data/v2/deals';
+import { CAPEX_LEASE, DEBT_SIZING, LEVERS, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, RENT, SITE_MIN_MW, SITE_TIERS, SOURCES, type CampusBuildings, type PartnerSupply } from '../../../data/v2/deals';
 import { dateOfDay, dayOfQuarter } from '../core/time';
 import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
 import { addCommunityPackage, campusMW, newSite, oppositionOdds, siteBuildingLiveInQ, siteCapex, siteSchedule, siteSizeError, type SiteOpts } from '../compute/sites';
@@ -633,7 +633,9 @@ function siteOpts(s: GameStateV2, p: P): SiteOpts {
   const asked = str(p, 'path', 'gas');
   const path = (SOURCES[asked as Site['path']] ? asked : 'gas') as Site['path'];
   const def = SOURCES[path];
-  const mw = Math.max(SITE_MIN_MW, Math.min(def.maxMW, num(p, 'mw', Math.min(1000, def.maxMW))));
+  // One building is at most the largest size tile (1 GW, DATACENTERS §5b); bigger sites are campuses of several buildings.
+  const buildingMax = Math.min(def.maxMW, Math.max(...SITE_TIERS.map((t) => t.mw)));
+  const mw = Math.max(SITE_MIN_MW, Math.min(buildingMax, num(p, 'mw', buildingMax)));
   if (path === 'rent') return { path, mw, buildings: 1, crash: false, rush: false, fastTrack: false, community: false, pay: 'cash' };
   const buildings = num(p, 'buildings', 1) as CampusBuildings;
   const pay = str(p, 'pay', 'cash') === 'lease' ? 'lease' : 'cash';
