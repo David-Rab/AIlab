@@ -73,7 +73,27 @@ lab the same, and internal G = G_ref(t − d) every day.
 
 `tsc --noEmit -p .`: clean.
 
-Whole-game scripts (quick tier), `npc` before (worktree at fa8aaa4) vs this branch: see the table appended below.
+`tsc -p scripts/v2/tsconfig.json`: one error, `tastecurve.ts` unused `tasteSigma`, in a file this task does not touch
+(pre-existing).
+
+Whole-game scripts (quick tier). Before = `npc` at fa8aaa4 (a detached worktree, plus a first partial quick run);
+the machine was loaded (jobs 15-35 min each), so the after-run stopped at the 2-hour budget.
+
+| Script | Before (`npc`) | After (this branch) |
+|---|---|---|
+| calib (SMOKE) | FAIL: MODEL-V3 §13 frontier G path (0.51 G), V3.7 h50 doubling 6.5 months | not run |
+| fixtures | FAIL: all 5 fixtures stale | not finished; certain to fail (the save break) |
+| danger, finance (SMOKE) | ok | not run |
+| ws4 (SMOKE) | FAIL: E1 canon in event texts, E3 intel estimate, T3 China lead at start 220 d, T3 after theft 89/73 d | **crash: `no migration from schemaRev 112`** loading the committed fixtures |
+| control | FAIL: E15 (day900.json) | **crash: same** (loads fixtures) |
+| products | FAIL: A5, A6, M2, RD-B12 ×2 (+3 more) | **crash: same** (loads fixtures) |
+| rivals | FAIL: R1, R5, R6, R8 (the old research-path checks) | not finished |
+| money, serving, worldfx, hygiene | money ok; serving, worldfx, hygiene FAIL | not run |
+| idle | stopped at its time limit | not run |
+
+The three crashes are the expected save break (SCHEMA_REV 113, no migration) on scripts that load the committed
+fixtures; they need `npx tsx scripts/v2/fixtures.ts --write` before they say anything. rivals.ts's R1/R5/R8 test
+the removed research path and will stay failing until N12 rewrites the script.
 
 ## What the 900-day game shows (seed 7, challenger)
 
