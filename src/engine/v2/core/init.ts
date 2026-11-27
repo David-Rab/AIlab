@@ -17,8 +17,10 @@ import { initialGov } from '../actors/gov';
 import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
-import { initialLeaderLab, initialRival } from '../actors/rivals';
-import { startDistillEquilibrium } from '../actors/rivalModel';
+import { FIN } from '../actors/rivals';
+import { initialNpcLab, castOf, postureOfKind } from '../npc/lab';
+import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
+
 import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
@@ -37,7 +39,7 @@ import { fillRecipe } from '../models/runs';
 import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
 import { distilledBeliefs, distilledStart } from '../safety/traits';
 import { lineupSizes } from '../worldfx/serving';
-import { labCore } from '../models/labs';
+import { PLAYER_ID } from '../models/labs';
 import { assignCapNow, assignSafTeams, initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
@@ -51,12 +53,12 @@ import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
-  Deployment, DomainId, EvalRecord, GameStateV2, LabId, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
+  Deployment, DomainId, EvalRecord, GameStateV2, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { hash32, seedStreams, stream } from './rng';
+import { seedStreams, stream } from './rng';
 import { Phi, bisect, tasteSigma } from '../production/ces';
-import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_LAB_ORDER, STAR_FIRST_NAMES, STAR_LAST_NAMES, BASE_TASTE_FLOOR } from '../../../data/v2/labourMarket';
+import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_FIRST_NAMES, STAR_LAST_NAMES, BASE_TASTE_FLOOR } from '../../../data/v2/labourMarket';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -69,17 +71,14 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     world,
     alignment: 'sampled',
     econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
-    gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic',
-    rivalCount: 4,
+    gov: 'realistic', public: 'realistic', china: 'realistic', cast: 'realistic',
     governance: 'legacyNonprofit',
     storyteller: 'rising',
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
     ...over,
-    // R9: the start type (default the frontier leader) sets the leader lab (D1) unless the caller sets it.
     start: over.start ?? 'leader',
-    leaderLab: over.leaderLab ?? START_BY_ID[over.start ?? 'leader'].leaderLab,
   };
 }
 
@@ -272,29 +271,16 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
 
 /** The labour market at the start (LABOUR-ROUND §4.1, §6.1): the pools at P0 with the market wage at w0, and the stars.
  *  Stars: n = round((1 - top percentile) x P0.sci) = 37; each draws a quantile u ~ U(0.999, 1), z = Phi^-1(u), taste
- *  T = exp(-sigma^2/2 + sigma z) with sigma = tasteSigma(m2b) of the world's drawn m2b (AIFM taste_distribution.py). Employers
- *  follow STAR_EMPLOYER0 by largest remainder (the player holds the leading lab's share, the rivals the next labs by rank; a
- *  named lab with no rival to hold it gives its share to "outside"), then are shuffled over the stars. All draws come from
+ *  T = exp(-sigma^2/2 + sigma z) with sigma = tasteSigma(m2b) of the world's drawn m2b (AIFM taste_distribution.py). The player
+ *  holds round(STAR_EMPLOYER0.openai x n) of them (the leading lab's share); every other star is outside (NPC labs hold no
+ *  stars, designer 2026-11-27). The holders are shuffled over the stars. All draws come from
  *  the 'labour' stream so no other stream moves. L11: state only (stars do not yet act, L17). */
-export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, rivalIds: LabId[], player: Pick<PlayerLab, 'teams'>): LabourState {
+export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, player: Pick<PlayerLab, 'teams'>): LabourState {
   const rng = stream(s, 'labour');
   const sigma = tasteSigma(s.hidden.timeline.prod.m2b);
   const n = Math.round((1 - STAR_TOP_PERCENTILE) * P0.sci);
-  // Slots: the player (the leading lab) then the rivals in order, one per named lab; the rest of the named labs' shares go outside.
-  const slots: (LabId | 'outside' | 'china')[] = ['player', ...rivalIds];
-  const share = new Map<LabId | 'outside' | 'china', number>([['outside', STAR_EMPLOYER0.outside], ['china', STAR_EMPLOYER0.china]]);
-  STAR_LAB_ORDER.forEach((lab, i) => {
-    const holder = slots[i] ?? 'outside';
-    share.set(holder, (share.get(holder) ?? 0) + STAR_EMPLOYER0[lab]);
-  });
-  // Largest-remainder apportionment of n stars over the shares (deterministic; the player's count is round(0.20 n) +- 1).
-  const holders = [...share.keys()];
-  const quota = holders.map((h) => (share.get(h) as number) * n);
-  const counts = quota.map(Math.floor);
-  const order = quota.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r || a.i - b.i);
-  const left = n - counts.reduce((a, b) => a + b, 0);
-  for (let k = 0; k < left; k++) counts[order[k].i]++;
-  const employers = holders.flatMap((h, i) => Array.from({ length: counts[i] }, () => h));
+  const nMine = Math.round(STAR_EMPLOYER0.openai * n);
+  const employers: Star['employer'][] = Array.from({ length: n }, (_, i) => (i < nMine ? 'player' : 'outside'));
   for (let i = employers.length - 1; i > 0; i--) { const j = rng.int(0, i); [employers[i], employers[j]] = [employers[j], employers[i]]; }
   const used = new Set<string>();
   const stars: Star[] = employers.map((employer, i) => {
@@ -323,25 +309,30 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // R9: the start type sets the leader lab (D1) unless the caller sets it, and (other than the leader's) the board.
   const start = setupIn.start ?? 'leader';
   const def = START_BY_ID[start];
-  const setup: SetupV2 = { ...setupIn, start, leaderLab: setupIn.leaderLab ?? def.leaderLab, ...(start === 'leader' ? {} : { governance: def.board }) };
+  const setup: SetupV2 = { ...setupIn, start, ...(start === 'leader' ? {} : { governance: def.board }) };
   const startDate = START_DATE;
   const rngState = seedStreams(setup.seed);
   const worldRng = new Rng(rngState.world);
   const hidden = sampleHidden(worldRng, setup);
   const w = hidden.timeline;
-  const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
 
   const player = buildPlayer(worldRng, { setup, hidden }, startDate);
   // Rivals, China and the leader lab are placed against the reference frontier (the leader start's V0), whatever the
   // player's own start model is.
   const g0 = gV0(w);
-  const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, g0, setup.baseline, base.start.globalCompute));
-  // The AI 2027 leader lab (BUILD-PLAN R2): after the sampled rivals, from its own stream, so 'world' draws (and
-  // everything sampled from them) are the same with the flag on or off.
-  if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, g0));
-  const china = initialChina(worldRng, hidden, g0, base.start.chinaGapOom);
-  // Intel starts from the player's own lag (R9): every lab's estimated lead is against the player's start model.
-  if (start !== 'leader') for (const r of [...rivals, china.lab]) if (r.intel) r.intel.leadDaysEst -= Math.round((def.lagMonths * 365) / 12);
+  // N2b-1 (design/npc/NPC-LABS.md §10): the US NPC labs and China's lab are the Realistic cast (data/v2/npcLabs.ts),
+  // placed on the reference frontier at their measured lags; the leader-kind lab is absent when the player starts as
+  // the frontier leader. N10: the cast is setup.cast ('realistic', or the player's custom list; npc/lab.ts castOf). Their
+  // postures come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
+  const cast = castOf(setup);
+  const nNpc = cast.length + 1;
+  hidden.rivalPostures = {};
+  const rivals = cast.map(({ e, p }, i) => {
+    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[e.kind] ?? FIN.bigtech!, p);
+    hidden.rivalPostures[r.core.id] = postureOfKind(e.kind, undefined, p);
+    return r;
+  });
+  const china = initialChina(hidden, setup, cast.length, nNpc);
   rngState.world = worldRng.state;
 
   const labIds = ['player', ...rivals.map((r) => r.core.id), 'china'];
@@ -361,14 +352,14 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     gov: initialGov(hidden.actorPresets.gov),
     pub: initialPublic(hidden.actorPresets.public, setup.baseline),
     researchBodies: initialResearchBodies(),
-    relations: { ...initialRelations(rivals.map((r) => r.core.id)), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
+    relations: { ...initialRelations(), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
     power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
-    labour: initialLabour({ rng: rngState, hidden }, rivals.map((r) => r.core.id), player),
-    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
+    labour: initialLabour({ rng: rngState, hidden }, player),
+    knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],
@@ -381,15 +372,14 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // RD-L04: day-0 milestones by the one predicate (every lab; recorded as day 0, the player's told silently), before
   // the readouts (Stage 2 reads SC).
   for (const i of updateMilestones(s, 0)) if (i > 0) s.flags[`seenMilestone${i}`] = 0;
-  // CP3k: the non-player labs start in distillation equilibrium (actors/rivalModel.ts startDistillEquilibrium).
-  for (const r of [...s.rivals, s.china.lab]) startDistillEquilibrium(s, r);
+  // N2b-1: the US NPC labs' first chip orders (their first quarter's growth at their appetite, delivered at the first
+  // quarter's clearing): their planned compute steps each quarter (npc/lab.ts cPlan) and their orders are placed
+  // quarterly from the first quarter day on (actors/rivals.ts rivalFinanceQ), so without these the first quarter's
+  // step would be a shortfall no lab chose.
+  for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q, 1, 1.2);
   startMarket(s); // L12: the labour market's start reference E0, U0 per kind (departments/market.ts)
-  // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
-  // actors/rivalModel.ts initRivalPhys).
-  for (const id of labIds) {
-    const core = labCore(s, id);
-    if (core) core.prodCache = computeProduction(s, id);
-  }
+  // Readout: the player only (NPC labs have no production readout; leaving the key out keeps the state plain JSON).
+  s.player.prodCache = computeProduction(s, PLAYER_ID);
   // RD-B02: the start run's launch snapshot (its RL recipe is its launch day's; suites, domain effects, P07 and the
   // serving stack are day 0's, the first day the lab can adopt anything).
   for (const r of s.player.models.runs) fillRecipe(s, r);

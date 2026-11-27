@@ -97,7 +97,7 @@ const capWhy = (a: LabStory) => (a.revenue < STORY.preRevenue || (a.cap ?? 0) <=
 
 /** FIN6b: a rival's story details, one level down from its bar's tooltip (hover "details"). */
 function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
-  const gov = PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.archetype ?? ''] ?? 'pbcTrust'];
+  const gov = PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.npc.kind ?? ''] ?? 'pbcTrust'];
   return (
     <Tip content={() => <TipCard title={`${a.name}: its story`} value={`weight ${a.weight.toFixed(2)}`} rows={[
       { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },

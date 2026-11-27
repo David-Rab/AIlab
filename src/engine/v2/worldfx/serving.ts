@@ -31,7 +31,7 @@ import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign
 import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { gV0, h50Of } from '../models/capability';
-import { fptOfSimpleModel } from '../actors/rivalModel';
+import { fptOfSimpleModel } from '../npc/model';
 import { versionById } from '../models/labs';
 import { activeFeatures, agentModeOn, agentsGate } from '../models/products';
 import { adopted } from '../models/paradigms';

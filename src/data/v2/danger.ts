@@ -117,9 +117,6 @@ export const MISUSE_REACH: Record<Channel, number> = {
  *  (1 − WSL/5)(1 − Contain). θ = 10, s = 1 keep v2's 1e-4·max(0, AGENCY − 8) within ±25% on levels 9–12 [C]. */
 export const EXFIL = { kappa: 4e-4, theta: 10, s: 1 };
 
-/** A rival's deployed model, as a site (rival incidents): a product mix with some agents [D]; usage 0.2 keeps the rivals' start rates near v2's (usage 0.5 at exposure 1) under the player-calibrated κ [C]. */
-export const RIVAL_SITE = { usage: 0.2, autonomy: 0.5, afford: 0.7 };
-
 // ───────────────────────────── covert acts against the lab's own work (model v3 E7) ─────────────────────────────
 //
 // MODEL-V3 §11.3: "with automated R&D, sandbagged safety work, steered capability research, backdoors, successor

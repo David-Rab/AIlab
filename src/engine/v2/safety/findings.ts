@@ -24,7 +24,7 @@ import { jobAiShare, jobRecord } from './workPackage';
 import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
-import { addRivalKnowledge } from '../actors/rivalModel';
+import * as shock from '../npc/shocks';
 import { decayAt, unlockTechnique } from './techniques';
 import { toolExposed } from './footholds';
 import type { Foothold } from '../types';
@@ -450,7 +450,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
 }
 
 /**
- * Publish a finding (§3.5.3): knowledge.publishedFindings, sharedTechniquePool +0.02 (TECH/EVAL) / +0.04 (DISC),
+ * Publish a finding (§3.5.3): knowledge.publishedFindings,
  * credibility +2, safety talent pull +1; SPILL leaks capability (every rival's and China's recipe +SPILL_G OOM); a DISC that
  * revealed a U-mode tells the world (presence × 0.7 for every lab).
  */
@@ -459,17 +459,13 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   if (!rec || rec.published) return;
   rec.published = true;
   s.knowledge.publishedFindings.push(rec.id);
-  const k = s.knowledge;
-  if (rec.type === 'TECH' || rec.type === 'EVAL') k.sharedTechniquePool = Math.min(1, k.sharedTechniquePool + 0.02);
-  if (rec.type === 'DISC') k.sharedTechniquePool = Math.min(1, k.sharedTechniquePool + 0.04);
   ctx.bump('relations.credibility', 2, 'published research', rec.id);
   ctx.bump('relations.talentPull', 1, 'published research', rec.id);
   if (rec.trueType === 'SPILL') {
-    // Every other lab's recipe gains what the player's did (SPILL_G OOM, public knowledge in its pretraining part).
-    for (const r of [...s.rivals, s.china.lab]) {
-      if (r.core.status !== 'active') continue;
-      addRivalKnowledge(r, SPILL_G);
-      ctx.cause(`${r.core.id}.recipe`, SPILL_G, 'safety spillover', r.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
+    // N6: every active lab's lag falls a fixed small step (npc/shocks.ts spill).
+    for (const m of shock.spillMoves(s)) {
+      m.lab.npc.d -= m.days;
+      ctx.cause(`${m.lab.core.id}.lag`, -m.days, 'safety spillover', m.lab.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
     }
   }
   const row = FINDING_BY_ID[rec.id];

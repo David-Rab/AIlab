@@ -1,21 +1,18 @@
 // Multi-seed calibration scans (model v3 F4). Owner: WS1.
 //
 //   npx tsx scripts/v2/calscan.ts t1  <preset> [--gsc a,b,…] [--dbm a,b,…] [--sd a,b,…] [--workers N]
-//   npx tsx scripts/v2/calscan.ts t1l <preset> [--gsc …] [--dbm …] [--sd …] [--workers N]
 //
-// T1 and T1L bind on the median over CAL_SEEDS (calseeds.ts), so the per-preset values (V3_CAL G_SC, Δ_bm, sd_SC in
+// T1 binds on the median over CAL_SEEDS (calseeds.ts), so the per-preset values (V3_CAL G_SC, Δ_bm, sd_SC in
 // src/data/v2/workTypes.ts) are fitted here, on the same seeds: every grid point
 // (the product of the lists; unset lists keep the committed value) is played on every seed — RefBot on the reference
-// compute stub (t1) or the leader lab with a passive player (t1l), as calib.ts does — and the table prints, per point, the
+// compute stub (t1), as calib.ts does — and the table prints, per point, the
 // median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y; lib.ts calTol; the timeline worlds have no golden days yet), p10 / p90, the seeds within tolerance,
 // the worst |median|/tolerance (≤ 1 passes) and seed 2027 alone. Take a value in the middle of the passing window, not a
 // knife edge. Runs go through the simulation cache in N worker processes (default 6).
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { V3_CAL } from '../../src/data/v2/workTypes';
-import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { tick } from '../../src/engine/v2/core/loop';
-import { LEADER_ID } from '../../src/engine/v2/models/labs';
+import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import type { MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
 import { calGolden, calTol, refGame, runRef } from './lib';
@@ -23,9 +20,9 @@ import { cached } from './simcache';
 
 const ME = fileURLToPath(import.meta.url);
 const argv = process.argv.slice(2);
-const [mode, preset] = argv as ['t1' | 't1l', WorldPresetId];
-if (!['t1', 't1l'].includes(mode) || !['tl-fast', 'tl-central', 'tl-slow'].includes(preset)) {
-  console.error('usage: calscan.ts t1|t1l <tl-fast|tl-central|tl-slow> [--gsc …] [--dbm …] [--sd …] [--workers N]');
+const [mode, preset] = argv as ['t1', WorldPresetId];
+if (!['t1'].includes(mode) || !['tl-fast', 'tl-central', 'tl-slow'].includes(preset)) {
+  console.error('usage: calscan.ts t1 <tl-fast|tl-central|tl-slow> [--gsc …] [--dbm …] [--sd …] [--workers N]');
   process.exit(2);
 }
 const list = (name: string, dflt: number) => {
@@ -40,16 +37,9 @@ for (const gSC of list('gsc', V3_CAL[preset].gSC)) for (const dBM of list('dbm',
 function play(p: Point, seed: number): Partial<Record<MilestoneIdx, number>> {
   return cached(`calscan-${mode}`, { preset, ...p, seed }, [ME], () => {
     Object.assign(V3_CAL[preset], { gSC: p.gSC, dBM: p.dBM, sdSC: p.sdSC });
-    if (mode === 't1') {
       const s = refGame(defaultSetupV2({ world: preset, alignment: 'medium', seed }));
       runRef(s, 365 * 16, (x) => x.player.milestoneDays[last] !== undefined);
       return s.player.milestoneDays;
-    }
-    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
-    const L = s.rivals.find((r) => r.core.id === LEADER_ID);
-    if (!L) throw new Error('no leader lab');
-    while (s.time.day < 365 * 16 && L.core.milestoneDays[last] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
-    return L.core.milestoneDays;
   });
 }
 

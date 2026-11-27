@@ -15,7 +15,7 @@
 //
 // The lab's recipe compared with another lab's (secrets leaks, publish-research leaks) is recipeG at the common reference
 // FLOP RECIPE_F, on the parts every lab has (pretraining, RL efficiency, RL ceiling; RD-B16): playerRecipeG for the
-// player, actors/rivalModel.ts recipeOf for a rival's aggregate recipe. Model v3 F3 removed the know-how readout
+// player, npc/lab.ts npcRecipe for an NPC lab's. Model v3 F3 removed the know-how readout
 // `player.pa` that stood for it in progress-years.
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { K_STEP, TRAIN_CAP } from '../../../data/v2/research';
@@ -155,7 +155,7 @@ export const gEquivOf = (flop: number, pre: number, mid: number, ceil: number, t
   pre + refRlGain(flop, mid, ceil) - refRlGain(flop, 0, 0) + train;
 
 /** A lab's recipe in the stack units every lab has (OOM over the leader's day-0 recipe): pretraining efficiency, RL
- *  efficiency (rlMid), RL ceiling (rlCeil). A rival's aggregate recipe (RivalPhys.rec) has this shape. */
+ *  efficiency (rlMid), RL ceiling (rlCeil). An NPC lab's recipe is one number in this unit (NpcLabState.rec). */
 export interface Recipe { pre: number; mid: number; ceil: number }
 /** The common reference FLOP at which labs' recipes are compared (RD-B16): FLOP_RL_REF, the reference RL run's base
  *  (3e26, a 2025 frontier base). Fixed, so a comparison never moves because one lab trained a bigger base. */

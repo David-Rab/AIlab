@@ -164,8 +164,7 @@ export const TREE: TreeNodeDef[] = [
   //    keeps the first idea near 0.08 OOM and adds under a third to the pretraining lines' returns.
   //  - mean 0.12: the first idea's prior at taste 1 (x LINE_FIT.mu). n0 is NOT a fresh pool: the day the line opens it
   //    starts from the pretraining research stock, the mean of (n0 + pool) of Scaling recipes, Data filtering and Optimizer
-  //    tweaks (models/research.ts openMidGameLines, stored in tree[P24].startPool; rivals: linePoolAt, the mean start pool of
-  //    the three). Roughly 15-45 instead of 1.85, so P24 is an ordinary line with no 2027 surge (design/bal/LABOUR-ROUND.md
+  //    tweaks (models/research.ts openMidGameLines, stored in tree[P24].startPool). Roughly 15-45 instead of 1.85, so P24 is an ordinary line with no 2027 surge (design/bal/LABOUR-ROUND.md
   //    section 7; RATE-DECOMP: design/BAL-TASKS.md 'After merge: point-1 checks'). Moves calibration by design.
   //  - par 0.5: half its ideas in the new-architecture tier (Gundlach: 2 of about 20 human innovations were; an AI explores
   //    architecture space more widely than humans); s [0.02, 0.04] as that mix.
@@ -260,12 +259,6 @@ for (const n of TREE) {
   if (SAFETY_COLUMNS_SET.has(n.column) || n.star) continue;
   n.kind ??= n.effect ? 'idea' : 'axis';
 }
-/** The one-off form of P24 that the rivals' simplified model keeps (actors/rivalModel.ts RIVAL_IDEA_IDS: an aggregate
- *  state has no research line of its own beyond DEFAULT_LINES): a pretraining-stack idea of +0.96 OOM (sd 0.4) costing
- *  28.8 team-months, as before round 2 item 9 [D stand-in]. */
-export const P24_RIVAL_IDEA: TreeNodeDef = {
-  ...TREE.find((n) => n.id === 'P24')!, kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, effortTM: V2_PARADIGM_EFFORT_TM.P24,
-};
 for (const n of TREE) {
   if (n.star || n.kind === 'line') continue;
   if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? V2_PARADIGM_EFFORT_TM[n.id];

@@ -10,7 +10,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { previewTick } from '../core/previewTick';
 import { capEta, isCapProject } from '../models/research';
 import { lineResultsPerYear } from '../safety/agendas';
-import { playerHeads, premiumOf, weeklyHires } from './market';
+import { playerHeads, poachFallbackDays, poachShare, premiumOf, weeklyHires } from './market';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../types';
 import {
   buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, releaseTeam, roleOfKey, setTeamTarget,
@@ -183,9 +183,15 @@ export const TEAM_ACTIONS: ActionDef[] = [
       c.player.hiring.premium[k] = step;
       // Extra market hires a week at today's open positions (none open, none gained); poaching adds the rivals' leavers on top.
       const gain = Math.max(0, weeklyHires(c, k) - weeklyHires(s, k));
+      // The rivals' fallback: a year of this week's poached hires at the new premium (marketWeek's poachFromRivals, by the same
+      // poach-in shock), held at today's hires.
+      const fallback = poachFallbackDays(c, k, 52 * weeklyHires(c, k) * poachShare(step));
       return {
         costs: [{ currency: 'cash', amount: pay / 1000, target: `a year in payroll once everyone's pay has caught up (${KIND_NAME[k]})` }],
-        gains: [{ currency: 'staffTime', amount: gain, target: `more ${KIND_NAME[k]} hired a week, and rivals' leavers join you`, unit: 'heads' }],
+        gains: [
+          { currency: 'staffTime', amount: gain, target: `more ${KIND_NAME[k]} hired a week, and rivals' leavers join you`, unit: 'heads' },
+          ...(fallback > 0 ? [{ currency: 'leadDays' as const, amount: Math.round(fallback), target: 'days the rivals fall back in a year (their people join you)' }] : []),
+        ],
         exposure: [],
       };
     },

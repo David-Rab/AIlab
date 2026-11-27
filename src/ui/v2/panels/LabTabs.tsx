@@ -3,7 +3,7 @@
 // split, hiring speed, morale, star hire. AI staff & needs: the AI staff per job and the needs lists (their one home;
 // the LAB board's rows link here). Security: weight security against the industry baseline, theft odds, access, what a
 // higher level costs, the budget and the security log. Reads facts, beliefs and measurements only.
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   believedTheftChance, dateOf, engAllocView, fillWeeks, fmtDate, fullTeamPayroll, payrollOf, reAllocView, safReAllocView,
   securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
@@ -11,10 +11,10 @@ import {
 import { privilegedOf } from '../../../engine/v2/security/security';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
-import { P0, PREMIUM_STEPS, STAR_POACH_COOPERATION, W0 } from '../../../data/v2/labourMarket';
+import { P0, PREMIUM_STEPS, W0 } from '../../../data/v2/labourMarket';
 import { humanTasteMean } from '../../../engine/v2/departments/workfit';
 import { nextKeyOf, offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf, teamGap } from '../../../engine/v2/departments/market';
-import { DEFAULT_POACH_STEP, askingPay, hirableStars, humanTasteWith, playerStars, premiumOf as starPremiumOf, starTopShare } from '../../../engine/v2/departments/stars';
+import { hirableStars, humanTasteWith, playerStars, starTopShare } from '../../../engine/v2/departments/stars';
 import type { Column, GameStateV2, Star, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
 import { NeedsBoard } from './Work';
@@ -315,15 +315,11 @@ function StarStats({ s, star }: { s: GameStateV2; star: Star }) {
 }
 
 function StarsCard({ s }: { s: GameStateV2 }) {
-  const [step, setStep] = useState(Math.min(DEFAULT_POACH_STEP, PREMIUM_STEPS.length - 1));
-  const premium = PREMIUM_STEPS[step];
   const mine = [...playerStars(s)].sort((a, b) => b.taste - a.taste);
-  const others = s.labour.stars.filter((x) => x.employer !== 'player').sort((a, b) => b.taste - a.taste).slice(0, SHOWN_STARS);
-  const best = [...hirableStars(s)].sort((a, b) => b.taste - a.taste)[0];
+  const others = [...hirableStars(s)].sort((a, b) => b.taste - a.taste).slice(0, SHOWN_STARS);
+  const best = others[0];
   const now = humanTasteMean(s);
   const after = best ? humanTasteWith(s, best) : now;
-  const employerName = (e: Star['employer']) => (e === 'outside' ? 'Outside' : e === 'china' ? 'China' : s.rivals.find((r) => r.core.id === e)?.core.name ?? e);
-  const bestPay = best ? askingPay(best, starPremiumOf(best, premium)) : 0;
   return (
     <Card home="stars" className="st-card" title={<span className="row-i"><ICON.taste size={15} /><Term id="star">Stars</Term> <span className="dim small lc">top researchers, hired by name</span></span>}
       right={<Tip content={() => <TipCard title={<Term id="researchTaste">Your researchers' taste</Term>} value={idx3(now)} rows={[{ label: 'At the start', value: idx3(1) }, ...(best ? [{ label: `With ${best.name}`, value: idx3(after) }, { label: 'Change', value: F.pct(after / now - 1, 1, true) }] : [])]}>The average taste of your scientists, stars included, where ×1 is your lab at the start. A star counts as one more researcher in that average, so one star among hundreds moves it a little, for as long as they stay. Capability research only.</TipCard>}>
@@ -339,31 +335,16 @@ function StarsCard({ s }: { s: GameStateV2 }) {
           <span />
         </div>
       ))}
-      <div className="st-hd">
-        <span className="cap2">Available</span>
-        <Tip content={() => <TipCard title={<Term id="premiumPay">Poach premium</Term>} value={premium > 0 ? premLabel(premium) : 'none'} rows={[{ label: 'Cooperation with that lab', value: String(STAR_POACH_COOPERATION) }]}>How far above their pay you offer to take a star from a rival lab. A star outside the labs needs none. Poaching costs that lab's cooperation either way.</TipCard>}>
-          <span className="st-prem small dim">Poach premium
-            <span className="seg-row">{PREMIUM_STEPS.map((x, i) => (i === step ? <span key={x} className="seg-on" data-test={`star-premium.${x}`}>{premLabel(x)}</span> : <button key={x} className="btn btn-sm" data-act={`star-premium.${x}`} onClick={() => setStep(i)}>{premLabel(x)}</button>))}</span>
-          </span>
-        </Tip>
-      </div>
-      {others.map((x) => {
-        const china = x.employer === 'china';
-        const pay = askingPay(x, starPremiumOf(x, premium));
-        return (
-          <div key={x.id} className={`st-row ${china ? 'off' : ''}`} data-star={x.id}>
-            <StarName s={s} star={x} pay={pay} tail={<Tip content={() => <TipCard title={employerName(x.employer)}>{china ? "China's researchers cannot be hired." : x.employer === 'outside' ? 'Works outside the big labs: no one loses a star.' : `Works at ${employerName(x.employer)}. Poaching costs team cooperation with them (${STAR_POACH_COOPERATION}).`}</TipCard>}><span className={`st-emp ${x.employer === 'outside' ? '' : china ? 'cn' : 'rv'}`}>{employerName(x.employer)}</span></Tip>} />
-            <StarStats s={s} star={x} />
-            {china
-              ? <><Tip content={() => <TipCard title="Not hirable">China's researchers cannot be hired.</TipCard>}><span className="small dim st-pay">not hirable</span></Tip><span /></>
-              : <>
-                <Tip content={() => <TipCard title={x.employer === 'outside' ? 'Pay' : 'Asking pay'} value={wageY(pay)} rows={x.employer === 'outside' ? [] : [{ label: 'Their pay now', value: wageY(x.pay) }, { label: 'Your premium', value: premLabel(premium) }]}>{x.employer === 'outside' ? 'Joins at the going star pay, paid every year.' : 'What they ask to leave, paid every year.'}</TipCard>}><span className="num st-pay">{wageY(pay)}</span></Tip>
-                <ActBtn id="starHire" testId={`starHire.${x.id}`} params={{ star: x.id, premium }} label={x.employer === 'outside' ? 'Hire' : 'Poach'} />
-              </>}
-          </div>
-        );
-      })}
-      {best && <div className="small dim st-foot">Best you can hire: <b>{best.name}</b> at {wageY(bestPay)} lifts your researchers' taste {idx3(now)} → {idx3(after)}.</div>}
+      <div className="st-hd"><span className="cap2">Available</span></div>
+      {others.map((x) => (
+        <div key={x.id} className="st-row" data-star={x.id}>
+          <StarName s={s} star={x} />
+          <StarStats s={s} star={x} />
+          <Tip content={() => <TipCard title="Pay" value={wageY(x.pay)}>Joins at the going star pay, paid every year.</TipCard>}><span className="num st-pay">{wageY(x.pay)}</span></Tip>
+          <ActBtn id="starHire" testId={`starHire.${x.id}`} params={{ star: x.id }} label="Hire" />
+        </div>
+      ))}
+      {best && <div className="small dim st-foot">Best you can hire: <b>{best.name}</b> at {wageY(best.pay)} lifts your researchers' taste {idx3(now)} → {idx3(after)}.</div>}
     </Card>
   );
 }

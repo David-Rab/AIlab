@@ -9,7 +9,6 @@ const TOL_SC = 'GOLDEN_TOL.SC ±0.08 y (±29 d; src/data/v2/calibration.ts:97, l
 const TOL_AFTER = 'GOLDEN_TOL.after ±0.12 y (±44 d; src/data/v2/calibration.ts:97, lib.ts calTol)';
 const TOL_SLOW = 'range middle ±0.5 y half-width + GOLDEN_TOL.SC 0.08 = ±0.58 y (±212 d), lib.ts calGolden/calTol (calibration.ts:105-109)';
 const KNOWN_A = "Before continual learning RefBot's deployed model lags its know-how by 0.5–0.9 y (base staleness, κ, version age), more than the post-stream lag calShift is fitted to; early milestones are informational (§7.1 binds SC and later). (scripts/v2/calib.ts:275; the other presets' A1/A2 read 'see T1 ai2027 A1')";
-const KNOWN_L = "The aggregate leader lab (no idea projects) runs authors2026 SAR → ASI in 2.2 y where the golden takes 3.8 y: at LEADER_CAL 0.11 (SC −0.02, SAR 0.00 y) SIAR is −0.83 y and ASI −1.66 y; at 0.05, where SC is already +0.23 y, still −0.57 / −1.39 y (F2, M7, F4). (scripts/v2/calib.ts:281; ASI reads 'see T1L authors2026 SIAR')";
 
 type Ms = 'A1' | 'A2' | 'SC' | 'SAR' | 'SIAR' | 'ASI';
 const MS_NAME: Record<Ms, string> = {
@@ -51,21 +50,6 @@ const T1_TARGETS: Target[] = GOLD_DAYS.filter(([p, m]) => !(p === 'ai2027' && m 
   ...(FITS[`${preset}.${m}`] ? { fits: FITS[`${preset}.${m}`] } : {}),
   checkLabels: [`T1 ${preset} ${m}`],
   ...(m === 'A1' || m === 'A2' ? { known: KNOWN_A } : {}),
-}));
-
-const T1L_TARGETS: Target[] = GOLD_DAYS.filter(([p, m]) => m !== 'A1' && m !== 'A2' && !(p === 'slow' && m !== 'SC')).map(([preset, m, day, year]) => ({
-  id: `T1L.${preset}.${m}`,
-  statement: `The simulated leader lab on the ${preset} world, with a passive player, reaches ${MS_NAME[m]} on day ${day} (${year.toFixed(2)}), within the golden tolerance.`,
-  type: 'point' as const,
-  metric: `scripts/v2/calib.ts medianChecks("T1L", "${preset}"): median milestone day over the first 5 CAL_SEEDS, ${m}; days from 2025-07-01`,
-  presets: [preset],
-  policy: 'leader-lab' as const,
-  value: { p50: year, unit: 'year' },
-  tolerance: tolOf(preset, m),
-  source: srcOf(preset, m),
-  role: 'unassigned' as const,
-  checkLabels: [`T1L ${preset} ${m}`],
-  ...(preset === 'authors2026' && (m === 'SIAR' || m === 'ASI') ? { known: KNOWN_L } : {}),
 }));
 
 // Integrator golden vs GOLDEN_EXPECTED (golden-timelines.ts): does the v1 reference integrator output match the sourced dates.
@@ -135,7 +119,7 @@ const GOLD_TARGETS: Target[] = [
 ];
 
 export const TARGETS_DRAFT = defineTargets([
-  // ───────────── T1 / T1L / golden (capability) ─────────────
+  // ───────────── T1 / golden (capability) ─────────────
   {
     id: 'T1.ai2027.SC',
     statement: 'RefBot on the ai2027 world reaches the Superhuman Coder milestone in 2027.24, within the golden tolerance.',
@@ -151,7 +135,6 @@ export const TARGETS_DRAFT = defineTargets([
     checkLabels: ['T1 ai2027 SC'],
   },
   ...T1_TARGETS,
-  ...T1L_TARGETS,
   ...GOLD_TARGETS,
   {
     id: 'T1.fixture.canary',

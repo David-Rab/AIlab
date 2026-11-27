@@ -197,16 +197,9 @@
 /* Stars (L18) */
 .st-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 84px 72px; gap: 12px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .st-row:last-of-type { border-bottom: none; }
-.st-row.off { opacity: .6; }
 .st-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .st-stats { display: flex; align-items: baseline; gap: 12px; white-space: nowrap; }
 .st-pay { text-align: right; }
-.st-emp { font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); color: var(--text-2); }
-.st-emp.rv { border-color: #6f8fb5; }
-.st-emp.cn { border-color: #d0804a; }
 .st-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
-.st-prem { display: inline-flex; align-items: center; gap: 8px; }
-.st-prem .seg-row { display: inline-flex; gap: 3px; }
-.st-prem .btn-sm, .st-prem .seg-on { padding-left: 7px; padding-right: 7px; }
 .st-foot { margin-top: 10px; }
 .st-none { padding: 4px; }

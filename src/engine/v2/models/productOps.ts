@@ -10,11 +10,12 @@ import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departmen
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceStance, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview, type MarketBase } from '../worldfx/productView';
-import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { RECIPE_LEAK_SHARE } from '../production/diffusion';
 import { DISTILL_S } from '../../../data/v2/calibration';
-import { CHANNEL_VARIANTS, deployGate, distillationLeak, releaseOpen, setServing, withdraw } from './deployments';
+import * as shock from '../npc/shocks';
+import { CHANNEL_VARIANTS, deployGate, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
+import { leadDays } from '../actors/intel';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, productMonitorVersion } from './products';
 import { relaunchCerts } from './certs';
@@ -207,16 +208,9 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
-/** RD-B20 / RD-X04: days of progress the strongest distiller gains at its next post-training from the player's live
- *  products (distillationLeak: rule B's lift ÷ the distiller's own frontier-G slope, RD-L03). */
-export function distillDaysPerYear(s: GameStateV2): number {
-  let days = 0;
-  for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
-    const dG = distillationLeak(s, lab.core.id).dG;
-    if (dG > 0) days = Math.max(days, (dG / frontierGPerYear(s, lab.core.id, PACE_WINDOW_DAYS)) * 365);
-  }
-  return days;
-}
+/** RD-B20 / N6: days of lag China's distillation of the player's live products closes in a year (npc/shocks.ts: a pull toward the best
+ *  servable product once per release, by DISTILL_S × access × fit). */
+export const distillDaysPerYear = (s: GameStateV2): number => shock.distillDaysPerYear(s);
 
 /** The distillation line of a change to the products: the change in rivals' yearly catch-up (lead days). */
 function distillLine(s: GameStateV2, deps: Deployment[]): CostLine[] {
@@ -312,14 +306,14 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       // the best open-weight model; the gap shown is your estimate of China's lead gap (intel), a band.
       const cn = s.china.lab;
       if (cn.core.status === 'active') {
-        const est = cn.intel.leadDaysEst;
-        const sd = cn.intel.leadDaysSd;
+        const { est, sd } = leadDays(s, 'china');
         costs.push({ currency: 'progress', amount: -Math.round(RECIPE_LEAK_SHARE.openWeights * 100), unit: '%', target: `of China's recipe gap to you: it absorbs the weights, if they beat the best open-weight model (you estimate China ${Math.max(0, Math.round(est - sd))}–${Math.round(est + sd)} days behind)` });
       }
       // Rivals: each distils it at full access, closing up to DISTILL_S of its gap to this model at its next post-training
       // (distillLift; less for a small lab); the nearest rival's gap is your estimate (intel), a band.
-      const near = activeRivals(s).reduce<typeof cn | undefined>((m, r) => (!m || r.intel.leadDaysEst < m.intel.leadDaysEst ? r : m), undefined);
-      if (near) costs.push({ currency: 'progress', amount: -Math.round(DISTILL_S * 100), unit: '%', target: `at most, of each rival's gap to this model: it distils the weights at its next post-training (you estimate the nearest, ${near.core.name}, ${Math.max(0, Math.round(near.intel.leadDaysEst - near.intel.leadDaysSd))}–${Math.round(near.intel.leadDaysEst + near.intel.leadDaysSd)} days behind)` });
+      const near = activeRivals(s).reduce<typeof cn | undefined>((m, r) => (!m || leadDays(s, r.core.id).est < leadDays(s, m.core.id).est ? r : m), undefined);
+      const nl = near ? leadDays(s, near.core.id) : undefined;
+      if (near && nl) costs.push({ currency: 'progress', amount: -Math.round(DISTILL_S * 100), unit: '%', target: `at most, of each rival's gap to this model: it distils the weights at its next post-training (you estimate the nearest, ${near.core.name}, ${Math.max(0, Math.round(nl.est - nl.sd))}–${Math.round(nl.est + nl.sd)} days behind)` });
       costs.push({ currency: 'progress', amount: 1, unit: 'release', target: `${v.name}'s weights are public for good: anyone runs and fine-tunes them; misuse safeguards reduce to the hazard filter` });
       return { costs, gains: [], exposure: [] };
     },

@@ -9,7 +9,8 @@ import { activeRivals } from '../models/labs';
 import { bloc, talent } from './fx';
 import { frameworkPublished, hasCommitment } from './commitments';
 import { evalIndepAccess } from './researchBodies';
-import { postureOf } from './rivals';
+import { labOf, postureOf } from './rivals';
+import { publicOf } from '../npc/public';
 import { ws4 } from './state';
 
 const LETTERS: [number, string][] = [
@@ -50,7 +51,9 @@ export function gradePlayer(s: GameStateV2): IndexGrade {
 /** Rival/China grade from posture observables (frameworks, testers, disclosure record, governance). Anchors:
  *  safety ≈ C+ 2.7, bigtech ≈ C 2.2, maverick ≈ F 0.7, DeepCent ≈ F 0.5 (FLI Summer 2026, research/17 §1.6.2). */
 export function gradeRival(s: GameStateV2, lab: LabId): IndexGrade {
-  const p = postureOf(s, lab);
+  // Public facts only (N9): the lab's public safety posture and its disclosed incidents (below).
+  const r = labOf(s, lab);
+  const p = r ? publicOf(s, r).safetyPosture : postureOf(s, lab);
   const goal = 0.1 * (ws4(s).goalposts[lab] ?? 0);
   const relax = lab === 'china' ? 0.8 : p.raceRelaxation;
   const inc = ws4(s).rivalIncidents.filter((i) => i.lab === lab).length;
@@ -72,11 +75,9 @@ export const indexSystem: EngineSystem = {
     const grades: Record<LabId, IndexGrade> = { player: gradePlayer(s) };
     for (const r of activeRivals(s)) {
       grades[r.core.id] = gradeRival(s, r.core.id);
-      r.visible.indexGrade = grades[r.core.id].letter;
     }
     if (s.china.lab.core.status === 'active') {
       grades.china = gradeRival(s, 'china');
-      s.china.lab.visible.indexGrade = grades.china.letter;
     }
     const prev = idx.grades.player?.overall;
     idx.grades = grades;

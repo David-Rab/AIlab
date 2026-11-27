@@ -10,16 +10,16 @@
 //   run-rate for trailing labs, 80–190× for dead ones in 2027). The cap is shown on the Story card's lab bars.
 // - Credibility (one rule, from whether it keeps growing): revenue up over four quarters (or pre-revenue) Credible ×1,
 //   down Unproven ×0.9, halved Doubted ×0.7. Governance by kind (the player's GOV_FACTOR table).
-// - Raising: when its cash is under half a year of spend, at its valuation, up to d_max of it and its part of the
-//   investor pool (rivals' parts and the player's never add up to more than the pool).
-// - Exit: a private lab still in distress a quarter after it ran out (E32 offers it to you first) is license-and-hired by
+// - Money is display (N8b): revenue (the market's) and valuation (the story) are shown and feed the sector story; an
+//   NPC lab keeps no cash flow, raises nothing and never runs out of money. It fails only through the bust (below).
+// - Exit: a private lab the bust pushed into distress, still there a quarter later (E32 offers it to you first), is license-and-hired by
 //   the largest big-tech rival (team, licence and compute to the buyer; its investors get about 1.25× their money back,
 //   R21 C1–C5); it goes bankrupt only when no big-tech rival exists.
 import { GOV_FACTOR } from '../../../data/v2/deals';
 import { deactivateRival } from '../actors/rivals';
-import { addRivalKnowledge, recipeOf } from '../actors/rivalModel';
+import { absorb } from '../npc/shocks';
 import { request } from '../actors/state';
-import { LEADER_ID } from '../models/labs';
+import { persOf } from '../npc/lab';
 import type { GameStateV2, Money, RivalLab, SystemCtx } from '../types';
 import { revenueRun } from './observe';
 import { growthOf, privateRivals, STORY, type StoryNow } from './story';
@@ -35,10 +35,6 @@ export const RIVAL = {
   multiple: 37,
   capGrowthRef: 5,
   capGrowthExp: 0.4,
-  /** A round sells at most 8% of the lab (unanchored, as the player's) [R15 §1.5]. */
-  dMax: 0.08,
-  /** Raises when cash is under half a year of spend (spec §12). */
-  raiseBelowYears: 0.5,
   /** License-and-hire: most of the team joins the buyer (Inflection: founders and most of ~70 staff); investors get
    *  1.1–1.5× back (Inflection) [R21 C1–C5]. */
   exitStaff: 0.7,
@@ -49,10 +45,10 @@ export const RIVAL = {
 } as const;
 
 /** Board preset whose governance factor a private rival carries [D]: the safety lab is a PBC with a trust (Anthropic),
- *  the maverick and the boutique upstart are founder-controlled (xAI, SSI / Thinking Machines), the simulated leader
+ *  the racer and the boutique upstart are founder-controlled (xAI, SSI / Thinking Machines), the simulated leader
  *  lab a nonprofit-controlled PBC (OpenAI after its Oct 2025 recapitalisation). */
-export const RIVAL_GOV: Record<string, keyof typeof GOV_FACTOR> = { safety: 'pbcTrust', maverick: 'founder', upstart: 'founder', leader: 'nonprofitPBC' };
-export const rivalGov = (r: RivalLab): number => GOV_FACTOR[RIVAL_GOV[r.archetype] ?? 'pbcTrust'];
+export const RIVAL_GOV: Record<string, keyof typeof GOV_FACTOR> = { safety: 'pbcTrust', racer: 'founder', upstart: 'founder', leader: 'nonprofitPBC' };
+export const rivalGov = (r: RivalLab): number => GOV_FACTOR[RIVAL_GOV[r.npc.kind] ?? 'pbcTrust'];
 
 /** A rival's credibility rung from its revenue growth over four quarters (one rule). */
 export function rivalCred(s: GameStateV2, r: RivalLab): { id: 'Credible' | 'Unproven' | 'Doubted'; mult: number; growth: number } {
@@ -72,13 +68,13 @@ export const valueCap = (revenue: Money, growth: number): Money => Math.max(RIVA
 /** All-in spend a year ($B). */
 export const rivalSpend = (r: RivalLab): Money => r.core.computeOnline * RIVAL.perH100eYear + RIVAL.overhead;
 
-/** Labs whose parent pays their bills: big tech in-house, the open-weight spoiler, the simulated leader lab. */
-export const parentFunded = (r: RivalLab) => r.archetype === 'bigtech' || r.archetype === 'openweights' || r.core.id === LEADER_ID;
+/** Parent- or state-funded labs are out of the bust's reach: only a private lab can be pushed into distress (bustTarget). N8b: it no longer decides cash or orders. */
+export const parentFunded = (r: RivalLab) => persOf(r.npc).funding !== 'private';
 
 /** The big-tech rival that would license-and-hire a failing lab: the one with the most compute. */
 export function exitBuyer(s: GameStateV2, r?: RivalLab): RivalLab | undefined {
   let best: RivalLab | undefined;
-  for (const x of s.rivals) if (x.core.status === 'active' && x.archetype === 'bigtech' && x !== r && (!best || x.core.computeOnline > best.core.computeOnline)) best = x;
+  for (const x of s.rivals) if (x.core.status === 'active' && x.npc.kind === 'bigtech' && x !== r && (!best || x.core.computeOnline > best.core.computeOnline)) best = x;
   return best;
 }
 
@@ -104,50 +100,20 @@ export function markRivals(s: GameStateV2, st: StoryNow): void {
     // FIN6a: its commitments book (an annual book: the bubble index and a merger read it) follows its spend.
     f.commitments = rivalSpend(r);
   }
-  const room = Math.max(0, 1 - (s.capital.ws3?.playerShare ?? 0));
-  const tot = labs.reduce((t, r) => t + r.finance.valuation / Math.max(1e-9, S), 0);
-  const k = tot > room ? room / tot : 1;
-  for (const r of labs) {
-    const f = r.finance;
-    f.poolQ = STORY.carry * (f.poolQ ?? 0) + (f.valuation / Math.max(1e-9, S)) * k * (s.capital.poolAnnual / 4);
-  }
 }
-
-/** The round a rival can raise now: d_max of its valuation, within its part of the pool. */
-export const rivalRoundMax = (r: RivalLab): Money => Math.max(0, Math.min((RIVAL.dMax * r.finance.valuation) / (1 - RIVAL.dMax), r.finance.poolQ ?? 0));
 
 const $ = (x: Money) => (x >= 1000 ? `$${(x / 1000).toFixed(2)}T` : `$${x >= 10 ? x.toFixed(0) : x.toFixed(1)}B`);
 
-/** One rival's quarter of money (rivals.ts rivalFinanceQ, after its revenue moved): the quarter's cash flow, a round if
- *  it is short, distress (out of cash after raising, or pushed by a bust this quarter), and the exit a quarter later. */
+/** One rival's quarter of money (rivals.ts rivalFinanceQ, after its revenue moved). N8b: money is display, so the only
+ *  thing it does is the bust: a private lab the bust pushed into distress this quarter is offered to you (E32); still
+ *  in distress a quarter later it exits (license-and-hire by big tech, or bankruptcy). */
 export function rivalMoneyQ(s: GameStateV2, ctx: SystemCtx, r: RivalLab): void {
   const f = r.finance;
-  const spend = rivalSpend(r);
-  f.cash += (f.revenueRun - spend) / 4;
-  if (parentFunded(r)) {
-    f.cash = Math.max(f.cash, spend / 2);
-    f.distress = false;
-    return;
-  }
-  const pushed = s.capital.busted?.day === s.time.day && s.capital.busted.rival === r.core.id;
-  if (!pushed && f.valuation > 0 && f.cash < RIVAL.raiseBelowYears * spend) {
-    const amt = rivalRoundMax(r);
-    if (amt >= 0.05) {
-      const pre = f.valuation;
-      f.cash += amt;
-      f.poolQ = Math.max(0, (f.poolQ ?? 0) - amt);
-      f.raised = (f.raised ?? 0) + amt;
-      f.valuation = pre + amt;
-      ctx.log('rival', `${r.core.name} raises ${$(amt)} at a ${$(pre)} valuation.`, 1, r.core.id);
-    }
-  }
-  const was = f.distress;
-  f.distress = f.cash < 0 || pushed;
-  if (f.distress && !was) {
-    ctx.log('rival', pushed ? `${r.core.name}'s investors pull back in the bust: it is looking for a buyer.` : `${r.core.name} is running out of money: it is looking for a buyer.`, 2, r.core.id);
-    // FIN3c (§9): E32 offers it to you first; if it is still failing next quarter it exits (below).
-    request(s, 'E32', { lab: r.core.id });
-  } else if (f.distress && was) exitRival(s, ctx, r);
+  if (f.distress) return exitRival(s, ctx, r);
+  if (s.capital.busted?.day !== s.time.day || s.capital.busted.rival !== r.core.id || parentFunded(r)) return;
+  f.distress = true;
+  ctx.log('rival', `${r.core.name}'s investors pull back in the bust: it is looking for a buyer.`, 2, r.core.id);
+  request(s, 'E32', { lab: r.core.id }); // FIN3c (§9): offered to you first
 }
 
 /** License-and-hire by the largest big-tech rival, or bankruptcy when there is none (spec §12 exit). */
@@ -155,12 +121,9 @@ export function exitRival(s: GameStateV2, ctx: SystemCtx, r: RivalLab): void {
   const buyer = exitBuyer(s, r);
   const back = RIVAL.exitReturn * (r.finance.raised ?? 0);
   if (buyer) {
-    buyer.core.computeOnline += r.core.computeOnline;
     buyer.core.staff.cap += Math.round(r.core.staff.cap * RIVAL.exitStaff);
     buyer.core.staff.saf += Math.round(r.core.staff.saf * RIVAL.exitStaff);
-    // The licence brings the buyer's recipe up to the seller's (FINM: was know-how pa = max of the two; the recipe is its
-    // model v3 equivalent, entering as outside knowledge like distillation).
-    addRivalKnowledge(buyer, Math.max(0, recipeOf(s, r) - recipeOf(s, buyer)));
+    absorb(buyer, r); // N6: the buyer takes the better lag and adds the seller's compute
     deactivateRival(s, ctx, r.core.id, 'merged', buyer.core.id,
       `${buyer.core.name} licenses ${r.core.name}'s models and hires most of its team; its compute moves to ${buyer.core.name}. ${r.core.name}'s investors get about ${$(back)} back (${RIVAL.exitReturn}× what they put in).`);
   } else {

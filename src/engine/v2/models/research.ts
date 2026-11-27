@@ -109,8 +109,8 @@ export function linePool(s: Pick<GameStateV2, 'hidden' | 'player'>, n: TreeNodeD
   const rate = (LINE_START_INPUT.year1[n.id] ?? 0) / LINE_START_INPUT.yearOverStart;
   return age > 0 && rate > 0 ? { r: pl.r, n0: age * rate } : pl;
 }
-/** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01).
- *  A mid-game line's n₀ is the mean start pool of the pretraining start lines (stateless; LABOUR-ROUND §7). */
+/** linePool at the world's returns `worldR` (the preset's r), stateless (RD-X01). A mid-game line's n₀ is the mean start
+ *  pool of the pretraining start lines (LABOUR-ROUND §7). */
 export function linePoolAt(worldR: number, n: TreeNodeDef): { r: number; n0: number } {
   const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
   if (MID_GAME_LINES.includes(n.id)) {

@@ -10,7 +10,7 @@ import { check, finish, runRef } from './lib';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol * Math.max(1e-12, Math.abs(b));
-const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false, leaderLab: true }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 s.player.finance.cash = 1e6;
 const trio = PRETRAIN_START_LINES.map((id) => TREE_BY_ID[id]!);
 const stockOf = (x: GameStateV2) => trio.map((l) => linePool(x, l).n0 + (x.player.tree[l.id]?.cap?.pool ?? 0));

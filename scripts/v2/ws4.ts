@@ -13,10 +13,8 @@
 import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RIVAL_NAMES_V2 } from '../../src/data/v2/names';
 import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
-import { chinaGapFormulaMonths } from '../../src/engine/v2/actors/china';
-import { updateIntel, leadDays } from '../../src/engine/v2/actors/intel';
+import { leadDays } from '../../src/engine/v2/actors/intel';
 import { deactivateRival } from '../../src/engine/v2/actors/rivals';
 import { request, ws4 } from '../../src/engine/v2/actors/state';
 import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
@@ -125,24 +123,20 @@ const load = (i: number) => deserialize(fixtures[i]);
   return { violations, checkedTexts };
   });
   check(violations.length === 0, `E2 no event text references an inactive lab (${N} seeds, ${checkedTexts} texts)`, violations.slice(0, 3).join('; '));
-  check(RIVAL_NAMES_V2.length >= 4, 'E2 rival names available');
 }
 
 // ───────── E3: comparisons use the player's INTERNAL frontier ─────────
 {
   const s = load(1);
-  const ctx = makeCtx(s);
   const r = s.rivals.find((x) => x.core.status === 'active')!;
   const v = internalVersion(s)!;
   // Add an internal-only version far ahead of every public deployment.
   const boost = 0.5 * PRE_GAME_G_PER_YEAR;
   const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', G: v.G + boost, Lg: levelOfG(s.hidden.timeline, v.G + boost) };
   const truthBefore = leadBetween(s, 'player', r.core.id);
-  for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
   const estBefore = leadDays(s, r.core.id).est;
   s.player.models.versions.push(v2);
   const truthAfter = leadBetween(s, 'player', r.core.id);
-  for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
   const estAfter = leadDays(s, r.core.id).est;
   check(bestG(s, 'player') === v2.G, 'E3 bestG(player) is the best INTERNAL version (not the deployed one)');
   // [M2 test fix] The true lead is WS1's time-lag (how long ago the leader stood where the follower stands now, from
@@ -228,8 +222,8 @@ const load = (i: number) => deserialize(fixtures[i]);
       // Model v3 E9: the copy is a foothold that has acquired compute (4 copies) and acts once its exposure is above θ_w.
       footholdFromEscape(s, s.time.day - 100, internalVersion(s)!, 1).size = 4;
     },
-    rivalAligned: (s) => rivalAsi(s, 'r0', false),
-    rivalTakeover: (s) => rivalAsi(s, 'r0', true),
+    rivalAligned: (s) => rivalAsi(s, s.rivals[0].core.id, false),
+    rivalTakeover: (s) => rivalAsi(s, s.rivals[0].core.id, true),
     chinaAligned: (s) => rivalAsi(s, 'china', false),
     chinaTakeover: (s) => rivalAsi(s, 'china', true),
     asiAligned: (s) => playerAsi(s, false, false),
@@ -252,10 +246,11 @@ const load = (i: number) => deserialize(fixtures[i]);
     // the SAR record, so force the record (milestones 0..idx met today), as the ASI setups force milestoneDays[6].
     for (let i = 0; i <= idx; i++) s.player.milestoneDays[i as MilestoneIdx] ??= s.time.day;
   }
+  /** An NPC lab at ASI: its hidden m (npc/risk.ts) is what the endings read (aligned 0, misaligned 1). */
   function rivalAsi(s: GameStateV2, id: string, bad: boolean) {
     const r = id === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === id)!;
     r.core.milestoneDays[6] = 0;
-    r.internal.traitsTrue = bad ? { ...BAD } : { ...TRAIT_START };
+    r.npc.m = bad ? 1 : 0;
   }
   function playerAsi(s: GameStateV2, bad: boolean, contain: boolean) {
     const v = internalVersion(s)!;
@@ -296,9 +291,8 @@ const load = (i: number) => deserialize(fixtures[i]);
 // a theft then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
   const T3_SEEDS = SMOKE ? 2 : 8;
-  const { leads0, formulaGap, pre, post } = cached('ws4-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
+  const { leads0, pre, post } = cached('ws4-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
   const leads0: number[] = [];
-  const formulaGap: number[] = [];
   const pre: number[] = [];
   const post: number[] = [];
   const minRung = WS4_TUNING.theftMinRung;
@@ -307,7 +301,6 @@ const load = (i: number) => deserialize(fixtures[i]);
     const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
     tick(s, { skip: ['endings'] });
     leads0.push(leadBetween(s, 'player', 'china'));
-    formulaGap.push(chinaGapFormulaMonths(s) - (leadBetween(s, 'player', 'china') / 365) * 12);
     while (s.time.day < 540 && !s.ending) {
       refBot.act(s, engine);
       tick(s, { skip: ['endings'] });
@@ -318,7 +311,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     post.push(leadBetween(s, 'player', 'china'));
   }
   WS4_TUNING.theftMinRung = minRung;
-  return { leads0, formulaGap, pre, post };
+  return { leads0, pre, post };
   });
   const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
@@ -329,7 +322,6 @@ const load = (i: number) => deserialize(fixtures[i]);
   console.log(`INFO  T3 China lead: 10th–90th percentile of the daily lead (window 75–275 d): p10 ${pct(0.1).toFixed(0)} d, p90 ${pct(0.9).toFixed(0)} d (p25 ${pct(0.25).toFixed(0)}, median ${pct(0.5).toFixed(0)}, p75 ${pct(0.75).toFixed(0)})`);
   console.log(`INFO  T3 China lead min–max (daily, days 30–540, ${T3_SEEDS} seeds): ${sorted[0].toFixed(0)}–${sorted[sorted.length - 1].toFixed(0)} d; share of days below 75 d ${(100 * pre.filter((x) => x < 75).length / pre.length).toFixed(1)}%, above 275 d ${(100 * pre.filter((x) => x > 275).length / pre.length).toFixed(1)}%`);
   check(post.every((x) => x >= 40 && x <= 80), 'T3 after a theft China is ≈ 60 d behind', post.map((x) => x.toFixed(0)).join(', '));
-  check(formulaGap.every((x) => Math.abs(x) <= 2), 'T3 R10 gap formula within ±2 months of the simulated start lead', formulaGap.map((x) => x.toFixed(2)).join(', '));
 }
 
 // ───────── T4: rival start gaps 3–9 months ─────────

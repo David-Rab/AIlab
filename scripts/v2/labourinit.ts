@@ -34,13 +34,8 @@ check(L.stars.every((x) => x.pay === W_STAR0) && new Set(L.stars.map((x) => x.id
 
 const mine = L.stars.filter((x) => x.employer === 'player').length;
 const want = Math.round(STAR_EMPLOYER0.openai * 37);
-check(Math.abs(mine - want) <= 1, `player holds round(0.20 x 37) +- 1 stars`, `${mine} (want ${want})`);
-const by: Record<string, number> = {};
-for (const x of L.stars) by[x.employer] = (by[x.employer] ?? 0) + 1;
-const valid = new Set(['player', 'outside', 'china', ...s.rivals.map((r) => r.core.id)]);
-check(L.stars.every((x) => valid.has(x.employer)), 'every employer is the player, a rival, china or outside', JSON.stringify(by));
-const china = by.china ?? 0, outside = by.outside ?? 0;
-check(Math.abs(china - 0.08 * 37) <= 1 && outside >= Math.round(0.32 * 37) - 1, 'china and outside shares near 0.08 and 0.32', `china ${china}, outside ${outside}`);
+check(mine === want, `player holds round(0.20 x 37) stars`, `${mine} (want ${want})`);
+check(L.stars.every((x) => x.employer === 'player' || x.employer === 'outside'), 'NPC labs hold no stars: every star is the player\'s or outside');
 
 // Determinism: same seed, same stars; another seed differs.
 const again = newGame(defaultSetupV2({ seed: SEED } as never));

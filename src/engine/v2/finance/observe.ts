@@ -4,6 +4,7 @@
 import { tcoPerYear, cloudPricePerYear } from '../compute/market';
 import { ownedOnline, rentedOnline } from '../compute/power';
 import { PLAYER_ID } from '../models/labs';
+import { leadDays } from '../actors/intel';
 import { revenueOf, servingPool } from '../worldfx/revenue';
 import { redFlags } from '../safety/common';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
@@ -154,4 +155,4 @@ export function licensedGap(s: GameStateV2, lab: LabId, noThreshold = false): nu
 }
 
 /** The player's estimate of its lead over a rival lab (days; > 0 = ahead), from intel: what the UI may show. */
-export const leadEstimate = (s: GameStateV2, lab: LabId): number => rival(s, lab)?.intel.leadDaysEst ?? 0;
+export const leadEstimate = (s: GameStateV2, lab: LabId): number => leadDays(s, lab).est;

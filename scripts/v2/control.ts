@@ -345,10 +345,6 @@ for (const fx of ['day400.json', 'day900.json']) {
       const scale = (1.1 * lossThreshold(s)) / Math.max(1e-9, asiControl(s)!.exposure);
       for (const x of s.player.models.versions) for (const id of TRAIT_IDS) if (id !== 'HONEST' && id !== 'CORRIG') x.traitsTrue[id] = Math.min(1, x.traitsTrue[id] * scale);
     },
-    rivalAligned: (s) => { s.rivals[0].core.milestoneDays[6] = 0; s.rivals[0].internal.traitsTrue = { ...TRAIT_START }; },
-    rivalTakeover: (s) => { s.rivals[0].core.milestoneDays[6] = 0; s.rivals[0].internal.traitsTrue = { ...BAD }; },
-    chinaAligned: (s) => { s.china.lab.core.milestoneDays[6] = 0; s.china.lab.internal.traitsTrue = { ...TRAIT_START }; },
-    chinaTakeover: (s) => { s.china.lab.core.milestoneDays[6] = 0; s.china.lab.internal.traitsTrue = { ...BAD }; },
     rogue: (s) => {
       const v = internalVersion(s)!;
       v.Lg = LEVEL_KNOTS[4] + 0.1;

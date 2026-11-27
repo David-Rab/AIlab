@@ -1,10 +1,11 @@
 // The labour market's weekly system (design/bal/LABOUR-ROUND.md §4.2; L12; teams as whole chunks). Called from teams.ts
 // `teamsWeek`. One pool per kind k ∈ {eng, re, sci} (capabilities and safety staff of a kind share it). Each week:
 //   inflow    P_k += I_k / 52                                           (net inflow; the game has no exit flow from P)
-//   E, U      E_k = heads of kind k in AI labs (the player, plus the rivals' and China's PLACEHOLDER heads); U_k = P_k − E_k
+//   E, U      E_k = heads of kind k in AI labs (the player, plus the NPC labs' and China's background heads); U_k = P_k − E_k
 //   wage      w_k = w0_k · [(E_k / U_k) / (E0_k / U0_k)]^(1/η)            (E0, U0 at game start, startMarket)
 //   hires     min(V_k, μ_k · U_k^α · V_k^(1−α) · (1 + π_k)^ε · pull · morale / 52)
-//   poach     with a premium, a share 1 − (1+π)^(−ε) of those hires comes from the rival labs, not the outside pool
+//   poach     with a premium, a share 1 − (1+π)^(−ε) of those hires comes from the rival labs, not the outside pool (each
+//             rival takes the poach-in shock, npc/shocks.ts)
 //   chunks    the hires add up in p.hiring.progress[k]; at the kind's TEAM_SIZE a FULL team arrives (never a part team)
 //   pay       new hires at the offer w_k (1 + π_k); every head's pay relaxes toward the offer at 1/T per year
 // Teams are whole chunks: no vacancies, no hiring queue, no player leavers (staff go only when the player lets a team go or
@@ -13,7 +14,8 @@
 import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS, W0 } from '../../../data/v2/labourMarket';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE, TEAM_KEYS } from '../../../data/v2/teams';
 import { deptOfKey, moraleFactor, moraleOf, nextSpecialty, roleOfKey, teamLabel } from './teams';
-import type { GameStateV2, LabourPool, PlayerLab, SystemCtx, Team, TeamDept, TeamKey, TeamRole } from '../types';
+import * as shock from '../npc/shocks';
+import type { GameStateV2, LabourPool, PlayerLab, RivalLab, SystemCtx, Team, TeamDept, TeamKey, TeamRole } from '../types';
 
 const WEEKS = 52;
 
@@ -27,12 +29,13 @@ export function playerHeads(p: Pick<PlayerLab, 'teams' | 'hiring'>, k: TeamRole)
 }
 
 /**
- * PLACEHOLDER (LABOUR-ROUND §4.2 item 2, L14; "the full version belongs to the rival session", §4.2.2): the rivals' and
- * China's heads of kind k. Their staff follow today's paths (rivalModel.ts growLabStaff, the hRef growth, run for China's
- * lab too: rivals.ts labDaily) as departments (`core.staff.cap/saf`), split here by REF_ROLE_SHARE (capabilities) and
- * SAF_ROLE_SHARE (safety; no safety engineers). They count in E (the rivals AND China) but are never rationed by the pool
- * and do not respond to wages or automation. The only thing that moves them is the player's poaching (poachFromRivals,
- * rivals only, never China).
+ * The NPC labs' and China's heads of kind k: background demand (designer, 2026-11-27; NPC-LABS §2 principles 2 and 7). Their
+ * staff are the NPC labs' own (npc/lab.ts: compute × one typical staff ratio at the start, then growLabStaff's reference
+ * headcount growth, China's lab too: rivals.ts labDaily) as departments (`core.staff.cap/saf`), split here by REF_ROLE_SHARE
+ * (capabilities) and SAF_ROLE_SHARE (safety; no safety engineers). They count in E, so they raise the wage for everyone,
+ * but are never rationed by the pool, do not respond to wages or automation, and do not drive the labs' progress (an NPC
+ * lab moves by its lag rule and the §5 shocks). Besides their growth, only people moving to or from the player change them:
+ * poaching (poachFromRivals, C4; rivals only, never China) and E16's let-go.
  */
 export function otherLabHeads(s: Pick<GameStateV2, 'rivals' | 'china'>, k: TeamRole): number {
   let n = 0;
@@ -185,34 +188,47 @@ export function weeksToNextTeam(s: GameStateV2, k: TeamRole, extraV = 0): number
 /** The share of the player's hires that comes from the rival labs at premium π: 1 − (1 + π)^(−ε) (0 at π = 0). */
 export const poachShare = (pi: number) => (pi > 0 ? 1 - Math.pow(1 + pi, -EPS) : 0);
 
-/**
- * PLACEHOLDER (LABOUR-ROUND §4.2 item 5; the full version belongs to the rival session): `n` of this week's hires of kind k
- * come from the rivals (never China), split across the active rivals by their heads of the kind (capped by what they have).
- * Each rival loses exactly its number of heads, split between `core.staff.cap` and `core.staff.saf` by where the kind's
- * heads sit (the roster keeps its fixed REF_ROLE_SHARE / SAF_ROLE_SHARE mix, so the other kinds shrink with it).
- * growLabStaff multiplies the lower number from then on: the loss is not refilled. Returns the heads taken.
- */
-export function poachFromRivals(s: GameStateV2, k: TeamRole, n: number): number {
-  if (n <= 0) return 0;
-  const rows: { r: GameStateV2['rivals'][number]; capK: number; safK: number }[] = [];
+/** Where `n` poached hires of kind k come from: the active rivals (never China), split by their heads of the kind and
+ *  capped by what they have; each rival's share split between `core.staff.cap` and `core.staff.saf` by where the kind's heads
+ *  sit (the roster keeps its fixed REF_ROLE_SHARE / SAF_ROLE_SHARE mix). Pure: poachFromRivals applies it, the premium
+ *  preview reads it. */
+export function poachSplit(s: GameStateV2, k: TeamRole, n: number): { r: RivalLab; cap: number; saf: number }[] {
+  if (!(n > 0)) return [];
+  const rows: { r: RivalLab; capK: number; safK: number }[] = [];
   let total = 0;
   for (const r of s.rivals) {
     if (r.core.status !== 'active') continue;
     const capK = r.core.staff.cap * REF_ROLE_SHARE[k];
     const safK = k === 'eng' ? 0 : r.core.staff.saf * SAF_ROLE_SHARE[k];
+    if (capK + safK <= 0) continue;
     rows.push({ r, capK, safK });
     total += capK + safK;
   }
-  if (total <= 0) return 0;
+  if (total <= 0) return [];
   const take = Math.min(n, total);
-  for (const { r, capK, safK } of rows) {
-    const h = capK + safK;
-    if (h <= 0) continue;
-    const m = (take * h) / total;
-    r.core.staff.cap = Math.max(0, r.core.staff.cap - (m * capK) / h);
-    r.core.staff.saf = Math.max(0, r.core.staff.saf - (m * safK) / h);
+  return rows.map(({ r, capK, safK }) => ({ r, cap: (take * capK) / total, saf: (take * safK) / total }));
+}
+
+/** The days the rivals fall back if `n` hires of kind k are poached: the poach-in shock (npc/shocks.ts poachInDays) of each
+ *  rival's capabilities heads moved, summed. The premium preview reads it with a year of poached hires. */
+export const poachFallbackDays = (s: GameStateV2, k: TeamRole, n: number) =>
+  poachSplit(s, k, n).reduce((a, m) => a + shock.poachInDays(s, m.r, m.cap), 0);
+
+/**
+ * `n` of this week's hires of kind k come from the rivals (poachSplit). Each rival takes the poach-in shock (npc/shocks.ts
+ * poachIn, the one rule for people moving to the player, as C4) by the capabilities heads it loses (the shock's measure is
+ * the share of its capabilities staff), sized before they go, then loses exactly its heads. growLabStaff multiplies the
+ * lower number from then on: the loss is not refilled. Returns the heads taken.
+ */
+export function poachFromRivals(s: GameStateV2, k: TeamRole, n: number): number {
+  let took = 0;
+  for (const { r, cap, saf } of poachSplit(s, k, n)) {
+    shock.poachIn(s, r, cap);
+    r.core.staff.cap = Math.max(0, r.core.staff.cap - cap);
+    r.core.staff.saf = Math.max(0, r.core.staff.saf - saf);
+    took += cap + saf;
   }
-  return take;
+  return took;
 }
 
 // ───────── Weekly flows ─────────

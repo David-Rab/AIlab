@@ -14,7 +14,7 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
   CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
-  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, sizeScrutiny, SCRUTINY_WINDOW_DAYS,
+  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
@@ -49,7 +49,6 @@ import {
 } from './effective';
 import { internalVersion, otherLabs, uniqueVersionName, versionById } from './labs';
 import { baseLabel, continuedName, nextMinor, reserveBaseName, studentName, versionLabel } from './naming';
-import { baseFlopPerDay } from '../actors/rivalModel';
 import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
 import { poolsOf } from '../compute/power';
@@ -175,20 +174,11 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
-/** RD-T11: the largest non-player training run in progress (at its planned FLOP) or finished in the last
- *  SCRUTINY_WINDOW_DAYS (active labs, China included). None in the window: the largest current base of any lab. */
+/** RD-T11: the largest non-player training run: the training FLOP of the biggest internal model of any active lab (China included). */
 export function rivalRunFlop(s: GameStateV2): number {
-  const day = s.time.day;
   let best = 0;
-  let any = 0;
-  for (const r of otherLabs(s)) {
-    if (r.core.status !== 'active') continue;
-    const ph = r.phys;
-    any = Math.max(any, ph.base.flop);
-    if (day - ph.base.day <= SCRUTINY_WINDOW_DAYS) best = Math.max(best, ph.base.flop);
-    if (ph.run) best = Math.max(best, ph.run.flop + baseFlopPerDay(r, decimalYear(s)) * Math.max(0, r.nextBaseDay - day));
-  }
-  return best > 0 ? best : any;
+  for (const r of otherLabs(s)) if (r.core.status === 'active') best = Math.max(best, r.internal.flop ?? 0);
+  return best;
 }
 /** Public scrutiny of a base run of `flop` (RD-T11): its FLOP over the largest rival run. */
 export const runScrutiny = (s: GameStateV2, flop: number) => {

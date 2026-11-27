@@ -54,13 +54,10 @@ export const STAR_TOP_PERCENTILE = 0.999;
 
 /** The stars' employers at the start, shares [Semantic Scholar top-25 cited NeurIPS/ICML/ICLR 2020-23, by paper
  *  affiliation: Google 0.24, OpenAI 0.20, Meta 0.12, Microsoft 0.04, outside 0.32, China 0.08; LABOUR-SOURCES §13].
- *  Confidence L. */
+ *  Confidence L. The game reads only the player's share: OpenAI's (designer decision 4, the player is the leading lab).
+ *  NPC labs hold no stars (designer, 2026-11-27): every other star is in the one outside group. */
 export const STAR_EMPLOYER0 = { google: 0.24, openai: 0.20, meta: 0.12, microsoft: 0.04, outside: 0.32, china: 0.08 } as const;
 
-/** Which named lab each game lab stands for, in rank order (designer decision 4: the player is the leading lab and takes
- *  OpenAI's share). The player first, then the game's rivals in their order; a rival past the list, or a name with no rival
- *  to hold it, holds nothing (its share goes to "outside"). Mapping by rank is the lead's choice, not sourced. */
-export const STAR_LAB_ORDER: readonly (keyof typeof STAR_EMPLOYER0)[] = ['openai', 'google', 'meta', 'microsoft'];
 
 /** The pay-premium menu, share above the market wage [D] (LABOUR-ROUND §4.1: 0 / +10 / +25 / +50 / +100%). */
 export const PREMIUM_STEPS: readonly number[] = [0, 0.10, 0.25, 0.50, 1.00];
@@ -68,9 +65,6 @@ export const PREMIUM_STEPS: readonly number[] = [0, 0.10, 0.25, 0.50, 1.00];
 /** Floor of the teams' base taste b (init.ts initialLabour): b = (S0 + n0 − Σ T_star,0) ÷ S0 goes non-positive only if the
  *  start stars outweigh the scientists; the floor keeps T_h > 0 (a numerical guard, not a tuned value). */
 export const BASE_TASTE_FLOOR = 0.05;
-
-/** Poaching a rival's star costs that rival's cooperation, points [D] (today's value, kept: the old star hire took -20 from the rivals). */
-export const STAR_POACH_COOPERATION = -20;
 
 /** Generated names for the stars (first + last), neutral and mixed in origin. [D] flavour. */
 export const STAR_FIRST_NAMES: readonly string[] = [

@@ -8,7 +8,7 @@ import { defineParams, type Param } from '../schema';
 
 const ACT = 'src/data/actors.ts';
 const WORLD = 'src/data/world.ts';
-const RIVM = 'src/data/v2/rivalModel.ts';
+const RIVM = 'src/data/v2/npcLabs.ts';
 const BLOCS = 'src/data/v2/blocs.ts';
 const AGENTS = 'src/data/v2/agents.ts';
 
@@ -156,74 +156,37 @@ const CN_FIELDS: Field[] = [
   { name: 'taiwan', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
   { name: 'treaty', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
   { name: 'openSource', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'efficiency', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'china', kind: 'designer',
-    evidence: 'actors.ts:32-34 "efficiency: 1 for every preset (CAL-W: AI 2027 gives DeepCent no research efficiency separable from compute; the Fast Follower 1.1 / Diffuser 1.05 flavours were [D] with no source; designer CP3k: equal recipe efficiency)"',
-    source: 'research/CAL-world-sources.md (CAL-W)',
-    notes: 'Designer CP3k plus research pointer CAL-W (as world.ts:220-221 cites it); 1 in every preset. research/10 says "cost_efficiency +25%" / "rd efficiency +20%" for the Fast Follower; the code has 1.' },
   { name: 'hawk', area: 'actors', layer: 'policy', actor: 'china', notes: 'Hawkishness score, 30-80' },
 ];
 const CN_VALUES: Preset[] = [
-  { id: 'fastfollower', values: [35, 0.5, 0.7, 0.8, 1, 1.3, 1, 40] },
-  { id: 'diffuser', values: [20, 0.6, 0.8, 0.7, 1.2, 1.8, 1, 35] },
-  { id: 'selfreliant', values: [20, 1, 0.9, 0.6, 1, 1, 1, 45] },
-  { id: 'nationalizer', values: [10, 1.6, 1.6, 1.3, 0.7, 0.3, 1, 65] },
-  { id: 'gambler', values: [5, 1.6, 1.6, 2, 0.4, 0.3, 1, 80] },
-  { id: 'bargainer', values: [10, 1, 0.8, 0.6, 1.8, 0.9, 1, 30] },
+  { id: 'fastfollower', values: [35, 0.5, 0.7, 0.8, 1, 1.3, 40] },
+  { id: 'diffuser', values: [20, 0.6, 0.8, 0.7, 1.2, 1.8, 35] },
+  { id: 'selfreliant', values: [20, 1, 0.9, 0.6, 1, 1, 45] },
+  { id: 'nationalizer', values: [10, 1.6, 1.6, 1.3, 0.7, 0.3, 65] },
+  { id: 'gambler', values: [5, 1.6, 1.6, 2, 0.4, 0.3, 80] },
+  { id: 'bargainer', values: [10, 1, 0.8, 0.6, 1.8, 0.9, 30] },
 ];
 const GAMBLER_Q = 'the row gives only taiwan 2.0 and treaty 0.4; the Gambler is a sub-roll of the Centralized Sprint, but CLASSIFY does not say whether a sub-roll inherits the parent row (Q-actors-data-8)';
 const CN_ROWS: Record<string, Row> = {
   fastfollower: { name: 'Fast Follower', file: R10, line: 51, weight: '35%', text: 'centralize 0.5, distill 1.5, open 1.3, theft 0.7, taiwan 0.8, treaty 1.0, cost_efficiency +25%',
-    cells: { weight: true, centralize: true, theft: true, taiwan: true, treaty: true, openSource: { s: 'research/10 names it "open"' }, efficiency: null, hawk: N10 } },
+    cells: { weight: true, centralize: true, theft: true, taiwan: true, treaty: true, openSource: { s: 'research/10 names it "open"' }, hawk: N10 } },
   diffuser: { name: 'Open-Source Diffuser', file: R10, line: 52, weight: '20%', text: 'open 1.8, norms_diplo +20, global_share_bonus, theft 0.8, taiwan 0.7',
-    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: 'not in research/10 (the row has norms_diplo +20, no treaty)', openSource: { s: 'research/10 names it "open"' }, efficiency: null, hawk: N10 } },
+    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: 'not in research/10 (the row has norms_diplo +20, no treaty)', openSource: { s: 'research/10 names it "open"' }, hawk: N10 } },
   selfreliant: { name: 'Self-Reliance Fortress', file: R10, line: 53, weight: '20%', text: 'self_reliance 1.8, domestic_fab ×1.5, US_chip_uptake 0.3, smuggling 0.8, taiwan 0.6, centralize 1.0',
-    cells: { weight: true, centralize: true, theft: N10, taiwan: true, treaty: N10, openSource: N10, efficiency: null, hawk: N10 } },
+    cells: { weight: true, centralize: true, theft: N10, taiwan: true, treaty: N10, openSource: N10, hawk: N10 } },
   nationalizer: { name: 'Centralized Sprint', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail ... about 5% overall)',
     text: 'centralize 1.6, theft 1.6, open → 0.3 after rung 3, taiwan 1.3, treaty 0.7 (offers only from weakness), hawk +20',
     cells: { weight: { s: '15% less the Gambler tail of 1 in 3 (about 5% overall) = 10' }, centralize: true, theft: true, taiwan: true, treaty: true,
       openSource: 'research/10 says "open → 0.3 after rung 3"; the preset field holds 0.3 with no rung condition',
-      efficiency: null, hawk: { q: 'research/10 gives hawk +20 and a start of 45 [D]; 65 is 45 + 20, a sum of two research numbers that the text does not state (Q-actors-data-9)' } } },
+      hawk: { q: 'research/10 gives hawk +20 and a start of 45 [D]; 65 is 45 + 20, a sum of two research numbers that the text does not state (Q-actors-data-9)' } } },
   gambler: { name: 'Hawkish Gambler', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall)',
     text: 'sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall',
-    cells: { weight: true, centralize: { q: GAMBLER_Q }, theft: { q: GAMBLER_Q }, taiwan: true, treaty: true, openSource: { q: GAMBLER_Q }, efficiency: null,
+    cells: { weight: true, centralize: { q: GAMBLER_Q }, theft: { q: GAMBLER_Q }, taiwan: true, treaty: true, openSource: { q: GAMBLER_Q },
       hawk: 'research/07-actors.md:281 says Taiwan Gambler "hawk +30" (75 from a start of 45); the code has 80' } },
   bargainer: { name: 'Cautious Stabilizer', file: R10, line: 55, weight: '10%', text: 'treaty 1.8, verification +25, safety +25, taiwan 0.6, theft 0.8',
-    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: true, openSource: N10, efficiency: null, hawk: N10 } },
+    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: true, openSource: N10, hawk: N10 } },
 };
 
-// ───────────────────────── actors.ts: LAB_ARCHETYPES ─────────────────────────
-// gapYears: research/07 gives the gap in months (the Gap_Months meter, research/07-actors.md:204); the code is in years.
-const LAB_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'rivals',
-    notes: 'Probability a rival draws this archetype; the five sampled weights sum to 100.' },
-  { name: 'safety', area: 'actors', layer: 'policy', actor: 'rivals' },
-  { name: 'openness', area: 'actors', layer: 'policy', actor: 'rivals' },
-  { name: 'lobby', area: 'actors', layer: 'policy', actor: 'rivals', notes: 'Lobbying stance, -70..60' },
-  { name: 'computeMult', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'rivals' },
-  { name: 'gapYears', unit: 'years', area: 'actors', layer: 'world', actor: 'rivals', notes: 'Array order = low, high (start gap range behind the leader)' },
-];
-const LAB_VALUES: Preset[] = [
-  { id: 'safety', values: [25, 80, 15, 60, 0.8, [0.15, 0.45]] },
-  { id: 'bigtech', values: [30, 50, 30, -20, 1.3, [0.1, 0.4]] },
-  { id: 'maverick', values: [20, 20, 50, -70, 1, [0.2, 0.5]] },
-  { id: 'openweights', values: [15, 30, 85, -40, 0.7, [0.35, 0.7]] },
-  { id: 'upstart', values: [10, 55, 20, 0, 0.3, [0.5, 1.1]] },
-  // The leader row (actors.ts:50-53 comment): never sampled; computeMult and gapYears are "unused", so not registered.
-  { id: 'leader', values: [0, 35, 25, -30, 1, [0, 0]], skip: ['computeMult', 'gapYears'] },
-];
-const LAB_ROWS: Record<string, Row> = {
-  safety: { name: 'Safety Rival', file: R07, line: 219, weight: '25%', text: 'safety 80, openness 15, lobby +60, poach 40, cooperation 50, gap 2-6',
-    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: N07, gapYears: 'research/07 says gap 2-6 months (0.17-0.5 y); the code has 0.15-0.45' } },
-  bigtech: { name: 'Big Tech Incumbent', file: R07, line: 220, weight: '30%', text: 'safety 50, openness 30, lobby -20, compute ×1.5, gap 1-5, reaction lag 30 d',
-    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: 'research/07 says compute ×1.5; the code has 1.3', gapYears: 'research/07 says gap 1-5 months (0.08-0.42 y); the code has 0.1-0.4' } },
-  maverick: { name: 'Maverick Accelerationist', file: R07, line: 221, weight: '20%', text: 'safety 20, openness 50, lobby -70, build_speed ×1.5, scandal_rate ×2',
-    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: N07, gapYears: N07 } },
-  openweights: { name: 'Open-Weights Spoiler', file: R07, line: 222, weight: '15%', text: 'openness 85 (drops to 40 if gap < 3 mo), safety 30, gap 4-9',
-    cells: { weight: true, safety: true, openness: true, lobby: N07, computeMult: N07, gapYears: 'research/07 says gap 4-9 months (0.33-0.75 y); the code has 0.35-0.7' } },
-  upstart: { name: 'Boutique Upstart', file: R07, line: 223, weight: '10%', text: 'poach 80, compute ×0.3, gap 6-15, acquisition_prob high',
-    cells: { weight: true, safety: N07, openness: N07, lobby: N07, computeMult: true, gapYears: 'research/07 says gap 6-15 months (0.5-1.25 y); the code has 0.5-1.1' } },
-};
-const LEADER_NOTE = 'actors.ts:50-52 "The AI 2027 leading lab (BUILD-PLAN R2): never sampled (weight 0); ... at reference inputs"; no tag on the value';
 
 // ───────────────────────── world.ts: BASELINES ─────────────────────────
 const BL_EVID = 'no tag; world.ts:246-260 (the Baseline.start field comments carry units only)';
@@ -298,8 +261,6 @@ export const PARAMS_ACTORS_DATA = defineParams([
   ...presetParams('acd', ACT, 'GOV_PRESETS', GOV_FIELDS, GOV_VALUES, rowOverride(GOV_ROWS)),
   ...presetParams('acd', ACT, 'PUBLIC_PRESETS', PUB_FIELDS, PUB_VALUES, rowOverride(PUB_ROWS)),
   ...presetParams('acd', ACT, 'CHINA_PRESETS', CN_FIELDS, CN_VALUES, rowOverride(CN_ROWS)),
-  ...presetParams('acd', ACT, 'LAB_ARCHETYPES', LAB_FIELDS, LAB_VALUES, (id, f) =>
-    id === 'leader' ? { kind: 'untagged', evidence: `no tag; ${LEADER_NOTE}`, notes: 'Leader row; weight 0 means never sampled. computeMult and gapYears are unused there and not registered.' } : rowOverride(LAB_ROWS)(id, f)),
 
   // ───────────────────────── world.ts ─────────────────────────
   ...baselineParams(),
@@ -377,53 +338,11 @@ export const PARAMS_ACTORS_DATA = defineParams([
 
   // ───────────────────────── v2/rivalModel.ts ─────────────────────────
   {
-    id: 'acd.PRE_RATE0', ref: { kind: 'export', module: RIVM, symbol: 'PRE_RATE0' }, value: 0.48, unit: 'OOM/yr',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'sourced',
-    evidence: 'rivalModel.ts:12-16 "Ho et al.\'s ≈ 0.48 OOM/yr of pretraining progress (3×/yr, research/20 B1) [R20 B1]"', source: 'research/20 B1 (Ho et al.)',
-    notes: 'Pretraining recipe growth of the leader lab\'s day-0 research inputs.',
-  },
-  {
-    id: 'acd.BASE_RUN_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'BASE_RUN_DAYS' }, value: 121, unit: 'days',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
-    evidence: 'rivalModel.ts:17-18 "A base run trains for this many days on this share of the lab\'s training pool: RefBot\'s sizing (bases that train in ≈ 121 days on 60% of its pool, V1 notes; v2\'s 1F run) [D]."',
-    source: 'V1 notes; v2 1F run',
-    notes: 'copy of bots.ref.REF_BASE_DAYS (bots/ref.ts:105, 91 x 0.8 / 0.6); a literal copy takes the original\'s kind (CLASSIFY A7)',
-  },
-  {
-    id: 'acd.BASE_POOL_SHARE', ref: { kind: 'export', module: RIVM, symbol: 'BASE_POOL_SHARE' }, value: 0.6, unit: 'fraction of training pool',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:17-18 "...on this share of the lab\'s training pool: RefBot\'s sizing ... [D]." (one comment above both constants)',
-    source: 'V1 notes; bots/ref.ts:101 "60% of the pool"',
-  },
-  {
     id: 'acd.RIVAL_TPP', ref: { kind: 'export', module: RIVM, symbol: 'RIVAL_TPP' }, value: 400, unit: 'tokens per active parameter',
     area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
     evidence: 'rivalModel.ts:21-24 "the reference design\'s (runDesign.ts REF_TPP, 400 since A6b) [R20 A1, D]"; `RIVAL_TPP = REF_TPP`',
     source: 'research/20 A1 (DeepSeek-V3 about 400 tokens per active parameter)',
     notes: 'Computed from REF_TPP (another file; cap.REF_TPP); the comment also tags [R20 A1, D].',
-  },
-  {
-    id: 'acd.CL_POOL_SHARE', ref: { kind: 'export', module: RIVM, symbol: 'CL_POOL_SHARE' }, value: 0.15, unit: 'fraction of training pool',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS); "(the player\'s STREAM_POOL_SHARE; ...)"',
-    notes: 'copy of cap.STREAM_POOL_SHARE (runDesign.ts:124); a literal copy takes the original\'s kind (CLASSIFY A7)',
-  },
-  {
-    id: 'acd.CL_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'CL_DAYS' }, value: 7, unit: 'days',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS); "every CL_DAYS spends the FLOP it delivered"',
-    notes: 'copy of cap.STREAM_PERIOD_DAYS (the player\'s weekly stream period, 7); a literal copy takes the original\'s kind (CLASSIFY A7)',
-  },
-  {
-    id: 'acd.POST_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'POST_DAYS' }, value: [42, 70], unit: 'days',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'sourced',
-    evidence: 'rivalModel.ts:33-34 "Post-training cadence (days between versions on one base): Anthropic shipped 8 frontier versions in 16 months (research/12 §0.1) [R12]."', source: 'research/12 §0.1',
-    notes: 'Array order = low, high.',
-  },
-  {
-    id: 'acd.START_PUBLIC_GAP_OOM', ref: { kind: 'export', module: RIVM, symbol: 'START_PUBLIC_GAP_OOM' }, value: 0.18, unit: 'OOM of G',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:36 "Public start model: this many OOM of G under the internal one at day 0 (v2\'s start gap) [D]. Was 0.15 progress-years."',
   },
   {
     id: 'acd.SERVE_RATE0', ref: { kind: 'export', module: RIVM, symbol: 'SERVE_RATE0' }, value: 0.2, unit: 'OOM/yr',

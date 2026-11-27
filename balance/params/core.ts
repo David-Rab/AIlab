@@ -648,19 +648,6 @@ export const PARAMS_CORE = defineParams([
     evidence: 'starts.ts:15 "... and site headroom for the owned fleet [D]"',
   },
   {
-    id: 'core.starts.LEASE_PER_GW_Y',
-    ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: 'const LEASE_PER_GW_Y = 1.2;' },
-    value: 1.2, unit: 'USD B per GW-year', area: 'core', layer: 'world', actor: 'player', kind: 'sourced', source: 'research/15',
-    evidence: 'starts.ts:18 "Colocation lease ≈ $1.2B per GW-year (finance/ledger.ts, R15)": a copy of the ledger\'s rate (ledger.ts:17 tags it "[D]")',
-    notes: 'A7: copy of mkt.LEASE.perGWYear (finance/ledger.ts S1 lease rate).',
-  },
-  {
-    id: 'core.starts.BROWNFIELD_PER_GW',
-    ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: 'const BROWNFIELD_PER_GW = 14;' },
-    value: 14, unit: 'USD B per GW', area: 'core', layer: 'world', actor: 'player', kind: 'sourced', source: 'research/15 §1.2 ("R15")', notes: 'A7: literal 14 = mkt.FACILITY_PER_GW 10 + mkt.NETWORK_PER_GW 4 (the leader start site).',
-    evidence: 'starts.ts:18 "brownfield capex $14B/GW (the leader\'s S2)": copied from the leader start\'s site',
-  },
-  {
     id: 'core.starts.revolverSpread',
     ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: "spreadBp: 250, maturityDay: 365 * 5" },
     value: 250, unit: 'bp over SOFR', area: 'finance', layer: 'world', actor: 'player', kind: 'untagged',

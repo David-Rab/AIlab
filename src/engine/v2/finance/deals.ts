@@ -6,10 +6,10 @@
 // same flow. Every supply price follows the expected market path (FIN1) less the firm discount and the partner's own.
 // FIN4b (spec §6.1 strings): up to 3 partners at once; exclusivity and IP access are optional strings that add money
 // (shown on the offer, under the stake cap); IP access lets the partner's affiliated rival lab close ~10% a year of your
-// capability lead (the rivals' one-line hook `ipAccessDaily`), behind the PBC + trust's transfer vote for a
+// capability lead (npc/shocks.ts ipAccess, a line in the rivals' day), behind the PBC + trust's transfer vote for a
 // capability-threshold model.
 // Owner: WS3.
-import { AFFILIATE_ARCHETYPE, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
+import { AFFILIATE_KIND, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
 import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, RivalLab, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
@@ -17,7 +17,7 @@ import { cloudPricePerYear } from '../compute/market';
 import { addSeat, boardVote, commitmentsVote, voteGate } from './board';
 import { controlVotes, ipTransferVote } from './charter';
 import { issue, partnerEquityIn, raiseCeiling, stakeRoom } from './equity';
-import { gwOwned, leadEstimate, licensedGap } from './observe';
+import { gwOwned, leadEstimate } from './observe';
 import { ensureWs3 } from './ext';
 import { qOf } from './ledger';
 import { divisionBlock } from './parent';
@@ -54,13 +54,11 @@ const ST = PARTNER_TERMS.strings;
  *  before the start do not count. At most PARTNER_TERMS.strings.maxPartners (3). */
 export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => !d.legacy).map((d) => d.partner))];
 
-/** A hyperscaler's affiliated lab now (data/v2/deals.ts AFFILIATE_ARCHETYPE): the active big-tech rivals, in rival
- *  order, go to the hyperscalers in partner order; none for chip vendors, sovereigns, or a hyperscaler left without
- *  one. */
+/** A partner's affiliated lab now (data/v2/deals.ts AFFILIATE_KIND): the active big-tech NPC lab, for a partner marked
+ *  `inHouse`; none otherwise. */
 export function affiliatedLab(s: GameStateV2, partner: string): RivalLab | undefined {
-  if (partnerDef(partner)?.kind !== 'hyperscaler') return undefined;
-  const i = PARTNER_DEFS.filter((x) => x.kind === 'hyperscaler').findIndex((x) => x.id === partner);
-  return s.rivals.filter((r) => r.core.status === 'active' && r.archetype === AFFILIATE_ARCHETYPE)[i];
+  if (!partnerDef(partner)?.inHouse) return undefined;
+  return s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === AFFILIATE_KIND);
 }
 const labName = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab;
 
@@ -335,21 +333,6 @@ export function partnerCosts(s: GameStateV2): { partner: string; revenueShare: n
     });
   }
   return out;
-}
-
-/** Daily knowledge (OOM of G into the lab's pretraining recipe; FINM: was know-how pa) a rival lab gains from your
- *  IP-access deals (FIN4b, spec §6.1): for each running deal whose affiliated lab it is, 10% a year of the capability
- *  gap (G) between the model the licence reaches and the lab's best (model vs model, like distillation), so it closes
- *  about 10% of your lead a year. Under PBC + trust without the trust's yes the licence stops below the capability
- *  thresholds. actors/rivals.ts labDaily adds it (one line, addRivalKnowledge). */
-export function ipAccessDaily(s: GameStateV2, lab: LabId): number {
-  let d = 0;
-  for (const x of s.player.finance.deals) {
-    const ip = x.strings.ipAccess;
-    if (!ip || ip.lab !== lab || x.until <= s.time.day) continue;
-    d += (ST.ipCloseYr * licensedGap(s, lab, s.player.board.preset === 'pbcTrust' && !ip.trust)) / 365;
-  }
-  return d;
 }
 
 /** Share of a round an anchor must take for the 14% dilution limit (R15 §1.5). */

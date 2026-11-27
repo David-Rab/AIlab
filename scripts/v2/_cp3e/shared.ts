@@ -13,7 +13,7 @@ if (mode === 'after') {
   runRef(r, Number(refDaysS), (x) => x.player.milestoneDays[3] !== undefined);
   console.log(`RefBot game to day ${r.time.day} (SC ${r.player.milestoneDays[3]}) ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
-const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false, leaderLab: true }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
 const L = s.rivals.find((r) => r.core.id === LEADER_ID)!;
 while (s.time.day < 1200 && L.core.milestoneDays[3] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
 console.log(`${mode} seed ${seed}: leader milestones ${JSON.stringify(L.core.milestoneDays)} ${((Date.now() - t0) / 1000).toFixed(0)} s`);

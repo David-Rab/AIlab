@@ -1,22 +1,25 @@
 // Start and setup screens (§6.9, §6.10). "AI 2027 scenario" is the only pre-game use of the name.
 import { useRef } from 'react';
-import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
+import { GOV_PRESETS, PUBLIC_PRESETS } from '../../../data/actors';
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
-import { CHINA_LAB_NAME, LEADER_LAB_NAME, RIVAL_NAMES_V2 } from '../../../data/v2/names';
-import { TEAM_SIZE } from '../../../data/v2/teams';
+import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
 import { START_BY_ID, START_ORDER, parentBudgetYear, type Difficulty, type StartDef } from '../../../data/v2/starts';
+import { TEAM_SIZE } from '../../../data/v2/teams';
 import type { StartType } from '../../../engine/v2';
 
-/** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines). */
+/** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines): the cast's names. */
+const CAST_NAMES = REALISTIC_CAST.map((e) => e.name);
+const LEADER_NAME = REALISTIC_CAST.find((e) => e.kind === 'leader')!.name;
 export function nameClash(name: string): string | undefined {
   const n = name.trim().toLowerCase();
   if (!n) return 'Name your company';
-  const hit = [...RIVAL_NAMES_V2, CHINA_LAB_NAME, LEADER_LAB_NAME].find((x) => x.toLowerCase() === n);
+  const hit = CAST_NAMES.find((x) => x.toLowerCase() === n);
   return hit ? `${hit} is a rival lab: pick another name` : undefined;
 }
 import { useV2 } from '../store';
 import { Soon, Tip, TipCard } from '../ui';
+import { RivalsSection } from './Rivals';
 
 const CAMPAIGNS = [
   { id: 'ceo', name: 'Frontier lab CEO', desc: 'Run a frontier lab from July 2025 to superintelligence.', active: true },
@@ -97,8 +100,8 @@ function StartPicker() {
   const cur = st.draftSetup.start ?? 'leader';
   const pick = (id: StartType) => {
     const d = START_BY_ID[id];
-    // The leader lab follows the start (D1); the board is the start's own unless you lead (then Governance picks it).
-    st.draftSetup = { ...st.draftSetup, start: id, leaderLab: d.leaderLab, ...(id === 'leader' ? {} : { governance: d.board }) };
+    // The board is the start's own unless you lead (then Governance picks it).
+    st.draftSetup = { ...st.draftSetup, start: id, ...(id === 'leader' ? {} : { governance: d.board }) };
     st.notify();
   };
   return (
@@ -111,7 +114,7 @@ function StartPicker() {
           return (
             <Tip key={id} content={() => (
               <TipCard title={`${d.name} · ${d.difficulty}`}>
-                {`${d.character} Like ${d.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; board ${BOARD_LABEL[d.board] ?? d.board}.${d.leaderLab ? ` The AI 2027 leader (${LEADER_LAB_NAME}) races you.` : ''} Scoring is the same for every start.`}
+                {`${d.character} Like ${d.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; board ${BOARD_LABEL[d.board] ?? d.board}.${d.leaderLab ? ` The frontier leader (${LEADER_NAME}) races you.` : ''} Scoring is the same for every start.`}
               </TipCard>
             )}>
               <button className={`start-opt ${cur === id ? 'active' : ''}`} data-opt={id} onClick={() => pick(id)}>
@@ -162,9 +165,7 @@ export function SetupScreen() {
         <div className="setup-col">
           <Picker label="Government" k="gov" opts={presetOpts(GOV_PRESETS)} />
           <Picker label="Public" k="public" opts={presetOpts(PUBLIC_PRESETS)} />
-          <Picker label="China" k="china" opts={presetOpts(CHINA_PRESETS)} />
-          <Picker label="Rivals" k="rivals" opts={presetOpts(LAB_ARCHETYPES.filter((a) => a.weight > 0))} />
-          <Picker label="Rival labs" k="rivalCount" opts={[{ v: 3, label: '3' }, { v: 4, label: '4' }]} />
+          <RivalsSection />
           <Picker label="Tutorial (panels unlock by act)" k="tutorial" opts={[{ v: true, label: 'On' }, { v: false, label: 'Off: everything unlocked' }]} />
           <div>
             <div className="picker-label">Company · seed</div>

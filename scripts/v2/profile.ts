@@ -49,7 +49,7 @@ function play(mk: () => GameStateV2, bot: boolean, opts?: TickOptions) {
 
 const CASES: [string, () => GameStateV2, boolean, TickOptions | undefined][] = [
   ['hygiene, seed 9', () => newGame(defaultSetupV2({ seed: 9 })), false, undefined],
-  ['hygiene, seed 9, leader lab', () => newGame(defaultSetupV2({ seed: 9, leaderLab: true })), false, { skip: ['endings'] }],
+  ['hygiene, seed 9, leader lab', () => newGame(defaultSetupV2({ seed: 9 })), false, { skip: ['endings'] }],
   ['RefBot, seed 5, sampled alignment', () => newGame(defaultSetupV2({ seed: 5, world: 'tl-central', alignment: 'sampled', econ: 'sampled' })), true, { skip: ['endings'] }],
 ];
 for (const [name, mk, bot, opts] of CASES) {

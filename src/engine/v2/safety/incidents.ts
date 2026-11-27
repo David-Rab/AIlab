@@ -11,7 +11,7 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
-import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, V0_V2_LEVEL, type ActDef } from '../../../data/v2/danger';
+import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, UMODE_ACT, V0_V2_LEVEL, type ActDef } from '../../../data/v2/danger';
 import { reviewCatch } from './lineProjects';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -518,13 +518,6 @@ export function containAtAsi(s: GameStateV2): number {
   const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const dep = internal.find((d) => d.versionId === s.player.agents.capRoutine.versionId) ?? internal[0];
   return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!controlOn(dep), false, uModeContainMult(v.uModes));
-}
-
-/** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
- *  containment). WS4 rolls them with its own stream; visibility per its posture. */
-export function labModelHazards(w: TimelineWorld, m: { traitsTrue: TraitVector; uModes: readonly UModeId[]; domains: Record<DomainId, number> }, mitigation: number): HazardRow[] {
-  const site: Site = { internal: false, scale: RIVAL_SITE.usage, autonomy: RIVAL_SITE.autonomy, afford: RIVAL_SITE.afford, rd: 0, contain: mitigation, wsl: 0 };
-  return modelHazards(w, m.traitsTrue, m.uModes, m.domains, site, () => true);
 }
 
 /**

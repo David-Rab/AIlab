@@ -201,31 +201,44 @@ export function moveTeam(s: GameStateV2, ctx: SystemCtx, id: string): string | u
   return undefined;
 }
 
-/** People gained or lost outside hiring (events, acquisitions, poaching actions), in whole teams. The head change is split
- *  by the role shares (REF_ROLE_SHARE for capabilities, SAF_ROLE_SHARE for safety) and each role's share rounded to whole teams
- *  of its size. A gain adds that many full teams (a gain also raises the keep-hiring target to hold them); a loss removes
- *  that many whole teams, newest first, as many as the department has. Returns the heads actually moved (signed). */
+/** The whole teams a head change of `delta` in `dept` moves: the change split by the role shares (REF_ROLE_SHARE for
+ *  capabilities, SAF_ROLE_SHARE for safety) and each role's share rounded to whole teams of its size. A gain is that many
+ *  new full teams; a loss that many whole teams of the key, newest first, as many as the department has. Pure: changeHeads
+ *  applies it and the previews of the moves read it (headsMoved). */
+function headsPlan(p: Pick<PlayerLab, 'teams'>, dept: TeamDept, delta: number): { role: TeamRole; key: TeamKey; n: number; heads: number }[] {
+  if (!Number.isFinite(delta) || delta === 0) return [];
+  const share: Partial<Record<TeamRole, number>> = dept === 'cap' ? REF_ROLE_SHARE : SAF_ROLE_SHARE;
+  return (['eng', 're', 'sci'] as TeamRole[]).map((role) => {
+    const key = dept === 'cap' && role === 'eng' ? 'eng' : (`${role}.${dept}` as TeamKey);
+    const want = Math.round((Math.abs(delta) * (share[role] ?? 0)) / TEAM_SIZE[role]);
+    if (delta > 0) return { role, key, n: want, heads: want * TEAM_SIZE[role] };
+    const gone = want > 0 ? teamsOfKey(p, key).slice(-want) : [];
+    return { role, key, n: gone.length, heads: gone.reduce((a, x) => a + x.heads, 0) };
+  });
+}
+/** The heads a head change of `delta` would move, unsigned (what changeHeads returns, without changing anything). */
+export const headsMoved = (p: Pick<PlayerLab, 'teams'>, dept: TeamDept, delta: number) => headsPlan(p, dept, delta).reduce((a, x) => a + x.heads, 0);
+
+/** People gained or lost outside hiring (events, acquisitions, poaching actions), in whole teams (headsPlan). A gain also
+ *  raises the keep-hiring target to hold its teams. Returns the heads actually moved (signed). */
 export function changeHeads(s: GameStateV2, dept: TeamDept, delta: number): number {
   const p = s.player;
-  if (!Number.isFinite(delta) || delta === 0) return 0;
-  const share: Partial<Record<TeamRole, number>> = dept === 'cap' ? REF_ROLE_SHARE : SAF_ROLE_SHARE;
+  const plan = headsPlan(p, dept, delta);
+  if (!plan.length) return 0;
   let moved = 0;
-  for (const role of ['eng', 're', 'sci'] as TeamRole[]) {
-    const n = Math.round((Math.abs(delta) * (share[role] ?? 0)) / TEAM_SIZE[role]);
-    const k = dept === 'cap' && role === 'eng' ? 'eng' : (`${role}.${dept}` as TeamKey);
+  for (const { role, key, n } of plan) {
     for (let i = 0; i < n; i++) {
       if (delta > 0) {
         const team = newTeam(p.hiring, role, dept, role === 'sci' ? nextSpecialty(p.teams, dept) : undefined);
         p.teams.push(team);
         moved += team.size;
       } else {
-        const at = p.teams.map((x) => keyOf(x)).lastIndexOf(k);
-        if (at < 0) break;
+        const at = p.teams.map((x) => keyOf(x)).lastIndexOf(key);
         moved -= p.teams[at].heads;
         p.teams.splice(at, 1);
       }
     }
-    if (delta > 0) p.hiring.targets[k] = Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
+    if (delta > 0) p.hiring.targets[key] = Math.max(p.hiring.targets[key] ?? 0, teamsOfKey(p, key).length);
   }
   syncTeams(s);
   return moved;

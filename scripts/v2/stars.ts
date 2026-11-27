@@ -11,7 +11,7 @@ import { humanTasteMean } from '../../src/engine/v2/departments/workfit';
 import { hirableStars } from '../../src/engine/v2/departments/stars';
 import { payrollOf } from '../../src/engine/v2/departments/teams';
 import { isCapProject, sciOn } from '../../src/engine/v2/models/research';
-import { PREMIUM_STEPS, STAR_POACH_COOPERATION, W_STAR0 } from '../../src/data/v2/labourMarket';
+import { W_STAR0 } from '../../src/data/v2/labourMarket';
 import { TIMELINE_DRAWS } from '../../src/data/v2/timelineDraws';
 import { PROJECT_BY_ID } from '../../src/data/v2/tree';
 import type { GameStateV2, Star } from '../../src/engine/v2/types';
@@ -111,33 +111,14 @@ const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'pl
   check(act(s, 'starHire', { star: star.id }) !== undefined, 'a star already on staff cannot be hired again');
 }
 
-// 4. Poaching a rival's star: pay x (1 + premium step), the -20 cooperation with that rival.
+// 4. NPC labs hold no stars (designer, 2026-11-27): every star is the player's or outside, and a hire leaves the NPC labs as they were.
 {
   const s = fresh();
-  const star = s.labour.stars.find((x) => x.employer !== 'outside' && x.employer !== 'player' && x.employer !== 'china') as Star;
-  const rival = s.rivals.find((r) => r.core.id === star.employer);
-  const others = s.rivals.filter((r) => r !== rival).map((r) => r.meters.cooperation);
-  const coop0 = rival ? rival.meters.cooperation : NaN;
-  const before = payrollOf(s);
-  const step = PREMIUM_STEPS[2];
-  const pay0 = star.pay;
-  const err = act(s, 'starHire', { star: star.id, premium: step });
-  const after = payrollOf(s);
-  check(!err && star.employer === 'player', 'poaching a rival\'s star makes it the player\'s', String(err ?? ''));
-  check(near(star.pay, pay0 * (1 + step)) && near(after - before, (pay0 * (1 + step)) / 1000, 1e-9), `pay = star pay x (1 + ${step}) and enters payroll`, `${star.pay} $M/yr`);
-  check(!!rival && near(rival.meters.cooperation, Math.max(-100, coop0 + STAR_POACH_COOPERATION)), `that rival's cooperation ${STAR_POACH_COOPERATION}`, `${coop0} -> ${rival?.meters.cooperation}`);
-  check(s.rivals.filter((r) => r !== rival).every((r, i) => r.meters.cooperation === others[i]), 'the other rivals are untouched');
-}
-
-// 5. China's stars cannot be hired.
-{
-  const s = fresh();
-  const cs = s.labour.stars.find((x) => x.employer === 'china');
-  if (!cs) check(false, 'a China star exists at this seed');
-  else {
-    const err = act(s, 'starHire', { star: cs.id });
-    check(err !== undefined && cs.employer === 'china', "a China star cannot be hired", String(err));
-  }
+  check(s.labour.stars.every((x) => x.employer === 'player' || x.employer === 'outside'), 'every star is the player\'s or outside');
+  const star = s.labour.stars.find((x) => x.employer === 'outside') as Star;
+  const npc0 = JSON.stringify([s.rivals, s.china.lab]);
+  const err = act(s, 'starHire', { star: star.id });
+  check(!err && star.employer === 'player' && JSON.stringify([s.rivals, s.china.lab]) === npc0, 'a star hire affects no NPC lab', String(err ?? ''));
 }
 
 // 6. The old star mechanism is gone.

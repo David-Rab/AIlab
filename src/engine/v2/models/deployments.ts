@@ -9,6 +9,7 @@ import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { kindOfChannel } from './products';
 import { relaunchCerts } from './certs';
 import { distillLift } from '../production/diffusion';
+import { B0_PARAMS } from '../../../data/v2/runDesign';
 
 /** Which version variants a channel accepts (§3.3.5). RD-P05 (DD-02 a): Government and Trusted are who a product is
  *  offered to (its channel, usage policy and safeguards), so any full or mini version can go on them; open weights are
@@ -233,5 +234,5 @@ export function distillationLeak(s: GameStateV2, lab: LabId): { dG: number; open
       openRecG = v.recG;
     }
   }
-  return { dG: distillLift(s, lab, bestG(s, lab), x.phys.base.params, true).dG, openG, openRecG };
+  return { dG: distillLift(s, lab, bestG(s, lab), x.internal.params ?? B0_PARAMS, true).dG, openG, openRecG };
 }

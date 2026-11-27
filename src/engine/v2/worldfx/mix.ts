@@ -54,7 +54,7 @@ import { techRamp } from './policy';
 import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
-import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
+import { npcDecodeU, npcServeFpt } from '../npc/model';
 import {
   chatToolAppeal, fptOfSimple, fxOn, labToolOpts, offerOf, stanceFactor,
   agentDemandOf, agentMixOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
@@ -420,8 +420,8 @@ function stockShares(s: GameStateV2, providers: Provider[], r: RegionId, seg: st
 }
 
 /** RD-P02: a lab's lineup tiers on sale (an inactive lab's open-weight ones only: others host those). */
-const tiersOf = (r: RivalLab) =>
-  (r.lineup ?? []).filter((m) => r.core.status === 'active' || m.openWeights).map((m) => ({ model: m, fpt: rivalServeFpt(r, m) }));
+const tiersOf = (s: GameStateV2, r: RivalLab) =>
+  (r.lineup ?? []).filter((m) => r.core.status === 'active' || m.openWeights).map((m) => ({ model: m, fpt: npcServeFpt(s, m) }));
 /** The market's providers (computeMix's list, in its order). */
 function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelVersion>): Provider[] {
   const providers: Provider[] = [];
@@ -438,10 +438,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, markup: m.openWeights ? OPEN_MARKUP : 1 });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(s, r), fpt: npcServeFpt(s, m), ud: npcDecodeU(s), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, markup: m.openWeights ? OPEN_MARKUP : 1 });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, markup: cn.openWeights ? OPEN_MARKUP : 1 });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s, s.china.lab), fpt: npcServeFpt(s, cn), ud: npcDecodeU(s), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, markup: cn.openWeights ? OPEN_MARKUP : 1 });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }

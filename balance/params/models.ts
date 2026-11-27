@@ -32,7 +32,6 @@ const R15 = 'research/15 §1.2 ("R15")';
 
 // ---------- src/engine/v2/compute/forecast.ts, power.ts, sites.ts, orders.ts ----------
 const CF = 'src/engine/v2/compute/forecast.ts';
-const CP = 'src/engine/v2/compute/power.ts';
 const CS = 'src/engine/v2/compute/sites.ts';
 const CO = 'src/engine/v2/compute/orders.ts';
 const CM = 'src/engine/v2/compute/market.ts';
@@ -41,23 +40,8 @@ const COMPUTE_SITES: Param[] = [
   inl('mod.forecast.KW_STEP', CF, 'const KW_STEP = 0.944', 0.944, 'x per quarter', { ...MK, kind: 'sourced', source: 'research/15 §1.2 ("R15")',
     evidence: 'no tag; forecast.ts:9 "kW per H100e falls ×0.944 each quarter (sitesQ)"',
     notes: 'A7: copy of mod.sites.kwStep (0.944; also in sitesQ and expectedCloudPrice).' }),
-  inl('mod.power.poolGWPerQ', CP, 'poolGWPerQ: 1.5, queue:', 1.5, 'GW per quarter', { ...MK, kind: 'sourced',
-    evidence: 'power.ts:10 "US large-load grid pool 1.5 GW/q at Q3 2025, ×1.25/yr (2.0 GW/q in 2026) [R15]"', source: R15 }),
-  inl('mod.power.kWPerH100e0', CP, 'kWPerH100e: 0.93, transformerLeadQ', 0.93, 'kW per H100e', { ...MK, kind: 'sourced',
-    evidence: 'power.ts:10 "kW/H100e 0.93 → 0.70 (Q4 2026) [R15]"', source: R15 }),
   inl('mod.sites.kwStep', CS, 'pw.kWPerH100e *= 0.944', 0.944, 'x per quarter', { ...MK, kind: 'sourced',
     evidence: 'sites.ts:277 "1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]"', source: R15 }),
-  inl('mod.sites.poolGrowth', CS, 'pw.poolGWPerQ *= Math.pow(1.25, 0.25)', 1.25, 'x per year', { ...MK, kind: 'sourced',
-    evidence: 'sites.ts:278 "US large-load pool ×1.25/yr [R15]"', source: R15 }),
-  inl('mod.sites.labGridShare', CS, 'pw.ws3.poolLeftGW = 0.35 * pw.poolGWPerQ', 0.35, 'fraction', { ...MK, kind: 'designer',
-    evidence: 'sites.ts:280-281 "Labs get ~35% of new large-load grid capacity; hyperscalers not modelled as labs take the rest [D]."' }),
-  inl('mod.sites.capacityPrice', CS, 'Math.min(0.15, 0.05 + 0.05 * (queued', [0.05, 0.05, 0.15], 'fraction (base, slope, cap)', { ...MK, kind: 'sourced',
-    evidence: 'sites.ts:284 "κ 0–15% [R15]"', source: R15, range: { lo: 0, hi: 0.15, from: 'sites.ts:284 "κ 0–15%"' },
-    notes: 'Grid capacity price kappa = 0.05 + 0.05 (queue / pool - 1), clamped to 0..0.15.' }),
-  inl('mod.sites.blockOdds', CS, 'let block = 0.05 + 0.1 * anti + 0.05 * gas + 0.05 * (site.crash ? 1 : 0)', [0.05, 0.1, 0.05, 0.05], 'probability (base, AntiAI, gas, crash)', { ...MK, kind: 'designer', source: 'V2-SPEC §3.8', notes: 'A8c: spec states p_block = 0.05 + 0.10 AntiAI + 0.05 gas + 0.05 crash.',
-    evidence: 'no tag; sites.ts:38 "Opposition roll at the end of permitting (§3.8): p_block = 0.05 + 0.10·AntiAI + 0.05·gas + 0.05·crash, halved by a community package"' }),
-  inl('mod.sites.delayOdds', CS, 'return { block, delay: 0.2 + 0.2 * anti }', [0.2, 0.2], 'probability (base, AntiAI)', { ...MK, kind: 'untagged',
-    evidence: 'no tag; sites.ts:39 "p_delay = 0.20 + 0.20·AntiAI (1–3 quarters)"' }),
 
   ex(CO, 'CHIP_TERMS', [], [0, 1, 4, 8, 12, 16], 'quarters', { ...MK, kind: 'untagged',
     evidence: 'no tag; orders.ts:34-35 "Chip terms: 0 = spot (next quarter, spot price), 1 = one batch (two quarters), 4–16 = a tranche every quarter"',

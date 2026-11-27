@@ -4,7 +4,7 @@ import { BLOCS } from '../../../data/v2/blocs';
 import { startOf } from '../../../data/v2/starts';
 import { worldMix } from '../worldfx/mix';
 import { revenueReadout } from '../worldfx/revenue';
-import type { CounterpartyId, EngineSystem, GameStateV2, LabId, RelationStock, RelationsState, SystemCtx } from '../types';
+import type { CounterpartyId, EngineSystem, GameStateV2, RelationStock, RelationsState, SystemCtx } from '../types';
 import { blocsDaily } from './blocs';
 import { statutoryDaily } from './commitments';
 import { cred, flushDrift, scrutiny, trust } from './fx';
@@ -23,11 +23,10 @@ export function trustDelta(T: number, base: number): number {
 /** Access-rung trust thresholds (rungs 1..4) (§3.9.1). */
 export const RUNG_TRUST = [0, 25, 45, 65, 80];
 
-export function initialRelations(rivalIds: LabId[]): RelationsState {
+export function initialRelations(): RelationsState {
   const stocks = {
     exec: stock(55, 1), congress: stock(45), states: stock(40), evalGov: stock(50, 1), evalIndep: stock(45), academia: stock(50), china: stock(30),
   } as Record<CounterpartyId, RelationStock>;
-  for (const id of rivalIds) stocks[`rival:${id}`] = stock(40);
   for (const b of BLOCS) stocks[`bloc:${b.id}`] = stock(Math.round(50 + b.approval / 2));
   return { stocks, credibility: 50, talentPull: 10, scrutiny: 20, dataLicences: [] };
 }

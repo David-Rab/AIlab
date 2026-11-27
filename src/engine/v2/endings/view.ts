@@ -12,6 +12,7 @@ import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { MILESTONES } from '../../../data/world';
 import { clamp } from '../../rng';
 import { labOf } from '../actors/rivals';
+import { publicOf } from '../npc/public';
 import { ws4r } from '../actors/state';
 import { dateOf, dayOfDate, decimalYear, fmtDate } from '../core/time';
 import { lagDays, MILESTONE_NAMES } from '../models/capability';
@@ -85,7 +86,7 @@ export interface HiddenLab {
   id: LabId; name: string; kind: LabKind; status: LabStatusView;
   /** True misalignment of its best model, 0..1. */
   truth: number;
-  /** Your estimate, 0..1 (rivals: intel band; you: your safety readout of your best model). */
+  /** Your estimate, 0..1 (you: your safety readout of your best model; rivals: their public safety posture as a point, lo = hi, since nobody sees a rival's misalignment estimate). */
   lo: number; hi: number;
   /** The truth lies outside your range. */
   outside: boolean;
@@ -481,10 +482,12 @@ export function endingView(s: GameStateV2): EndingView | null {
   const best = bestPlayerVersion(s);
   const hiddenLabs: HiddenLab[] = labs.map((l) => {
     const truth = r3(clamp(misOf(s, l.id), 0, 1));
-    const band: [number, number] = l.id === 'player' ? (best ? misalignmentBand(best) : [0, 1]) : (labOf(s, l.id)?.intel.misalignBand ?? [0, 1]);
+    const lab = l.id === 'player' ? undefined : labOf(s, l.id);
+    // A rival's public face (N9): its safety posture, as a point against the true m; the player sees no misalignment estimate of a rival.
+    const band: [number, number] = l.id === 'player' ? (best ? misalignmentBand(best) : [0, 1]) : lab ? [publicOf(s, lab).safetyPosture.safetyInvestment, publicOf(s, lab).safetyPosture.safetyInvestment] : [0, 1];
     const lo = r3(clamp(band[0], 0, 1));
     const hi = r3(clamp(band[1], 0, 1));
-    return { id: l.id, name: l.name, kind: l.kind, status: l.status, truth, lo, hi, outside: truth < lo || truth > hi };
+    return { id: l.id, name: l.name, kind: l.kind, status: l.status, truth, lo, hi, outside: l.id === 'player' && (truth < lo || truth > hi) };
   });
   const FACTS: Record<keyof SafetyLatents, { sign: 1 | -1; good: string; bad: string; mid: string; lo: string; hi: string }> = {
     legibility: { sign: 1, good: 'Interpretability was tractable', bad: 'Interpretability was hard', mid: 'Interpretability was middling', lo: 'hard', hi: 'tractable' },

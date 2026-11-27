@@ -4,7 +4,7 @@ import { DANGER_ACTS, MISUSE } from '../../src/data/v2/danger';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import {
-  actCapability, actTheta, aiRdShare, capabilityOf, dangerOf, deploymentRows, exfiltrationHazard, forEachIncidentSite, labModelHazards, modelHazards, type DangerRow, type Site,
+  actCapability, actTheta, aiRdShare, capabilityOf, dangerOf, deploymentRows, exfiltrationHazard, forEachIncidentSite, modelHazards, type DangerRow, type Site,
 } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, TraitId } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
@@ -203,8 +203,6 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   check(ex(5) === 0 && ex(8) > 0 && ex(8) < ex(9) && ex(9) < ex(11) && ex(11) < ex(13), 'exfiltration rises with CYBER (escape capability); none below θ − 2 = 8');
   const old = 1e-4 * 0.3 * (1 + 4 * 0.1) * (11 - 8) * (1 - s.player.security.wsl / 5);
   check(ex(11) > 0.5 * old && ex(11) < 2 * old, 'exfiltration at CYBER 11 within ×2 of v2\'s at AGENCY 11 (same traits, security, start fleet)', `${ex(11).toExponential(2)} vs ${old.toExponential(2)}`);
-  const rv = labModelHazards(s.hidden.timeline, { traitsTrue: v.traitsTrue, uModes: [], domains: v.domains }, 0.3);
-  check(rv.length > 0 && rv.every((x) => x.h >= 0 && Math.abs(x.block - 0.3) < 1e-12), 'rival rows run on the same formula (mitigation blocks)');
 }
 
 finish('danger');
