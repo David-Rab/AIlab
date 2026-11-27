@@ -12,7 +12,6 @@ import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue } from '../../src/engine/v2/core/time';
 import { gV0 } from '../../src/engine/v2/models/capability';
-import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
@@ -148,7 +147,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['incidents', 'WS2', 'daily', 80], ['security', 'WS4', 'daily', 90], ['rivalsChina', 'WS4', 'daily', 100],
   ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['opex', 'WS3', 'daily', 130],
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
-  ['hiring', 'WS1', 'weekly', 200], ['intel', 'WS4', 'weekly', 210], ['payroll', 'WS3', 'monthly', 300],
+  ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
   ['macro', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
   ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440],
   ['index', 'WS4', 'semiannual', 500],
@@ -199,9 +198,8 @@ for (const setup of setups) {
     const v = s.player.models.versions[0];
     check(v.G < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `G ${v.G.toFixed(3)} < ${ref.toFixed(3)}`);
   }
-  const leads = s.rivals.map((r) => Math.round(((gV0(s.hidden.timeline) - r.internal.G) / (1.25 * PRE_GAME_G_PER_YEAR)) * 12 * 10) / 10);
-  // v1 archetype gap ranges (≤ 1.1 y); the tighter 3–9 month target is WS4's acceptance test T4.
-  check(leads.every((m) => m >= 0 && m <= 13.5), `${tag}: rival gaps within v1 ranges (months)`, leads.join(', '));
+  // NPC labs start at their cast lag behind the reference frontier (design/npc/NPC-LABS.md §4).
+  check(s.rivals.every((r) => !!r.npc && r.npc.d0 >= 0 && Math.abs(r.npc.d - r.npc.d0) < 1e-9), `${tag}: NPC labs start at their cast lag`, s.rivals.map((r) => Math.round(r.npc?.d0 ?? -1)).join(', '));
   check(Object.keys(s.relations.stocks).length === 7 + 15, `${tag}: relation counterparties`);
   tick(s);
   check(s.time.day === 1, `${tag}: first tick advances to day 1`);

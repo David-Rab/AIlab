@@ -236,7 +236,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
     },
     npc,
     internal,
-    publicModel,
+    ...(publicModel ? { publicModel } : {}),
     tools: [...e.start.tools],
     finance: {
       cash: fin.cash, revenueRun: e.start.revenueRunB ?? fin.revenueRun, valuation: china ? 0 : (e.start.valuationB ?? 0), raised: china ? 0 : (e.start.equityRaisedB ?? 0),
