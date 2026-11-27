@@ -439,14 +439,13 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     id: 'starHire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Star hire',
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
-      costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
+      costs: [{ currency: 'cash', amount: starCost(s) }],
       gains: [starGain(s)],
       exposure: [],
     }),
     apply: (s, ctx) => {
       hireStar(s);
       bookCash(s, ctx, -starCost(s), 'staff', 'star hire');
-      for (const r of s.rivals) if (r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_HIRE.cooperation / Math.max(1, s.rivals.length));
       ctx.log('company', 'A star researcher joins.', 1);
     },
   },

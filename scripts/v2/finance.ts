@@ -908,7 +908,6 @@ for (const a of FINANCE_ACTIONS) {
   // Trigger: distress only (never your lead), and the terms.
   {
     const { s, r } = offer();
-    for (const x of s.rivals) x.meters.cooperation = 90;
     const t = acquireTerms(s, r);
     const V = s.player.finance.valuation;
     const o = rivalObligations(r);

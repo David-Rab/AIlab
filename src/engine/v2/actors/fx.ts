@@ -80,8 +80,8 @@ export function bloc(s: GameStateV2, ctx: SystemCtx, id: BlocId, dApproval: numb
   }
 }
 
-/** Rival meters (cooperation, poach aggression, lobby stance). */
-export function rivalMeter(s: GameStateV2, ctx: SystemCtx, lab: string, key: 'cooperation' | 'poachAggression' | 'lobbyStance' | 'openness', d: number, src: string) {
+/** Rival meters (poach aggression, lobby stance). */
+export function rivalMeter(s: GameStateV2, ctx: SystemCtx, lab: string, key: 'poachAggression' | 'lobbyStance' | 'openness', d: number, src: string) {
   const r = s.rivals.find((x) => x.core.id === lab);
   if (!r) return;
   const lo = key === 'lobbyStance' ? -100 : 0;

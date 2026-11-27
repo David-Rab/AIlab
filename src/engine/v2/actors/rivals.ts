@@ -109,7 +109,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
     finance: { ...f, commitments: f.cash * 2, distress: false },
     visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE[arch.id] ?? 'conditional', testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { leadDaysEst: Math.round((leadMonths * 365) / 12), leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
-    meters: { poachAggression: arch.id === 'upstart' ? 70 : arch.id === 'maverick' ? 60 : 40, cooperation: 20, lobbyStance: arch.lobby, openness: arch.openness },
+    meters: { poachAggression: arch.id === 'upstart' ? 70 : arch.id === 'maverick' ? 60 : 40, lobbyStance: arch.lobby, openness: arch.openness },
     pressure: 0,
     pressureDays: 0,
   };
@@ -157,7 +157,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     finance: { ...f, commitments: f.cash * 2, distress: false },
     visible: { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE.leader, testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { leadDaysEst: 0, leadDaysSd: 60, misalignBand: [0.05, 0.4], knownIncidents: [] },
-    meters: { poachAggression: 50, cooperation: 20, lobbyStance: arch.lobby, openness: arch.openness },
+    meters: { poachAggression: 50, lobbyStance: arch.lobby, openness: arch.openness },
     pressure: 0,
     pressureDays: 0,
   };

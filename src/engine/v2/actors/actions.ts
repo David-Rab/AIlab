@@ -305,7 +305,6 @@ export const RELATION_ACTIONS: ActionDef[] = [
       s.flags['ws4:threatIntel'] = true;
       ctx.bump('china.meters.distillationAccess', -10, 'C1 shared threat intel');
       for (const cp of rivalCps(s)) trust(s, ctx, cp, 5, 'C1 shared threat intel');
-      for (const r of activeRivals(s)) rivalMeter(s, ctx, r.core.id, 'cooperation', 10, 'C1');
       trust(s, ctx, 'china', -5, 'C1 shared threat intel');
       bloc(s, ctx, 'hawks', 3, 0, 'C1');
     },
@@ -327,7 +326,6 @@ export const RELATION_ACTIONS: ActionDef[] = [
       for (const r of activeRivals(s)) {
         addPosture(s, r.core.id, 'evalRigor', 0.05);
         const a = archetypeOf(r.archetype).id;
-        rivalMeter(s, ctx, r.core.id, 'cooperation', a === 'safety' ? 30 : a === 'bigtech' ? 10 : a === 'maverick' ? -10 : 5, 'C3 joint evals');
         trust(s, ctx, `rival:${r.core.id}`, a === 'maverick' ? -2 : 4, 'C3 joint evals');
         if (a === 'maverick') scrutiny(ctx, 5, 'antitrust: "safety cartel"', r.core.name);
       }
@@ -352,7 +350,6 @@ export const RELATION_ACTIONS: ActionDef[] = [
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
       addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
-      rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
       talent(ctx, 4, 'C4 poaching');

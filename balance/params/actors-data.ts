@@ -212,7 +212,7 @@ const LAB_VALUES: Preset[] = [
   { id: 'leader', values: [0, 35, 25, -30, 1, [0, 0]], skip: ['computeMult', 'gapYears'] },
 ];
 const LAB_ROWS: Record<string, Row> = {
-  safety: { name: 'Safety Rival', file: R07, line: 219, weight: '25%', text: 'safety 80, openness 15, lobby +60, poach 40, cooperation 50, gap 2-6',
+  safety: { name: 'Safety Rival', file: R07, line: 219, weight: '25%', text: 'safety 80, openness 15, lobby +60, poach 40, gap 2-6',
     cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: N07, gapYears: 'research/07 says gap 2-6 months (0.17-0.5 y); the code has 0.15-0.45' } },
   bigtech: { name: 'Big Tech Incumbent', file: R07, line: 220, weight: '30%', text: 'safety 50, openness 30, lobby -20, compute ×1.5, gap 1-5, reaction lag 30 d',
     cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: 'research/07 says compute ×1.5; the code has 1.3', gapYears: 'research/07 says gap 1-5 months (0.08-0.42 y); the code has 0.1-0.4' } },
