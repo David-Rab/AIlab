@@ -48,7 +48,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | done cf5ef02f |
 | W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | done e72ac062 |
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
-| W1d | Quiet world, engine part 2: delete the gov and China actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Sonnet high (W1c sets the pattern) | 75 min | W1c | |
+| W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | running |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
 | W3 | (folded into W1b) | | | | |
