@@ -36,6 +36,12 @@ built. Replaces MEDIUM.md §2 (vision worktree) "One lab model" (reverted).
 6. **Outputs aren't knobs.** Targets (gaps, revenue, survival) check the shape.
    - A miss means a missing world input or personality parameter.
    - It never calls for a per-lab fudge or a forcing rule (memory `emergent-outcomes`).
+7. **Simple, with the right shape; not a replica of reality.** The designer, 2026-11-27: "we dont need the NPC labs to
+   be exact exact like reality. the principle is we want them simple and the correct 'shape' as a background. this
+   should apply in general to the NPC".
+   - Use real data where it sets the shape: start lags, the frontier path, the ordering between kinds.
+   - Use one typical value where per-lab precision would add bookkeeping without changing the shape.
+   - This applies to every NPC actor, not only labs.
 
 ## 3. The reference frontier: generated from the game's own timeline draw
 
@@ -407,11 +413,10 @@ only), `phys.{pool, ideas, clDay, run, serve, eff}` except where listed above, `
 
 ## 16. Build rulings (lead, 2026-11-27, from N2a's findings)
 
-- **R1. Internal model at the start** comes from history, not from the release-lag parameter: it is the lab's next
-  flagship if that shipped within 60 days of the start [D window, above METR's 4-week pre-release lower bound for
-  GPT-5]. So OpenAI starts with GPT-5 internal (37 days) and xAI with Grok 4 (8 days), whatever their release lags.
-- **R2. Release cadence** means how often the public flagship steps up. It is taken from the observed step intervals per
-  lab in Epoch's ECI file (45–135 days) [P], not from the old base-model cadence (task N2a2).
+- **R1. Internal model at the start** (revised after the designer's ruling below): generic, the lab's public model
+  advanced by one release lag. No per-lab history of which model shipped next.
+- **R2. Release cadence** (revised): one typical public-flagship interval for every kind, from Epoch's ECI file
+  (task N2a2), not per-lab values.
 - **R3. Race response** keeps today's research/17-based posture values (safety-first 0.55, upstart 0.5); the §5
   table's "low" was the lead's qualitative guess.
 - **R4. Market focus** uses the measured channel mix where it exists (OpenAI: consumer 0.37, API 0.23, enterprise
