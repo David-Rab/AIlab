@@ -404,3 +404,19 @@ a `publicModel` as generated SimpleModels, `lineup`, `tools` and `finance`, most
 **Fields nothing outside the NPC code reads** (they go with the old model): `distilling`, `pressureDays`,
 `visible.frameworkVersion`, `visible.indexGrade`, `meters.lobbyStance`, `meters.openness`, `finance.poolQ` (finance
 only), `phys.{pool, ideas, clDay, run, serve, eff}` except where listed above, `SimpleModel.stolenFrom`.
+
+## 16. Build rulings (lead, 2026-11-27, from N2a's findings)
+
+- **R1. Internal model at the start** comes from history, not from the release-lag parameter: it is the lab's next
+  flagship if that shipped within 60 days of the start [D window, above METR's 4-week pre-release lower bound for
+  GPT-5]. So OpenAI starts with GPT-5 internal (37 days) and xAI with Grok 4 (8 days), whatever their release lags.
+- **R2. Release cadence** means how often the public flagship steps up. It is taken from the observed step intervals per
+  lab in Epoch's ECI file (45–135 days) [P], not from the old base-model cadence (task N2a2).
+- **R3. Race response** keeps today's research/17-based posture values (safety-first 0.55, upstart 0.5); the §5
+  table's "low" was the lead's qualitative guess.
+- **R4. Market focus** uses the measured channel mix where it exists (OpenAI: consumer 0.37, API 0.23, enterprise
+  0.40); the §5 table's words are superseded.
+- **R5. Lags are measured on the reference clock.** The reference frontier at the start is V0 (GPT-5 class, anchored
+  at 2025.445), which is OpenAI's internal model, so OpenAI's internal lag is 0. The cast's public lags are measured
+  against the public frontier on 1 July (o3-pro), which sits about 2.1 months behind V0; N2b converts them. The
+  upstart has no public model: its lag is a [D] value with a wide public band.
