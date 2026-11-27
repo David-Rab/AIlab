@@ -66,7 +66,6 @@ function PersonalityEditor({ lab, set }: { lab: NpcSetupLab; set: (p: Partial<Pe
   const open = cur.openness.mode === 'chinaRung' ? 'open' : cur.openness.mode;
   return (
     <div className="pers" data-test="personality">
-      {cur.computeGrowthPerYear !== null && row('npcAppetite', 'Compute growth', <span><Num label="Compute growth per year" value={cur.computeGrowthPerYear} min={1} max={8} step={0.1} onChange={(v) => patch({ computeGrowthPerYear: v })} /> <span className="dim small">× a year</span></span>)}
       {row('npcFunding', 'Funding', <Chips cur={cur.funding} opts={[{ v: 'parent', label: 'Parent' }, { v: 'private', label: 'Private' }]} onPick={(v) => patch({ funding: v })} />)}
       {row('npcReleaseLag', 'Release lag', <span><Num label="Release lag in days" value={cur.releaseLagDays} min={0} max={180} onChange={(v) => patch({ releaseLagDays: v })} /> <span className="dim small">days</span></span>)}
       {row('npcOpenness', 'Openness', <Chips cur={open} opts={(['closed', 'open', 'partial'] as const).map((v) => ({ v, label: OPEN_LABEL[v] }))} onPick={(v) => patch({ openness: { mode: v } as OpennessRule })} />)}

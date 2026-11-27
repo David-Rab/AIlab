@@ -23,6 +23,7 @@ import { referenceProfileModel } from '../departments/workfit';
 import { frontierRunShareAt, normalizeSplit, shareRefAt } from '../departments/split';
 import { refreshPublic } from './public';
 import { initialSecurity } from '../security/security';
+import { RIVAL_GROWTH } from '../compute/market';
 import { decimalYear, quarterIndex } from '../core/time';
 import { hash32 } from '../core/rng';
 import { Rng } from '../../rng';
@@ -90,20 +91,20 @@ export function refSlopePerDay(s: Pick<GameStateV2, 'setup' | 'hidden'>, y: numb
 
 // ───────────────────────────── the rules ─────────────────────────────
 
-/** The kind's yearly compute growth (China: its meter's plan, CHINA_PLAN_GROWTH). */
-export const appetiteOf = (n: Pick<NpcLabState, 'kind' | 'pers'>) => persOf(n).computeGrowthPerYear ?? CHINA_PLAN_GROWTH;
+/** The lab's yearly plan growth: every NPC lab 2.25x (compute/market.ts RIVAL_GROWTH, N8b); China's lab its meter's (CHINA_PLAN_GROWTH). */
+export const planGrowthOf = (n: Pick<NpcLabState, 'kind'>) => (n.kind === 'china' ? CHINA_PLAN_GROWTH : RIVAL_GROWTH);
 /** The lab's seven values: its kind's, or the player's adjusted set (setup.cast, NpcLabState.p). */
 export const persOf = (n: Pick<NpcLabState, 'kind' | 'pers'>): Personality => n.pers ?? KINDS[n.kind];
-/** Quarterly chip-order growth of an NPC lab at its appetite (actors/rivals.ts rivalFinanceQ; compute/market.ts netting). */
-export const npcGrowthQ = (r: Pick<RivalLab, 'npc'>, fallback: number) => (r.npc ? Math.pow(appetiteOf(r.npc), 0.25) - 1 : fallback);
 /** The compute the lab planned to have online today: its start compute grown at its appetite, a step each quarter (its
  *  chip orders are placed and delivered quarterly, compute/market.ts). The step counts from the day after a quarter
  *  starts: the quarter's deliveries clear (marketQ, order 400) after the NPC labs' day (rivalsChina, order 100). */
 export function cPlan(s: GameStateV2, r: RivalLab): number {
   const n = r.npc!;
-  return n.c0 * Math.pow(appetiteOf(n), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
+  return n.c0 * Math.pow(planGrowthOf(n), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
 }
 /** Compute shortfall (OOM ≥ 0) and the target lag d* = d₀ + shortfall ÷ today's reference slope (days). */
+/** The compute the lab plans to have online `ahead` quarters from the current quarter (orders are sized from it). */
+export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc!.c0 * Math.pow(planGrowthOf(r.npc!), (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
 export function npcTarget(s: GameStateV2, r: RivalLab): { short: number; slope: number; dStar: number } {
   const n = r.npc!;
   const slope = refSlopePerDay(s, decimalYear(s));

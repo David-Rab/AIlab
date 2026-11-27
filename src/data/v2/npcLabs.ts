@@ -27,9 +27,6 @@ export type OpennessRule =
 export type FocusChannel = 'consumer' | 'api' | 'enterprise';
 
 export interface Personality {
-  /** 1. Compute appetite: the lab's yearly growth multiple of its H100e (orders in the chip market). null: China's lab
-   *  uses China's compute meter, never its own growth. */
-  computeGrowthPerYear: number | null;
   /** 2. Funding. */
   funding: NpcFunding;
   /** 3. Days the best model stays internal before it is public (the public model is the internal one this long ago). */
@@ -46,7 +43,7 @@ export interface Personality {
   /** 7. Race response 0-1: how much safety emphasis gives way under race pressure. China's lab: state-directed, so 0
    *  here and the China actor decides (postures.ts: "state directive replaces raceRelaxation"). */
   raceResponse: number;
-  /** True for China's lab: the China actor owns its compute (computeGrowthPerYear null) and its safety/race inputs. */
+  /** True for China's lab: the China actor owns its compute (its compute is the meter's) and its safety/race inputs. */
   chinaDirected?: true;
 }
 
@@ -86,10 +83,7 @@ export interface NpcCastEntry {
 
 // ───────────────────────────── Kinds (presets of the 7 personality values) ─────────────────────────────
 
-// Compute appetite. The game's growth rule for rivals is 2.25x a year (compute/market.ts RIVAL_GROWTH_Q = 2.25^0.25 - 1),
-// scaled by the spec's level word: low 0.8, mid 1.0, high 1.2, very high 1.5 [D]. The leader's is measured instead:
-// OpenAI 386K (end-2024) -> 1.743M H100e (end-2025) = 4.5x [P Epoch AI chip-users explorer; CAST-2025 §2; derived 1.743/0.386].
-const BASE_GROWTH = 2.25; // [repo src/engine/v2/compute/market.ts:121]
+// Compute: no per-kind appetite. Every lab plans its start compute x 2.25 a year (compute/market.ts RIVAL_GROWTH), N8b.
 
 // Release lag, days: today's RELEASE_LAG [repo src/engine/v2/actors/rivals.ts:56], unsourced [D] (CAST-2025 §5b: only a
 // lower bound for OpenAI, 28 days from METR's GPT-5 access; the system-card sourcing pass is open).
@@ -108,7 +102,6 @@ export const RELEASE_CADENCE_DAYS = 119;
 export const KINDS: Record<NpcKindId, Personality> = {
   // Analogue OpenAI.
   leader: {
-    computeGrowthPerYear: 4.5, // [P Epoch, derived]
     funding: 'private', // [P CAST §3: private, capped-profit LP under a nonprofit until Oct 2025]
     releaseLagDays: 30, // [repo rivals.ts:56 leader 30] [D]
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -122,7 +115,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue Anthropic.
   safety: {
-    computeGrowthPerYear: BASE_GROWTH * 1.0, // mid [D]
     funding: 'private', // [P anthropic.com Series E post; PBC + Long-Term Benefit Trust, CAST §3]
     releaseLagDays: 120, // [repo rivals.ts:56 safety 120] [D], no source (CAST §5b)
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -136,7 +128,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue Google DeepMind.
   bigtech: {
-    computeGrowthPerYear: BASE_GROWTH * 1.2, // high [D]
     funding: 'parent', // [P Alphabet Q2 2025 earnings post: capex guide $85B, CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 bigtech 60] [D]
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -150,7 +141,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue Meta.
   openweights: {
-    computeGrowthPerYear: BASE_GROWTH * 1.2, // high [D]
     funding: 'parent', // [repo research/18:133: 2025 capex guide $66-72B; press, unverified]
     releaseLagDays: 60, // [repo rivals.ts:56 openweights 60] [D]
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -164,7 +154,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue xAI.
   racer: {
-    computeGrowthPerYear: BASE_GROWTH * 1.5, // very high [D]
     funding: 'private', // [P CAST §3: founder-controlled, X merger]
     releaseLagDays: 15, // [repo rivals.ts:56 maverick 15] [D]; the one start observation: Grok 4 shipped 8 days after the start (CAST §1)
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -178,7 +167,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue SSI, Thinking Machines.
   upstart: {
-    computeGrowthPerYear: BASE_GROWTH * 0.8, // low [D]
     funding: 'private', // [press, unverified: CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 upstart 60] [D]
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
@@ -192,7 +180,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   },
   // Analogue DeepSeek. Compute, safety follow-up and race stance belong to the China actor.
   china: {
-    computeGrowthPerYear: null, // China's compute meter (actors/china.ts), not the lab's own growth
     funding: 'state', // spec §5; self-funded by High-Flyer at the start [P arXiv 2408.14158, CAST §3]
     releaseLagDays: 45, // [repo rivals.ts:56 deepcent 45] [D]
     releaseCadenceDays: RELEASE_CADENCE_DAYS,
