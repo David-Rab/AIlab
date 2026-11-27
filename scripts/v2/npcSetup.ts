@@ -34,9 +34,9 @@ const names = dup.rivals.map((r) => r.core.name);
 check(new Set(names).size === 3 && new Set(dup.rivals.map((r) => r.core.id)).size === 3 && names[1].endsWith(' II') && names[2].endsWith(' III'), 'same-kind labs get numbered names and unique ids', names.join(' / '));
 
 // overrides: the adjusted values are used, the others stay the kind's
-const o = mk({ start: 'challenger', cast: [{ kind: 'safety', lagMonths: 3, personality: { computeGrowthPerYear: 6, safetyEmphasis: 0.1 } }] });
+const o = mk({ start: 'challenger', cast: [{ kind: 'safety', lagMonths: 3, personality: { safetyEmphasis: 0.1 } }] });
 const p = o.rivals[0].npc!.pers!;
-check(p.computeGrowthPerYear === 6 && p.safetyEmphasis === 0.1 && p.raceResponse === KINDS.safety.raceResponse, 'overrides applied over the kind\'s values');
+check(p.safetyEmphasis === 0.1 && p.raceResponse === KINDS.safety.raceResponse, 'overrides applied over the kind\'s values');
 check(o.hidden.rivalPostures[o.rivals[0].core.id].safetyInvestment === 0.1, 'the override reaches the lab\'s posture');
 
 // zero US labs, and a few ticks of each custom game run

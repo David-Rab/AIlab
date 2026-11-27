@@ -11,7 +11,6 @@ for (const k of NPC_KIND_IDS) {
   const p = KINDS[k];
   ok(!!p, `kind ${k} missing`);
   if (!p) continue;
-  ok(p.computeGrowthPerYear === null ? !!p.chinaDirected : p.computeGrowthPerYear > 1 && p.computeGrowthPerYear < 10, `${k} compute growth`);
   ok(['parent', 'private', 'state'].includes(p.funding), `${k} funding`);
   ok(p.releaseLagDays > 0 && p.releaseLagDays < 400, `${k} release lag`);
   ok(p.releaseCadenceDays >= 30 && p.releaseCadenceDays <= 200, `${k} cadence`);

@@ -24,7 +24,7 @@ import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/ces';
 import { ipAccessDaily } from '../finance/deals';
-import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
+import { rivalMoneyQ } from '../finance/rivalFinance';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
@@ -32,7 +32,7 @@ import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../produ
 import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, recordToolShips } from './rivalModel';
 import { rivalLineupStep, rivalToolStep } from '../npc/market';
 import { chinaDaily } from './china';
-import { npcCapabilityDay, npcGrowthQ, persOf } from '../npc/lab';
+import { cPlanQ, npcCapabilityDay, persOf } from '../npc/lab';
 import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
 import { ws4 } from './state';
 
@@ -349,8 +349,8 @@ export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, stat
 /** Share of the gap to market revenue a rival closes each quarter [D, M4]. */
 export const RIVAL_REVENUE_TRACK = 0.5;
 
-/** Quarterly rivals (geoQ): revenue, then money (FIN5b: finance/rivalFinance.ts: cash, raises at the story valuation,
- *  distress → E32 offer → license-and-hire by big tech or bankruptcy), then chip orders. */
+/** Quarterly rivals (geoQ): revenue, then money (finance/rivalFinance.ts: the bust's distress → E32 offer →
+ *  license-and-hire by big tech or bankruptcy; money is otherwise display), then chip orders. */
 export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
   // P2: one world mix for all labs (nothing the mix reads changes in this loop until a lab leaves the market).
   let mix: WorldMix | undefined;
@@ -363,14 +363,15 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     const mkt = labMarketRevenue(s, r.core.id, (mix ??= worldMix(s)));
     if (mkt > 0) f.revenueRun += RIVAL_REVENUE_TRACK * (mkt - f.revenueRun);
     else f.revenueRun *= 1.2 + 0.1 * clamp(-lead / 180, -1, 1);
-    rivalMoneyQ(s, ctx, r); // FIN5b: cash flow, raises, distress and exit (finance/rivalFinance.ts)
+    rivalMoneyQ(s, ctx, r); // N8b: only the bust's distress and exit (finance/rivalFinance.ts)
     if (r.core.status !== 'active') mix = undefined; // FINM: it left the market (license-and-hire or bankruptcy)
-    if (r.core.status !== 'active' || r.core.id === LEADER_ID) continue;
-    // Compute grows by chip orders cleared in WS3's market (rationed with everyone else's): the default 2.25×/yr
-    // path, scaled down when the lab is short of cash (parent-funded labs always order in full). The leader lab runs
-    // at the reference compute path (no chip orders).
-    const fund = parentFunded(r) ? 1 : clamp(f.cash / Math.max(1, rivalSpend(r)), 0.25, 1);
-    placeLabOrder(s, r.core.id, r.core.computeOnline * npcGrowthQ(r, RIVAL_GROWTH_Q) * fund /* N2b-1: at the kind's appetite (npc/lab.ts) */, 1, 1.2);
+    if (r.core.status !== 'active') continue;
+    // N8b: chip orders top compute up to next quarter's plan (start compute × 2.25 a year, one rate for every lab), net of
+    // what is already on order, through the chip market shared with everyone. Money never limits an NPC lab's orders; a
+    // supply shortfall leaves it behind the plan, and the next quarter's order is larger by the gap.
+    const plan = r.npc ? cPlanQ(s, r, 1) : r.core.computeOnline * (1 + RIVAL_GROWTH_Q);
+    const pending = s.market.ws3.labOrders.reduce((t, o) => (o.lab === r.core.id ? t + Math.max(0, o.qty - o.delivered) : t), 0);
+    placeLabOrder(s, r.core.id, Math.max(0, plan - r.core.computeOnline - pending), 1, 1.2);
   }
 }
 

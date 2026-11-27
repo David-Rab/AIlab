@@ -17,7 +17,7 @@ import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
 import { FIN } from '../actors/rivals';
-import { ARCHETYPE_OF_KIND, initialNpcLab, castOf, npcGrowthQ, postureOfKind } from '../npc/lab';
+import { ARCHETYPE_OF_KIND, initialNpcLab, castOf, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 
 import { initialMarket } from '../compute/market';
@@ -340,7 +340,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // quarter's clearing): their planned compute steps each quarter (npc/lab.ts cPlan) and their orders are placed
   // quarterly from the first quarter day on (actors/rivals.ts rivalFinanceQ), so without these the first quarter's
   // step would be a shortfall no lab chose.
-  for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * npcGrowthQ(r, RIVAL_GROWTH_Q), 1, 1.2);
+  for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q, 1, 1.2);
   // Readouts (the player; N2b-1: the NPC labs have none, production.ts computeProduction).
   for (const id of labIds) {
     const core = labCore(s, id);
