@@ -99,7 +99,7 @@ export type CounterpartyId =
 
 export type StreamId =
   | 'world' | 'prod' | 'runs' | 'safety' | 'incidents' | 'security' | 'market' | 'finance'
-  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company';
+  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company' | 'labour';
 
 export type WorkstreamId = 'WS1' | 'WS2' | 'WS3' | 'WS4' | 'WS5' | 'WS6' | 'WS7';
 
@@ -126,6 +126,8 @@ export interface GameStateV2 {
   power: PowerGrid;
   capital: CapitalMarkets;
   world: WorldEconomy;
+  /** The labour market (LABOUR-ROUND §4, §6): the talent pools and the named stars. L11: state only. */
+  labour: LabourState;
   knowledge: PublicKnowledge; // what the whole world has learned (published findings, revealed U-modes)
 
   events: EventQueue;
@@ -140,6 +142,14 @@ export interface GameStateV2 {
   /** WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Created lazily by `ws4(s)`. */
   ws4?: Ws4State;
 }
+
+/** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
+ *  a kind share it; heads in labs (E) and outside (U = P - E) are derived each week. */
+export interface LabourPool { P: number; w: number }
+/** A star (LABOUR-ROUND §6.1): a named researcher above the 99.9th percentile. `employer` is 'player', a rival's id,
+ *  'china' or 'outside'; `pay` is $M per year. */
+export interface Star { id: string; name: string; taste: number; employer: 'player' | LabId | 'china' | 'outside'; pay: number }
+export interface LabourState { pools: Record<TeamRole, LabourPool>; stars: Star[] }
 
 export interface SetupV2 {
   baseline: BaselineId;
@@ -1240,6 +1250,8 @@ export interface PlayerLab extends LabCore {
   /** Star hires (named people): +0.05 τ_h each. */
   stars: number;
   hiring: TeamHiring;
+  /** The lab's average pay per head by kind, $M per year (LABOUR-ROUND §4.1; moves toward the market offer, L12). */
+  pay: Record<TeamRole, number>;
   /** Tech-tree node state (BUILD-PLAN R4): only nodes with a state are stored (known at start, started, failed);
    *  locked/open/queued/active are derived (models/tree.ts nodeStatus). */
   tree: Record<string, TreeNodeState>;
@@ -1412,6 +1424,8 @@ export interface TeamHiring {
   filling: Team[];
   /** Counter for team ids. */
   nextId: number;
+  /** The pay premium over the market wage per kind, a step of data/v2/labourMarket.ts PREMIUM_STEPS (default 0). */
+  premium: Record<TeamRole, number>;
 }
 
 /** RD-A05b: the explicit auto-split policy (PlayerPolicies.autoSplit). */

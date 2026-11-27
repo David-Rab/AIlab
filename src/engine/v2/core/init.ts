@@ -50,10 +50,12 @@ import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
-  Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
+  Deployment, DomainId, EvalRecord, GameStateV2, LabId, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { hash32, seedStreams } from './rng';
+import { hash32, seedStreams, stream } from './rng';
+import { Phi, bisect, tasteSigma } from '../production/ces';
+import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_LAB_ORDER, STAR_FIRST_NAMES, STAR_LAST_NAMES } from '../../../data/v2/labourMarket';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -253,6 +255,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     teams: roster.teams,
     stars: 0,
     hiring: roster.hiring,
+    pay: { ...W0 }, // LABOUR-ROUND §4.1: the lab starts paying the market wage
     tree: initialTree(setup),
     // Model v3 V2: the recipe stacks start at the leader's day-0 recipe, a follower its start lag k (OOM) lower.
     research: { ...initialResearch(roster.teams), stacks: initialStacks(k) },
@@ -265,6 +268,47 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, autoSplit: { on: false, to: ['experiments'] }, servingAuto: true, upgradeToNewest: false, autoEvaluate: true, autoCheapTier: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
+  };
+}
+
+/** The labour market at the start (LABOUR-ROUND §4.1, §6.1): the pools at P0 with the market wage at w0, and the stars.
+ *  Stars: n = round((1 - top percentile) x P0.sci) = 37; each draws a quantile u ~ U(0.999, 1), z = Phi^-1(u), taste
+ *  T = exp(-sigma^2/2 + sigma z) with sigma = tasteSigma(m2b) of the world's drawn m2b (AIFM taste_distribution.py). Employers
+ *  follow STAR_EMPLOYER0 by largest remainder (the player holds the leading lab's share, the rivals the next labs by rank; a
+ *  named lab with no rival to hold it gives its share to "outside"), then are shuffled over the stars. All draws come from
+ *  the 'labour' stream so no other stream moves. L11: state only (stars do not yet act, L17). */
+export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, rivalIds: LabId[]): LabourState {
+  const rng = stream(s, 'labour');
+  const sigma = tasteSigma(s.hidden.timeline.prod.m2b);
+  const n = Math.round((1 - STAR_TOP_PERCENTILE) * P0.sci);
+  // Slots: the player (the leading lab) then the rivals in order, one per named lab; the rest of the named labs' shares go outside.
+  const slots: (LabId | 'outside' | 'china')[] = ['player', ...rivalIds];
+  const share = new Map<LabId | 'outside' | 'china', number>([['outside', STAR_EMPLOYER0.outside], ['china', STAR_EMPLOYER0.china]]);
+  STAR_LAB_ORDER.forEach((lab, i) => {
+    const holder = slots[i] ?? 'outside';
+    share.set(holder, (share.get(holder) ?? 0) + STAR_EMPLOYER0[lab]);
+  });
+  // Largest-remainder apportionment of n stars over the shares (deterministic; the player's count is round(0.20 n) +- 1).
+  const holders = [...share.keys()];
+  const quota = holders.map((h) => (share.get(h) as number) * n);
+  const counts = quota.map(Math.floor);
+  const order = quota.map((q, i) => ({ i, r: q - Math.floor(q) })).sort((a, b) => b.r - a.r || a.i - b.i);
+  const left = n - counts.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < left; k++) counts[order[k].i]++;
+  const employers = holders.flatMap((h, i) => Array.from({ length: counts[i] }, () => h));
+  for (let i = employers.length - 1; i > 0; i--) { const j = rng.int(0, i); [employers[i], employers[j]] = [employers[j], employers[i]]; }
+  const used = new Set<string>();
+  const stars: Star[] = employers.map((employer, i) => {
+    const u = STAR_TOP_PERCENTILE + (1 - STAR_TOP_PERCENTILE) * rng.float();
+    const z = Math.min(5, bisect((x) => Phi(x) - u, 0, 8)); // Phi^-1; capped at 5 SD (the Phi series is good to 1.5e-7)
+    let name = '';
+    do name = `${rng.pick(STAR_FIRST_NAMES)} ${rng.pick(STAR_LAST_NAMES)}`; while (used.has(name));
+    used.add(name);
+    return { id: `star${i + 1}`, name, taste: Math.exp(-0.5 * sigma * sigma + sigma * z), employer, pay: W_STAR0 };
+  });
+  return {
+    pools: Object.fromEntries((['eng', 're', 'sci'] as const).map((k) => [k, { P: P0[k], w: W0[k] }])) as LabourState['pools'],
+    stars,
   };
 }
 
@@ -317,6 +361,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
+    labour: initialLabour({ rng: rngState, hidden }, rivals.map((r) => r.core.id)),
     knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
