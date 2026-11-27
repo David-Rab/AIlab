@@ -5,7 +5,7 @@
 // compute/sites.ts …) and buildPlayer leaves them untouched. The other three are built from this table, with the
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
-import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey, TeamQuality } from '../../engine/v2/types';
+import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
 import type { ToolId } from './features';
 import type { ProductToolId } from './tools';
 
@@ -31,8 +31,6 @@ export interface StartDef {
   teams: Record<TeamKey, number>;
   /** Science specialties in hiring order per department (follow the analogues). */
   specialties: Record<TeamDept, Column[]>;
-  /** Quality of the start teams (spinout: Elite science, "elite taste"). */
-  quality?: Partial<Record<TeamKey, TeamQuality>>;
   /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
@@ -73,7 +71,6 @@ export const STARTS: StartDef[] = [
     // 290 people (analogues ≈ 110, rounded up to whole teams; STRUCTURE §4.1).
     teams: { eng: 1, 're.cap': 1, 'sci.cap': 1, 're.saf': 0, 'sci.saf': 0 },
     specialties: { cap: ['posttraining', 'pretraining', 'systems'], saf: ['alignment', 'interp', 'evals'] },
-    quality: { 'sci.cap': 'elite' },
     known: ['rl.math', 'T-PROBE'],
     products: [], features: [], tooling: [],
     // Valued through position (FIN5a): no public model, so investors place it at the best open-weight model (SSI $32B

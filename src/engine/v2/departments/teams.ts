@@ -3,18 +3,17 @@
 // The player's staff are whole teams of fixed size: engineers (150, one shared pool), research engineers (100,
 // capabilities or safety) and scientists (40, a tree-column specialty). Each week:
 //   attrition   heads −= heads · 12%/yr · max(0.2, 1.5 − morale/100) / 52   (safety teams use safety morale)
-//   candidates  one new team offer from the 'company' stream; offers stay 4 weeks
 //   policy      "keep hiring to N" queues one standard (Strong) team per key while teams + queued < N
 //   hiring      per department lane: HIRING_BASE · (1 + talentPull/50) · moraleFactor heads, first into vacancies,
 //               then into the queued teams in order; a team arrives when it is full
 // Engine map (model v3 V3): capabilities research engineers serve the research-engineer needs (models/research.ts
 // reAllocation: run operations, evals, project experiments, tuning; the production readout's h is those on
-// experiments + tuning over the leader lab's day-0 value); capabilities scientists run projects, each team's taste from
-// its quality on the AIFM distribution (departments/workfit.ts teamTaste) × the star factor τ_h (tauH); engineers →
+// experiments + tuning over the leader lab's day-0 value); capabilities scientists run projects, each team's taste the
+// AIFM company mean (departments/workfit.ts teamTaste) × the star factor τ_h (tauH); engineers →
 // build capacity (buildCapacity, the build queue of departments/build.ts). `staff.cap/saf` are derived from heads.
 import {
-  ATTRITION_BASE, CANDIDATES, CANDIDATE_QUALITY_W, CANDIDATE_RE_SAF, CANDIDATE_ROLE_W, COLUMN_DEPT, COLUMN_LABEL, COLUMNS,
-  HIRING_BASE, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, starTasteOf,
+  ATTRITION_BASE, COLUMN_DEPT, COLUMN_LABEL, COLUMNS,
+  HIRING_BASE, MOVE_SAFETY_MORALE, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, starTasteOf,
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
@@ -23,8 +22,8 @@ import { decimalYear } from '../core/time';
 import { Phi } from '../production/ces';
 import { measuredLabour, sdAIOf, workContext } from './workfit';
 import type {
-  BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, StartType, SystemCtx, Team, TeamCandidate, TeamDept,
-  TeamHiring, TeamKey, TeamQuality, TeamRole,
+  BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, StaffByRole, StartType, SystemCtx, Team, TeamDept,
+  TeamHiring, TeamKey, TeamRole,
 } from '../types';
 
 export const keyOf = (t: Pick<Team, 'role' | 'dept'>): TeamKey => (t.role === 'eng' ? 'eng' : `${t.role}.${t.dept}` as TeamKey);
@@ -41,8 +40,8 @@ export function weeklyHireCap(s: GameStateV2, dept: TeamDept): number {
   return HIRING_BASE[dept] * Math.max(0, 1 + s.relations.talentPull / 50) * moraleFactor(moraleOf(s.player, dept));
 }
 
-function newTeam(h: Pick<TeamHiring, 'nextId'>, role: TeamRole, dept: TeamDept, quality: TeamQuality, specialty?: Column, heads = TEAM_SIZE[role]): Team {
-  const t: Team = { id: `T${h.nextId++}`, role, dept: role === 'eng' ? 'cap' : dept, size: TEAM_SIZE[role], heads, quality };
+function newTeam(h: Pick<TeamHiring, 'nextId'>, role: TeamRole, dept: TeamDept, specialty?: Column, heads = TEAM_SIZE[role]): Team {
+  const t: Team = { id: `T${h.nextId++}`, role, dept: role === 'eng' ? 'cap' : dept, size: TEAM_SIZE[role], heads };
   if (specialty) t.specialty = specialty;
   return t;
 }
@@ -61,16 +60,15 @@ export function startTeams(baseline: BaselineId, start: StartType = 'leader'): {
   const leader = start === 'leader';
   const counts = leader ? START_TEAMS[baseline] : def.teams;
   const specs = leader ? START_SPECIALTIES : def.specialties;
-  const hiring: TeamHiring = { targets: { ...counts }, candidates: [], filling: [], nextId: 1 };
+  const hiring: TeamHiring = { targets: { ...counts }, filling: [], nextId: 1 };
   const teams: Team[] = [];
   const spec: Record<TeamDept, number> = { cap: 0, saf: 0 };
   for (const k of TEAM_KEYS) {
     const role = roleOfKey(k);
     const dept = deptOfKey(k);
-    const q: TeamQuality = (!leader && def.quality?.[k]) || 'strong';
     for (let i = 0; i < counts[k]; i++) {
       const sp = role === 'sci' ? specs[dept][spec[dept]++ % specs[dept].length] : undefined;
-      teams.push(newTeam(hiring, role, dept, q, sp));
+      teams.push(newTeam(hiring, role, dept, sp));
     }
   }
   return { teams, hiring };
@@ -84,7 +82,7 @@ export function teamsFromStaff(h: Pick<TeamHiring, 'nextId'>, staff: StaffByRole
     if (people < 1) return;
     const size = TEAM_SIZE[role];
     const n = Math.max(1, Math.round(people / size));
-    for (let i = 0; i < n; i++) out.push(newTeam(h, role, dept, 'strong', role === 'sci' ? nextSpecialty(out, dept) : undefined, Math.min(size, people / n)));
+    for (let i = 0; i < n; i++) out.push(newTeam(h, role, dept, role === 'sci' ? nextSpecialty(out, dept) : undefined, Math.min(size, people / n)));
   };
   add('eng', 'cap', staff.cap * REF_ROLE_SHARE.eng);
   add('re', 'cap', staff.cap * REF_ROLE_SHARE.re);
@@ -96,25 +94,24 @@ export function teamsFromStaff(h: Pick<TeamHiring, 'nextId'>, staff: StaffByRole
 
 // ───────── Derived readouts ─────────
 
-/** Effective capabilities headcount for the production function: H = Σ RE_cap heads × quality / 0.55, so
+/** Effective capabilities headcount for the production function: H = Σ RE_cap heads / 0.55, so
  *  h = H / H_ref = RE_cap / (0.55 · H_ref) (research/19 §1.1). */
 export function playerH(p: Pick<PlayerLab, 'teams'>): number {
   let re = 0;
-  for (const t of p.teams) if (t.role === 're' && t.dept === 'cap') re += t.heads * QUALITY[t.quality].out;
+  for (const t of p.teams) if (t.role === 're' && t.dept === 'cap') re += t.heads;
   return re / REF_ROLE_SHARE.re;
 }
 
-/** Star-hire taste bench τ_h = 1 + 0.05 · stars (capped at 1.5). Model v3 V3: team quality enters each team's taste on
- *  the AIFM distribution directly (departments/workfit.ts teamTaste), no longer through a lab-level τ normalised by the
- *  reference headcount; stars lift every capabilities team's human taste by this factor. */
+/** Star-hire taste bench τ_h = 1 + 0.05 · stars (capped at 1.5). Model v3 V3: every team's taste is the AIFM company
+ *  mean (departments/workfit.ts teamTaste), no lab-level τ normalised by the reference headcount; stars lift every capabilities team's human taste by this factor. */
 export function tauH(p: Pick<PlayerLab, 'teams' | 'stars'>, _yr?: number): number {
   return starTasteOf(p.stars ?? 0);
 }
 
-/** Payroll $B/yr of a team (heads × role cost × quality cost). */
-export const teamPayroll = (t: Team) => (t.heads * TEAM_COST_M[t.dept][t.role] * QUALITY[t.quality].cost) / 1000;
+/** Payroll $B/yr of a team (heads × role cost). */
+export const teamPayroll = (t: Team) => (t.heads * TEAM_COST_M[t.dept][t.role]) / 1000;
 /** Payroll of a full team ($B/yr). */
-export const fullTeamPayroll = (role: TeamRole, dept: TeamDept, q: TeamQuality) => (TEAM_SIZE[role] * TEAM_COST_M[dept][role] * QUALITY[q].cost) / 1000;
+export const fullTeamPayroll = (role: TeamRole, dept: TeamDept) => (TEAM_SIZE[role] * TEAM_COST_M[dept][role]) / 1000;
 
 /** Player payroll $B/yr: every team plus the people already hired into queued teams. */
 export function payrollOf(p: Pick<PlayerLab, 'teams' | 'hiring'>, dept?: TeamDept): number {
@@ -174,40 +171,16 @@ export function fillWeeks(s: GameStateV2, team: Pick<Team, 'role' | 'dept' | 'si
 }
 
 /** Build capacity (team-weeks per week) = effective software-engineering labour (model v3 V3.3): the engineers' team-
- *  equivalents (heads/150 × quality) and the engineering agents' AI labour in the optimal human/AI task split at the
+ *  equivalents (heads/150) and the engineering agents' AI labour in the optimal human/AI task split at the
  *  agents' SWE coverage, with the assist speed-up on the human share (departments/workfit.ts, production/ces.ts
  *  optimalLabour). The split is never below the humans alone, so there is no separate floor; no cap: once AI is plentiful
  *  the coding CES's human bottleneck on the uncovered work, (1 − a)^((1−ρc)/ρc), is the limit (×1.4 at 2025's coverage,
  *  ×32 at 0.9). No engineers, no capacity (nobody to run the builds). Works the build queue (departments/build.ts, R5). */
 export function buildCapacity(s: GameStateV2): { human: number; aEng: number; capacity: number } {
   let human = 0;
-  for (const t of s.player.teams) if (t.role === 'eng') human += (t.heads / TEAM_SIZE.eng) * QUALITY[t.quality].out;
+  for (const t of s.player.teams) if (t.role === 'eng') human += t.heads / TEAM_SIZE.eng;
   const swe = workContext(s).slots.SWE;
   return { human, aEng: swe.fit.a, capacity: human > 0 ? swe.L : 0 };
-}
-
-// ───────── Candidates ─────────
-
-function drawCandidate(rng: RngLike, h: TeamHiring, day: number): TeamCandidate {
-  const role = rng.weighted(CANDIDATE_ROLE_W);
-  const quality = rng.weighted(CANDIDATE_QUALITY_W);
-  const col = rng.pick(COLUMNS);
-  const saf = rng.chance(CANDIDATE_RE_SAF);
-  const dept: TeamDept = role === 'sci' ? COLUMN_DEPT[col] : role === 're' && saf ? 'saf' : 'cap';
-  const c: TeamCandidate = { id: `C${h.nextId++}`, role, dept, quality, until: day + CANDIDATES.days };
-  if (role === 'sci') c.specialty = col;
-  return c;
-}
-
-/** Drop expired offers and add one new offer (at most CANDIDATES.max). */
-export function refreshCandidates(h: TeamHiring, rng: RngLike, day: number) {
-  h.candidates = h.candidates.filter((c) => c.until > day);
-  if (h.candidates.length < CANDIDATES.max) h.candidates.push(drawCandidate(rng, h, day));
-}
-
-/** The start list: CANDIDATES.max offers expiring a week apart. */
-export function seedCandidates(h: TeamHiring, rng: RngLike) {
-  for (let i = 0; i < CANDIDATES.max; i++) h.candidates.push(drawCandidate(rng, h, 7 * (i + 1) - CANDIDATES.days));
 }
 
 // ───────── Weekly system ─────────
@@ -231,7 +204,7 @@ function forcePlayerStaff(s: GameStateV2) {
   syncTeams(s);
 }
 
-/** One week of attrition, offers, the keep-hiring policy and hiring. */
+/** One week of attrition, the keep-hiring policy and hiring. */
 export function teamsWeek(s: GameStateV2, ctx: SystemCtx) {
   const p = s.player;
   const h = p.hiring;
@@ -239,7 +212,6 @@ export function teamsWeek(s: GameStateV2, ctx: SystemCtx) {
     const att = (t.heads * ATTRITION_BASE * Math.max(0.2, 1.5 - moraleOf(p, t.dept) / 100)) / 52;
     t.heads = Math.max(0, t.heads - att);
   }
-  refreshCandidates(h, ctx.rng('company'), ctx.day);
   applyTargets(p);
   for (const dept of ['cap', 'saf'] as const) {
     let cap = weeklyHireCap(s, dept);
@@ -292,7 +264,7 @@ export function applyTargets(p: PlayerLab) {
     if (teamsOfKey(p, k).length >= (h.targets[k] ?? 0)) continue;
     const role = roleOfKey(k);
     const dept = deptOfKey(k);
-    h.filling.push(newTeam(h, role, dept, 'strong', role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0));
+    h.filling.push(newTeam(h, role, dept, role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0));
   }
 }
 
@@ -302,7 +274,7 @@ export function teamLabel(t: Pick<Team, 'role' | 'dept' | 'specialty'>): string 
   return `${t.specialty ? COLUMN_LABEL[t.specialty] : 'science'} science`;
 }
 
-/** hiring (200, weekly): team attrition, offers, keep-hiring policy, team arrivals. */
+/** hiring (200, weekly): team attrition, keep-hiring policy, team arrivals. */
 export const hiringSystem: EngineSystem = {
   id: 'hiring', owner: 'WS1', cadence: 'weekly', order: 200, system: 'people',
   run(s, ctx) {
@@ -313,25 +285,15 @@ export const hiringSystem: EngineSystem = {
 
 // ───────── Player actions (models/actions.ts wraps these) ─────────
 
-/** Queue a candidate (or, without one, a standard Strong team for `key`). It is placed ahead of policy-queued teams
- *  that have not started filling in its lane. */
-export function hireTeam(s: GameStateV2, ref: { candidate?: string; key?: TeamKey }): Team | string {
+/** Queue a standard team for `key`. It is placed ahead of policy-queued teams that have not started filling in its lane. */
+export function hireTeam(s: GameStateV2, ref: { key?: TeamKey }): Team | string {
   const p = s.player;
   const h = p.hiring;
-  let t: Team;
-  if (ref.candidate) {
-    const i = h.candidates.findIndex((c) => c.id === ref.candidate);
-    if (i < 0) return 'That offer is gone';
-    const c = h.candidates[i];
-    h.candidates.splice(i, 1);
-    t = newTeam(h, c.role, c.dept, c.quality, c.specialty, 0);
-  } else {
-    const k = ref.key ?? 're.cap';
-    if (!TEAM_KEYS.includes(k)) return 'Unknown team kind';
-    const role = roleOfKey(k);
-    const dept = deptOfKey(k);
-    t = newTeam(h, role, dept, 'strong', role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0);
-  }
+  const k0 = ref.key ?? 're.cap';
+  if (!TEAM_KEYS.includes(k0)) return 'Unknown team kind';
+  const role = roleOfKey(k0);
+  const dept = deptOfKey(k0);
+  const t = newTeam(h, role, dept, role === 'sci' ? nextSpecialty([...p.teams, ...h.filling], dept) : undefined, 0);
   const at = h.filling.findIndex((f) => f.dept === t.dept && f.heads === 0);
   if (at < 0) h.filling.push(t);
   else h.filling.splice(at, 0, t);
@@ -404,7 +366,7 @@ export function changeHeads(s: GameStateV2, dept: TeamDept, delta: number) {
         const k = keyOf(t);
         p.hiring.targets[k] = Math.max(p.hiring.targets[k] ?? 0, teamsOfKey(p, k).length);
       }
-      if (left >= 1) p.hiring.filling.unshift(newTeam(p.hiring, 're', dept, 'strong', undefined, Math.min(TEAM_SIZE.re - 1, left)));
+      if (left >= 1) p.hiring.filling.unshift(newTeam(p.hiring, 're', dept, undefined, Math.min(TEAM_SIZE.re - 1, left)));
     }
   }
   syncTeams(s);

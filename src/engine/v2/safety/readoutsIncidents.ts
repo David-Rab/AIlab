@@ -123,7 +123,7 @@ export function rollbackTarget(s: GameStateV2, versionId: string): { id: string;
  *  Incidents & cases, case card · L1. Unit: %. Basis: F. */
 export const caseAiShare = (s: GameStateV2) => jobAiShare(s, 'case');
 
-/** Safety research engineers free for a case (heads × quality not committed to cases, removals or safeguards), with the
+/** Safety research engineers free for a case (heads not committed to cases, removals or safeguards), with the
  *  verdict word of the staff chip. Basis: F. */
 export function caseStaff(s: GameStateV2): { heads: number; free: number; word: 'spare' | 'short' } {
   const heads = safetyReHeads(s);

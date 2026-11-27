@@ -7,7 +7,7 @@
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
 // interpretability and evals & control: safety scientists). Capabilities science teams are placed every day by the
 // priority assignment of models/research.ts (planAssignment); safety science teams by the same planner (RD-R03).
-// Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column. RD-R04: there is no rolled path; every safety
+// Capacity = Σ heads/40 × 1.5 in the team's specialty column. RD-R04: there is no rolled path; every safety
 // node has a research line (P27 is a project of line AG17).
 //  - Safety nodes (a node with an agenda; RD-R02b): the shared project stepper (models/research.ts stepProject, dept
 //    'saf'; rates in safety/lineProjects.ts lineRates): one "does it work" test that the safety scientists and the

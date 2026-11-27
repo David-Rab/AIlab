@@ -11,7 +11,7 @@ import {
   responseCurves, RESPONSE_SCALES, safReAllocView, SPLIT_KEYS, SPLIT_LABEL, teamGain, teamsOfKey, workTypeViews,
 } from '../../../engine/v2';
 import type { AutoSplitUse } from '../../../engine/v2/departments/autoSplit';
-import type { ComputeSplit, GameStateV2, Move, RankedMove, TeamKey, TeamQuality, WorkTypeView } from '../../../engine/v2';
+import type { ComputeSplit, GameStateV2, Move, RankedMove, TeamKey, WorkTypeView } from '../../../engine/v2';
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { ActBtn, Slider, Term, Tip, TipCard } from '../ui';
 import { Card, PanelHead, Ref, tabOf, Tabs } from '../kit';
@@ -275,13 +275,11 @@ const ROW_WT: Record<RowKey, WorkTypeView['wt']> = { eng: 'SWE', 're.cap': 'EXP'
 const ROW_NAME: Record<RowKey, string> = { eng: 'Engineers', 're.cap': 'Research engineers', 'sci.cap': 'Scientists', 're.saf': 'Research engineers', 'sci.saf': 'Scientists' };
 const ROW_TERM: Record<RowKey, string> = { eng: 'roleEng', 're.cap': 'roleRE', 'sci.cap': 'roleSci', 're.saf': 'roleRE', 'sci.saf': 'roleSci' };
 const ROW_ICON: Record<RowKey, typeof ICON.L> = { eng: ICON.roleEng, 're.cap': ICON.roleRE, 'sci.cap': ICON.roleSci, 're.saf': ICON.roleRE, 'sci.saf': ICON.roleSci };
-const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
 /** Where a row's needs live on LAB › AI staff & needs (scientists: their AI staff job card). */
 const ROW_ANCHOR: Record<RowKey, string> = { eng: 'needs.eng', 're.cap': 'needs.re.cap', 're.saf': 'needs.re.saf', 'sci.cap': 'job.capFrontier', 'sci.saf': 'job.safety' };
-const Q_WORD: Record<TeamQuality, string> = { solid: 'Solid', strong: 'Strong', elite: 'Elite' };
 
 interface RowStatus { kind: 'short' | 'spare' | 'ok'; text: string; tip: string }
-interface RowData { k: RowKey; people: number; teams: number; q: TeamQuality; w?: WorkTypeView; status: RowStatus; aiNote?: string }
+interface RowData { k: RowKey; people: number; teams: number; w?: WorkTypeView; status: RowStatus; aiNote?: string }
 
 /** VOCAB names of the needs (the engine's labels are longer). */
 const NEED_WORD: Record<string, string> = {
@@ -304,10 +302,7 @@ function boardRows(s: GameStateV2): RowData[] {
   const idleSci = idleTeams(s);
   const base = (k: RowKey) => {
     const ts = teamsOfKey(p, k);
-    const qs = ts.map((t) => Q_N[t.quality]);
-    const qn = qs.length ? Math.round(qs.reduce((a, b) => a + b, 0) / qs.length) : 2;
-    const q = (Object.keys(Q_N) as TeamQuality[]).find((x) => Q_N[x] === qn) ?? 'strong';
-    return { k, people: ts.reduce((a, t) => a + t.heads, 0), teams: ts.length, q, w: wts.find((w) => w.wt === ROW_WT[k]) };
+    return { k, people: ts.reduce((a, t) => a + t.heads, 0), teams: ts.length, w: wts.find((w) => w.wt === ROW_WT[k]) };
   };
   const sciRow = (k: 'sci.cap' | 'sci.saf'): Pick<RowData, 'status'> => {
     const idle = idleSci.filter((t) => t.dept === (k === 'sci.cap' ? 'cap' : 'saf')).length;
@@ -337,10 +332,6 @@ function boardRows(s: GameStateV2): RowData[] {
   ];
 }
 
-function QDots({ q }: { q: TeamQuality }) {
-  return <span className={`lab-qp q-${q}`} data-q={q}>{[1, 2, 3].map((i) => <i key={i} className={i <= Q_N[q] ? 'on' : ''} />)}</span>;
-}
-
 function WorkRow({ s, r, maxM }: { s: GameStateV2; r: RowData; maxM: number }) {
   const Ic = ROW_ICON[r.k];
   const w = r.w;
@@ -352,10 +343,10 @@ function WorkRow({ s, r, maxM }: { s: GameStateV2; r: RowData; maxM: number }) {
       <div className="lab-wr" data-row={r.k} onClick={() => store.goto('lab', { tab: 'work', anchor: ROW_ANCHOR[r.k] })} role="link">
         <span className="rn"><Ic size={18} /><Term id={ROW_TERM[r.k]}>{ROW_NAME[r.k]}</Term></span>
         <Tip content={() => <TipCard title={ROW_NAME[r.k]} value={`${F.count(r.people)} people`} rows={[
-          { label: 'Teams', value: String(r.teams) }, { label: <Term id="teamQuality">Quality</Term>, value: Q_WORD[r.q] },
+          { label: 'Teams', value: String(r.teams) },
           { label: 'Open positions', value: F.count(pay.reduce((a, t) => a + t.size - t.heads, 0)) },
         ]}>People on these teams now.</TipCard>}>
-          <span className="pp"><b className="num">{Math.round(r.people).toLocaleString('en-US')}</b> <span className="dim">people · {r.teams} team{r.teams === 1 ? '' : 's'}</span> <QDots q={r.q} /></span>
+          <span className="pp"><b className="num">{Math.round(r.people).toLocaleString('en-US')}</b> <span className="dim">people · {r.teams} team{r.teams === 1 ? '' : 's'}</span></span>
         </Tip>
         {hasAI && w ? (
           <span className="ais">
@@ -499,7 +490,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     const role = k === 'eng' ? 'eng' : (k.split('.')[0] as 're' | 'sci');
     const dept = k === 'eng' ? 'cap' : (k.split('.')[1] as 'cap' | 'saf');
     const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
-    return `${F.money(fullTeamPayroll(role, dept, 'strong'), { perYear: true })} · ${Number.isFinite(wk) ? `~${wk} wk to hire` : 'hiring stalled'}`;
+    return `${F.money(fullTeamPayroll(role, dept), { perYear: true })} · ${Number.isFinite(wk) ? `~${wk} wk to hire` : 'hiring stalled'}`;
   };
   const hire = (k: TeamKey, what: string, target2: string, eff: string, gain: number, mt: Move['target'] | null, note = '') => {
     const id = `hire>${k}`;
@@ -516,16 +507,16 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   const eng = engAllocView(s);
   if (eng.cap > 0 && eng.idle / eng.cap > 0.05) wont.push(`Engineers: ${F.pct(eng.idle / eng.cap)} spare`);
   else {
-    const g = teamGain(s, { role: 'eng', dept: 'cap', quality: 'strong' });
+    const g = teamGain(s, { role: 'eng', dept: 'cap' });
     if (g.amount > 0.01) hire('eng', '+1 engineer team', 'Build capacity', `+${F.num(g.amount, 1)} teams`, 0, null);
   }
-  const sc = teamGain(s, { role: 'sci', dept: 'cap', quality: 'strong', specialty: 'pretraining' });
+  const sc = teamGain(s, { role: 'sci', dept: 'cap', specialty: 'pretraining' });
   if (!(sc.amount > 0)) wont.push('Scientists: no programme waits for ideas');
   else hire('sci.cap', '+1 scientist team', 'Next result', `${F.num(sc.amount, 0)} d sooner`, 0, null, `${sc.target ?? ''} · `);
   const saf = safReAllocView(s);
   const safShort = saf.needs.filter((n) => n.short > 1e-6);
   for (const k of ['sci.saf', 're.saf'] as const) {
-    const g = teamGain(s, { role: k === 'sci.saf' ? 'sci' : 're', dept: 'saf', quality: 'strong', ...(k === 'sci.saf' ? { specialty: 'alignment' as const } : {}) });
+    const g = teamGain(s, { role: k === 'sci.saf' ? 'sci' : 're', dept: 'saf', ...(k === 'sci.saf' ? { specialty: 'alignment' as const } : {}) });
     const name = k === 'sci.saf' ? '+1 safety scientist team' : '+1 safety research-engineer team';
     if (g.currency === 'alignment' && g.amount > 0.005) {
       const note = k === 're.saf' && safShort.length ? `ends the ${t1(safShort.reduce((a, n) => a + n.short, 0))}-person shortage on ${needWord(safShort[0]).toLowerCase()} · ` : '';

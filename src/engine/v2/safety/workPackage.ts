@@ -38,7 +38,7 @@ export function aiDoneHeads(s: GameStateV2): number {
   return sl.exp.A * sl.exp.H * WORK_TYPES.SAF_EXP.heads + sl.ideas.A * sl.ideas.H * WORK_TYPES.SAF_IDEAS.heads;
 }
 
-/** The 'spotCheck' need's demand (safety engineers, heads × quality) at share q (default the chosen one). */
+/** The 'spotCheck' need's demand (safety engineers, heads) at share q (default the chosen one). */
 export const spotCheckFte = (s: GameStateV2, q = spotCheckChosen(s)): number => clamp01(q) * SPOT_COST * aiDoneHeads(s);
 
 /** Spot-check share in effect: the chosen share × the share of its staff served today. */

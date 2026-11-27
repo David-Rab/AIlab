@@ -16,7 +16,7 @@
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { PLAYER_ID } from '../../src/engine/v2/models/labs';
 import { expThroughput, labInputs, type LabInputs } from '../../src/engine/v2/production/production';
-import { labourOf, qualityZ, starTaste, tasteLimitOf, teamTaste, workContext } from '../../src/engine/v2/departments/workfit';
+import { labourOf, starTaste, tasteLimitOf, teamTaste, workContext } from '../../src/engine/v2/departments/workfit';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
 /** The AIFM's present day in the aifm-public Eli config runs (parameters.present_day). */
@@ -38,7 +38,7 @@ function tasteAt(s: GameStateV2, sdAI: number, sAI: number): number {
   for (const t of s.player.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, star, tl);
+    tai += t.heads * teamTaste(0, sdAI, sAI, m2b, star, tl);
   }
   return cap > 0 ? tai / cap : 1;
 }

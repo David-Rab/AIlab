@@ -262,7 +262,7 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
       const dept = key.endsWith('saf') ? 'saf' : 'cap';
       const c = cl(s);
       const spec = role === 'sci' ? { specialty: nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) } : {};
-      c.player.teams.push({ id: 'T-test', role, dept, size: TEAM_SIZE[role], heads: TEAM_SIZE[role], quality: 'strong', ...spec });
+      c.player.teams.push({ id: 'T-test', role, dept, size: TEAM_SIZE[role], heads: TEAM_SIZE[role], ...spec });
       tick(c, { skip: ['endings'] });
       const want = effectLine(s, base, readNow(c), { role, dept });
       const same = g.unit === want.unit && (g.unit === 'days' ? near(g.amount, want.amount, 0.1, 1) : near(g.amount, want.amount, 0.05, 0.02));

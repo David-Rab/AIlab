@@ -14,7 +14,7 @@ import {
 import type { CapProjectView, Column, GameStateV2, LineRow, ProgrammeGets, ProgrammeRate, SafetyProgramme, StageId } from '../../../engine/v2';
 import { PROJECT_BY_ID, lineNodeId, optionsOf } from '../../../data/v2/tree';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { COLUMN_LABEL, QUALITY } from '../../../data/v2/teams';
+import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { GoBtn, Ref } from '../kit';
@@ -79,7 +79,7 @@ function limitSegs(s: GameStateV2): Seg[] {
   const held = researchMods(s).frontierExp <= 0;
   const idleSci = capPriorityList(s).idleTeams.length;
   const reShort = re.needs.some((n) => n.short > 1e-6 && Number.isFinite(n.demand));
-  const sciGain = teamGain(s, { role: 'sci', dept: 'cap', quality: 'strong', specialty: 'pretraining' }).amount;
+  const sciGain = teamGain(s, { role: 'sci', dept: 'cap', specialty: 'pretraining' }).amount;
   const compute: Seg = exp <= 0 || held
     ? { k: 'compute', name: 'Compute', term: 'computeBound', icon: ICON.compute, st: 'bad', word: held ? 'Experiments held' : 'None for experiments', tip: held ? 'Frontier work is paused: capability experiments get no compute.' : 'No compute on research experiments: no capability project can test anything.' }
     : lim === 'compute-bound' ? { k: 'compute', name: 'Compute', term: 'computeBound', icon: ICON.compute, st: 'on', word: 'Limits most', tip: 'More experiment compute would speed research up the most (your estimate).' }
@@ -206,7 +206,7 @@ function Effect({ v, rate }: { v: CapProjectView; rate?: ProgrammeRate }) {
 
 function capTeamsTip(v: CapProjectView) {
   return () => (
-    <TipCard title={<Term id="teamsWanted">Teams</Term>} value={`${v.teams.length} of ${v.want} wanted${v.auto ? ' (auto)' : ''}`} rows={v.teams.map((t, i) => ({ label: `${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team ${i + 1}`, value: `${QUALITY[t.quality].label}${t.match ? ' · right field' : ''}` }))}>
+    <TipCard title={<Term id="teamsWanted">Teams</Term>} value={`${v.teams.length} of ${v.want} wanted${v.auto ? ' (auto)' : ''}`} rows={v.teams.map((t, i) => ({ label: `${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team ${i + 1}`, value: t.match ? 'right field' : '' }))}>
       {v.teams.length < v.want ? 'Higher-priority programmes took the free teams. ' : ''}The game places science teams down the list; change teams wanted in the card.
     </TipCard>
   );

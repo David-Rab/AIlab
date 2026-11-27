@@ -89,7 +89,7 @@ export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as
  *  SERIOUS_CAP)^λ (taste does not speed it; models/research.ts sciWorkRate), so a line staffed at "serious" capacity (with its engineers and compute) gets its first result
  *  after T₁ months, the pre-R8 hazard's expected time at Serious funding (pre-E1: progress/day = √(capacity ÷
  *  SERIOUS_CAP) / (30·T₁) × compute^0.3 × AI labour). SERIOUS_CAP is a serious programme's capacity in standard science
- *  teams (heads/40 × quality × 1.5 in the team's specialty) [calibration: RefBot keeps one team on each of its four
+ *  teams (heads/40 × 1.5 in the team's specialty) [calibration: RefBot keeps one team on each of its four
  *  lines, ≈ its pre-R8 Seed funding (a quarter of serious): a non-matching Strong team is 0.25, a matching one 0.375].
  *  6 (a matching team exactly at Seed) left the mixed bot unable to keep up before SAR (S5); 2–3 made RefBot's
  *  understanding hold at SAR (S5). */
@@ -106,7 +106,7 @@ export const SERIOUS_CAP = 4;
  *  shortest step of a safety project; validation on the frontier model the longest]. */
 export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
 /** RD-R02a: a serious programme's line experiments ask this many experiment-labour units (RE_LABOUR_UNIT research-engineer
- *  team-equivalents each, the capability unit): 0.25 = 50 heads × quality (the pre-RD-R02a SAF_RE_UNIT) [D, calibration];
+ *  team-equivalents each, the capability unit): 0.25 = 50 heads (the pre-RD-R02a SAF_RE_UNIT) [D, calibration];
  *  a project asks in proportion to its science staffing (× capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). A staffing
  *  need, as capability's RE_FULL_PROJECT, not a unit. */
 export const SAF_RE_ASK = 0.25;
@@ -117,7 +117,7 @@ export const LINE_MULT_MAX = 2.5;
 
 /** SR-09 validation jobs (SAFETY-REDESIGN §3.2; replace tool upkeep): plant known behaviour in a test copy of a model
  *  (a model organism) and count how often the instrument finds it, as sleeper-agent probes and auditing games do
- *  [S: research/06 §2.9, research/20 F6]. A job takes VAL_ENGINEERS safety research engineers (heads × quality; AI
+ *  [S: research/06 §2.9, research/20 F6]. A job takes VAL_ENGINEERS safety research engineers (heads; AI
  *  labour of safety experiments carries part, ÷ m) for VAL_DAYS at full staffing, and VAL_COMPUTE_FRAC of a serious
  *  project's experiment compute on the instrument's line while it runs; it plants VAL_N cases. A port (a validated
  *  instrument on a new model) is the same job. [D: costs; [R] pending, research/20 §G gives eval costs, not organism

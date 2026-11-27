@@ -20,12 +20,12 @@
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
-  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  MILESTONE_COVER, PEAK_FLOPS, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
+import { starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { optimalLabour, Phi, tasteSigma } from '../production/ces';
@@ -39,7 +39,7 @@ import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { agentSplitShare, agentVersion, monitorBudget, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
-import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
+import type { DomainId, GameStateV2, ModelVersion, ProdParams, TimelineWorld, VersionBuild } from '../types';
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired' && v.status !== 'rolledBack';
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -155,9 +155,9 @@ export function dollarsPerH100eHour(s: GameStateV2): number {
   const r = s.market.rental;
   return r > 0 ? r : (14e3 * Math.pow(0.8, decimalYear(s) - 2025.5)) / 8766;
 }
-/** AI cost per work-hour of a version ($) and the lab's best engineers' ($: Elite engineering pay over 2,000 hours). */
+/** AI cost per work-hour of a version ($) and the lab's engineers' ($: engineering pay over 2,000 hours). */
 export function costPerWorkHour(s: GameStateV2, fpt: number): { ai: number; human: number } {
-  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (TEAM_COST_M.cap.eng * QUALITY.elite.cost * 1e6) / FTE_HOURS_PER_YEAR };
+  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (TEAM_COST_M.cap.eng * 1e6) / FTE_HOURS_PER_YEAR };
 }
 
 // ───────────────────────────── effective labour ─────────────────────────────
@@ -229,8 +229,6 @@ export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, 
   if (sAI <= 0) return Th;
   return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
-/** A team's human taste position (SDs) from its quality. */
-export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];
 /** Lab-wide human taste factor from star hires (data/v2/teams.ts starTasteOf). */
 export const starTaste = (s: GameStateV2) => starTasteOf(s.player.stars ?? 0);
 
@@ -246,7 +244,7 @@ export interface LabourOf {
    *  does on its own, A = t × coverage. */
   t: number;
   A: number;
-  /** Human team-equivalents in the role (heads ÷ team size × quality) and AI team-equivalents (FTE ÷ team size). */
+  /** Human team-equivalents in the role (heads ÷ team size) and AI team-equivalents (FTE ÷ team size). */
   H: number;
   AI: number;
   aiFte: number;
@@ -332,13 +330,12 @@ export function humansOf(s: GameStateV2, slot: LabourSlot): number {
   let h = 0;
   for (const t0 of s.player.teams) {
     const t = onDuty(s, t0);
-    const q = QUALITY[t.quality].out;
-    if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads) * q;
-    else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads) * q;
-    else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads) * q;
-    else if (slot === 'SAF_EXP' && t.role === 're' && t.dept === 'saf') h += (t.heads / WORK_TYPES.SAF_EXP.heads) * q;
+    if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads);
+    else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads);
+    else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads);
+    else if (slot === 'SAF_EXP' && t.role === 're' && t.dept === 'saf') h += (t.heads / WORK_TYPES.SAF_EXP.heads);
     // Safety scientists on research-line projects (the work the safety agents can be handed).
-    else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads) * q;
+    else if (slot === 'SAF_IDEAS' && t.role === 'sci' && t.projectId && onLine(t.projectId)) h += (t.heads / WORK_TYPES.SAF_IDEAS.heads);
   }
   return h;
 }

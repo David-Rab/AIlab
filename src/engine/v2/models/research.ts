@@ -56,7 +56,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, qualityZ, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -246,8 +246,8 @@ export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdA
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
-    hw += c * humanTaste(qualityZ(t.quality), inp.m2b, star);
+    qw += c * teamTaste(0, inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
+    hw += c * humanTaste(0, inp.m2b, star);
   }
   return cap > 0 ? { cap, q: qw / cap, qh: hw / cap, qa, s: inp.sAI } : { cap, q: 1 };
 }
@@ -370,7 +370,7 @@ export const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number }, s
   sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * speed) / 30 : 0;
 /** A project's experiment labour ℓ = (m_EXP × research engineers ÷ unit)^λ, the labour input of the experiment CES, for
  *  engineers `re` in the caller's units (`unit` of them make one labour unit: capability team-equivalents ÷ RE_LABOUR_UNIT;
- *  safety heads × quality ÷ HEADS_PER_LABOUR_UNIT). One function for both departments (safety/lineProjects.ts lineRates). */
+ *  safety heads ÷ HEADS_PER_LABOUR_UNIT). One function for both departments (safety/lineProjects.ts lineRates). */
 export const expLabour = (lam: number, mExp: number, re: number, unit: number) => Math.pow(Math.max(1e-12, (mExp * re) / unit), lam);
 /** An unlock project's test state, started on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
@@ -422,7 +422,7 @@ function tasteOf(s: GameStateV2): (t: Team) => number {
   const m2b = s.hidden.timeline.prod.m2b;
   const tl = tasteLimitOf(s.hidden.timeline);
   const star = starTaste(s);
-  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
+  return () => teamTaste(0, wc.sdAI, wc.sAI, m2b, star, tl);
 }
 
 /** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×

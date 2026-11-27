@@ -26,7 +26,7 @@ import { gEquivOf, latestBaseFlop, STACK_KEYS } from './stacks';
 import { lentTrainingH100e } from './runs';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
-import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey, Team } from '../types';
+import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey } from '../types';
 
 // ───────────────────────────── projects ─────────────────────────────
 
@@ -37,7 +37,7 @@ export const STAGES = ['ideation', 'small', 'scale', 'adoption'] as const;
 export const UNLOCK_STAGES = ['test', 'adoption'] as const;
 export type StageId = (typeof STAGES)[number] | (typeof UNLOCK_STAGES)[number];
 
-export interface ProjectTeamView { id: string; specialty?: string; quality: Team['quality']; heads: number; match: boolean; why: string }
+export interface ProjectTeamView { id: string; specialty?: string; heads: number; match: boolean; why: string }
 export interface CapProjectView {
   id: string;
   name: string;
@@ -123,7 +123,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const ready = projectReady(s, id);
   const sci = believedSciOn(s, id); // UB-2: believed taste (was the true AI taste); capacity is a fact
   const teams: ProjectTeamView[] = p.teams.filter((t) => t.role === 'sci' && t.projectId === id).map((t) => ({
-    id: t.id, ...(t.specialty ? { specialty: t.specialty } : {}), quality: t.quality, heads: t.heads, match: t.specialty === n.column, why: t.why ?? 'Placed by the assignment',
+    id: t.id, ...(t.specialty ? { specialty: t.specialty } : {}), heads: t.heads, match: t.specialty === n.column, why: t.why ?? 'Placed by the assignment',
   }));
   // Stage.
   const unlock = isUnlockProject(n);
@@ -406,7 +406,7 @@ export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; pe
   return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'teams', m, perProject: Object.fromEntries([...al.perProject].map(([k, v]) => [k, v / m])) };
 }
 
-/** RD-A04: safety research engineers by need today (heads × quality, the player's order): demand, what each got,
+/** RD-A04: safety research engineers by need today (heads, the player's order): demand, what each got,
  *  caps, unmet demand, idle. */
 export function safReAllocView(s: GameStateV2): AllocView<SafReNeed> {
   const a = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;

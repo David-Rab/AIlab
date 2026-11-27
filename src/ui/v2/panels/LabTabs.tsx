@@ -10,8 +10,8 @@ import {
 } from '../../../engine/v2';
 import { privilegedOf } from '../../../engine/v2/security/security';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
-import { COLUMN_LABEL, QUALITY, STAR_HIRE, TEAM_SIZE } from '../../../data/v2/teams';
-import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
+import { COLUMN_LABEL, STAR_HIRE, TEAM_SIZE } from '../../../data/v2/teams';
+import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
 import { NeedsBoard } from './Work';
 import { ActBtn, Limit, Term, Tip, TipCard, Why } from '../ui';
@@ -23,8 +23,6 @@ import { SPHERE } from '../theme';
 // ───────── Hiring & teams ─────────
 const ROLE_ICON: Record<TeamRole, typeof ICON.L> = { eng: ICON.roleEng, re: ICON.roleRE, sci: ICON.roleSci };
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
-const Q_WORD: Record<TeamQuality, string> = { solid: 'Solid', strong: 'Strong', elite: 'Elite' };
 const KEY_NAME: Record<TeamKey, string> = { eng: 'Engineers', 're.cap': 'Research engineers', 'sci.cap': 'Scientists', 're.saf': 'Research engineers', 'sci.saf': 'Scientists' };
 const KEY_FULL: Record<TeamKey, string> = { eng: 'Engineers', 're.cap': 'Capability research engineers', 'sci.cap': 'Capability scientists', 're.saf': 'Safety research engineers', 'sci.saf': 'Safety scientists' };
 const KEY_TERM: Record<TeamKey, string> = { eng: 'roleEng', 're.cap': 'roleRE', 'sci.cap': 'roleSci', 're.saf': 'roleRE', 'sci.saf': 'roleSci' };
@@ -34,10 +32,6 @@ const deptOf = (k: TeamKey): TeamDept => (k === 'eng' ? 'cap' : (k.split('.')[1]
 const teamTitle = (t: Pick<Team, 'role' | 'dept'>) => (t.role === 'eng' ? 'Engineers' : t.role === 're' ? (t.dept === 'saf' ? 'Safety research engineers' : 'Research engineers') : t.dept === 'saf' ? 'Safety scientists' : 'Scientists');
 const t1 = (x: number) => (x >= 10 ? F.count(x) : x.toFixed(1).replace(/\.0$/, ''));
 
-function QDots({ q }: { q: TeamQuality }) {
-  return <span className={`lab-qp q-${q}`} data-q={q}>{[1, 2, 3].map((i) => <i key={i} className={i <= Q_N[q] ? 'on' : ''} />)}</span>;
-}
-
 /** One tile per team; a filling team is hatched up to its share hired. */
 function TeamTile({ s, t, filling }: { s: GameStateV2; t: Team; filling?: boolean }) {
   const wk = filling ? fillWeeks(s, t) : 0;
@@ -45,13 +39,12 @@ function TeamTile({ s, t, filling }: { s: GameStateV2; t: Team; filling?: boolea
   return (
     <Tip content={() => <TipCard title={<span className="row-i"><Ic size={13} />{teamTitle(t)}{t.specialty ? ` · ${COLUMN_LABEL[t.specialty]}` : ''}</span>} rows={[
       { label: 'People', value: `${F.count(t.heads)} of ${t.size}` },
-      { label: <Term id="teamQuality">Quality</Term>, value: `${Q_WORD[t.quality]} · output ×${QUALITY[t.quality].out}` },
       { label: <Term id="payroll">Payroll</Term>, value: F.money(teamPayroll(t), { perYear: true }) },
       ...(t.role === 'sci' ? [{ label: 'Programme', value: t.projectId ? (PROJECT_BY_ID[t.projectId]?.name ?? t.projectId) : 'none (idle)' }] : []),
       ...(filling ? [{ label: 'Full in', value: Number.isFinite(wk) ? `${wk} weeks` : 'stalled' }] : []),
     ]}>{filling ? 'Being hired at the weekly hiring speed.' : 'A team on staff.'}</TipCard>}>
       <span className={`lh-tile ${filling ? 'filling' : ''}`} data-team={t.id}>
-        {filling ? <i className="fillp" style={{ width: `${(t.heads / Math.max(1, t.size)) * 100}%` }} /> : <QDots q={t.quality} />}
+        {filling ? <i className="fillp" style={{ width: `${(t.heads / Math.max(1, t.size)) * 100}%` }} /> : null}
       </span>
     </Tip>
   );
@@ -66,22 +59,22 @@ function nextTeamBuys(s: GameStateV2, k: TeamKey): { text: ReactNode; tip: strin
     const e = engAllocView(s);
     const spare = e.cap > 0 ? e.idle / e.cap : 0;
     if (spare > 0.05) return { text: `nothing now · ${F.pct(spare)} spare`, tip: 'Engineering capacity no need takes: another team would sit spare.', quiet: true };
-    const g = teamGain(s, { role, dept, quality: 'strong' });
+    const g = teamGain(s, { role, dept });
     return { text: <><Term id="buildCapacity">Build capacity</Term> <b className="num tone-pos">+{F.num(g.amount, 1)}</b> teams</>, tip: 'Build capacity in team-weeks per week after one day of engineering with the team.', quiet: false };
   }
   if (k === 're.cap') {
     const r = reAllocView(s);
     if (r.idle >= 0.5) return { text: `nothing now · ${t1(r.idle)} teams spare`, tip: 'Research-engineer capacity no need takes (at most two teams per programme).', quiet: true };
-    const g = teamGain(s, { role, dept, quality: 'strong' });
+    const g = teamGain(s, { role, dept });
     return g.amount > 0 ? { text: <>next project <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: `Days sooner for the capability project these research engineers speed most, after one research day with them${g.target ? `: ${g.target}` : ''}.`, quiet: false }
       : { text: 'little · no project needs more', tip: 'No capability project moves faster with them today.', quiet: true };
   }
   if (k === 'sci.cap') {
-    const g = teamGain(s, { role, dept, quality: 'strong', specialty: 'pretraining' });
+    const g = teamGain(s, { role, dept, specialty: 'pretraining' });
     return g.amount > 0 ? { text: <>next project <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: `Days sooner for the capability project a new science team speeds most, after one research day with it${g.target ? `: ${g.target}` : ''}.`, quiet: false }
       : { text: 'little · no programme waits for a team', tip: 'Every capability programme already has the science teams it takes.', quiet: true };
   }
-  const g = teamGain(s, { role, dept: 'saf', quality: 'strong', ...(role === 'sci' ? { specialty: 'alignment' as const } : {}) });
+  const g = teamGain(s, { role, dept: 'saf', ...(role === 'sci' ? { specialty: 'alignment' as const } : {}) });
   if (!(g.currency === 'alignment' && g.amount > 0.005)) return { text: role === 'sci' ? 'little · no programme waits for a team' : 'little · no need is short', tip: 'No safety programme moves faster with them today.', quiet: true };
   const saf = safReAllocView(s);
   const short = saf.needs.filter((n) => n.short > 1e-6 && Number.isFinite(n.demand)).reduce((a, n) => a + n.short, 0);
@@ -100,7 +93,7 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
   const fills = queuedOfKey(p, k);
   const people = ts.reduce((a, t) => a + t.heads, 0);
   const target = p.hiring.targets[k] ?? 0;
-  const perTeam = fullTeamPayroll(role, dept, 'strong');
+  const perTeam = fullTeamPayroll(role, dept);
   const pay = ts.reduce((a, t) => a + teamPayroll(t), 0);
   const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
   const f0 = fills[0];
@@ -139,7 +132,7 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
         <Tip content={() => <TipCard title="Cost of a team" value={F.money(perTeam, { perYear: true })}>A full Strong team&apos;s yearly pay.</TipCard>}><div className="small dim"><span className="num">{F.money(perTeam)}</span>/yr a team</div></Tip>
       </div>
       <div className="lh-pay">
-        <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1} · ${Q_WORD[t.quality]}`, value: F.money(teamPayroll(t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1}`, value: F.money(teamPayroll(t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>
         <Tip content={() => <TipCard title="Time to hire a team" value={Number.isFinite(wk) ? `~${wk} weeks` : 'stalled'}>Weeks to fill one new team at today&apos;s hiring speed (talent pull and morale set it; teams already filling go first).</TipCard>}><div className="small dim">{Number.isFinite(wk) ? `~${wk} wk a team` : 'hiring stalled'}</div></Tip>
       </div>
       <Tip content={() => <TipCard title="Next team buys">{buys.tip}</TipCard>}>
@@ -154,8 +147,7 @@ function Teams({ s }: { s: GameStateV2 }) {
     <div className="lh-grp" style={{ color: d === 'cap' ? SPHERE.cap : SPHERE.saf }}>{d === 'cap' ? <ICON.capabilities size={13} /> : <ICON.safety size={13} />} {d === 'cap' ? 'Capability' : 'Safety'}</div>
   );
   return (
-    <Card home="teams" className="lh-teams" title={<span className="row-i"><ICON.staff size={15} /><Term id="team">Teams</Term> <span className="dim small lc">the people you employ, by role</span></span>}
-      right={<Tip content={() => <TipCard title={<Term id="teamQuality">Team quality</Term>} rows={(['solid', 'strong', 'elite'] as const).map((q) => ({ label: <span className="row-i"><QDots q={q} /> {Q_WORD[q]}</span>, value: `output ×${QUALITY[q].out} · cost ×${QUALITY[q].cost}` }))} />}><span className="small dim row-i"><Term id="teamQuality">Team quality</Term> <QDots q="strong" /> Strong</span></Tip>}>
+    <Card home="teams" className="lh-teams" title={<span className="row-i"><ICON.staff size={15} /><Term id="team">Teams</Term> <span className="dim small lc">the people you employ, by role</span></span>}>
       <div className="lh-head"><span>Role</span><span>Teams</span><span><Term id="keepHiring">Hiring target</Term></span><span><Term id="payroll">Payroll</Term></span><span>Next team buys</span></div>
       <TeamRow s={s} k="eng" />
       {grp('cap')}
@@ -169,34 +161,6 @@ function Teams({ s }: { s: GameStateV2 }) {
   );
 }
 
-function Offers({ s }: { s: GameStateV2 }) {
-  const h = s.player.hiring;
-  const nextOffer = 7 - (s.time.day % 7);
-  return (
-    <Card home="hiring" className="lh-offers" title={<span className="row-i"><ICON.hiring size={15} /><Term id="teamOffer">Team offers</Term> <span className="dim small lc">whole teams you can hire now</span></span>}
-      right={<Tip content={() => <TipCard title="Offers" value={String(h.candidates.length)} rows={[{ label: 'Next offers', value: `in ${nextOffer} d` }]}>New candidate teams arrive every week; each leaves on its date.</TipCard>}><span className="lh-count num">{h.candidates.length}</span></Tip>}>
-      {h.candidates.length === 0 && <div className="small dim lh-none">No offers this week · next in {nextOffer} d</div>}
-      {h.candidates.map((c) => {
-        const Ic = c.role === 'sci' && c.specialty ? COL_ICON[c.specialty] : ROLE_ICON[c.role];
-        const pay = fullTeamPayroll(c.role, c.dept, c.quality);
-        const left = c.until - s.time.day;
-        return (
-          <div key={c.id} className="lh-offer" data-offer={c.id}>
-            <span className={`lh-ic ${c.dept}`}><Ic size={16} /></span>
-            <div className="lh-om">
-              <div><b>{teamTitle(c)}</b> <span className="dim small">{Q_WORD[c.quality]} · {TEAM_SIZE[c.role]} people{c.specialty ? ` · ${COLUMN_LABEL[c.specialty].toLowerCase()}` : ''}</span></div>
-              <div className="small">
-                <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })}>The team&apos;s yearly cost once it is full.</TipCard>}><b className="num">{F.money(pay)}/yr</b></Tip>
-                <Tip content={() => <TipCard title="Offer leaves" value={fmtDate(dateOf(s, c.until))}>Hire before then or the team takes another offer.</TipCard>}><span className="dim"> · leaves <span className="num">{fmtDate(dateOf(s, c.until)).replace(/, \d{4}$/, '')} ({left} d)</span></span></Tip>
-              </div>
-            </div>
-            <ActBtn id="teams.hire" params={{ candidate: c.id }} label="Hire" primary />
-          </div>
-        );
-      })}
-    </Card>
-  );
-}
 
 const PAY_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
 function PayrollCard({ s }: { s: GameStateV2 }) {
@@ -237,7 +201,6 @@ export function LabPeople({ s }: { s: GameStateV2 }) {
     <div className="lh-grid" data-test="lab-hiring">
       <Teams s={s} />
       <div className="lh-side">
-        <Offers s={s} />
         <PayrollCard s={s} />
       </div>
     </div>

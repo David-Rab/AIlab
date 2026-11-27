@@ -9,7 +9,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { previewTick } from '../core/previewTick';
 import { capEta, isCapProject } from '../models/research';
 import { lineResultsPerYear } from '../safety/agendas';
-import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../types';
+import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../types';
 import {
   buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
   staffOf, teamPayroll, teamsOfKey,
@@ -22,13 +22,13 @@ const fail = (why: string | undefined) => {
   if (why) throw new Error(why);
 };
 
-/** A team a preview adds (full, arrived): the spec's role, department, quality and specialty (a standard science hire
+/** A team a preview adds (full, arrived): the spec's role, department and specialty (a standard science hire
  *  takes the specialty hireTeam would give it). */
-export type TeamSpec = { role: TeamRole; dept: TeamDept; quality: TeamQuality; specialty?: Column; heads?: number };
+export type TeamSpec = { role: TeamRole; dept: TeamDept; specialty?: Column; heads?: number };
 const previewTeam = (s: GameStateV2, t: TeamSpec, i = 0): Team => {
   const dept = t.role === 'eng' ? 'cap' : t.dept;
   const specialty = t.specialty ?? (t.role === 'sci' ? nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) : undefined);
-  return { id: `preview:${i}`, role: t.role, dept, size: TEAM_SIZE[t.role], heads: t.heads ?? TEAM_SIZE[t.role], quality: t.quality, ...(specialty ? { specialty } : {}) };
+  return { id: `preview:${i}`, role: t.role, dept, size: TEAM_SIZE[t.role], heads: t.heads ?? TEAM_SIZE[t.role], ...(specialty ? { specialty } : {}) };
 };
 
 /** What the lab reads after a day: build capacity (team-weeks / week, buildCapacity), every capability project's ETA
@@ -101,7 +101,7 @@ export function effectLine(_s: GameStateV2, before: DayRead, after: DayRead, t: 
 /** What one team of this kind adds once it is full (the gain of a hire): today's mechanisms on a copy with the team. */
 export function teamGain(s: GameStateV2, t: TeamSpec): CostLine {
   const add = previewTeam(s, t);
-  return effectLine(s, baseRead(s), memoRead(s, `add:${add.role}:${add.dept}:${add.quality}:${add.specialty ?? ''}:${add.heads}`, () => [...s.player.teams, add]), add);
+  return effectLine(s, baseRead(s), memoRead(s, `add:${add.role}:${add.dept}:${add.specialty ?? ''}:${add.heads}`, () => [...s.player.teams, add]), add);
 }
 /** What one more star hire adds: the copy with one more star (star taste, data/v2/teams.ts starTasteOf) after one
  *  research day, as the capability project it speeds most. */
@@ -112,7 +112,7 @@ export function starGain(s: GameStateV2): CostLine {
 /** What `n` more standard teams of a kind add (Keep hiring). */
 function teamsGain(s: GameStateV2, t: TeamSpec, n: number): CostLine {
   const adds = Array.from({ length: n }, (_, i) => previewTeam(s, t, i));
-  return effectLine(s, baseRead(s), memoRead(s, `add${n}:${t.role}:${t.dept}:${t.quality}`, () => [...s.player.teams, ...adds]), adds[0]);
+  return effectLine(s, baseRead(s), memoRead(s, `add${n}:${t.role}:${t.dept}`, () => [...s.player.teams, ...adds]), adds[0]);
 }
 /** What losing a team costs: the copy without it against today (negative amounts). */
 function teamLoss(s: GameStateV2, t: Team): CostLine {
@@ -136,12 +136,9 @@ function pickTeam(s: GameStateV2, p: Params, role?: TeamRole): Team | undefined 
   return pool[pool.length - 1];
 }
 
-function hireSpec(s: GameStateV2, p: Params): { role: TeamRole; dept: TeamDept; quality: TeamQuality; specialty?: Column } {
-  const cid = str(p, 'candidate', '');
-  const c = cid ? s.player.hiring.candidates.find((x) => x.id === cid) : undefined;
-  if (c) return c;
+function hireSpec(p: Params): { role: TeamRole; dept: TeamDept; specialty?: Column } {
   const k = str(p, 'key', 're.cap') as TeamKey;
-  return { role: roleOfKey(k), dept: deptOfKey(k), quality: 'strong' };
+  return { role: roleOfKey(k), dept: deptOfKey(k) };
 }
 
 export const TEAM_ACTIONS: ActionDef[] = [
@@ -149,17 +146,16 @@ export const TEAM_ACTIONS: ActionDef[] = [
     id: 'teams.hire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Hire team',
     available: () => true,
     preview: (s, p) => {
-      const t = hireSpec(s, p);
+      const t = hireSpec(p);
       const weeks = fillWeeks(s, { ...t, size: TEAM_SIZE[t.role], heads: 0 });
       return {
-        costs: [{ currency: 'cash', amount: fullTeamPayroll(t.role, t.dept, t.quality), target: '$B/yr payroll' }],
+        costs: [{ currency: 'cash', amount: fullTeamPayroll(t.role, t.dept), target: '$B/yr payroll' }],
         gains: [{ ...teamGain(s, t), ...(Number.isFinite(weeks) ? { lagDays: weeks * 7 } : {}) }],
         exposure: [],
       };
     },
     apply: (s, _ctx, p) => {
-      const cid = str(p, 'candidate', '');
-      const r = hireTeam(s, cid ? { candidate: cid } : { key: str(p, 'key', 're.cap') as TeamKey });
+      const r = hireTeam(s, { key: str(p, 'key', 're.cap') as TeamKey });
       if (typeof r === 'string') fail(r);
     },
   },
@@ -208,7 +204,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const n = Math.max(0, Math.round(num(p, 'n', (s.player.hiring.targets[k] ?? 0) + 1)));
       const d = Math.max(0, n - have);
       return d > 0
-        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(role, dept, 'strong'), target: '$B/yr payroll' }], gains: [teamsGain(s, { role, dept, quality: 'strong' }, d)], exposure: [] }
+        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(role, dept), target: '$B/yr payroll' }], gains: [teamsGain(s, { role, dept }, d)], exposure: [] }
         : { costs: [{ currency: 'cash', amount: 0, target: 'no new teams (it never lays off)' }], gains: [], exposure: [] };
     },
     apply: (s, _ctx, p) => {
