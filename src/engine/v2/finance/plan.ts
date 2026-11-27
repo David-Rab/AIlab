@@ -5,13 +5,13 @@
 // `mult × refTotal(t)` online compute: chips 2–3 quarters ahead, sites ~6 quarters ahead (leased while a lessor will
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
-import { PARTNERS, SOURCES } from '../../../data/v2/deals';
+import { CAMPUS, PARTNERS, SITE_MIN_MW, SITE_TIERS, type CampusBuildings } from '../../../data/v2/deals';
 import { isDivision } from '../../../data/v2/starts';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
-import { siteLiveQ } from '../compute/forecast';
-import { leverEffects, siteLiveInQ, type SiteOpts } from '../compute/sites';
+import { siteBuildingLiveQs } from '../compute/forecast';
+import { campusMW, leverEffects, siteCapex, siteLiveInQ, siteLiveMW, siteSizeError, type SiteOpts } from '../compute/sites';
 import { cloudPricePerYear, refTotalAt } from '../compute/market';
 import type { GameStateV2 } from '../types';
 import { BC_WARN, criticsAvailable, criticsOusterShift } from './board';
@@ -102,18 +102,21 @@ function cloudAt(s: GameStateV2, day: number) {
 function baseCloudAt(s: GameStateV2, day: number) {
   return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && c.endDay - c.startDay > 400 ? c.h100e : 0), 0);
 }
-/** Facility MW expected live by a future day (non-blocked sites: live, building and ending before it, and, with
- *  `includePlanned`, sites whose planned go-live quarter (siteLiveQ: permits, then power or construction) is by then). */
+/** Facility MW expected live by a future day, per building (siteLiveMW): live sites, sites under construction whose
+ *  buildings go live by then, and, with `includePlanned`, sites still in permits or waiting for power whose planned
+ *  go-live quarters (siteBuildingLiveQs: permits, then power or construction + k) are by then. Blocked sites count 0. */
 function mwBy(s: GameStateV2, day: number, includePlanned = true) {
   let mw = 0;
   for (const x of s.player.sites) {
     if (x.stage === 'blocked') continue;
-    if (x.stage === 'live') mw += x.mw;
-    else if (x.stage === 'building' && x.stageEndDay <= day) mw += x.mw;
-    else if (includePlanned && x.stage !== 'building') {
-      const l = siteLiveQ(s, x);
-      if (l && dayOfQuarter(s.time.startDate, l.q) <= day) mw += x.mw;
-    }
+    if (x.stage === 'live') { mw += siteLiveMW(x, day); continue; }
+    if (x.stage !== 'building' && !includePlanned) continue;
+    const qs = siteBuildingLiveQs(s, x)?.qs;
+    if (!qs) continue;
+    const days = qs.map((q) => dayOfQuarter(s.time.startDate, q));
+    // a one-building site reads all of its MW once live, so check its day first
+    if (days[0] > day) continue;
+    mw += siteLiveMW({ stage: 'live', mw: x.mw, ws3: { ...x.ws3, liveDays: days } }, day);
   }
   return mw;
 }
@@ -133,17 +136,30 @@ function ownedBy(s: GameStateV2, qq: number) {
   return installed + inv.ready + inv.transit + due;
 }
 
-/** The bot's build options for one source and size [DC-7]: every speed-up that saves at least one quarter (judged with
- *  the other two on; one that saves nothing is dropped and the rest re-judged), the community package always. */
-function siteChoice(s: GameStateV2, path: 'grid' | 'gas', mw: number, pay: 'cash' | 'lease'): SiteOpts & { liveInQ: number } {
-  const o: SiteOpts = { path, mw, crash: true, rush: true, fastTrack: true, community: true, pay };
+/** The bot's build options for one source, building size and number of buildings [DC-7, DC-14]: every speed-up that
+ *  saves at least one quarter for the first building (judged with the other two on; one that saves nothing is dropped
+ *  and the rest re-judged), the community package always. */
+function siteChoice(s: GameStateV2, path: 'grid' | 'gas', mw: number, buildings: CampusBuildings, pay: 'cash' | 'lease'): SiteOpts & { liveInQ: number; capex: number } {
+  const o: SiteOpts = { path, mw, buildings, crash: true, rush: true, fastTrack: true, community: true, pay };
   for (let i = 0; i < 3; i++) {
     const eff = leverEffects(s, o);
     let changed = false;
     for (const k of ['crash', 'rush', 'fastTrack'] as const) if (o[k] && !((eff[k]?.savesQ ?? 0) > 0)) { o[k] = false; changed = true; }
     if (!changed) break;
   }
-  return { ...o, liveInQ: siteLiveInQ(s, o) };
+  return { ...o, liveInQ: siteLiveInQ(s, o), capex: siteCapex(o) };
+}
+
+/** The campus for a MW gap [DC-14]: grid and gas, every building size of the tiers, 1 / 3 / 5 buildings within the
+ *  source cap. Of those whose campus total covers the gap (none covers a gap bigger than any campus holds: then the
+ *  biggest campuses), the one whose first building is live earliest; a tie goes to the cheaper capex. */
+function pickSite(s: GameStateV2, gap: number, pay: 'cash' | 'lease') {
+  const all = (['grid', 'gas'] as const).flatMap((path) => SITE_TIERS.flatMap((t) => CAMPUS.counts
+    .filter((n) => !siteSizeError({ path, mw: t.mw, buildings: n }))
+    .map((n) => siteChoice(s, path, t.mw, n, pay))));
+  const covers = all.filter((c) => campusMW(c) >= gap - 1e-9);
+  const best = covers.length ? covers : all.filter((c) => campusMW(c) >= Math.max(...all.map(campusMW)) - 1e-9);
+  return best.reduce((x, y) => (y.liveInQ < x.liveInQ || (y.liveInQ === x.liveInQ && y.capex < x.capex) ? y : x));
 }
 
 /** Run one autopilot step (call every day before the tick; acts on the 1st of each month). */
@@ -227,14 +243,13 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
     let gap = needMW - mwBy(s, day);
     let n = 0;
     while (gap > 100 && n++ < 12) {
-      // Grid or gas, whichever is live earlier with every useful speed-up on; a tie goes to grid (cheaper upfront).
+      // A campus (grid or gas, building size, 1 / 3 / 5 buildings) whose total covers the gap, first building live
+      // earliest with every useful speed-up on; a tie goes to the cheaper capex (DC-14).
       const pay = o.offBalance && leaseRate(s) !== undefined ? 'lease' : 'cash';
-      const pick = (['grid', 'gas'] as const)
-        .map((path) => siteChoice(s, path, Math.min(SOURCES[path].maxMW, Math.max(500, gap)), pay))
-        .reduce((x, y) => (y.liveInQ < x.liveInQ ? y : x));
-      const { liveInQ: _liveInQ, ...opts } = pick;
+      const pick = pickSite(s, gap, pay);
+      const { liveInQ: _liveInQ, capex: _capex, ...opts } = pick;
       if (!tryAct('cmp.newSite', opts as unknown as Record<string, number | string | boolean>)) break;
-      gap -= pick.mw;
+      gap -= campusMW(pick);
       if (o.guard && (runwayOf(s).q < guardQ || budgetRoom(s) < 0)) break;
     }
   }
@@ -244,8 +259,10 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
   const day2 = dayOfQuarter(s.time.startDate, q + rentQ);
   const shortMW = target(s, o, day2 - s.time.day) - baseCloudAt(s, day2) - siteCapacityH(s, mwBy(s, day2)) / Math.pow(0.944, rentQ);
   if (shortMW > 0.05e6 && prudent && o.offBalance) {
-    const rentMW = Math.min(SOURCES.rent.maxMW, (shortMW * kWAt(s, rentQ)) / 1000);
-    if (rentMW >= 100) tryAct('cmp.newSite', { path: 'rent', mw: rentMW });
+    // a hall of a tier size: the smallest that covers the shortfall, else the largest
+    const rentMW = (shortMW * kWAt(s, rentQ)) / 1000;
+    const hall = (SITE_TIERS.find((t) => t.mw >= rentMW) ?? SITE_TIERS[SITE_TIERS.length - 1]).mw;
+    if (rentMW >= SITE_MIN_MW) tryAct('cmp.newSite', { path: 'rent', mw: hall });
   }
 
   // Chips: fill MW expected 3 quarters out, up to the target net of long-term cloud.
