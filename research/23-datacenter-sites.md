@@ -194,3 +194,87 @@ Facility capex cross-check: Epoch $11.4B/GW IT facility (May 2026) vs C&W all-in
 - GE Vernova $/kW pricing not disclosed (analysts note "softer pricing per kW" Q3 2026 from mix).
 - C&W vs Epoch facility capex disagree (~$17.6M vs ~$11.4M per MW); basis unclear.
 - SemiAnalysis on-site tech capex/lead times are analyst figures, not OEM filings.
+
+---
+
+## 9. Size effects: construction time and cost vs site size
+
+Tags as above. Research pass 2026-11-27, ~25 min. Question: confirm or correct the two design exponents, `construction time = 8 q x GW^0.3` and `building cost per GW = $14B x GW^-0.1` ("building" = facility + network, no chips, no power generation). Epoch data read from the published CSVs (timelines file: https://epoch.ai/data/data_centers/data_center_timelines.csv, read 2026-11-27, values rounded by me). "Start" in Epoch = visible land clearing / construction start; "q" = quarter = 91.3 days.
+
+### 9.1 Construction time vs size
+
+Data: time from construction start to the date cumulative IT power first reaches the stated MW (each site gives several points because buildings come online in phases). Past dates are Epoch observations; dates after 2026-11 are Epoch projections (marked est.).
+
+| Site | Start (Epoch) | MW reached -> quarters from start | Tag |
+|---|---|---|---|
+| xAI Colossus 1 (conversion of an existing building) | 2024-04-24 | 35 MW -> 1.2; 139 -> 1.4; 278 -> 3.3 | [P] Epoch timelines |
+| xAI Colossus 2 | 2025-02-28 | 239 -> 2.6; 490 -> 4.4; 946 -> 5.2; 1,531 -> 8.0 (est.) | [P] |
+| Stargate Abilene | 2024-05-31 | 103 -> 5.3; 206 -> 6.3; 412 -> 7.9; 618 -> 9.1; 824 -> 9.7 (est.) | [P] |
+| Microsoft Fairwater Atlanta | 2023-04-09 | 321 -> 10.1; 636 -> 12.7 | [P] |
+| Microsoft Fairwater Wisconsin | 2023-07-14 | 369 -> 11.0; 737 -> 14.4 (est.); 2,263 -> 19.3 (est.) | [P] |
+| Amazon Ridgeland | 2024-02-24 | 228 -> 8.9 | [P] |
+| Anthropic-Amazon New Carlisle | 2024-02-09 | 398 -> 5.5; 626 -> 7.5; 910 -> 8.5; 1,037 -> 10.8 (est.); 1,925 -> 16.4 (est.) | [P] |
+| Anthropic Lake Mariner | 2025-06-11 | 42 -> 3.9; 210 -> 5.6 (est.) | [P] |
+| CoreWeave Denton TX (conversion) | 2024-11-01 | 8 -> 2.3; 67 -> 4.7; 131 -> 5.3; 262 -> 6.7 | [P] |
+| CoreWeave Helios | 2025-05-31 | 132 -> 5.0 | [P] |
+| Meta Prometheus (long-running; start 2022 in timelines, 2017 in the build-speed table) | 2022-04-14 | 76 -> 14.0; 368 -> 15.1; 471 -> 17.5 | [P], treated as outlier |
+
+Epoch's own "start to 1 GW" table (data insight "data centers buildout speeds", https://epoch.ai/data-insights/data-centers-buildout-speeds), years: Colossus 2 0.97; New Carlisle 1.92; Abilene 2.08; Fayetteville (Fairwater Atlanta) 2.96; Fairwater 3.56; Ridgeland 3.57; Prometheus 8.67 (2017 start). Epoch's text: sites that broke ground in the last 3 years take 1 to 3.6 years (1 to 4 in the launch post). Median of the six = 2.52 yr = **10.1 q** [D: (2.08+2.96)/2 x 4]. Epoch publishes no fit of time against size.
+
+My fit [D] (least squares on ln(time) vs ln(MW), Epoch points above):
+
+| Sample | n | Exponent | Time at 100 MW / 1 GW / 5 GW (extrapolated) | R^2 |
+|---|---|---|---|---|
+| All points, excl. Prometheus, incl. est. | 30 | 0.39 | 4.0 / 9.8 / 18.4 q | 0.55 |
+| Observed only (no est.), excl. Prometheus | 27 | 0.37 | 4.0 / 9.5 / 17.3 q | 0.47 |
+| First milestone per site, excl. Prometheus | 10 | 0.39 | similar | 0.49 |
+| Within one site: Abilene, Denton | 5, 4 | 0.30, 0.30 | | 0.995 each |
+| Within one site: Colossus 2, New Carlisle, Colossus 1 | | 0.52, 0.64, 0.44 | | 0.7-0.94 |
+| Game today: 8 x GW^0.3 | | 0.30 | 4.0 / 8.0 / 13.0 q | |
+
+Reading:
+- Across sites the exponent is ~0.35-0.4, not 0.3; within the two cleanest phased builds it is exactly 0.30. Single fits are noisy (0.3-0.64, R^2 about 0.5 at best): site, owner and year matter as much as size. Colossus 2 (1.5 GW in 8 q) and Fairwater (11 q for ~350 MW) differ by about 3x at similar size.
+- The game's 100 MW (4 q) matches the data. At 1 GW the game is ~1.5-2 q fast (data 9.5-10 q, i.e. ~2.5 yr median). At 5 GW the game (13 q) is below the extrapolation (17-18 q), but there is no observed 5 GW point; the three 1.5-2.3 GW points (8.0, 16.4, 19.3 q, all est.) are at or above the game's 2 GW value (9.8 q).
+- Caveats: (a) "time to reach X MW" mixes site size with phasing choices, since big sites are delivered building by building; (b) Epoch's start = land clearing, which can precede or follow the lab's commitment, so the game's "construction" may be shorter than this with the rest in the permit term of `time_to_live`; (c) later 2025-26 starts (Colossus 2, Lake Mariner) are faster than 2023 starts (Fairwater): experience and money shorten it; (d) Colossus 1 and Denton are conversions of existing shells, not greenfield.
+- xAI's own "122 days" for Colossus 1 was not verified at source [U]; Epoch has 35 MW at 3.6 months from conversion start.
+
+**Verdict (time): suggest 0.4 with base about 9.5 q (2.4 yr)**, i.e. `9.5 q x GW^0.4` gives 3.8 q at 100 MW, 9.5 at 1 GW, 18 at 5 GW. If the designer wants to keep the 8 q base (letting the permit term carry the rest), keep 0.3 for sites up to ~1 GW and accept that 3-5 GW sites are probably under-priced. Confidence: medium for 0.3-0.4 below 1 GW; low above 1 GW (only three projected points).
+
+### 9.2 Building cost per GW vs size
+
+| Data point | $ per MW (or per GW) | Size | Scope | Tag |
+|---|---|---|---|---|
+| Epoch hub, tracked sites | construction cost = $11.8M per MW IT, identical at every site (e.g. Colossus 1 $4.00B / 340 MW; New Carlisle $12.20B / 1,037 MW) | 8 MW to 2.3 GW | Imputed from one cost-per-watt model, so it assumes zero scale effect; it cannot be evidence either way | [P] Epoch timelines, [D] ratio |
+| Epoch 1 GW reference model | facility $11.4B + network $4.9B = $16.3B per GW (utility works $0.16B, land $0.17B, IT $21.2B; total $37.9B). Hub text: "$14B other costs" per GW of server power | 1 GW | Facility from Turner & Townsend index (MW-weighted US markets) + 7-10% liquid cooling; page says the model "scales the facility from 100 MW to 1 GW ... not totally linear", unquantified | [P] https://epoch.ai/data-insights/ai-datacenter-cost-breakdown |
+| Cushman & Wakefield 2026 guide | $17.6M per MW US/Canada average (greenfield, excl. chips); market range $8.9-23.3M; +21% per MW since Q4 2024; power infrastructure 21%, core/shell + site 17%, contingency 16%, land 7% | by market, not by size | Public summaries and the C&W web page show no size breakdown; the range is geographic | [I] C&W release Aug-Sept 2026 (via IREI / CRE Daily) |
+| Turner & Townsend 2025-26 index | $11.6-15.2 per W in the dearest markets (Tokyo, Singapore, Zurich, Silicon Valley, London, Frankfurt); AI vs traditional +7-10% at similar IT capacity | by market | No scale premium or discount in what I could read | [I] T&T Data Centre Construction Cost Index |
+| Meta Hyperion (JV budget) | $27B / ~2 GW = $13.5M per MW [D] ($12.3M at 2.2 GW) | ~2 GW | Buildings + long-lived power, cooling, connectivity; the early "$10B" is stale | [U] press on the Blue Owl JV (Register, Reuters, DCD) |
+| Stargate Abilene (Crusoe / Blue Owl) | $15B / 1.2 GW = $12.5M per MW [D] | 1.1-1.2 GW | Financing total for the JV, scope not itemised | [U] press (Bloomberg, Reuters) |
+| Applied Digital Polaris Forge 2 | $3B / 280 MW = $10.7M per MW [D]; analyst range $3.3-3.9B for ~300 MW = $11-13M per MW; B. Riley assumes $12M per MW | 280-300 MW | Shell + power + cooling before tenant fit-out | [U] company announcement via press |
+| McKinsey | 10-20% capex saving from efficient / standardised repeatable design | n/a | Not a function of MW | [I] McKinsey "Scaling bigger, faster, cheaper data centers" (search snippet only) |
+| Enterprise vs hyperscale | ~$8-9M per MW for 5-19.9 MW sites vs ~$6M per MW for experienced hyperscale builders (older) | 5-20 MW vs large | Old, scope unclear | [U] DCD conference summary (page blocked, snippet only) |
+| Datacenter Knowledge | "dollar amount per kW will be higher if you deploy in smaller chunks" | small | Qualitative | [I] |
+
+What the game's exponent implies [D]: 14 x 0.1^-0.1 = $17.6B/GW at 100 MW (+26% vs 1 GW); 14 x 5^-0.1 = $11.9B/GW at 5 GW (-15%). Observed ratios for 280 MW / 1.2 GW / 2 GW are $10.7M / $12.5M / $13.5M per MW: flat or rising with size, not falling.
+
+Reading: no primary or industry source I could reach shows a measurable discount per MW between ~100 MW and multi-GW. The disclosures that exist go the wrong way, probably because big campuses bundle on-site power, substations, denser halls and heavier cooling, and because the figures are financing totals, not like-for-like budgets. The only sourced size effect is below ~20 MW (qualitative or old) and design standardisation (10-20%), which accrues to repeat builders, not to bigger sites. Epoch's tracked-site costs are linear by construction.
+
+**Verdict (cost): the data do not support -0.1; suggest -0.05 at most (or 0).** With -0.05 the game gives $15.7B/GW at 100 MW, $14B at 1 GW, $12.9B at 5 GW. If the designer wants a visible incentive to build big, -0.1 is defensible as a ceiling consistent with McKinsey's 10-20% and Epoch's "not totally linear", but it is a design choice, not a sourced number. Confidence: low (no like-for-like size series exists). Level check: $14B/GW sits in range (C&W avg $17.6M per MW; Epoch 1 GW facility + network $16.3B; Epoch "other costs" $14B).
+
+### 9.3 Many small sites vs one large campus
+
+| Item | Evidence | Tag |
+|---|---|---|
+| Network cost of splitting | Epoch: a 10 GW training run over 23 sites of 300-800 MW (existing gas plants with spare capacity) needs ~$410M of fibre + switches (4,800 km ring), "less than 1%" of ~$90B construction; repeaters excluded ($2.4-4.8M) | [P] Epoch, "Could decentralized training solve AI's power problem?" |
+| Training-time cost of splitting | Epoch: at most ~5 extra days on a 100-day run (~5%); Analysys Mason: +1-5% training time for LLaMA 3.1 405B distributed; centralised is more efficient when local power allows | [P] Epoch; [I] Analysys Mason 2025 |
+| Speed | Epoch gives no construction-time comparison. Its argument: sites of a few hundred MW can use existing plant capacity and avoid multi-GW interconnection queues; 200 MW+ grid requests "take over 55 months to be processed" | [P] same article |
+| Cost | No source found on shared substation / interconnection savings; Epoch's model counts utility works at only ~$0.16B per GW, so sharing saves little against the $14-16B building cost | [P] Epoch cost breakdown; [D] |
+
+Reading: splitting costs the lab little in capex (<1% network) and ~1-5% in training efficiency; it can buy speed through power access, not through faster building. A cost scale discount should therefore stay small.
+
+### 9.4 Gaps
+
+- No dataset of cost per MW by project size from C&W, JLL, T&T or company filings; the full C&W guide (paywalled) may have a size table, not seen. Published numbers are market ranges.
+- Disclosed project costs are press-derived financing totals with unclear scope [U]; no like-for-like 100 MW vs 1 GW comparison.
+- Construction-time points above 1.5 GW are Epoch projections; no 3-5 GW site exists yet.
+- Epoch "start" = land clearing, which may not match the game's commitment point; the McKinsey / DCD cost claims were not verified at source (snippets only; McKinsey fetch timed out, DCD returned 403).
