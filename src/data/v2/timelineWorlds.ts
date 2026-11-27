@@ -11,14 +11,14 @@ export const timelineOf = (w: string): TimelineId | undefined => (w === 'tl-fast
 
 /** The settings that go to the world's calibration (V3_CAL) and its production parameters (ProdParams). */
 export interface DrawnSettings {
-  v3: { gSC: number; sdSC: number; dBM: number; r: number; tasteLimit: number; stockAgeYears: number };
+  v3: { gSC: number; sdSC: number; dBM: number; r: number; tasteLimit: number; stockAgeYears: number; covS: number; covTop: number };
   prod: { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number };
 }
 const idx = (f: DrawField) => DRAW_FIELDS.indexOf(f);
 const settingsOf = (row: readonly number[]): DrawnSettings => {
   const g = (f: DrawField) => row[idx(f)];
   return {
-    v3: { gSC: g('gSC'), sdSC: g('sdSC'), dBM: g('dBM'), r: g('r'), tasteLimit: g('tasteLimit'), stockAgeYears: g('stockAgeYears') },
+    v3: { gSC: g('gSC'), sdSC: g('sdSC'), dBM: g('dBM'), r: g('r'), tasteLimit: g('tasteLimit'), stockAgeYears: g('stockAgeYears'), covS: g('covS'), covTop: g('covTop') },
     prod: { rc: g('rc'), lam: g('lam'), La: g('La'), Ca: g('Ca'), slow10: g('slow10'), m2b: g('m2b') },
   };
 };

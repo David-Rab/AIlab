@@ -84,6 +84,9 @@ const timelineDrawParams = (): Param[] => [
   drawParam('Ca', 9, 'x', 'inf_compute_asymptote, 1:1'),
   drawParam('slow10', 10, 'x', 'inv_compute_anchor_exp_cap, 1:1'),
   drawParam('stockAgeYears', 11, 'years of start input', 'research_stock / research_efforts at 2025.5 (RS(0) = E(0)/g_E)'),
+  // R3.3 (FIXC-TRANSLATION section 8): the game's coverage logistic from the run's coding-automation schedule A(p) = min(1, L / (1 + exp(-k (p - x0)))), progress_model/automation_model.py get_automation_fraction
+  drawParam('covS', 12, 'OOM', "coverage logistic scale = 1/k of the run automation schedule (AIFM automation_model.py logistic k, recovered from results.automation_fraction vs progress), clamped to [0.2, 10]", { lo: 0.2, hi: 10 }),
+  drawParam('covTop', 13, 'fraction', "coverage logistic value at the best human fit, from the run midpoint x0 + ln(L)/k relative to AC, floored at the game 0.95 and capped at 0.999", { lo: 0.95, hi: 0.999 }),
 ];
 
 export const PARAMS_CAPABILITY = defineParams([

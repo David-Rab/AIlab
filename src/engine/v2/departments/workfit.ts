@@ -5,7 +5,7 @@
 //   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute, design offsets included)
 //   reference  best human F*_w = G_SC + Δ_bm·Σ ω·δ_d(sd_SC); median expert F*_w − Δ_bm (per preset: TimelineWorld.v3)
 //   horizon    h50 = 203 min × 4.2^(G_h − G_V0) × h80Mult (G_h: CODE for software, AGENCY otherwise); p(H) = 1/(1 + (H/h50)^β)
-//   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln 19 + κ_v·(0.9 − v_w)
+//   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln(top/(1 − top)) + κ_v·(0.9 − v_w); s, top = COVER or the world's covS, covTop (R3.3)
 //   assist     win rate w = Φ((F_w − F^med)/S_WIN); human speed-up 1/(M + R + (1 − w)) when > 1 (GDPval)
 //   AI labour  FTE = compute × 8766 h ÷ (H100e-hours per work-hour) ÷ 2000 h; H100e-hours per work-hour = 2·N_active ×
 //              (200k uncached input ÷ 0.35 + 40k output ÷ 0.07) ÷ 1e15 ÷ 3600 (physical: FLOP per token, utilisation)
@@ -80,11 +80,13 @@ export const h50Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt:
 export const pSuccess = (hours: number, h50: number) => 1 / (1 + Math.pow((hours * 60) / Math.max(1e-9, h50), HORIZON_BETA));
 
 /** Coverage threshold θ_w (OOM). */
-export const thetaOf = (w: TimelineWorld, wt: WorkTypeId) =>
-  refPoints(w, wt).best - COVER.s * Math.log(COVER.top / (1 - COVER.top)) + COVER.kappaV * (0.9 - WORK_TYPES[wt].v);
+export const thetaOf = (w: TimelineWorld, wt: WorkTypeId) => {
+  const top = w.v3.covTop ?? COVER.top;
+  return refPoints(w, wt).best - (w.v3.covS ?? COVER.s) * Math.log(top / (1 - top)) + COVER.kappaV * (0.9 - WORK_TYPES[wt].v);
+};
 /** Coverage a_w from fit and horizon: the share of the work AI can do on its own. */
 export const coverage = (w: TimelineWorld, wt: WorkTypeId, fit: number, h50: number) =>
-  sig((fit - thetaOf(w, wt)) / COVER.s) * pSuccess(WORK_TYPES[wt].H, h50);
+  sig((fit - thetaOf(w, wt)) / (w.v3.covS ?? COVER.s)) * pSuccess(WORK_TYPES[wt].H, h50);
 /** Win rate against a median expert (GDPval). */
 export const winRate = (w: TimelineWorld, wt: WorkTypeId, fit: number) => Phi((fit - refPoints(w, wt).med) / S_WIN);
 /** Assist: speed-up of the human-done share, H/(M + R + (1 − w)·H) when it helps (w ≳ 0.3), else 1. */

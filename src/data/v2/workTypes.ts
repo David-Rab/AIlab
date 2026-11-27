@@ -336,7 +336,11 @@ export const TASTE_LIMIT_RANGE: [number, number] = [0, 100];
  *    (the AIFM's initial research stock RS(0) = E(0)/g_E, the inverse of E/RS = 0.70 / 0.76 / 0.84 a year in its fast / central / slow
  *    groups): each line's n₀ = stockAgeYears × LINE_START_INPUT[line] (models/research.ts linePool). 0 = off: n₀ from the first
  *    idea's mean (LINE_FIT.mu), the game before item A. */
-export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number; stockAgeYears: number }
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number; stockAgeYears: number;
+  /** R3.3 (design/bal/FIXC-TRANSLATION.md section 8): the coverage logistic of a per-game draw world, from the AIFM run's coding-automation schedule
+   *  A(p) = min(1, L / (1 + exp(-k (p - x0)))): covS = 1/k (OOM, replaces COVER.s) and covTop = the logistic part at the best human's fit (replaces
+   *  COVER.top, so the midpoint is the run's). Absent = COVER.s / COVER.top, every other world. */
+  covS?: number; covTop?: number }
 const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1, stockAgeYears: 0 };
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },

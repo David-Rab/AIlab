@@ -194,7 +194,9 @@ export interface TimelineWorld {
     /** R2.3 (workTypes.ts V3Cal): the horizon law and the research pace of the world. Absent in a save made before: 4.2, 0, 1. */
     h50PerOOM?: number; h50Accel?: number; pace?: number;
     /** Item A (workTypes.ts V3Cal): the age of the research lines' start pools, years of their start input. Absent: n₀ from LINE_FIT. */
-    stockAgeYears?: number };
+    stockAgeYears?: number;
+    /** R3.3 (workTypes.ts V3Cal): the coverage logistic of the world: its scale (OOM) and its value at the best human's fit. Absent: COVER.s, COVER.top. */
+    covS?: number; covTop?: number };
   /** R3.1: the AI Futures Model run this per-game draw world (tl-fast / tl-central / tl-slow) represents: its index in the timeline's
    *  SAR group and its id (data/v2/timelineDraws.ts). Absent in every other world. */
   aifmRun?: { index: number; id: string };
