@@ -64,3 +64,19 @@ outsiders see of you", or cut? (4) the parallel calibration work on `bal`: own b
 > 4. the calibration will continue by itself, it mostly is focused on internal calibration, and will continue
 > regardless of us. we will focus on the external world here, and once both halfs work we will make sure they work
 > together, but that is later work.
+
+## 5. Answers to spec §13, and the acceptance test
+
+> ok, sounds good.
+> answers:
+> 1. ok
+> 2. yes, if not too complicated, otherwise drop
+> 3. ok
+> 4. one approval
+> 5. ok
+>
+> lets build it, and then the test will be a world without a player and see what happen in each timeline. sounds good?
+
+## 6. Calibration frame
+
+> i want to point out - we are using the AI futures models - not the AI27 (see the balance work and timelines)
