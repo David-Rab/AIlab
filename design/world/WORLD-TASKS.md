@@ -50,9 +50,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
 | W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | done 2219e5b4 |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | done (merged into W1ef) |
-| W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | running |
+| W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | done d057cabd |
 | W3 | (folded into W1b) | | | | |
-| W4 | Public (spec §5) | Sonnet high | 60 min | W2 | |
+| W4 | Public (spec §5) | Sonnet high | 60 min | W2 | running |
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
@@ -112,3 +112,19 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   checks (lead-lab SC inside the AIFM p25–p75 band; unemployment within 0.5 pt of BLS at Nov 2026). Checked in headless
   Edge with no JS errors · 875af419
 - W2 shared inputs (world/observe.ts) · running. Quiet-world grid obs-quiet (3 timelines × 8 seeds) · running
+- W2 · Sonnet high · ~7 min · world/observe.ts: publicMilestones (NPC: first release after milestone + lag), govMilestones
+  (briefing ≥ 2 or pre-deploy testing: from the day; briefing 1: +90 d), frontier on one lag axis, attention = max(0.5^((m−3)/3),
+  reach), incidentHeat (half-life 182 d). OBSERVE constants registered · d057cabd
+- obs-quiet (lead) · 24 games in 408 s. Lead-lab medians (days → year), vs AIFM medians:
+
+  | | SC | SAR | ASI |
+  |---|---|---|---|
+  | fast | 2028.1 (AIFM AC 2027.9) | 2028.5 (2028.4) | 2029.4 (2029.8) |
+  | central | 2030.2 (2029.7) | 2031.1 (2030.6) | 2032.4 (2033.2) |
+  | slow | 2034.2 (2034.8) | 2037.8 (2037.6) | 2041.3 (2046.5) |
+
+  Findings for later:
+  - (a) China's lab overtakes the US in slow runs: the median gap at the end is −23 months (China ahead).
+  - (b) Automation reaches 32–44% of US work, but unemployment ends at only 5.5–6.2% (youth 24–30%), and the AI share
+    of income is 2.5–5%.
+  - (c) Many runs end early in a misaligned takeover or catastrophe at medium alignment (the `bal` alignment setting).
