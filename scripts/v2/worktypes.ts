@@ -68,7 +68,7 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
   check(Math.abs(flopPerToken(s, v0) - 2 * s.player.models.bases[0].params) / flopPerToken(s, v0) < 1e-9, 'AI labour: the start model serves at 2·N_active FLOP per token (MoE, no serving ideas yet)', `${flopPerToken(s, v0).toExponential(2)}`);
 }
 
-// ---------- effective labour = humans when coverage is 0; AI only when coverage is 1 ----------
+// ---------- effective labour = humans when coverage is 0; humans + AI when coverage is 1 (L1 optimal split) ----------
 {
   const P = mk().hidden.timeline.prod;
   const h = 12;
@@ -76,8 +76,8 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
   const L1 = effLabour(P, 1, h, 500, 1);
   const Lmid = effLabour(P, 0.5, h, 1e9, 1);
   const cap = h * Math.pow(0.5, (1 - P.rc) / P.rc);
-  check(Math.abs(L0 - h) < 1e-9 && Math.abs(L1 - 500) < 1e-6 && Math.abs(Lmid / cap - 1) < 1e-3,
-    'effective labour: humans when coverage is 0, AI when coverage is 1, and unlimited AI is capped by the human share (1 − a)^((1−ρc)/ρc)', `L(a 0) ${L0}, L(a 1) ${L1.toFixed(1)}, L(a 0.5, AI → ∞) ${Lmid.toFixed(2)} vs ${cap.toFixed(2)}`);
+  check(Math.abs(L0 - h) < 1e-9 && Math.abs(L1 - (h + 500)) < 1e-6 && Math.abs(Lmid / cap - 1) < 1e-3,
+    'effective labour: humans when coverage is 0, humans plus AI when coverage is 1 (the optimal split), and unlimited AI is capped by the human share (1 − a)^((1−ρc)/ρc)', `L(a 0) ${L0}, L(a 1) ${L1.toFixed(1)}, L(a 0.5, AI → ∞) ${Lmid.toFixed(2)} vs ${cap.toFixed(2)}`);
 }
 
 // ---------- a line with constant inputs reproduces r ----------

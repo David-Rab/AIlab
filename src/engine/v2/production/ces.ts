@@ -49,11 +49,28 @@ export function Xces(P: CesP, c: number, l: number): number {
   return Math.pow(P.u * Math.pow(c, P.zeta * P.rho) + P.v * Math.pow(l, P.rho), 1 / P.rho);
 }
 
-/** Parallel coding labour relative to H_ref: coding CES of humans h and AI labour ai (A ≥ 1 ⇒ ai). */
+/** Coding CES of humans h and AI labour ai when AI takes every covered task and the humans the rest (A ≥ 1 ⇒ ai). Not the
+ *  game's labour by itself: it is the boundary branch of optimalLabour below. */
 export function Lrel(P: CesP, A: number, h: number, ai: number): number {
   if (A >= 1 - 1e-12) return ai;
   if (A <= 0) return h;
   return Math.pow(Math.pow(1 - A, 1 - P.rc) * Math.pow(h, P.rc) + Math.pow(A, 1 - P.rc) * Math.pow(ai, P.rc), 1 / P.rc);
+}
+
+/** The optimal split of a job between humans and AI (design/bal/LABOUR-ROUND.md §1; the AIFM's coding_labor_optimal_ces
+ *  allocation, automation_model.py:503). h = human team-equivalents (with assist), ai = AI team-equivalents, a = the share
+ *  of the job's tasks AI can do alone, rc = the coding-CES exponent (< 0). Tasks have equal weight under the CES.
+ *  - shared (ai ≤ a·(h + ai)): AI is scarce, so it and the humans share the covered tasks and every task gets the same
+ *    labour: L = h + ai, AI does the share ai ÷ (h + ai) of the tasks.
+ *  - boundary (otherwise): AI takes every covered task and the humans all the rest: L = Lrel, AI does the share a.
+ *  The two meet at the switch (both give h + ai); L ≥ h and L ≥ Lrel always. a ≤ 0: humans alone, L = h. a ≥ 1: AI
+ *  could do every task, so the scarce-AI case always holds and L = h + ai. λ (the parallel penalty) is applied by the
+ *  caller to the total, never inside the split (§1.3). */
+export function optimalLabour(rc: number, a: number, h: number, ai: number): { L: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
+  if (a <= 0) return { L: h, aiTaskShare: 0, regime: 'shared' };
+  const tot = h + ai;
+  if (ai <= a * tot) return { L: tot, aiTaskShare: tot > 0 ? ai / tot : 0, regime: 'shared' };
+  return { L: Lrel({ rc } as CesP, a, h, ai), aiTaskShare: a, regime: 'boundary' };
 }
 
 // ───────────────────────────── taste (research/13 §2.4; AIFM taste_distribution.py) ─────────────────────────────
