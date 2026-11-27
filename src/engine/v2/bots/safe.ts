@@ -8,6 +8,7 @@ import { internalVersion } from '../models/labs';
 import type { BotPolicy, TraitId } from '../types';
 import { financeAutopilot, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
+import { SCI_TEAMS_PER_STD } from '../../../data/v2/research';
 import { every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
 
@@ -15,11 +16,11 @@ import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
  *  interp, control, CoT monitorability) and then a second team each (23 teams; pre-R8: all agendas Serious, five Major).
  *  Hiring fills them over the first years. */
 export const SAFE_LINES: LinePlan[] = [
-  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: 1 })),
-  ...(['AG15', 'AG03', 'AG01', 'AG16', 'AG06', 'AG05', 'AG14', 'AG13', 'AG11', 'AG10', 'AG04', 'AG12', 'AG17'] as const).map((ag) => ({ ag, teams: 1 })),
-  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: 2 })),
+  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: SCI_TEAMS_PER_STD })),
+  ...(['AG15', 'AG03', 'AG01', 'AG16', 'AG06', 'AG05', 'AG14', 'AG13', 'AG11', 'AG10', 'AG04', 'AG12', 'AG17'] as const).map((ag) => ({ ag, teams: SCI_TEAMS_PER_STD })),
+  ...(['AG18', 'AG08', 'AG02', 'AG07', 'AG09'] as const).map((ag) => ({ ag, teams: 2 * SCI_TEAMS_PER_STD })),
 ];
-export const SAFE_SCI_TEAMS = 23;
+export const SAFE_SCI_TEAMS = 23 * SCI_TEAMS_PER_STD; // L15: 23 standard teams' people, in teams of 20
 const SAFE_RED_FLAGS: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME', 'CONCEAL', 'EA', 'RH'];
 const SAFE_FLAG_EST = 0.2;
 /** Model cadence: WS1's reference play with safe designs (no latent reasoning; faithful CoT once P23 exists). */

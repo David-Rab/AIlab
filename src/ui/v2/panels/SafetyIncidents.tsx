@@ -340,7 +340,7 @@ function Cases({ s, iv, versionId }: { s: GameStateV2; iv: IncidentView; version
         <span className="sp" />
         <Ref id="safetyStaff" to={STAFF}>Safety staff: <b>{st.word}</b></Ref>
       </div>
-      <Tip content={() => <TipCard title={<Term id="caseStaffing">Safety research engineers</Term>} value={`${F.count(st.free)} spare`} rows={[{ label: 'All (heads × quality)', value: F.count(st.heads) }, { label: 'On cases, removals and review', value: F.count(st.heads - st.free) }]} footer="Their order of needs: Lab › AI staff & needs.">A case takes {INV_FTE[0]}–{INV_FTE[1]} of them until its work is done.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="caseStaffing">Safety research engineers</Term>} value={`${F.count(st.free)} spare`} rows={[{ label: 'All', value: F.count(st.heads) }, { label: 'On cases, removals and review', value: F.count(st.heads - st.free) }]} footer="Their order of needs: Lab › AI staff & needs.">A case takes {INV_FTE[0]}–{INV_FTE[1]} of them until its work is done.</TipCard>}>
         <div className="sfc-staff small" data-test="case-staff">
           {st.word === 'spare' && iv.open > 0 ? <TriangleAlert size={14} className="tone-warn" /> : <CircleDot size={14} className="t3" />}
           <span><b className="w num">{F.count(st.free)}</b> of {F.count(st.heads)} safety research engineers are spare{iv.open ? `, with ${F.count(iv.open)} incident${iv.open > 1 ? 's' : ''} open` : ''}.</span>

@@ -9,6 +9,11 @@ import { npcG, persOf, refGAt } from '../../src/engine/v2/npc/lab';
 import * as sh from '../../src/engine/v2/npc/shocks';
 import { RELATION_ACTIONS } from '../../src/engine/v2/actors/actions';
 import { postureOf } from '../../src/engine/v2/actors/rivals';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { act, makeCtx } from '../../src/engine/v2/core/loop';
+import { headsMoved } from '../../src/engine/v2/departments/teams';
+import { poachFallbackDays, poachFromRivals, poachShare, poachSplit, weeklyHires } from '../../src/engine/v2/departments/market';
+import { COMPANY_EVENTS } from '../../src/engine/v2/events/catalog/company';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
 let fails = 0;
@@ -127,6 +132,55 @@ console.log(`player position ${pp.toFixed(1)} d; lags ${[...dOf(base)].map(([k, 
   const days = sh.secretsLeak(s, 0.01);
   check(near(days, 0.01 * (d0 - pp)) && near(d0 - cn.npc!.d, days), `secrets leak: a 1%-a-day channel pulls China ${days.toFixed(2)} d toward the player`);
   check(sh.distillDays(base) === 0 && sh.distillDaysPerYear(base) === 0, 'distillation: no live product, no pull');
+}
+// One rule for people moving (designer, 2026-11-27): every route from an NPC lab to the player takes the poach-in shock by
+// the heads moved, every route to an NPC lab the let-go shock; the previews read the same functions.
+{
+  // C4: the preview's fallback line = the effect = poachInDays of the heads that move (whole teams).
+  const s = clone(base); const r = s.rivals.find((x) => x.npc!.d > 100)!; r.npc!.d = pp - 120;
+  r.core.staff.cap = 4000; // 3% = 120 heads: at least one whole team moves (a small rival's 3% can round to none)
+  const c4 = ACTION_BY_ID.get('C4')!;
+  const line = c4.preview(s, { lab: r.core.id }).gains.find((l) => l.currency === 'leadDays' && String(l.target).includes('falls back'));
+  const moved = headsMoved(s.player, 'cap', Math.max(5, Math.round(r.core.staff.cap * 0.03)));
+  const want = sh.poachInDays(s, r, moved); const d0 = r.npc!.d; const st0 = r.core.staff.cap; const p0 = s.player.staff.cap;
+  const err = act(s, 'C4', { lab: r.core.id });
+  check(!err && moved > 0 && near(r.npc!.d - d0, want, 1e-9) && near(st0 - r.core.staff.cap, moved, 1e-9) && near(s.player.staff.cap - p0, moved, 1e-9) && line?.amount === Math.round(want),
+    `C4: the rival's d rises by poachInDays of the ${moved} heads that move; preview ${line?.amount} d`, `${want.toFixed(2)} d; err ${err ?? '-'}`);
+}
+{
+  // Weekly premium poaching: each rival takes poachInDays of its capabilities heads moved; China is never poached.
+  const s = clone(base); for (const r of s.rivals) r.npc!.d = pp - 120;
+  const n = 400; const split = poachSplit(s, 're', n); const want = new Map(split.map((m) => [m.r.core.id, sh.poachInDays(s, m.r, m.cap)]));
+  const fall = poachFallbackDays(s, 're', n); const before = dOf(s); const cn0 = JSON.stringify(s.china.lab);
+  const took = poachFromRivals(s, 're', n);
+  const ok = split.every((m) => near(m.r.npc!.d - before.get(m.r.core.id)!, want.get(m.r.core.id)!, 1e-9));
+  check(ok && fall > 0 && near(took, n, 1e-9) && near(fall, [...want.values()].reduce((a, b) => a + b, 0), 1e-12) && JSON.stringify(s.china.lab) === cn0,
+    `premium poaching: ${split.length} rivals each fall back by poachInDays of their capabilities heads moved (sum ${fall.toFixed(2)} d = the preview function); China untouched`);
+  const t = clone(base); for (const r of t.rivals) r.npc!.d = pp - 120;
+  t.player.hiring.targets['re.cap'] = (t.player.hiring.targets['re.cap'] ?? 0) + 4; // open positions, so there are hires to poach
+  const c = clone(t); c.player.hiring.premium.re = 0.5;
+  const yr = poachFallbackDays(c, 're', 52 * weeklyHires(c, 're') * poachShare(0.5));
+  const pl = ACTION_BY_ID.get('hiring.premium')!.preview(t, { kind: 're', step: 0.5 }).gains.find((l) => l.currency === 'leadDays');
+  check(yr > 0 && pl?.amount === Math.round(yr) && String(pl?.target).includes('rivals fall back'), 'premium preview: the rivals-fall-back line = poachFallbackDays of a year of poached hires', `${pl?.amount} d`);
+}
+{
+  // E16 let go: the rival's d falls by letGoDays of the heads that leave (whole teams), as its preview.
+  const s = clone(base); const r = s.rivals.find((x) => x.npc!.d > 100)!;
+  const e16 = COMPANY_EVENTS.find((e) => e.id === 'E16')!; const letGo = e16.choices[1];
+  const staff = s.player.staff.cap; const left = headsMoved(s.player, 'cap', -Math.round(staff * 0.03));
+  const want = sh.letGoDays(s, r, left, staff); const line = letGo.preview(s, { lab: r.core.id }).costs.find((l) => l.currency === 'leadDays');
+  const d0 = r.npc!.d; const st0 = r.core.staff.cap;
+  letGo.apply(s, makeCtx(s), { lab: r.core.id });
+  check(left > 0 && near(d0 - r.npc!.d, want, 1e-9) && near(r.core.staff.cap - st0, left, 1e-9) && line?.amount === Math.round(want),
+    `E16 let go: the rival's d falls by letGoDays of the ${left} heads that leave; preview ${line?.amount} d`, `${want.toFixed(2)} d`);
+}
+// NPC labs hold no stars: every star is the player's or outside; a star hire touches no NPC lab.
+{
+  const s = clone(base);
+  check(s.labour.stars.every((x) => x.employer === 'player' || x.employer === 'outside') && s.labour.stars.some((x) => x.employer === 'outside'), 'stars: every star is the player\'s or in the outside group');
+  const star = s.labour.stars.find((x) => x.employer === 'outside')!; const npc0 = JSON.stringify([s.rivals, s.china.lab]);
+  const err = act(s, 'starHire', { star: star.id });
+  check(!err && star.employer === 'player' && JSON.stringify([s.rivals, s.china.lab]) === npc0, 'a star hire takes it from the outside group and touches no NPC lab', String(err ?? ''));
 }
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

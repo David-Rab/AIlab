@@ -4,7 +4,7 @@
 import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SERIOUS_CAP } from '../../../src/data/v2/agendas';
 import { lineNodeId } from '../../../src/data/v2/tree';
 import { RE_LABOUR_UNIT } from '../../../src/data/v2/workTypes';
-import { TEAM_SIZE } from '../../../src/data/v2/teams';
+import { RE_UNIT_HEADS } from '../../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { freshSaf, lineRates, linePoolH100e, resetSafAllocation, safAllocation } from '../../../src/engine/v2/safety/lineProjects';
 import { stepProject } from '../../../src/engine/v2/models/research';
@@ -25,7 +25,7 @@ function firstResult(ag: AgendaId): { days: number; c: number; l: number } {
   sci.projectId = id;
   sci.manual = true;
   re.quality = 'strong';
-  re.heads = 2 * SAF_RE_ASK * RE_LABOUR_UNIT * TEAM_SIZE.re; // twice the ask; the rest re-validates or idles
+  re.heads = 2 * SAF_RE_ASK * RE_LABOUR_UNIT * RE_UNIT_HEADS; // twice the ask; the rest re-validates or idles
   p.research.queue = [id];
   p.split.safetyAgents = 0;
   p.computeOnline = 1e6;

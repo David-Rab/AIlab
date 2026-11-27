@@ -22,7 +22,7 @@ import { capReCapacity, expPoolH100e } from '../../src/engine/v2/models/research
 import type { EvalTask, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { check, finish, refGame, runRef } from './lib';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { TEAM_SIZE } from '../../src/data/v2/teams';
+import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 
 const previewOf = (s: GameStateV2, id: string, p: Record<string, string | number | boolean>) => ACTION_BY_ID.get(id)!.preview(s, p);
 
@@ -109,11 +109,14 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
     // No training run in flight: no release suite joins the queue while the ordered one runs.
     s.player.models.runs = [];
     s.player.build.queue = [];
+    // No validation jobs queued on day 1 ahead of evals in the needs list (L15: the start's 50 safety research engineers
+    // cannot staff both): the estimate is taken before they exist, so they would make it wrong by their days.
+    act(s, 'safety.validationPolicy', { on: false });
     // Evaluate the start model (deployed) on the player's order; cap the evals need to `cap` team-equivalents.
     // CP3 rewrite (SR-21): eval suites are a need on the safety research engineers' list. That list allocates heads
-    // (evalDaysEstimate: allocate(al.heads, …)), so its cap is in people: cap team-eq × TEAM_SIZE.re. (The action's
+    // (evalDaysEstimate: allocate(al.heads, …)), so its cap is in people: cap team-eq × RE_UNIT_HEADS. (The action's
     // doc says team-equivalents: a unit question for src, see CP3.md.)
-    act(s, 'research.safReAlloc', { need: 'evals', max: cap * TEAM_SIZE.re });
+    act(s, 'research.safReAlloc', { need: 'evals', max: cap * RE_UNIT_HEADS });
     est.push(evalDaysEstimate(s, 'full'));
     const t = queueEval(s, v0(s), 'full', 'self', 'order') as EvalTask;
     days.push(daysUntil(s, () => !s.player.models.evals.some((x) => x.id === t.id)));

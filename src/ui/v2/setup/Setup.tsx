@@ -5,6 +5,7 @@ import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
 import { START_BY_ID, START_ORDER, parentBudgetYear, type Difficulty, type StartDef } from '../../../data/v2/starts';
+import { TEAM_SIZE } from '../../../data/v2/teams';
 import type { StartType } from '../../../engine/v2';
 
 /** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines): the cast's names. */
@@ -91,7 +92,7 @@ function Picker<K extends keyof SetupV2>({ label, k, opts }: { label: string; k:
 const DIFF_TONE: Record<Difficulty, string> = { Easy: 'good', Medium: 'warn', Hard: 'bad', Impossible: 'bad' };
 const BOARD_LABEL: Record<string, string> = { founder: 'Founder-controlled', parent: 'Parent company', legacyNonprofit: 'Capped-profit nonprofit' };
 const kH = (h: number) => (h >= 1e6 ? `${(h / 1e6).toFixed(1)}M` : `${Math.round(h / 1e3)}K`);
-const staffOfStart = (d: StartDef) => d.teams.eng * 150 + (d.teams['re.cap'] + d.teams['re.saf']) * 100 + (d.teams['sci.cap'] + d.teams['sci.saf']) * 40;
+const staffOfStart = (d: StartDef) => d.teams.eng * TEAM_SIZE.eng + (d.teams['re.cap'] + d.teams['re.saf']) * TEAM_SIZE.re + (d.teams['sci.cap'] + d.teams['sci.saf']) * TEAM_SIZE.sci;
 
 /** Start type picker (R9): name, difficulty label, one line of character; the start values in the tooltip. */
 function StartPicker() {

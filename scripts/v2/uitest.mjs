@@ -316,14 +316,13 @@ await check('LAB: scientists split + raises the capability scientists target', '
   else ok('LAB: Best moves lists moves or says none helps', !!(await page.$('[data-home=bestMoves]')));
   await page.evaluate((sp) => window.ai27v2.act('setSplit', sp), split0);
 }
-// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; offers; payroll.
+// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; payroll.
 await nav('lab');
 await tabTo('people');
 ok('Hiring: five role rows with one tile per team', JSON.parse(await get(`['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'].every((k) => !!document.querySelector('[data-panel=lab] .lh-row[data-key="' + k + '"]')) && document.querySelectorAll('[data-panel=lab] .lh-tile:not(.filling)').length === s.player.teams.length`)));
 ok('Hiring: next team buys on every row', (await page.$$('[data-panel=lab] [data-test^="buys."]')).length === 5);
 await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
-await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .lh-offer [data-act="teams.hire"]'));
-await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
+ok('Next team: raising the target shows the progress toward the next team', !!(await page.$('[data-panel=lab] [data-test="next.re.cap"]')) && /next team in/.test((await page.$eval('[data-panel=lab] [data-test="next.re.cap"]', (e) => e.textContent).catch(() => '')) ?? ''));
 if (await page.$('[data-act="teams.move.re.saf"]:not([disabled])')) await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-act="teams.move.re.saf"]'));
 else ok('Move: safety research-engineering team to capabilities', true, 'no movable safety research-engineering team in this game');
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
@@ -442,7 +441,9 @@ ok('LAB › AI staff & needs: engineers show the build queue', !!(await page.$('
 await page.evaluate(() => window.ai27v2.step(7));
 await closeModals();
 await pause();
-ok('Keep hiring: after a week the policy has the target covered (teams + queued)', JSON.parse(await get(`(() => { const k = (t) => t.role === 'eng' ? 'eng' : t.role + '.' + t.dept; const n = [...s.player.teams, ...s.player.hiring.filling].filter((t) => k(t) === 're.cap').length; return n >= s.player.hiring.targets['re.cap']; })()`)));
+ok('Keep hiring: after a week the hires are building toward the next team', JSON.parse(await get(`s.player.hiring.progress.re.heads > 0 || s.player.teams.filter((t) => t.role === 're' && t.dept === 'cap').length >= s.player.hiring.targets['re.cap']`)));
+await page.evaluate(() => window.ai27v2.step(28));
+ok('Keep hiring: a full team arrives (the target is covered and every team is full)', JSON.parse(await get(`s.player.teams.filter((t) => t.role === 're' && t.dept === 'cap').length >= s.player.hiring.targets['re.cap'] && s.player.teams.every((t) => t.heads === t.size)`)));
 await nav('lab');
 await tabTo('people');
 await check('Keep hiring: − lowers the target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.down.re.cap"]'));
@@ -1620,6 +1621,80 @@ const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8')
 const err = await page.evaluate((j) => window.ai27v2.importJson(j) ?? '', fx);
 ok('Import day-400 fixture', err === '', err);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+// DC-9: the Sites tab is gone; its rows sit under the chart on Overview, one per site, and the header's live figure is the
+// sum of the live buildings' power.
+{
+  await nav('compute');
+  await tabTo('overview');
+  await wait(200);
+  const r = await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const live = s.player.sites.reduce((a, x) => a + (x.stage !== 'live' ? 0 : !x.ws3.liveDays || x.ws3.liveDays.length <= 1 ? x.mw : (x.ws3.buildingMW ?? x.mw / x.ws3.liveDays.length) * Math.max(1, x.ws3.liveDays.filter((d) => d <= s.time.day).length)), 0);
+    const txt = document.querySelector('[data-home=sites] [data-test=sites-live]')?.textContent ?? '';
+    const shown = parseFloat(txt) * (/GW/.test(txt) ? 1000 : 1);
+    return { rows: document.querySelectorAll('[data-home=sites] .dcs-row:not(.ax)').length, sites: s.player.sites.length, live, shown, txt, sitesTab: !!document.querySelector('[data-tab=sites]') };
+  });
+  ok('DC-9: no Sites tab; one row per site under the chart', !r.sitesTab && r.rows === r.sites && r.sites > 0, `${r.rows} rows, ${r.sites} sites`);
+  ok('DC-9: the Sites header shows the live power of the live buildings', Math.abs(r.shown - r.live) <= (/GW/.test(r.txt) ? 50 : 0.5), `${r.txt} vs ${Math.round(r.live)} MW`);
+}
+// DC-10a: the build card. With Gas, 1 GW, Buildings 5 the Grid tile shows the campus cut to fit (1 × 1 GW); choosing Grid
+// makes it so (Buildings reads 1; 3 and 5 are locked) and the tile's date is the engine's for one 1 GW grid building.
+{
+  const P = '[data-panel=compute]';
+  await nav('compute');
+  await tabTo('overview');
+  await page.click(`${P} [data-opt="path-gas"]`);
+  await page.click(`${P} [data-opt="site-campus"]`);
+  await page.click(`${P} [data-test=site-buildings] [data-opt="5"]`);
+  await wait(150);
+  const grid = () => page.evaluate(() => document.querySelector('[data-panel=compute] [data-opt="path-grid"]')?.textContent ?? '');
+  const cutShown = /1 × 1\.0 GW/.test(await grid());
+  await page.click(`${P} [data-opt="path-grid"]`);
+  await wait(200);
+  const r = await page.evaluate(() => {
+    const s = window.ai27v2.state;
+    const sd = new Date(`${s.time.startDate}T00:00:00Z`), d = new Date(sd.getTime() + s.time.day * 86400000);
+    const q = (x) => x.getUTCFullYear() * 4 + Math.floor(x.getUTCMonth() / 3);
+    const L = window.ai27v2Views.actionView(s, 'cmp.newSite', { path: 'grid', mw: 1000, buildings: 1, pay: 'cash' }).gains[0].lagDays / 91;
+    const t = q(d) + L;
+    return { want: `Q${(t % 4) + 1} ${String(Math.floor(t / 4)).slice(2)}`, active: document.querySelector('[data-panel=compute] [data-test=site-buildings] .seg-btn.active')?.textContent?.trim() ?? '',
+      locked: ['3', '5'].every((k) => document.querySelector(`[data-panel=compute] [data-test=site-buildings] [data-opt="${k}"]`)?.hasAttribute('disabled')) };
+  });
+  const after = await grid();
+  ok('DC-10a: with Gas 5 × 1 GW the Grid tile shows the campus cut to 1 × 1 GW', cutShown);
+  ok('DC-10a: choosing Grid sets Buildings to 1 and locks 3 and 5', r.active === '1' && r.locked, `active ${r.active}, locked ${r.locked}`);
+  ok("DC-10a: the Grid tile's date is the engine's for one 1 GW grid building", after.includes(r.want), `${after.slice(0, 30)} vs ${r.want}`);
+}
+// DC-10b: at Grid, 1 GW, turning rush power on changes the Grid tile's live date and the preview capex (+$0.3B), and the
+// rush toggle's "saves" text is the engine's difference in the first building's live quarter.
+{
+  const P = '[data-panel=compute]';
+  await nav('compute');
+  await tabTo('overview');
+  await page.click(`${P} [data-opt="path-grid"]`);
+  await page.click(`${P} [data-opt="site-campus"]`);
+  const open = await page.evaluate(() => !!document.querySelector('[data-panel=compute] [data-lever=rush]'));
+  if (!open) await page.click(`${P} [data-test=opt-site]`);
+  const read = () => page.evaluate(() => ({
+    tile: document.querySelector('[data-panel=compute] [data-opt="path-grid"]')?.textContent ?? '',
+    capex: document.querySelector('[data-test="preview.cmp.newSite"] .cac-line')?.textContent ?? '',
+    rush: document.querySelector('[data-panel=compute] [data-lever=rush]')?.textContent ?? '',
+  }));
+  const before = await read();
+  await page.click(`${P} [data-lever=rush] button`);
+  await wait(250);
+  const after = await read();
+  const eng = await page.evaluate(() => {
+    const v = (rush) => window.ai27v2Views.actionView(window.ai27v2.state, 'cmp.newSite', { path: 'grid', mw: 1000, buildings: 1, rush, pay: 'cash' });
+    const a = v(false), b = v(true);
+    return { saves: (a.gains[0].lagDays - b.gains[0].lagDays) / 91, extra: -(b.costs[0].amount - a.costs[0].amount) };
+  });
+  const money = (t) => Number(/−\$([\d.]+)B/.exec(t)?.[1] ?? NaN);
+  ok('DC-10b: rush power changes the Grid tile date', before.tile !== after.tile && eng.saves > 0, `${before.tile.slice(0, 25)} -> ${after.tile.slice(0, 25)}`);
+  ok('DC-10b: rush power adds its price to the preview capex', Math.abs(money(after.capex) - money(before.capex) - 0.3) < 0.06 && Math.abs(eng.extra - 0.3) < 1e-6, `${before.capex.slice(0, 30)} -> ${after.capex.slice(0, 30)}`);
+  ok("DC-10b: the rush toggle's saving is the engine's", before.rush.includes(eng.saves === 0 ? '0 q' : `−${eng.saves} q`), `${before.rush} vs ${eng.saves}`);
+  await page.click(`${P} [data-lever=rush] button`);
+}
 // J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
 // (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
 const tipCov = { tipped: 0, n: 0, miss: [] };

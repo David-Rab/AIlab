@@ -306,6 +306,11 @@ console.log(`INFO  S5 Mixed bot U ≥ L − 0.5 up to SAR (pre-CAL2 row): median
 // same (posterior means). Changing the hidden truth (true efficacy, true traits) moves nothing.
 {
   const base = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  // The range needs instruments that read something at the posterior means (a sight limit above 0). Since the labour
+  // round (a 20-head safety science team at the start) the RefBot's day-400 lab has not yet got the deception probes it
+  // had before; give it them, validated like its other probes.
+  const probe = base.player.safety.techniques['T-PROBE'];
+  Object.assign(base.player.safety.techniques['T-DECEPT'], { unlocked: true, active: true, validatedOn: probe.validatedOn, validatedOom: probe.validatedOom });
   const scaled = (k: number) => {
     const s = JSON.parse(JSON.stringify(base)) as GameStateV2;
     for (const a of Object.values(s.player.safety.agendas)) { a.posterior.a *= k; a.posterior.b *= k; }

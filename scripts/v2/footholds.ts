@@ -280,6 +280,9 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   const ctx = makeCtx(s);
   const v = routine(s);
   const respond = ACTION_BY_ID.get('safety.respond')!;
+  // L6: removals claim engineers at their place in the needs order; the day-400 lab's 50 safety engineers are mostly on
+  // review and eval suites ahead of them, so the player puts removals first after review (a player's choice in LAB).
+  ACTION_BY_ID.get('research.safReAlloc')!.apply(s, ctx, { order: 'review,removal,spotCheck,cases,validation,evals,safExp' });
   const h = uncaught(s, 'HIDCOMP', v)!;
   const notYet = removalPreview(s, h.id);
   respond.apply(s, ctx, { kind: 'removeFoothold', footholdId: h.id });

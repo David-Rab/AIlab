@@ -265,7 +265,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const b0 = safetyLabour(a);
   const l0 = lineLabour(a, 'AG08');
   const sci = a.player.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;
-  a.player.teams.push({ ...sci, id: 'e14-ag17', heads: CAPACITY_UNIT * SERIOUS_CAP, quality: 'strong', specialty: undefined, projectId: lineNodeId('AG17'), manual: true } as Team);
+  a.player.teams.push({ ...sci, id: 'e14-ag17', heads: CAPACITY_UNIT * SERIOUS_CAP, specialty: undefined, projectId: lineNodeId('AG17'), manual: true } as Team);
   resetSafAllocation(a);
   const b1 = safetyLabour(a);
   const l1 = lineLabour(a, 'AG08');

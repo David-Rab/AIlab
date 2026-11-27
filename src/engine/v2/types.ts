@@ -29,6 +29,7 @@
 //    unless the name ends in PerDay. Progress `p*` = years of 2024-pace progress (research/11 unit).
 
 import type { DataDraw } from './production/data';
+import type { SiteSource } from '../../data/v2/deals';
 
 // ───────────────────────────── Ids ─────────────────────────────
 
@@ -99,7 +100,7 @@ export type CounterpartyId =
 
 export type StreamId =
   | 'world' | 'prod' | 'runs' | 'safety' | 'incidents' | 'security' | 'market' | 'finance'
-  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company';
+  | 'actors' | 'rivals' | 'china' | 'worldfx' | 'events' | 'endings' | 'company' | 'labour';
 
 export type WorkstreamId = 'WS1' | 'WS2' | 'WS3' | 'WS4' | 'WS5' | 'WS6' | 'WS7';
 
@@ -126,6 +127,8 @@ export interface GameStateV2 {
   power: PowerGrid;
   capital: CapitalMarkets;
   world: WorldEconomy;
+  /** The labour market (LABOUR-ROUND §4, §6): the talent pools and the named stars. L11: state only. */
+  labour: LabourState;
   knowledge: PublicKnowledge; // what the whole world has learned (published findings, revealed U-modes)
 
   events: EventQueue;
@@ -140,6 +143,23 @@ export interface GameStateV2 {
   /** WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Created lazily by `ws4(s)`. */
   ws4?: Ws4State;
 }
+
+/** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
+ *  a kind share it; heads in labs (E) and outside (U = P - E) are derived each week. */
+export interface LabourPool {
+  P: number;
+  w: number;
+  /** Heads in AI labs and outside them at game start (departments/market.ts startMarket): the wage rule's reference ratio
+   *  E0/U0 and the matching scale's U0. Absent in saves from before L12 (set at the first market week). */
+  E0?: number;
+  U0?: number;
+}
+/** A star (LABOUR-ROUND §6.1): a named researcher above the 99.9th percentile. `employer` is 'player' or 'outside' (NPC labs
+ *  hold no stars: one outside group the player hires from, designer 2026-11-27); `pay` is $M per year. */
+export interface Star { id: string; name: string; taste: number; employer: 'player' | 'outside'; pay: number }
+/** `teamTaste` is the base taste b of the lab's capability scientists, set once at the start so that the lab's human taste
+ *  T_h = (S b + Σ T_star) ÷ (S + n) is 1 at the start (initialLabour; humanTasteMean). Fixed for the game. */
+export interface LabourState { pools: Record<TeamRole, LabourPool>; stars: Star[]; teamTaste: number }
 
 export interface SetupV2 {
   baseline: BaselineId;
@@ -288,8 +308,6 @@ export interface LabCore {
   computeOnline: H100e;
   split: ComputeSplit;
   staff: StaffByRole;
-  /** τ_h, star-hire taste multiplier (research/13). */
-  tasteHire: number;
   models: ModelsState;
   deployments: Deployment[];
   security: SecurityState;
@@ -735,6 +753,9 @@ export interface TreeNodeState {
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
+  /** Mid-game research lines (P24, Recurrent architectures): n₀, the line's start pool, stored the day it opened = the mean
+   *  of (n₀ + pool) of the pretraining start lines that day (LABOUR-ROUND §7; models/research.ts openMidGameLines). */
+  startPool?: number;
   /** Safety projects (RD-R02b): the one test's state (safety/lineProjects.ts). */
   saf?: SafProjectState;
 }
@@ -889,7 +910,7 @@ export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: an amount (`max`) and a share of the
  *  capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. CP3d: `max` is in the list's own unit,
  *  the one its capacity, demand and gets are in (AllocView.unit): research engineers team-equivalents, engineers
- *  team-weeks / week, the safety needs list people (heads × quality; safety/lineProjects.ts safAllocation). */
+ *  team-weeks / week, the safety needs list people (heads; safety/lineProjects.ts safAllocation). */
 export interface Allocation<K extends string> { order: K[]; max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }
 
 export interface ResearchState {
@@ -928,11 +949,11 @@ export interface ResearchState {
    *  average: diffusion, C4 tacit knowledge, safety spillover). A readout only; absent in older saves (→ 0). */
   pubLast?: number;
   pubRate?: number;
-  /** Readout of the last day: research engineers per need and per project (team-equivalents), experiment FLOP per
+  /** Readout of the last day: research engineers per need and per project (L5: EFFECTIVE team-equivalents, m_EXP × heads), experiment FLOP per
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
     re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
-    /** RD-E03: research engineers no need took today (team-equivalents). Absent in older saves. */
+    /** RD-E03: research engineers no need took today (human team-equivalents; L5: non-zero only with no project in experiments). Absent in older saves. */
     idle?: number;
     /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
      *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */
@@ -1238,12 +1259,12 @@ export interface PlayerLab extends LabCore {
   orders: ChipOrder[];
   cloud: CloudContract[];
   safety: SafetyDept;
-  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads; for the player `tasteHire`
-   *  (τ_h) is derived from science-team quality and stars. */
+  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads. The stars the lab employs
+   *  are `s.labour.stars` with employer 'player' (LABOUR-ROUND §6). */
   teams: Team[];
-  /** Star hires (named people): +0.05 τ_h each. */
-  stars: number;
   hiring: TeamHiring;
+  /** The lab's average pay per head by kind, $M per year (LABOUR-ROUND §4.1; moves toward the market offer, L12). */
+  pay: Record<TeamRole, number>;
   /** Tech-tree node state (BUILD-PLAN R4): only nodes with a state are stored (known at start, started, failed);
    *  locked/open/queued/active are derived (models/tree.ts nodeStatus). */
   tree: Record<string, TreeNodeState>;
@@ -1354,7 +1375,7 @@ export interface PendingLaunch {
   kyc?: 0 | 1 | 2 | 3;
   monitorId?: string;
 }
-/** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */
+/** One item on the engineers' build queue. Work is in team-weeks (one reference engineering team of ENG_UNIT_HEADS = 150 people for a week). */
 export interface BuildItem {
   id: string;
   kind: BuildKind;
@@ -1385,7 +1406,6 @@ export interface BuildState {
 
 export type TeamRole = 'eng' | 're' | 'sci';
 export type TeamDept = 'cap' | 'saf';
-export type TeamQuality = 'solid' | 'strong' | 'elite';
 /** The six tree columns: a science team's specialty (R4 projects). */
 export type Column = 'pretraining' | 'posttraining' | 'systems' | 'alignment' | 'interp' | 'evals';
 /** Hiring-target keys: engineers (one shared pool, paid from the capabilities budget) and research engineers and
@@ -1396,11 +1416,10 @@ export interface Team {
   id: string;
   role: TeamRole;
   dept: TeamDept;
-  /** Fixed size per role (150 / 100 / 40). */
+  /** Fixed size per role (data/v2/teams.ts TEAM_SIZE: 100 / 50 / 20). */
   size: number;
-  /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
+  /** People on the team: always the full size (teams arrive whole, nobody leaves on their own; only the player letting a team go or an event removes whole teams). */
   heads: number;
-  quality: TeamQuality;
   specialty?: Column;
   name?: string;
   /** R4: the tree project a science team works on. */
@@ -1411,25 +1430,16 @@ export interface Team {
   why?: string;
 }
 
-/** A team on the candidate list (drawn weekly from the 'company' stream). */
-export interface TeamCandidate {
-  id: string;
-  role: TeamRole;
-  dept: TeamDept;
-  quality: TeamQuality;
-  specialty?: Column;
-  /** Day it leaves the list. */
-  until: Day;
-}
-
 export interface TeamHiring {
   /** "Keep hiring to N teams" per key (a policy: it hires, it never lays off). */
   targets: Record<TeamKey, number>;
-  candidates: TeamCandidate[];
-  /** Teams being filled, in order; one hiring lane per department. A team arrives when its heads reach its size. */
-  filling: Team[];
-  /** Counter for team and candidate ids. */
+  /** Hires toward the next team of each kind (teams come as whole chunks: no vacancies, no queue). key = the team key the next
+   *  team will be (the one furthest behind its target, re-chosen each week); heads < the kind's TEAM_SIZE. */
+  progress: Record<TeamRole, { key: TeamKey; heads: number }>;
+  /** Counter for team ids. */
   nextId: number;
+  /** The pay premium over the market wage per kind, a step of data/v2/labourMarket.ts PREMIUM_STEPS (default 0). */
+  premium: Record<TeamRole, number>;
 }
 
 /** RD-A05b: the explicit auto-split policy (PlayerPolicies.autoSplit). */
@@ -1735,8 +1745,9 @@ export interface CloudContract { id: string; provider: string; h100e: H100e; cos
 
 export interface Site {
   id: string; name: string; region: 'US' | 'Gulf' | 'other';
-  path: 'lease' | 'brownfield' | 'gas' | 'grid' | 'nuclear';
-  mw: number; // facility MW capacity when live
+  /** Power source (DATACENTERS §2): a rented hall, a grid connection or on-site gas turbines. */
+  path: SiteSource;
+  mw: number; // facility MW of the whole site (all buildings); MW live on a day: siteLiveMW (compute/sites.ts)
   stage: 'permitting' | 'power' | 'building' | 'live' | 'blocked';
   stageEndDay: Day;
   crash: boolean;
@@ -1749,13 +1760,10 @@ export interface Site {
 }
 
 export interface PowerGrid {
-  poolGWPerQ: number; // new US large-load grid capacity per quarter
-  queue: { siteId: string; gw: number }[];
-  capacityPrice: number; // κ_region uplift 0..0.15
   kWPerH100e: number;
-  transformerLeadQ: number;
-  /** WS3 grid-pool bookkeeping. */
-  ws3: PowerWS3;
+  /** Today's grid, turbine and rent waits (quarters, rounded to 0.1), one value per quarter since the start (sitesQ;
+   *  the build card's sparkline). */
+  waitHist: Record<SiteSource, number[]>;
 }
 
 export interface CapitalMarkets {
@@ -1961,15 +1969,6 @@ export interface MarketWS3 {
   /** Player's fill share of last quarter's orders and the reason weights (UI "your allocation"). */
   playerFill: number;
   playerWeight: number;
-  /** Lease (colocation) capacity available to labs this quarter, GW of facility power. */
-  leasePoolGW: number;
-}
-
-export interface PowerWS3 {
-  /** Grid pool still available to labs this quarter (GW). */
-  poolLeftGW: number;
-  /** Pre-ordered transformer capacity not yet assigned to a site (GW). */
-  transformersGW: number;
 }
 
 export interface CapitalWS3 {
@@ -2000,13 +1999,31 @@ export interface SiteWS3 {
   /** Opposition roll done (once, at the end of permitting). */
   rolled: boolean;
   delayedQ: number;
-  /** Day the grid interconnection request was filed (queue credit). */
-  queuedDay?: Day;
-  /** Planned building quarters (8 default, 4 crash; lease 1–3). */
+  /** Construction quarters of one building (siteBuildQ: 9.5 × GW^0.4, × 0.5 with crash construction; rent 0). */
   buildQ: number;
-  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
-   *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
-  lease?: { rate: number; funded: Money };
+  /** Power wait in whole quarters, fixed at commitment from that day's world wait (DC-TASKS [D-4]); counted from the
+   *  end of permits (rent: from commitment). */
+  powerQ: number;
+  /** Rush power: self-built substation (grid wait × 0.75) or used turbines (gas: at most 4 q; they still count in the turbine backlog). */
+  rush?: boolean;
+  /** Fast-track permits (permits − 1 q). */
+  fastTrack?: boolean;
+  /** Day the site's power is ready (set when permits end; rent: at commitment). */
+  powerDay?: Day;
+  /** Planned go-live day of the first building (set when permits end; rent: at commitment). */
+  liveAt?: Day;
+  /** Campus (DATACENTERS §5b): number of buildings (1, 3 or 5) and the MW of each; Site.mw = buildings × buildingMW.
+   *  Absent: one building of Site.mw (start sites). */
+  buildings?: number;
+  buildingMW?: number;
+  /** Planned go-live day of each building, k = 0 … buildings − 1: permits end + max(power, construction + k) quarters
+   *  (set with liveAt when permits end; rent: [liveAt]). Absent: [liveAt] (start sites). */
+  liveDays?: Day[];
+  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and what it has
+   *  funded so far with construction interest capitalised quarterly: per building (`byBuilding`; the 5% commitment
+   *  payment split equally, each building's construction payments its own) and in all (`funded`). A building's
+   *  lease starts when it goes live (DC-15): `booked` buildings have theirs, and stop accruing interest. */
+  lease?: { rate: number; funded: Money; byBuilding: Money[]; booked: number };
   /** E27 large reactive community package: the retried permitting roll uses its unblock odds (FIN1, spec §4). */
   reactive?: boolean;
   startDay: Day;

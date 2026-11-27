@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { engAllocView, reAllocView, safReAllocView, safetySpend, upkeepShares } from '../../../engine/v2';
-import type { AllocView, EngNeed, GameStateV2, NeedView, ReNeed, SafReNeed } from '../../../engine/v2';
+import type { AllocView, EngNeed, GameStateV2, NeedView, ReNeed, ReNeedTotal, SafReNeed } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
 import { ICON } from '../icons';
@@ -74,10 +74,11 @@ function NeedList({ a, act, fmt, editing }: { a: AllocView<NeedKey>; act: string
             <span className="nm">{short && <ICON.alert size={12} />} <Term id={NEED_TERM[n.k]}>{NEED_SHORT[n.k]}</Term></span>
             <Tip content={() => <TipCard title={NEED_SHORT[n.k]} rows={[
               { label: 'Gets', value: fmt(n.got) },
-              { label: 'Needs', value: dem === null ? 'whatever is left' : fmt(dem) },
+              { label: n.extra ? 'Base need' : 'Needs', value: dem === null ? 'whatever is left' : fmt(dem) },
+              ...(n.extra ? [{ label: 'Spare engineers added', value: `+${fmt(n.extra)}`, tone: 'pos' as const }] : []),
               ...(short ? [{ label: 'Short', value: fmt(n.short), tone: 'neg' as const }] : []),
               ...(n.k === 'ops' && short ? [{ label: 'Runs train at', value: F.pct(Math.min(1, n.got / Math.max(1e-9, dem ?? 1))), tone: 'neg' as const }] : []),
-            ]}>{none ? 'Nothing to do here today.' : n.capped ? 'Held by its cap: the rest flows down.' : short ? 'The needs above it took the capacity.' : 'Fully served.'}{n.k === 'ops' && short ? ' Running runs slow to the share served.' : ''}</TipCard>}>
+            ]}>{none ? 'Nothing to do here today.' : n.capped ? 'Held by its cap: the rest flows down.' : short ? 'The needs above it took the capacity.' : n.extra ? 'Fully served. The engineers left after every need speed up the running programmes, shared evenly.' : 'Fully served.'}{n.k === 'ops' && short ? ' Running runs slow to the share served.' : ''}</TipCard>}>
               <span className="gb"><i style={{ width: `${Math.min(100, fill * 100)}%` }} /></span>
             </Tip>
             <span className="st num">{st}</span>
@@ -89,9 +90,9 @@ function NeedList({ a, act, fmt, editing }: { a: AllocView<NeedKey>; act: string
         );
       })}
       {spare > 1e-6 && (
-        <Tip content={() => <TipCard title={<Term id="overflow">Spare</Term>} value={fmt(spare)}>Capacity no need takes.</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="overflow">{a.idleWhy ? 'Idle' : 'Spare'}</Term>} value={fmt(spare)}>{a.idleWhy ?? 'Capacity no need takes.'}</TipCard>}>
           <div className="la-need spare" data-test={`idle.${act}`}>
-            {editing ? <span /> : null}<span className="rk" /><span className="nm"><Term id="overflow">Spare</Term></span>
+            {editing ? <span /> : null}<span className="rk" /><span className="nm"><Term id="overflow">{a.idleWhy ? 'Idle' : 'Spare'}</Term></span>
             <span className="gb"><i style={{ width: `${Math.min(100, (spare / scale) * 100)}%` }} /></span><span className="st num">{fmt(spare)}</span>
           </div>
         </Tip>
@@ -100,13 +101,13 @@ function NeedList({ a, act, fmt, editing }: { a: AllocView<NeedKey>; act: string
   );
 }
 
-function NeedsCard({ id, title, sub, chip, a, act, fmt, foot }: { id: string; title: ReactNode; sub: ReactNode; chip?: { text: string; tone: 'short' | 'spare'; tip: string }; a: AllocView<NeedKey>; act: string; fmt: (x: number) => string; foot?: ReactNode }) {
+function NeedsCard({ id, title, sub, chip, a, act, fmt, foot }: { id: string; title: ReactNode; sub: ReactNode; chip?: { text: string; tone: 'short' | 'spare'; tip: string; title?: string }; a: AllocView<NeedKey>; act: string; fmt: (x: number) => string; foot?: ReactNode }) {
   const [editing, setEditing] = useState(false);
   return (
     <div className="la-ncard" id={`ctl-${id}`} data-home={id}>
       <div className="la-nh">
         <b className="row-i">{title}</b><span className="sp" />
-        {chip && <Tip content={() => <TipCard title={chip.tone === 'short' ? 'Short' : <Term id="overflow">Spare</Term>} value={chip.text}>{chip.tip}</TipCard>}><span className={`la-nchip ${chip.tone}`} data-test={`${id}.chip`}>{chip.tone === 'short' && <ICON.alert size={12} />} {chip.text}</span></Tip>}
+        {chip && <Tip content={() => <TipCard title={chip.tone === 'short' ? 'Short' : <Term id="overflow">{chip.title ?? 'Spare'}</Term>} value={chip.text}>{chip.tip}</TipCard>}><span className={`la-nchip ${chip.tone}`} data-test={`${id}.chip`}>{chip.tone === 'short' && <ICON.alert size={12} />} {chip.text}</span></Tip>}
       </div>
       <div className="la-nsub small">{sub}</div>
       <NeedList a={a} act={act} fmt={fmt} editing={editing} />
@@ -115,6 +116,29 @@ function NeedsCard({ id, title, sub, chip, a, act, fmt, foot }: { id: string; ti
         <button className={`btn btn-sm ${editing ? 'on' : ''}`} data-test={`order.${act}`} onClick={() => setEditing(!editing)}><ICON.split size={12} /> {editing ? 'Done' : 'Change order'}</button>
       </div>
     </div>
+  );
+}
+
+/** L7: the research experiments' total need as one figure: N programmes × their base need ÷ the AI multiplier = the people it
+ *  takes (LABOUR-ROUND §3). Its tooltip is the home of the breakdown and says where the spare engineers go. */
+function TotalNeed({ v, unit, base }: { v: Pick<ReNeedTotal, 'programmes' | 'needEff' | 'm' | 'needPeople' | 'surplus'> & { cap: number }; unit: string; base?: boolean }) {
+  const help = v.m >= 1.05;
+  const perProg = v.programmes > 0 ? v.needEff / v.programmes : 0;
+  const tip = () => <TipCard title="Research experiments need" value={v.programmes > 0 ? `${t1(v.needPeople)} ${unit}` : 'none'} rows={[
+    { label: 'Programmes in experiments', value: String(v.programmes) },
+    { label: base ? 'Base need each' : 'Base need each (average)', value: `${t1(perProg)} team-equivalents of work` },
+    { label: 'Work to do', value: `${t1(v.needEff)} team-equivalents` },
+    { label: <Term id="workDone">AI help</Term>, value: `× ${v.m.toFixed(1)}`, tone: help ? 'pos' as const : 'neutral' as const },
+    { label: 'People it takes', value: `${t1(v.needPeople)} ${unit}` },
+    { label: 'People you have', value: `${t1(v.cap)} ${unit}` },
+    ...(v.surplus > 0.05 ? [{ label: 'Spare, speeding the programmes up', value: `+${t1(v.surplus)} ${unit}`, tone: 'pos' as const }] : []),
+  ]}>{'Each programme in experiments needs its base work done; AI staff do part of it, so fewer people are needed. The people you have beyond that speed up the running programmes, shared evenly. They are idle only when no programme is in experiments.'}</TipCard>;
+  return (
+    <Tip content={tip}>
+      <span data-test="needs.total">{v.programmes > 0
+        ? <>{v.programmes} programme{v.programmes > 1 ? 's' : ''} × {t1(perProg)}{help ? <> ÷ {v.m.toFixed(1)} AI help</> : null} = <b className="num">{t1(v.needPeople)}</b> {unit} needed</>
+        : 'no programme in experiments'}</span>
+    </Tip>
   );
 }
 
@@ -142,12 +166,12 @@ export function NeedsBoard({ s }: { s: GameStateV2 }) {
           foot={upParts.length ? <Tip content={() => <TipCard title={<Term id="productUpkeep">Upkeep</Term>} rows={upParts.map(([k, x]) => ({ label: k, value: F.pct(x, 1) }))}>Share of the engineers' build capacity that keeps what you built running.</TipCard>}><span>Upkeep: {upParts.map(([k, x]) => `${k} ${F.pct(x, x < 0.01 ? 1 : 0)}`).join(' · ')}</span></Tip> : 'No upkeep'} />
         <NeedsCard id="needs.re.cap" act="research.reAlloc" a={re} fmt={(x) => `${t1(x)} teams`}
           title={<><ICON.roleRE size={15} /><Term id="reNeeds">Research engineers</Term> <span className="dim small lc">capability</span></>}
-          sub={<span>{t1(re.cap)} teams · 2 per programme at most</span>}
-          chip={reShort > 0.05 ? { text: `short ${t1(reShort)} teams`, tone: 'short', tip: 'Some needs get less than they ask.' } : re.idle >= 0.05 ? { text: `${t1(re.idle)} teams spare`, tone: 'spare', tip: 'Capacity no need takes: add a project to put them to work.' } : undefined} />
+          sub={<><span>{t1(re.cap)} teams · </span><TotalNeed v={re} unit="teams" base /></>}
+          chip={reShort > 0.05 ? { text: `short ${t1(reShort)} teams`, tone: 'short', tip: 'Some needs get less than they ask.' } : re.idle >= 0.05 ? { text: `${t1(re.idle)} teams idle`, tone: 'spare', title: 'Idle', tip: `${re.idleWhy} Put a project into testing to use them.` } : undefined} />
         <NeedsCard id="needs.re.saf" act="research.safReAlloc" a={saf} fmt={(x) => `${t1(x)} people`}
           title={<><ICON.roleRE size={15} /><Term id="safReNeeds">Research engineers</Term> <span className="dim small lc">safety</span></>}
-          sub={<Tip content={() => <TipCard title="Safety needs spend" value={F.money(sp.total, { perYear: true })} rows={[{ label: 'People', value: F.money(sp.staffCost, { perYear: true }) }, { label: 'Compute', value: F.money(sp.computeCost, { perYear: true }) }]} footer="Not in this total: safety scientists' pay, spare staff and product safeguards.">The people and compute the safety needs got: payroll share plus compute at the rental rate.</TipCard>}><span>{t1(saf.cap)} people · needs spend {F.money(sp.total)}/yr</span></Tip>}
-          chip={safShort > 0.05 ? { text: `short ${t1(safShort)} people`, tone: 'short', tip: 'Safety needs get fewer people than they ask: hire safety research engineers or lower the needs above.' } : saf.idle >= 0.5 ? { text: `${t1(saf.idle)} people spare`, tone: 'spare', tip: 'Safety research-engineer capacity no need takes.' } : undefined}
+          sub={<><Tip content={() => <TipCard title="Safety needs spend" value={F.money(sp.total, { perYear: true })} rows={[{ label: 'People', value: F.money(sp.staffCost, { perYear: true }) }, { label: 'Compute', value: F.money(sp.computeCost, { perYear: true }) }]} footer="Not in this total: safety scientists' pay, spare staff and product safeguards.">The people and compute the safety needs got: payroll share plus compute at the rental rate.</TipCard>}><span>{t1(saf.cap)} people · needs spend {F.money(sp.total)}/yr</span></Tip><br /><TotalNeed v={saf} unit="people" /></>}
+          chip={safShort > 0.05 ? { text: `short ${t1(safShort)} people`, tone: 'short', tip: 'Safety needs get fewer people than they ask: hire safety research engineers or lower the needs above.' } : saf.idle >= 0.5 ? { text: `${t1(saf.idle)} people idle`, tone: 'spare', title: 'Idle', tip: saf.idleWhy } : undefined}
           foot={safShort > 0.05 ? 'Short: safety programmes slow down' : undefined} />
       </div>
     </section>

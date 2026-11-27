@@ -7,7 +7,7 @@
 // Capability nodes are research projects (model v3 V2: design/MODEL-V3.md §5, design/TECH-TREE.md §6; engine
 // models/research.ts): kind line (repeatable direction, generations), idea (one-off typed effect) or axis (unlocks a
 // lever, may carry an effect). Each runs ideation (science teams) → small experiments → scale test (research engineers
-// and experiment FLOP) → result → adoption (engineers), at research pace × √capacity; capacity = Σ heads/40 × quality ×
+// and experiment FLOP) → result → adoption (engineers), at research pace × √capacity; capacity = Σ heads/40 ×
 // 1.5 if the team's specialty is the node's column. Effort is in standard-team-months at pace 1. Paradigm nodes (P-ids)
 // use the hidden paradigm draw on their first attempt; other nodes hash32(seed, 'node:'+id). A failed project can be
 // reopened as speculative (half the odds, a wider prior).
@@ -145,7 +145,9 @@ export const TREE: TreeNodeDef[] = [
   LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0], rShare: 0.36 }, { cap: 'Training recipes and architecture details: pretraining efficiency (OOM); the same at any run size (compute rebalancing is the tokens per parameter of the run design)', payoff: 'Routine algorithmic gains are scale-invariant and together under 10x (Gundlach et al.)' }),
   LINE('L.data', 'Data filtering & mixing', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0.05], rShare: 0.22 }, { cap: 'Better data for the same tokens: pretraining efficiency (OOM)' }),
   LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], par: 0.1, rShare: 0.22 }, { cap: 'Small gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale, about one in ten keeps growing with run FLOP' }),
-  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], par: 1, rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence, a new architecture family as the Transformer was: pretraining efficiency (OOM); grows with run FLOP' }),
+  // L.latent opens with P17 and starts from the pretraining research stock like P24 (LABOUR-ROUND section 7, Q6): its n0 is the
+  // mean of (n0 + pool) of the three pretraining start lines the day it opens (openMidGameLines), not a fresh pool.
+  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], par: 1, rShare: 0.22 }, { cap: 'A line opened by neuralese recurrence, a new architecture family as the Transformer was, starting from the research the pretraining lines have gathered: pretraining efficiency (OOM); grows with run FLOP' }),
   N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
   N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
@@ -160,8 +162,10 @@ export const TREE: TreeNodeDef[] = [
   // staffs it (1-2 teams, the reflines bot) gains about 0.96 OOM on its bases in 12 months, 0.6 in 6, about 1.4 in 24.
   //  - rShare 0.3: between Recurrent architectures' 0.22 and Scaling recipes' 0.36; the log law front-loads a small share, this
   //    keeps the first idea near 0.08 OOM and adds under a third to the pretraining lines' returns.
-  //  - mean 0.12: the first idea's prior at taste 1 (x LINE_FIT.mu); it sets n0 (about 4: a FRESH pool, LINE_START_INPUT has no
-  //    entry for P24, so n0 comes from the first idea and not from an initial research stock: research just beginning).
+  //  - mean 0.12: the first idea's prior at taste 1 (x LINE_FIT.mu). n0 is NOT a fresh pool: the day the line opens it
+  //    starts from the pretraining research stock, the mean of (n0 + pool) of Scaling recipes, Data filtering and Optimizer
+  //    tweaks (models/research.ts openMidGameLines, stored in tree[P24].startPool). Roughly 15-45 instead of 1.85, so P24 is an ordinary line with no 2027 surge (design/bal/LABOUR-ROUND.md
+  //    section 7; RATE-DECOMP: design/BAL-TASKS.md 'After merge: point-1 checks'). Moves calibration by design.
   //  - par 0.5: half its ideas in the new-architecture tier (Gundlach: 2 of about 20 human innovations were; an AI explores
   //    architecture space more widely than humans); s [0.02, 0.04] as that mix.
   LINE('P24', 'AI-designed successor', 'pretraining', ['rl.mlResearch'], { stack: 'pre', mean: 0.12, s: [0.02, 0.04], par: 0.5, rShare: 0.3 }, { fx: { cap: 1, saf: -1 }, cap: 'A research line of AI-designed architectures and recipes: pretraining efficiency (OOM) for bases trained after adoption; each result adds a little, with diminishing returns', saf: 'New lineage: traits redrawn, tools may not transfer' }),

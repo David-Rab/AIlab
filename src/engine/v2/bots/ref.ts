@@ -36,15 +36,16 @@ import { financeAutopilot } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/ces';
 import { REF_SHARE } from '../production/data';
-import { DEFAULT_LINES } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_TEAMS_WANTED } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
-import type { BotPolicy, DomainId, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';
+import type { BotPolicy, DomainId, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TeamRole, TrainingRun } from '../types';
+import { roleOfKey } from '../departments/teams';
 import { bestMeasuredL, internalVersion, versionById } from '../models/labs';
 import { believedInternalOversight } from '../safety/believedOversight';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
-import { committedFte, safetyReHeads } from '../safety/investigations';
+import { caseRoom } from '../safety/investigations';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
@@ -95,7 +96,9 @@ const listedLines = (c: RefBotSettings): { id: string; w: number }[] => c.resear
  *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and
  *  gives the lines the rest. (A fixed 70% line share was tried: it fitted the lines more evenly across worlds but moved
  *  the ai2027 takeoff out of tolerance; design/V3-BUILD.md V2 notes.) */
-/** (settings.ideaTeams, 3) */
+/** L15: teams a follower start adds per role and month: the people of one team of the old sizes (150 / 100 / 40), in teams of 100 / 50 / 20. */
+const FOLLOWER_GROW_TEAMS: Record<TeamRole, number> = { eng: Math.round(150 / TEAM_SIZE.eng), re: Math.round(100 / TEAM_SIZE.re), sci: Math.round(40 / TEAM_SIZE.sci) };
+/** (settings.ideaTeams, 3 standard teams = 6 teams of 20 since L15) */
 /** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
 export const SAFE_TREE_EXTRA: TreeGoal[] = [
   { id: 'P23', when: (s) => Lg(s, GATE_OOM.L85) && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
@@ -123,7 +126,7 @@ export const SAFE_TREE_EXTRA: TreeGoal[] = [
  *  design: honesty, then anti-scheming; applied interp: deception probe, verbalizer; evals: honeypots, auditing agents;
  *  control: resampling, control evals, comms lockdown), then the line's follow-up. */
 export const REF_LINES: LinePlan[] = DEFAULT_REF.lines;
-/** (settings.safetySciTeams, 4) */
+/** (settings.safetySciTeams, 4 standard teams = 8 teams of 20 since L15) */
 
 /**
  * S5R: AI 2027's alignment share of the leading lab's internal compute [S]: the compute forecast's usage table splits
@@ -340,14 +343,14 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       const saf = (o.safStaffShare / (1 - o.safStaffShare)) * Math.max(H, p.staff.cap);
       teamsWanted.push(['re.saf', Math.round((SAF_ROLE_SHARE.re * saf) / TEAM_SIZE.re)], ['sci.saf', Math.round((SAF_ROLE_SHARE.sci * saf) / TEAM_SIZE.sci)]);
     }
-    // Follower starts (R9) grow toward the reference roster one team per role a month, and only while the money lasts
+    // Follower starts (R9) grow toward the reference roster one old-size team's worth of people per role a month (L15: 2 / 2 / 2 teams of 100 / 50 / 20), and only while the money lasts
     // (queued teams count in payroll at once); the leader start is unchanged.
     if (!follower) {
       for (const [key, n] of teamsWanted) if (n > (p.hiring.targets[key] ?? 0)) tryAct(s, api, 'teams.target', { key, n });
     } else if (runwayOf(s).q >= c.followerGrowQ) {
       for (const [key, n] of teamsWanted) {
         const cur = p.hiring.targets[key] ?? 0;
-        if (n > cur) tryAct(s, api, 'teams.target', { key, n: cur + 1 });
+        if (n > cur) tryAct(s, api, 'teams.target', { key, n: Math.min(n, cur + FOLLOWER_GROW_TEAMS[roleOfKey(key)]) });
       }
     }
   }
@@ -376,7 +379,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (c.linesFirst) lines.forEach((l, i) => { if (queue[i] !== l.id) tryAct(s, api, 'research.move', { id: l.id, to: i }); });
   const sci = p.teams.filter((x) => x.role === 'sci' && x.dept === 'cap').length;
   const ideas = queue.filter((id) => !lines.some((l) => l.id === id) && TREE_BY_ID[id] && COLUMN_DEPT[TREE_BY_ID[id].column] === 'cap' && !nodeKnown(s, id) && takesTeams(p.tree[id]?.cap));
-  for (const id of ideas) if ((p.research.want[id] ?? 1) !== c.ideaTeams) tryAct(s, api, 'research.want', { id, n: c.ideaTeams });
+  for (const id of ideas) if ((p.research.want[id] ?? DEFAULT_TEAMS_WANTED) !== c.ideaTeams) tryAct(s, api, 'research.want', { id, n: c.ideaTeams });
   const free = Math.max(lines.length, sci - c.ideaTeams * ideas.length);
   // A saturated direction is dropped to a minimum: once the reference RL run reaches 95% of its ceiling, more RL
   // compute efficiency buys almost nothing, so the RL-algorithm teams move to the other lines [D].
@@ -385,8 +388,8 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const wOf = (l: { id: string; w: number }) => (l.id === 'L.rlalg' && satRL ? 0 : l.w);
   const wSum = lines.reduce((a, l) => a + wOf(l), 0);
   for (const l of lines) {
-    const n = wOf(l) > 0 ? Math.max(1, Math.round((wOf(l) / wSum) * free)) : 0;
-    if ((p.research.want[l.id] ?? 1) !== n) tryAct(s, api, 'research.want', { id: l.id, n });
+    const n = wOf(l) > 0 ? Math.max(DEFAULT_TEAMS_WANTED, Math.round((wOf(l) / wSum) * free)) : 0;
+    if ((p.research.want[l.id] ?? DEFAULT_TEAMS_WANTED) !== n) tryAct(s, api, 'research.want', { id: l.id, n });
   }
 
   // Base runs: a base every 9 months; once neuralese (P17) is adopted the next base is latent and starts at once
@@ -737,7 +740,7 @@ export function refFootholds(s: GameStateV2, api: EngineApi, c: RefBotSettings =
     if (r.status === 'detected') tryAct(s, api, 'safety.respond', { kind: 'removeFoothold', footholdId: r.id });
     if (r.status !== 'suspected' || !r.caseVersionId || !r.caseTrait) continue;
     const open = s.player.safety.investigations.some((i) => !i.outcome && i.target.kind === 'trait' && i.target.versionId === r.caseVersionId && i.target.trait === r.caseTrait);
-    if (open || safetyReHeads(s) - committedFte(s) < c.footholdCaseFte) continue;
+    if (open || caseRoom(s, c.footholdCaseFte) < c.footholdCaseFte - 1e-9) continue; // only a fully staffed case
     tryAct(s, api, 'safety.investigate', { versionId: r.caseVersionId, trait: r.caseTrait, fte: c.footholdCaseFte });
   }
 }

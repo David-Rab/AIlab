@@ -5,6 +5,7 @@
 import type { AgendaId, AgentUse, TraitId } from '../types';
 import { REF_AUTOPILOT, type AutopilotOpts } from '../finance/plan';
 import type { LinePlan } from './common';
+import { RE_TEAMS_PER_UNIT, SCI_TEAMS_PER_STD } from '../../../data/v2/research';
 
 /** The four research pacing gates (RefBot's old display levels 6.5, 7, 8.5, 9.5). */
 export type GateKey = 'L65' | 'L7' | 'L85' | 'L95';
@@ -123,7 +124,7 @@ export const DEFAULT_REF: RefBotSettings = {
   gateOom: { L65: 1.3656, L7: 1.7706, L85: 2.9856, L95: 3.5256 },
   research: ['P07', 'P05', 'P08', 'rl.mlResearch', 'P17'],
   researchGate: { P08: 'L7', 'rl.mlResearch': 'L65', P17: 'L95' },
-  ideaTeams: 3,
+  ideaTeams: 3 * SCI_TEAMS_PER_STD, // L15: 3 standard (40-person) teams' worth of people, in teams of 20
   linesFirst: false,
   baseEvery: 270,
   baseDays: 121,
@@ -137,12 +138,12 @@ export const DEFAULT_REF: RefBotSettings = {
   productChannels: ['consumer', 'api', 'enterprise'],
   publicChannels: ['consumer', 'api'],
   lines: [
-    { ag: 'AG18', teams: 1, ideas: ['T-CONFESS', 'T-ANTISCHEME'] },
-    { ag: 'AG02', teams: 1, ideas: ['T-DECEPT', 'T-NLA'] },
-    { ag: 'AG08', teams: 1, ideas: ['T-HONEY', 'T-AUDIT'] },
-    { ag: 'AG07', teams: 1, ideas: ['T-RESAMPLE', 'T-CEVAL', 'T-LOCK'] },
+    { ag: 'AG18', teams: SCI_TEAMS_PER_STD, ideas: ['T-CONFESS', 'T-ANTISCHEME'] },
+    { ag: 'AG02', teams: SCI_TEAMS_PER_STD, ideas: ['T-DECEPT', 'T-NLA'] },
+    { ag: 'AG08', teams: SCI_TEAMS_PER_STD, ideas: ['T-HONEY', 'T-AUDIT'] },
+    { ag: 'AG07', teams: SCI_TEAMS_PER_STD, ideas: ['T-RESAMPLE', 'T-CEVAL', 'T-LOCK'] },
   ],
-  safetySciTeams: 4,
+  safetySciTeams: 4 * SCI_TEAMS_PER_STD,
   alignShare: [{ year: 2025.5, share: 0.04 }, { year: 2026.5, share: 0.03 }],
   safetyShareFloor: 0.2,
   safetyAgentsTolerance: 0.1,
@@ -220,11 +221,11 @@ const MIXED_CORE: AgendaId[] = ['AG02', 'AG08', 'AG18', 'AG09', 'AG07'];
 export const DEFAULT_MIXED: MixedBotSettings = {
   ref: DEFAULT_REF,
   lottery: ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'],
-  sciTeams: 12,
-  reTeams: 5,
+  sciTeams: 12 * SCI_TEAMS_PER_STD,
+  reTeams: 5 * RE_TEAMS_PER_UNIT,
   lines: [
-    ...[...MIXED_CORE, 'lottery' as const].map((ag) => ({ ag, teams: 1 })),
-    ...[...MIXED_CORE, 'lottery' as const].map((ag) => ({ ag, teams: 2 })),
+    ...[...MIXED_CORE, 'lottery' as const].map((ag) => ({ ag, teams: SCI_TEAMS_PER_STD })),
+    ...[...MIXED_CORE, 'lottery' as const].map((ag) => ({ ag, teams: 2 * SCI_TEAMS_PER_STD })),
   ],
   redFlags: ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'],
   redFlagThresholds: [0.25, 0.3],

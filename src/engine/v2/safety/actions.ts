@@ -19,7 +19,7 @@ import { lineResultsPerYear } from './agendas';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { caseComputeScale } from './lineProjects';
-import { CASE_WORK, INV_FTE, INV_MAX_DAYS, caseDailyWork, casePreview, closeInvestigation, corruptOdds, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
+import { CASE_WORK, INV_FTE, INV_MAX_DAYS, caseDailyWork, casePreview, closeInvestigation, corruptOdds, defaultTools, caseRoom, openInvestigation } from './investigations';
 import {
   DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
   discloseScrutiny, discloseTrust, disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
@@ -114,10 +114,7 @@ function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: 
 
 const INVESTIGATE: ActionDef = {
   id: 'safety.investigate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Open case',
-  available: (s) => {
-    const free = safetyReHeads(s) - committedFte(s);
-    return free >= INV_FTE[0] || `Not enough free safety research engineers (a case needs ${INV_FTE[0]}–${INV_FTE[1]})`;
-  },
+  available: (s) => caseRoom(s, INV_FTE[0]) > 1e-9 || 'No safety research engineers left for a case at its place in the needs order',
   preview(s, p) {
     const fte = Math.max(INV_FTE[0], Math.min(INV_FTE[1], num(p, 'fte') ?? 15));
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;

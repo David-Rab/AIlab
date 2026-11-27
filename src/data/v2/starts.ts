@@ -5,7 +5,7 @@
 // compute/sites.ts …) and buildPlayer leaves them untouched. The other three are built from this table, with the
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
-import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey, TeamQuality } from '../../engine/v2/types';
+import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
 import type { ToolId } from './features';
 import type { ProductToolId } from './tools';
 
@@ -27,12 +27,10 @@ export interface StartDef {
   analogues: string;
   /** D1: the simulated AI 2027 leader lab is in the world (on for every start but the leader's). */
   leaderLab: boolean;
-  /** Teams by key (STRUCTURE §4.1 start table; fixed sizes 150 / 100 / 40). */
+  /** Teams by key (STRUCTURE §4.1 start table; fixed sizes 100 / 50 / 20, L15). */
   teams: Record<TeamKey, number>;
   /** Science specialties in hiring order per department (follow the analogues). */
   specialties: Record<TeamDept, Column[]>;
-  /** Quality of the start teams (spinout: Elite science, "elite taste"). */
-  quality?: Partial<Record<TeamKey, TeamQuality>>;
   /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
@@ -60,9 +58,9 @@ export interface StartDef {
   lagMonths: number;
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
   imported?: boolean;
-  /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10). starCost: × star hire cost.
+  /** Modifiers (research/18 §6). talentPull: the anchor talent pull drifts to (leader 10).
    *  (FIN2 removed patientQ with the board's revenue plan.) */
-  mods: { talentPull: number; starCost: number };
+  mods: { talentPull: number };
 }
 
 export const STARTS: StartDef[] = [
@@ -70,10 +68,10 @@ export const STARTS: StartDef[] = [
     id: 'spinout', name: 'Well-funded spinout', difficulty: 'Impossible', analogues: 'Anthropic 2021, SSI, Thinking Machines',
     character: 'Elite founders and patient money; no compute, no product, no revenue, and an open-weight model to start from.',
     leaderLab: true,
-    // 290 people (analogues ≈ 110, rounded up to whole teams; STRUCTURE §4.1).
-    teams: { eng: 1, 're.cap': 1, 'sci.cap': 1, 're.saf': 0, 'sci.saf': 0 },
+    // 290 people (analogues ≈ 110, rounded up to whole teams; STRUCTURE §4.1). L15: the same people in whole teams of
+    // 100 / 50 / 20 (was one team each of 150 / 100 / 40: 150 → 1 (the tie rounds down), 100 → 2, 40 → 2).
+    teams: { eng: 1, 're.cap': 2, 'sci.cap': 2, 're.saf': 0, 'sci.saf': 0 },
     specialties: { cap: ['posttraining', 'pretraining', 'systems'], saf: ['alignment', 'interp', 'evals'] },
-    quality: { 'sci.cap': 'elite' },
     known: ['rl.math', 'T-PROBE'],
     products: [], features: [], tooling: [],
     // Valued through position (FIN5a): no public model, so investors place it at the best open-weight model (SSI $32B
@@ -82,7 +80,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.75, fin: 0.25 },
     owned: 0, rented: 25e3,
     board: 'founder', lagMonths: 6.5, imported: true,
-    mods: { talentPull: 30, starCost: 0.7 },
+    mods: { talentPull: 30 },
   },
   {
     id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
@@ -90,7 +88,7 @@ export const STARTS: StartDef[] = [
     leaderLab: true,
     // Model v3 V3b: 4 engineering teams (was 3) [D]: at 2025 AI coverage (build capacity ≈ ×1.1 the engineers) three
     // teams could not carry the start products' upkeep plus a base run setup in the first quarter.
-    teams: { eng: 4, 're.cap': 7, 'sci.cap': 4, 're.saf': 1, 'sci.saf': 1 },
+    teams: { eng: 6, 're.cap': 14, 'sci.cap': 8, 're.saf': 2, 'sci.saf': 2 }, // L15: the same people (600 / 700 + 100 / 160 + 40) in teams of 100 / 50 / 20
     specialties: { cap: ['posttraining', 'pretraining', 'systems', 'posttraining'], saf: ['interp', 'alignment', 'evals'] },
     known: ['rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
     products: [
@@ -104,13 +102,13 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
     board: 'founder', lagMonths: 3,
-    mods: { talentPull: 20, starCost: 1 },
+    mods: { talentPull: 20 },
   },
   {
     id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
     character: 'Compute and distribution, and you cannot go broke; a yearly budget from the parent, cut when you miss its goals, and a weak pull on talent.',
     leaderLab: true,
-    teams: { eng: 7, 're.cap': 18, 'sci.cap': 11, 're.saf': 1, 'sci.saf': 1 },
+    teams: { eng: 10, 're.cap': 36, 'sci.cap': 22, 're.saf': 2, 'sci.saf': 2 }, // L15: the same people (1,050 → 10.5, the tie rounds down to 10 teams, 1,800 + 100, 440 + 40) in teams of 100 / 50 / 20
     specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
     known: ['multimodal', 'rl.math'],
     products: [
@@ -125,14 +123,14 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0, fin: 0 },
     owned: 800e3, rented: 0,
     board: 'parent', lagMonths: 6,
-    mods: { talentPull: 0, starCost: 1.5 },
+    mods: { talentPull: 0 },
   },
   {
     id: 'leader', name: 'Frontier leader', difficulty: 'Easy', analogues: 'OpenAI (mid-2025)',
     character: 'Everything now: the best model, the most compute and revenue; a fragile board and the largest commitments.',
     leaderLab: false,
     // The leader's own values are today's (START_TEAMS, initialFinance, initialSites …); these rows are for display.
-    teams: { eng: 4, 're.cap': 11, 'sci.cap': 8, 're.saf': 1, 'sci.saf': 2 },
+    teams: { eng: 6, 're.cap': 21, 'sci.cap': 14, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: [], saf: [] },
     known: [],
     products: [
@@ -146,7 +144,7 @@ export const STARTS: StartDef[] = [
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,
     board: 'legacyNonprofit', lagMonths: 0,
-    mods: { talentPull: 10, starCost: 1 },
+    mods: { talentPull: 10 },
   },
 ];
 

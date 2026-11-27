@@ -1,8 +1,8 @@
 // Engineers' build queue (STRUCTURE §4.1, BUILD-PLAN R5; jank J2 P1). Owner: WS1.
 //
 // Engineering teams share one build capacity (team-weeks per week = effective software-engineering labour: the
-// engineers' team-equivalents, Σ heads/150 × quality, with the engineering agents' AI labour in the coding CES at their
-// SWE coverage, never below the humans alone; no cap; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
+// engineers' team-equivalents, Σ heads/150, with the engineering agents' AI labour in the optimal human/AI
+// task split at their SWE coverage (never below the humans alone by construction); no cap; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
 // priority + overflow"; default below), each up to its optional cap (team-weeks per week or a share of capacity);
 // unused capacity flows down the order:
 //   runs      the run setups on the queue (a run trains only once its setup is built), then adoptions of research

@@ -1474,7 +1474,7 @@ R15 §1.2–1.3 apply verbatim on a quarterly tick. Start values are back-cast t
 
 **Rationing** uses the weights `w = 1 + 0.5·LTA + 0.5·prepay + 0.5·strategic + 0.3·track`.
 
-**Sites.**
+**Sites.** *Replaced by [DATACENTERS.md](DATACENTERS.md) (2026-11-27): the site and power part of this section (power paths, stages, transformer gate, opposition roll) no longer applies; the chip market above stands.*
 - Power paths: lease, brownfield, gas, grid, nuclear.
 - Stages: permitting → power → building → live.
 - Crash build: 4q at +35% capex.

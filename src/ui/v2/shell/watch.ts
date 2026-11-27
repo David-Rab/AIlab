@@ -116,8 +116,8 @@ export function watchItems(s: GameStateV2): WatchItem[] {
   if (p.morale.overall < 40) {
     out.push({
       id: 'morale', sphere: 'company', sev: 2,
-      chain: [{ label: 'morale low', icon: ICON.morale, kind: 'root', detail: `Morale ${Math.round(p.morale.overall)}` }, { label: 'staff leaving', icon: ICON.staff, kind: 'bad' }],
-      why: 'productivity drops and attrition rises', go: { panel: 'lab', tab: 'people' }, goLabel: 'People',
+      chain: [{ label: 'morale low', icon: ICON.morale, kind: 'root', detail: `Morale ${Math.round(p.morale.overall)}` }, { label: 'hiring slows', icon: ICON.staff, kind: 'bad' }],
+      why: 'productivity drops and hiring slows', go: { panel: 'lab', tab: 'people' }, goLabel: 'People',
     });
   }
   // 8. an incident about to go public

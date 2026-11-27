@@ -24,8 +24,7 @@
 import { BENCHMARKS, BENCH_NOISE_SD, SAFETY_EVALS } from '../../../data/v2/benchmarks';
 import { jobAiShare } from '../safety/workPackage';
 import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DG } from '../../../data/v2/evals';
-import { TEAM_SIZE } from '../../../data/v2/teams';
-import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
+import { PEAK_FLOPS, RE_UNIT_HEADS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { EvalDepth, EvalTask, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
 import { frameworkOf } from '../safety/framework';
@@ -35,15 +34,14 @@ import { agentVersion } from '../departments/agents';
 import { expectedFitSd, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
-import { allocate } from './research';
-import { safAllocation } from '../safety/lineProjects';
+import { needRoom, safAllocation } from '../safety/lineProjects';
 
 /** SR-21: AI labour multiplier on the safety engineers' eval work (m of safety experiments, as cases and validation). */
 export const evalM = (s: GameStateV2) => Math.max(1, safetyLabour(s).exp.m);
 /** SR-21: human team-equivalents the safety needs list gives the eval suites today, and their H100e (its compute sub-use). */
 export function evalStaffToday(s: GameStateV2): { re: number; h100e: number } {
   const a = safAllocation(s);
-  return { re: a.got.evals / TEAM_SIZE.re, h100e: a.compute.evals.got };
+  return { re: a.got.evals / RE_UNIT_HEADS, h100e: a.compute.evals.got };
 }
 
 /** Suite depth the Safety framework's capability assessment asks for before release (SR-19; none: no release suite). */
@@ -72,7 +70,7 @@ export function evalCost(s: GameStateV2, v: Pick<ModelVersion, 'fpt'>, depth: Ev
   const fpt = flopPerToken(s, v);
   const h100eDays = (rollouts * fpt * (tin / U_PREFILL + tout / U_DECODE)) / PEAK_FLOPS / 86400;
   const staff = by === 'self' ? D.staff : EXT_EVAL_STAFF;
-  return { reTW: D.staffWeeks / TEAM_SIZE.re, maxTeams: staff / TEAM_SIZE.re, engTW: D.engTW, h100eDays, tokens: rollouts * (tin + tout), rollouts };
+  return { reTW: D.staffWeeks / RE_UNIT_HEADS, maxTeams: staff / RE_UNIT_HEADS, engTW: D.engTW, h100eDays, tokens: rollouts * (tin + tout), rollouts };
 }
 
 const evalsOf = (s: GameStateV2) => (s.player.models.evals ??= []);
@@ -118,7 +116,7 @@ function dropEval(s: GameStateV2, t: EvalTask) {
 /** Human research-engineer team-equivalents one of the lab's suites can use today: its depth's staff in effective
  *  team-equivalents (the analysis lag, research/20 §G (c): a pass is a small team's 1–3 weeks, so AI labour frees
  *  people but does not shorten it), no more than its remaining work, ÷ the AI labour multiplier `m` on experiments. */
-const suiteWant = (t: EvalTask, m: number) => Math.min(EVAL_DEPTHS[t.depth].staff / TEAM_SIZE.re, (1 - t.progress) * t.reTW * 7) / m;
+const suiteWant = (t: EvalTask, m: number) => Math.min(EVAL_DEPTHS[t.depth].staff / RE_UNIT_HEADS, (1 - t.progress) * t.reTW * 7) / m;
 
 /** Human research-engineer team-equivalents the lab's own suites can use today (each up to its depth's staff, no more
  *  than its remaining work), given the AI labour multiplier `m` on experiments. */
@@ -145,7 +143,7 @@ export function evalH100eAsk(s: GameStateV2, m: number, reHuman = Infinity): num
       const x = Math.min(left, suiteWant(t, m));
       left -= x;
       dp = t.reTW > 0 ? (x * m) / 7 / t.reTW : 1;
-    } else dp = EXT_EVAL_STAFF / TEAM_SIZE.re / 7 / Math.max(1e-9, evalCost(s, v ?? { fpt: 0 }, t.depth).reTW);
+    } else dp = EXT_EVAL_STAFF / RE_UNIT_HEADS / 7 / Math.max(1e-9, evalCost(s, v ?? { fpt: 0 }, t.depth).reTW);
     h += Math.min(dp, 1 - t.progress) * t.h100eDays;
   }
   return h;
@@ -178,7 +176,7 @@ export function evalsDay(s: GameStateV2, ctx: SystemCtx, reHuman: number, m: num
         left -= h;
         dp = t.reTW > 0 ? (h * m) / 7 / t.reTW : 1;
       } else {
-        dp = EXT_EVAL_STAFF / TEAM_SIZE.re / 7 / Math.max(1e-9, evalCost(s, v, t.depth).reTW);
+        dp = EXT_EVAL_STAFF / RE_UNIT_HEADS / 7 / Math.max(1e-9, evalCost(s, v, t.depth).reTW);
       }
       dp = Math.min(dp, 1 - t.progress);
       if (t.h100eDays > 0) dp = Math.min(dp, pool / t.h100eDays);
@@ -257,14 +255,10 @@ export function autoEvaluate(s: GameStateV2) {
 export function evalDaysEstimate(s: GameStateV2, depth: EvalDepth): number {
   const D = EVAL_DEPTHS[depth];
   const m = evalM(s);
-  const max = D.staff / TEAM_SIZE.re / m;
-  // SR-21: what the safety needs list would give one more suite (heads × quality → team-equivalents).
-  const al = safAllocation(s);
-  const a = s.player.research.safRe;
-  const d = al.demand;
-  const extra = (allocate(al.heads, a, { ...d, evals: d.evals + max * TEAM_SIZE.re }).evals - allocate(al.heads, a, d).evals) / TEAM_SIZE.re;
-  const h = Math.min(max, Math.max(0, extra));
-  return h > 0 ? Math.max(1, Math.ceil((D.staffWeeks / TEAM_SIZE.re) / ((h * m) / 7) - 1e-9)) : Infinity;
+  const max = D.staff / RE_UNIT_HEADS / m;
+  // SR-21: what the safety needs list would give one more suite at its place in the order (heads → team-equivalents).
+  const h = Math.min(max, needRoom(s, 'evals', max * RE_UNIT_HEADS) / RE_UNIT_HEADS);
+  return h > 0 ? Math.max(1, Math.ceil((D.staffWeeks / RE_UNIT_HEADS) / ((h * m) / 7) - 1e-9)) : Infinity;
 }
 /** Days the framework's capability assessment adds to a release today (0 when it asks for none; readout, at most a year
  *  when no research engineer is free for evals). */
@@ -304,7 +298,7 @@ export function evalQueueView(s: GameStateV2): EvalTaskView[] {
     const h = t.by === 'self' ? Math.min(share, want) : 0;
     share -= h;
     const reTW = t.by === 'self' ? t.reTW : evalCost(s, v ?? { fpt: 0 }, t.depth).reTW;
-    const rate = t.by === 'self' ? (h * m) / 7 : EXT_EVAL_STAFF / TEAM_SIZE.re / 7;
+    const rate = t.by === 'self' ? (h * m) / 7 : EXT_EVAL_STAFF / RE_UNIT_HEADS / 7;
     const left = 1 - t.progress;
     const rem = left * reTW;
     const reDays = rem <= 1e-9 ? 0 : rate > 0 ? Math.ceil(rem / rate - 1e-9) : Infinity;
@@ -320,7 +314,7 @@ export function evalQueueView(s: GameStateV2): EvalTaskView[] {
     return {
       id: t.id, versionId: t.versionId, name: v?.name ?? t.versionId, depth: t.depth, by: t.by, why: t.why, progress: t.progress,
       reTW: t.reTW, engTW: t.engTW, h100eDays: t.h100eDays, aiShare: t.by === 'self' ? jobAiShare(s, 'suite') : 0, ...(waiting ? { waiting } : {}), binds, reDays, engDays, computeDays,
-      reNow: h, reMax: t.by === 'self' ? EVAL_DEPTHS[t.depth].staff / TEAM_SIZE.re / m : 0, etaDays: Math.max(reDays, computeDays, engDays),
+      reNow: h, reMax: t.by === 'self' ? EVAL_DEPTHS[t.depth].staff / RE_UNIT_HEADS / m : 0, etaDays: Math.max(reDays, computeDays, engDays),
     };
   });
 }
@@ -375,6 +369,6 @@ export function evalPolicyView(s: GameStateV2): { depth: EvalDepth; perSuite?: E
   const v = policyModels(s)[0];
   return {
     depth, ...(v ? { perSuite: evalCost(s, v, depth) } : {}), spent: { ...spentOf(s) },
-    reToday: evalStaffToday(s).re, reCap: safAllocation(s).heads / TEAM_SIZE.re, reevalDG: REEVAL_DG, reevalDays: REEVAL_DAYS,
+    reToday: evalStaffToday(s).re, reCap: safAllocation(s).heads / RE_UNIT_HEADS, reevalDG: REEVAL_DG, reevalDays: REEVAL_DAYS,
   };
 }

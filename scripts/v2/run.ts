@@ -59,6 +59,7 @@ const JOBS: Job[] = [
   { id: 'effective', script: 'effective.ts', ...S(ALL, 25) } as Job,
   { id: 'data', script: 'data.ts', ...S(ALL, 20) } as Job,
   { id: 'suites', script: 'suites.ts', ...S(ALL, 20) } as Job,
+  { id: 'sites', script: 'sites.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE bot round' }, ...S(ALL, 90) } as Job,
   { id: 'signals', script: 'signals.ts', ...S(ALL, 20) } as Job,
   { id: 'successor', script: 'successor.ts', ...S(ALL, 30) } as Job,
   { id: 'research', script: 'research.ts', ...S(ALL, 35) } as Job,

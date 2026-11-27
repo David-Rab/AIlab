@@ -1,6 +1,7 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
+import { startMarket } from '../departments/market';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { deriveNames } from '../models/naming';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
@@ -24,7 +25,7 @@ import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
 import { initialSites } from '../compute/sites';
-import { seedCandidates, staffOf, startTeams } from '../departments/teams';
+import { staffOf, startTeams } from '../departments/teams';
 import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
@@ -52,10 +53,12 @@ import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
-  Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
+  Deployment, DomainId, EvalRecord, GameStateV2, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { seedStreams, StreamRng } from './rng';
+import { seedStreams, stream } from './rng';
+import { Phi, bisect, tasteSigma } from '../production/ces';
+import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_FIRST_NAMES, STAR_LAST_NAMES, BASE_TASTE_FLOOR } from '../../../data/v2/labourMarket';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -225,7 +228,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
     split: playerShareRef(SHARE_REF[0].year), // the start split: AI 2027's compute-usage table at the start (data), engineering agents on their own line (RD-A02)
     staff,
-    tasteHire: 1,
     models: {
       bases: [{
         id: 'B0', name: def.imported ? 'Open-weight base (imported)' : `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: sm.flop,
@@ -250,8 +252,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     cloud: compute ? compute.cloud : initialCloud(setup.baseline, startDate),
     safety,
     teams: roster.teams,
-    stars: 0,
     hiring: roster.hiring,
+    pay: { ...W0 }, // LABOUR-ROUND §4.1: the lab starts paying the market wage
     tree: initialTree(setup),
     // Model v3 V2: the recipe stacks start at the leader's day-0 recipe, a follower its start lag k (OOM) lower.
     research: { ...initialResearch(roster.teams), stacks: initialStacks(k) },
@@ -264,6 +266,41 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, autoSplit: { on: false, to: ['experiments'] }, servingAuto: true, upgradeToNewest: false, autoEvaluate: true, autoCheapTier: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
+  };
+}
+
+/** The labour market at the start (LABOUR-ROUND §4.1, §6.1): the pools at P0 with the market wage at w0, and the stars.
+ *  Stars: n = round((1 - top percentile) x P0.sci) = 37; each draws a quantile u ~ U(0.999, 1), z = Phi^-1(u), taste
+ *  T = exp(-sigma^2/2 + sigma z) with sigma = tasteSigma(m2b) of the world's drawn m2b (AIFM taste_distribution.py). The player
+ *  holds round(STAR_EMPLOYER0.openai x n) of them (the leading lab's share); every other star is outside (NPC labs hold no
+ *  stars, designer 2026-11-27). The holders are shuffled over the stars. All draws come from
+ *  the 'labour' stream so no other stream moves. L11: state only (stars do not yet act, L17). */
+export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, player: Pick<PlayerLab, 'teams'>): LabourState {
+  const rng = stream(s, 'labour');
+  const sigma = tasteSigma(s.hidden.timeline.prod.m2b);
+  const n = Math.round((1 - STAR_TOP_PERCENTILE) * P0.sci);
+  const nMine = Math.round(STAR_EMPLOYER0.openai * n);
+  const employers: Star['employer'][] = Array.from({ length: n }, (_, i) => (i < nMine ? 'player' : 'outside'));
+  for (let i = employers.length - 1; i > 0; i--) { const j = rng.int(0, i); [employers[i], employers[j]] = [employers[j], employers[i]]; }
+  const used = new Set<string>();
+  const stars: Star[] = employers.map((employer, i) => {
+    const u = STAR_TOP_PERCENTILE + (1 - STAR_TOP_PERCENTILE) * rng.float();
+    const z = Math.min(5, bisect((x) => Phi(x) - u, 0, 8)); // Phi^-1; capped at 5 SD (the Phi series is good to 1.5e-7)
+    let name = '';
+    do name = `${rng.pick(STAR_FIRST_NAMES)} ${rng.pick(STAR_LAST_NAMES)}`; while (used.has(name));
+    used.add(name);
+    return { id: `star${i + 1}`, name, taste: Math.exp(-0.5 * sigma * sigma + sigma * z), employer, pay: W_STAR0 };
+  });
+  // The teams' base taste b: the AIFM's company mean taste is 1 and already includes its top researchers, so the start lab's
+  // T_h = (S b + Σ T_star) ÷ (S + n) = 1, b = (S0 + n0 − Σ T_star,0) ÷ S0 over the player's stars and capability scientist
+  // heads at the start. Floored at BASE_TASTE_FLOOR (a lab whose stars alone outweigh its scientists).
+  const S0 = player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap').reduce((a, t) => a + t.heads, 0);
+  const mine = stars.filter((x) => x.employer === 'player');
+  const b = S0 > 0 ? (S0 + mine.length - mine.reduce((a, x) => a + x.taste, 0)) / S0 : 1;
+  return {
+    pools: Object.fromEntries((['eng', 're', 'sci'] as const).map((k) => [k, { P: P0[k], w: W0[k] }])) as LabourState['pools'],
+    stars,
+    teamTaste: Math.max(BASE_TASTE_FLOOR, b),
   };
 }
 
@@ -318,9 +355,10 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     relations: { ...initialRelations(), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
-    power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
+    power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
+    labour: initialLabour({ rng: rngState, hidden }, player),
     knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
@@ -339,6 +377,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // quarterly from the first quarter day on (actors/rivals.ts rivalFinanceQ), so without these the first quarter's
   // step would be a shortfall no lab chose.
   for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q, 1, 1.2);
+  startMarket(s); // L12: the labour market's start reference E0, U0 per kind (departments/market.ts)
   // Readout: the player only (NPC labs have no production readout; leaving the key out keeps the state plain JSON).
   s.player.prodCache = computeProduction(s, PLAYER_ID);
   // RD-B02: the start run's launch snapshot (its RL recipe is its launch day's; suites, domain effects, P07 and the
@@ -348,7 +387,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
   initPrices(s); // MK-6: the start's prices at the market's fixed point (Nash–Bertrand margins)
   initCustomerStocks(s);
-  seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)
   startDivision(s); // FIN5c: a big-tech division's first budget year and the parent's goals for it
   startStory(s); // FIN5a: the first story mark (valuation), the investor pool and the player's part of it

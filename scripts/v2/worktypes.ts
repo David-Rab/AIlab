@@ -18,14 +18,13 @@ import { Xces } from '../../src/engine/v2/production/ces';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { buildCapacity } from '../../src/engine/v2/departments/teams';
-import { starTaste } from '../../src/engine/v2/departments/workfit';
 import { engScale, runSetupTW, upkeepSplit } from '../../src/engine/v2/departments/build';
 import { FIXTURE_DIR, HERE, check, finish, refGame, runRef } from './lib';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { effectLine, readState, type DayRead } from '../../src/engine/v2/departments/teamActions';
 import { capShare } from '../../src/engine/v2/departments/agents';
-import { nextSpecialty, tauH } from '../../src/engine/v2/departments/teams';
+import { nextSpecialty } from '../../src/engine/v2/departments/teams';
 import { TEAM_SIZE } from '../../src/data/v2/teams';
 
 const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
@@ -68,7 +67,7 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
   check(Math.abs(flopPerToken(s, v0) - 2 * s.player.models.bases[0].params) / flopPerToken(s, v0) < 1e-9, 'AI labour: the start model serves at 2·N_active FLOP per token (MoE, no serving ideas yet)', `${flopPerToken(s, v0).toExponential(2)}`);
 }
 
-// ---------- effective labour = humans when coverage is 0; AI only when coverage is 1 ----------
+// ---------- effective labour = humans when coverage is 0; humans + AI when coverage is 1 (L1 optimal split) ----------
 {
   const P = mk().hidden.timeline.prod;
   const h = 12;
@@ -76,8 +75,8 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
   const L1 = effLabour(P, 1, h, 500, 1);
   const Lmid = effLabour(P, 0.5, h, 1e9, 1);
   const cap = h * Math.pow(0.5, (1 - P.rc) / P.rc);
-  check(Math.abs(L0 - h) < 1e-9 && Math.abs(L1 - 500) < 1e-6 && Math.abs(Lmid / cap - 1) < 1e-3,
-    'effective labour: humans when coverage is 0, AI when coverage is 1, and unlimited AI is capped by the human share (1 − a)^((1−ρc)/ρc)', `L(a 0) ${L0}, L(a 1) ${L1.toFixed(1)}, L(a 0.5, AI → ∞) ${Lmid.toFixed(2)} vs ${cap.toFixed(2)}`);
+  check(Math.abs(L0 - h) < 1e-9 && Math.abs(L1 - (h + 500)) < 1e-6 && Math.abs(Lmid / cap - 1) < 1e-3,
+    'effective labour: humans when coverage is 0, humans plus AI when coverage is 1 (the optimal split), and unlimited AI is capped by the human share (1 − a)^((1−ρc)/ρc)', `L(a 0) ${L0}, L(a 1) ${L1.toFixed(1)}, L(a 0.5, AI → ∞) ${Lmid.toFixed(2)} vs ${cap.toFixed(2)}`);
 }
 
 // ---------- a line with constant inputs reproduces r ----------
@@ -261,8 +260,8 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
       const role = key === 'eng' ? 'eng' : (key.split('.')[0] as 're' | 'sci');
       const dept = key.endsWith('saf') ? 'saf' : 'cap';
       const c = cl(s);
-      const spec = role === 'sci' ? { specialty: nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) } : {};
-      c.player.teams.push({ id: 'T-test', role, dept, size: TEAM_SIZE[role], heads: TEAM_SIZE[role], quality: 'strong', ...spec });
+      const spec = role === 'sci' ? { specialty: nextSpecialty(s.player.teams, dept) } : {};
+      c.player.teams.push({ id: 'T-test', role, dept, size: TEAM_SIZE[role], heads: TEAM_SIZE[role], ...spec });
       tick(c, { skip: ['endings'] });
       const want = effectLine(s, base, readNow(c), { role, dept });
       const same = g.unit === want.unit && (g.unit === 'days' ? near(g.amount, want.amount, 0.1, 1) : near(g.amount, want.amount, 0.05, 0.02));
@@ -270,13 +269,6 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
       rows.push(`${key} ${g.amount} ${g.unit} vs ${want.amount} ${want.unit}${same ? '' : ' ✗'}`);
     }
     check(ok, `RD-B18 @day ${d}: each hire preview = one engine day on a copy with the team (build, project days, safety results)`, rows.join('; '));
-    // Star hire: one more star on a copy.
-    const sg = pv(s, 'starHire').gains[0];
-    const c = cl(s);
-    c.player.stars = (c.player.stars ?? 0) + 1;
-    tick(c, { skip: ['endings'] });
-    const sw = effectLine(s, base, readNow(c), { role: 'sci', dept: 'cap' });
-    check(sg.unit === sw.unit && near(sg.amount, sw.amount, 0.1, 1), `RD-B18 @day ${d}: Star hire preview = one engine day with one more star`, `${sg.amount} ${sg.unit} (${sg.target}) vs ${sw.amount} ${sw.unit}`);
     // Agents: no constant security line; a routine-compute change that re-normalises engineering shows its build delta,
     // equal to build capacity on the applied copy.
     const x = Math.min(0.9, capShare(s, 'capRoutine') + 0.2);
@@ -288,17 +280,10 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
     check(![...a.costs, ...a.gains].some((l) => l.currency === 'security') && (dB === 0 ? !line : !!line && Math.abs(line.amount - dB) < 2e-3),
       `RD-B18 @day ${d}: agent preview has no constant security line and shows the build change of the applied copy`, `build ${line?.amount ?? 'none'} vs ${dB}; lines ${[...a.costs, ...a.gains].map((l) => `${l.currency} ${l.amount}`).join(', ')}`);
   }
-  // B34: one star-taste factor (research reads the bench the Star hire gate reads); the chip says what enters it.
-  const s = fx(400);
-  let same = true;
-  for (let n = 0; n <= 14; n++) {
-    s.player.stars = n;
-    same &&= Math.abs(starTaste(s) - tauH(s.player)) < 1e-12;
-  }
   // CP4: the Company panel is gone (UB-5): the Star hire chip lives on LAB (Lab.tsx / LabTabs.tsx).
   const company = ['Lab.tsx', 'LabTabs.tsx'].map((f) => readFileSync(join(HERE, '../../src/ui/v2/panels', f), 'utf8')).join('\n');
   const wt = readFileSync(join(HERE, '../../src/data/v2/workTypes.ts'), 'utf8');
-  check(same && !/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 one star-taste factor (research = the Star hire bench, 0–14 stars); the taste chip no longer claims quality enters it', '');
+  check(!/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 the taste chip no longer claims quality enters it', '');
 }
 
 finish('worktypes');

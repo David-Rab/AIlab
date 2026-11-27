@@ -38,7 +38,7 @@ export function validationOf(s: GameStateV2): NonNullable<SafetyDept['validation
   return (s.player.safety.validation ??= initialValidation());
 }
 
-/** Engineers (heads × quality) one job needs at full speed: VAL_ENGINEERS ÷ m of safety experiments (AI labour carries the
+/** Engineers (heads) one job needs at full speed: VAL_ENGINEERS ÷ m of safety experiments (AI labour carries the
  *  rest, as line experiments); a human-run job (SR-10) takes all VAL_ENGINEERS. */
 export const jobEngineers = (s: GameStateV2, j?: Pick<ValidationJob, 'human'>) => (j?.human ? VAL_ENGINEERS : VAL_ENGINEERS / Math.max(1, safetyLabour(s).exp.m));
 

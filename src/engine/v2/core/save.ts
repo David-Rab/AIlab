@@ -4,7 +4,9 @@ import type { GameStateV2 } from '../types';
 /** Bump on any breaking change to types.ts. Saves are never migrated (the clean save break, UB-3 and N12): a save below
  *  MIN_SCHEMA_REV does not load and deserialize refuses it with OLD_SAVE_MESSAGE; MIN_SCHEMA_REV is raised to SCHEMA_REV at each
  *  break. History of the revs up to 112 is in git before N12. */
-export const SCHEMA_REV = 114; // N12: the old NPC state is gone (RivalLab.phys, archetype, meters; SimpleModel traits)
+// 114 (npc): N12, the old NPC state is gone (RivalLab.phys, archetype, meters; SimpleModel traits). 113-115 (master): the
+// data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master.
+export const SCHEMA_REV = 116;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

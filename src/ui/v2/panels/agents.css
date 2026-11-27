@@ -40,3 +40,20 @@
 .ag-pop .pv .k { color: var(--text-2); }
 .ag-pop .pv .ba { font: 600 12px var(--mono); color: #fff; display: flex; align-items: center; gap: 6px; }
 .ag-pop .pv .ba .o { color: var(--text-3); font-weight: 500; }
+/* L3: the job's split bar (people | headroom | AI doing now) with the can-do marker, and the margin lines. */
+.lb { position: relative; display: flex; height: 14px; border-radius: 4px; gap: 2px; }
+.lb i { display: block; min-width: 0; }
+.lb .pp { background: #5f6f86; border-radius: 4px 0 0 4px; }
+.lb .gap { border-top: 1px dashed #7fe0cf; border-bottom: 1px dashed #7fe0cf; background: rgba(127,224,207,.12); }
+.lb .ai { background: #7fe0cf; border-radius: 0 4px 4px 0; }
+.lb .mk { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; border-radius: 1px; pointer-events: none; }
+.lb.mini { height: 8px; width: 90px; flex: none; }
+.lb.mini .mk { top: -2px; bottom: -2px; }
+.la-splitl b { color: #fff; font-weight: 600; }
+.la-mgs { display: flex; flex-direction: column; gap: 6px; }
+.la-mgb { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text-2); }
+.la-mgh { letter-spacing: .04em; }
+.la-mg { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.la-mg b { font-size: 13.5px; }
+.la-mg b.dim { color: var(--text-3); }
+.la-lim { line-height: 1.3; }
