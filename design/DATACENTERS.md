@@ -28,10 +28,10 @@ Each source has an upfront cost **or** a higher power price, never both.
 | Construction | none (the landlord builds) | 9.5 q at 1 GW (10 q) | 9.5 q at 1 GW (10 q) |
 | Size per site | up to 1 GW | up to 1 GW | up to 5 GW |
 | Upfront cost per GW | network only ($4B) | building $14B + utility upgrades $0.2B | building $14B + turbines $3B |
-| Running cost | rent ≈ $1.8B per GW-year (≈ $150/kW-month), 5-year lease, plus grid power | grid power 1.0× | fuel and upkeep ≈ 0.5× grid |
+| Running cost | rent ≈ $1.8B per GW-year (≈ $150/kW-month), 5-year lease, plus grid power | grid power 1.0× | fuel and upkeep ≈ 0.57× grid (range 0.35–0.85; research/23 §10) |
 | Opposition | none (the landlord's problem) | medium | high |
 
-Sources: rent $139–185/kW-month (CBRE H1 2026, Applied Digital leases); building $11.4B/GW IT facility + $4.9B network (Epoch, May 2026), kept as today's $10B + $4B per GW of facility power; turbines $1.7–2.0k/kW × 1.4–1.6 overbuild (SemiAnalysis) → $2.4–3.3B/GW; grid sites ≤ ~1 GW live today (Epoch hub); gas campuses 2.3–5.2 GW (Oracle-VoltaGrid, Homer City, Entergy for Meta); grid upgrades $0.05–0.3B/GW [unverified]; gas running cost from Lazard LCOE minus capex **[needs a gas-price source]**. Transformers and switchgear are part of the building cost and construction time.
+Sources: rent $139–185/kW-month (CBRE H1 2026, Applied Digital leases); building $11.4B/GW IT facility + $4.9B network (Epoch, May 2026), kept as today's $10B + $4B per GW of facility power; turbines $1.7–2.0k/kW × 1.4–1.6 overbuild (SemiAnalysis) → $2.4–3.3B/GW; grid sites ≤ ~1 GW live today (Epoch hub); gas campuses 2.3–5.2 GW (Oracle-VoltaGrid, Homer City, Entergy for Meta); grid upgrades $0.05–0.3B/GW [unverified]; gas running cost ≈ $48/MWh = 0.57× grid (EIA delivered gas $3.80/MMBtu, EIA heat rates and O&M; research/23 §10). Transformers and switchgear are part of the building cost and construction time.
 
 Grid tariff: EIA industrial 8.1¢/kWh (2024), 8.6¢ (2025).
 

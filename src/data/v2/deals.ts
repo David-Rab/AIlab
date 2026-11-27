@@ -137,8 +137,8 @@ export const SOURCES: Record<SiteSource, SourceDef> = {
   rent: { permitQ: 0, buildQ: 0, maxMW: 1000, upfrontPerGW: NETWORK_PER_GW, extraPerGW: 0, powerCostMult: 1, blockBase: 0, delayBase: 0 },
   // grid: building + utility upgrades $0.2B/GW [unverified, range 0.05–0.3]; EIA tariff 1.0×; largest live grid sites ≤ ~1 GW (Epoch hub)
   grid: { permitQ: 1, buildQ: 9.5, maxMW: 1000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 0.2, powerCostMult: 1, blockBase: 0.05, delayBase: 0.2 },
-  // gas: building + turbines $3B/GW ($1.7–2.0k/kW × 1.4–1.6 overbuild, SemiAnalysis); fuel+upkeep 0.5× grid [needs a gas-price source]; campuses 2.3–5.2 GW
-  gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
+  // gas: building + turbines $3B/GW ($1.7–2.0k/kW × 1.4–1.6 overbuild, SemiAnalysis); fuel+upkeep 0.57× grid (EIA gas price, heat rates, O&M; research/23 §10); campuses 2.3–5.2 GW
+  gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.57, blockBase: 0.1, delayBase: 0.3 },
 };
 export const SITE_MIN_MW = 100;
 /** Construction time of one building (DATACENTERS §5b): the source's quarters × (building GW)^0.4, 9.5 q at 1 GW
