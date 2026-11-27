@@ -182,3 +182,15 @@
 .ls-log { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .ls-none { text-align: center; padding: 12px 0; }
 .seg-on { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 6px; font-size: 12px; font-weight: 650; color: #fff; background: rgba(58,138,224,.25); border: 1px solid var(--you, #3a8ae0); }
+
+/* Labour market (L16) */
+.lh-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lm-head, .lm-row { display: grid; grid-template-columns: 170px minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(300px, 1.5fr); gap: 12px; align-items: center; }
+.lm-head { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); padding: 0 4px 8px; border-bottom: 1px solid var(--line); }
+.lm-row { padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.lm-row:last-child { border-bottom: none; }
+.lm-cell { display: flex; flex-direction: column; gap: 3px; }
+.lm-big { font-size: 16px; color: #fff; }
+.lm-meter { width: 90px; }
+.lm-prem .seg-row { display: inline-flex; gap: 3px; flex-wrap: nowrap; align-items: center; }
+.lm-prem .btn-sm, .lm-prem .seg-on { padding-left: 7px; padding-right: 7px; }

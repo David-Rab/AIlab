@@ -186,7 +186,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       // Extra market hires a week at today's open positions (none open, none gained); poaching adds the rivals' leavers on top.
       const gain = Math.max(0, weeklyHires(c, k) - weeklyHires(s, k));
       return {
-        costs: [{ currency: 'cash', amount: pay / 1000, target: `$B/yr payroll once everyone's pay has caught up (${KIND_NAME[k]})` }],
+        costs: [{ currency: 'cash', amount: pay / 1000, target: `a year in payroll once everyone's pay has caught up (${KIND_NAME[k]})` }],
         gains: [{ currency: 'staffTime', amount: gain, target: `more ${KIND_NAME[k]} hired a week, and rivals' leavers join you`, unit: 'heads' }],
         exposure: [],
       };
