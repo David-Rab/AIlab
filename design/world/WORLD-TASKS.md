@@ -56,7 +56,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
-| W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | |
+| W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | running (parallel with W1ef) |
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
