@@ -5,7 +5,7 @@ import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID } from '../../src/data/v2/tools';
 import { h50Of } from '../../src/engine/v2/models/capability';
 import { npcDecodeU, npcServeOom } from '../../src/engine/v2/npc/model';
 import { setNpcModel } from '../../src/engine/v2/npc/lab';
-import { npcBuildDays, npcDomainDg, rivalToolStep, toolInFocus } from '../../src/engine/v2/npc/market';
+import { npcBuildDays, rivalToolStep, toolInFocus } from '../../src/engine/v2/npc/market';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
@@ -24,7 +24,7 @@ for (const lab of s.rivals.filter((r) => r.npc && r.publicModel)) {
   const kind = r.npc!.kind;
   const yr = decimalYear(c);
   const pub = r.publicModel!;
-  const set = (g: number) => setNpcModel(w, pub, g, r.core.computeOnline, yr, kind);
+  const set = (g: number) => setNpcModel(w, pub, g, r.core.computeOnline, yr);
   // G where h50 just passes 60 min, found on this model's own readout
   let lo = -5, hi = 40;
   for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; set(m); if (h50Of(w, pub) >= 60) hi = m; else lo = m; }
@@ -47,12 +47,8 @@ check(s.rivals.some((r) => !toolInFocus(r.npc!.kind, coding)) && s.rivals.some((
 const req = PRODUCT_TOOLS.filter((t) => t.npcHorizonMin !== undefined).map((t) => `${t.id}:${t.npcHorizonMin}`).sort().join(' ');
 check(req === 'agentMode:120 coding:60 computerUse:20 research:11', '(a) requirements live on the tool data', req);
 
-// (b) domains: G plus the focus offsets.
-for (const r of s.rivals.slice(0, 3)) {
-  const dg = npcDomainDg(r.npc!.kind);
-  const tot = Object.values(dg).reduce((a, x) => a + (x ?? 0), 0);
-  check(Math.abs(tot - 1) < 1e-9 && r.internal.domainDg?.CODE === dg.CODE, `(b) ${r.core.name} domain offsets = its kind's focus (sum ${tot.toFixed(2)} OOM)`, Object.entries(dg).map(([d, v]) => `${d} ${v!.toFixed(2)}`).join(' '));
-}
+// (b) domains: G alone (no focus offsets).
+for (const r of s.rivals.slice(0, 3)) check(!r.internal.domainDg || Object.values(r.internal.domainDg).every((x) => !x), `(b) ${r.core.name}: no domain offsets`);
 
 // (c) 900 days.
 const labs = (g: GameStateV2): RivalLab[] => [...g.rivals, g.china.lab];

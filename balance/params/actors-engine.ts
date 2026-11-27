@@ -459,10 +459,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     unit: 'display levels', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived', evidence: 'npc/risk.ts: the top of the display level scale', notes: 'copy of the level scale top (15)',
   },
   {
-    id: 'act.npc.FOCUS_OFFSET_OOM', ref: { kind: 'export', module: RMODEL, symbol: 'FOCUS_OFFSET_OOM' }, value: 1,
-    unit: 'OOM per unit of focus weight', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/market.ts "[D: one rule; a lab whose focus were all one domain is 1 OOM ahead of its G there]"',
-  },
-  {
     id: 'act.npc.TOOL_FOCUS_MIN', ref: { kind: 'export', module: RMODEL, symbol: 'TOOL_FOCUS_MIN' }, value: 0.3,
     unit: 'focus weight', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', evidence: 'npc/market.ts: a tool is in a kind focus at weight >= 0.3 [D]',
   },

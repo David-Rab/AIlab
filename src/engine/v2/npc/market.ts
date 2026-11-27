@@ -1,7 +1,7 @@
 // N4 (design/npc/NPC-LABS.md §6; N4-RESULT.md): what an NPC lab sells, generated from its public model.
 //  - lineup: the public model's distilled students at the lineup sizes (the old rival lineup rule);
 //  - serving: one typical serving efficiency for every NPC lab (npc/model.ts npcServeOom);
-//  - domains: G plus the kind's focus offsets (npcDomainDg);
+//  - domains: G alone (no focus offsets);
 //  - tools: the cast's tools at the start; later a tool ships once the public model's 50% horizon meets the tool's
 //    requirement (data/v2/tools.ts npcHorizonMin), it is in the kind's focus, and a build time has passed (rivalToolStep).
 // Prices stay emergent (worldfx/mix.ts seller rule).
@@ -9,26 +9,13 @@ import { TOOL_LAG_DAYS } from '../../../data/v2/features';
 import { DISTILL_TPP, B0_PARAMS } from '../../../data/v2/runDesign';
 import { KINDS, type NpcKindId } from '../../../data/v2/npcLabs';
 import { PRODUCT_TOOLS, type ProductToolDef } from '../../../data/v2/tools';
-import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { distillGap } from '../models/effective';
 import { h50Of } from '../models/capability';
 import { fptOfSimpleModel, setModelG } from './model';
 import { lineupSizes } from '../worldfx/serving';
-import type { DomainId, GameStateV2, RivalLab, SimpleModel, TimelineWorld } from '../types';
+import type { GameStateV2, RivalLab, SimpleModel, TimelineWorld } from '../types';
 
-// ───────────────────────────── domains ─────────────────────────────
-
-/** OOM of domain offset per unit of focus weight [D: one rule; a lab whose focus were all one domain is 1 OOM ahead of its G
- *  there; sector focus weights spread over domains by the sector's task mix]. */
-export const FOCUS_OFFSET_OOM = 1;
-/** A kind's domain offsets: FOCUS_OFFSET_OOM × Σ over its focus sectors of weight × the sector's task share in the domain. */
-export function npcDomainDg(kind: NpcKindId): Partial<Record<DomainId, number>> {
-  const out: Partial<Record<DomainId, number>> = {};
-  for (const [sec, w] of Object.entries(KINDS[kind].focus.sectors) as [keyof typeof SECTOR_BY_ID, number][]) {
-    for (const [d, share] of Object.entries(SECTOR_BY_ID[sec].tasks) as [DomainId, number][]) out[d] = (out[d] ?? 0) + FOCUS_OFFSET_OOM * w * share;
-  }
-  return out;
-}
+// Domains: an NPC model's domain levels follow its G alone (no focus offset: the designer's "keep NPCs simple").
 
 // ───────────────────────────── lineups (RD-P02) ─────────────────────────────
 
