@@ -2118,6 +2118,26 @@ export interface NpcLabState {
   rec: number;
   /** The internal model's G on each of the last release-lag + 1 days, oldest first (the public model reads it). */
   hist: number[];
+  /** The last reported public values (npc/public.ts): the player, government, public and China read these, never the truth. */
+  pub?: NpcPublicState;
+}
+
+/** The last reported values of an NPC lab (npc/public.ts): each is the true value x its error, drawn at its report. */
+export interface NpcPublicState {
+  /** Report indices: the public release count (capability) and the quarter (compute, valuation, revenue). */
+  capIdx: number;
+  qIdx: number;
+  /** Reported lag behind the reference frontier (days, unfloored) and the day it was reported. */
+  lagDays: number;
+  capDay: number;
+  /** Reported 50% task horizon of its public model (minutes), compute (H100e), revenue ($B, a month stale), valuation ($B). */
+  horizonMin: number;
+  computeH100e: number;
+  revenue: number;
+  valuation: number;
+  /** Revenue taken a month before the next quarter's report (snapQ: the quarter it is for). */
+  snapQ: number;
+  snapRev: number;
 }
 
 export interface RivalLab {
@@ -2148,11 +2168,8 @@ export interface RivalLab {
 }
 
 export interface RivalIntel {
-  leadDaysEst: number; // player's estimate of gap vs player's best INTERNAL model (v1 bug fix)
-  leadDaysSd: number;
-  misalignBand: [number, number]; // posterior band
+  /** Incidents the lab disclosed ('day:severity[m]'): public facts, exact. */
   knownIncidents: string[];
-  lastReportDay?: Day;
 }
 
 export interface ChinaActor {

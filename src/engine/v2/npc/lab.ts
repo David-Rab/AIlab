@@ -20,6 +20,7 @@ import { gV0 } from '../models/capability';
 import { baseParams, seedRivalLineup, setModelG } from '../actors/rivalModel';
 import { referenceProfileModel } from '../departments/workfit';
 import { frontierRunShareAt, normalizeSplit, shareRefAt } from '../departments/split';
+import { refreshPublic } from './public';
 import { initialSecurity } from '../security/security';
 import { decimalYear, quarterIndex } from '../core/time';
 import { hash32 } from '../core/rng';
@@ -193,6 +194,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
     out = { released: true, prev };
   }
   r.phys = npcPhys(r, day);
+  refreshPublic(s, r); // N9: the values due today (a release, a quarter) are reported
   r.nextBaseDay = nextReleaseDay(n, day + 1);
   return out;
 }
@@ -280,7 +282,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
       commitments: china ? 0 : fin.cash * 2, distress: false,
     },
     visible: china ? { frameworkVersion: 0, clauseType: 'state', testers: [] } : { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE[arch] ?? 'conditional', testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
-    intel: { leadDaysEst: Math.round(d0), leadDaysSd: china ? 75 : 60, misalignBand: [0.05, china ? 0.5 : 0.4], knownIncidents: [] },
+    intel: { knownIncidents: [] },
     meters: china
       ? { poachAggression: 20, lobbyStance: 0, openness: 85 }
       : { poachAggression: arch === 'upstart' ? 70 : arch === 'maverick' ? 60 : 40, lobbyStance: la?.lobby ?? 0, openness: la?.openness ?? 30 },
@@ -288,6 +290,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
     pressureDays: 0,
   };
   lab.phys = npcPhys(lab, 0);
+  refreshPublic(s, lab); // the first public values (N9)
   seedRivalLineup(w, lab); // the public model's students, made before the game began (RD-P02)
   return lab;
 }

@@ -10,6 +10,7 @@ import { POLICY_FLAGS } from '../worldfx/policy';
 import { unemploymentChange12m } from '../worldfx/readouts';
 import type { GameStateV2, GovActor, MilestoneIdx, SystemCtx } from '../types';
 import { policyPressure } from './blocs';
+import { leadDays } from './intel';
 import { drift, trust } from './fx';
 import { request, ws4 } from './state';
 
@@ -154,7 +155,7 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   if (g.nationalization > pre.natThreshold + 10 && tr < 20) w.nationalizedHard = true;
 
   // ── G-CHN ladder.
-  const chinaLead = s.china.lab.intel.leadDaysEst;
+  const chinaLead = leadDays(s, 'china').est;
   const hist = w.chinaLeadHist;
   const shrinking = hist.length >= 8 && hist[hist.length - 1] < hist[hist.length - 8] - 10;
   const chnCond = [

@@ -1,78 +1,56 @@
-// Intel: rival and China lead estimates and misalignment bands; risk-source view (V2-SPEC §3.10.3, §6.6). Owner: WS4.
-// leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth. The weekly intel
-// system is engine code: it turns truth into noisy evidence, always against the player's best MEASURED version.
+// Intel: the player's view of the NPC labs (V2-SPEC §3.10.3, §6.6; NPC-LABS §9). N9: there is no intel model any more.
+// What the player knows of a lab is its public values (npc/public.ts: true x a log-normal error, redrawn when reported)
+// and the exact public facts (products, tools, disclosed incidents). Nobody sees a misalignment estimate (principle 4).
 import { clamp, sigmoid } from '../../rng';
 import { activeRivals, bestG, bestMeasuredVersion, internalVersion } from '../models/labs';
 import { lossOfControlRisk } from '../safety/lossRisk';
-import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
-import { rivalMis, RELEASE_LAG } from './rivals';
+import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource } from '../types';
 import { lagDays } from '../models/capability';
-import { ws4, ws4r } from './state';
+import { ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
+import { publicOf, sigmaOf } from '../npc/public';
+import { DAYS_PER_MONTH } from '../npc/lab';
 
-/** EngineApi.leadDays: player's estimate of its lead over `other` (positive = player ahead), vs its best MEASURED
- *  model (v1 bug fix: not the public one; CP4: not one still in testing). Inactive labs return {0, 0}. */
+/** The true lead over a lab (days; > 0 = the player ahead) on the recorded frontier-G histories, against the player's best
+ *  MEASURED version (CP4: not one still in testing). Engine truth: it is never shown; leadDays swaps the lab's side for its
+ *  public lag. Same clock as RD-L01: on the player's own line while the measured model is at or above the lab's G, else the
+ *  days since the lab's line reached it, negated. */
+function trueLead(s: GameStateV2, id: LabId): number {
+  const gLab = bestG(s, id);
+  const gMeas = bestMeasuredVersion(s)?.G;
+  return gMeas === undefined || !Number.isFinite(gLab) ? lagDays(s, id, 'player')
+    : gMeas >= gLab ? lagDays(s, id, 'player') - lagDays(s, gMeas, 'player') : -lagDays(s, gMeas, id);
+}
+
+/** EngineApi.leadDays: the player's estimate of its lead over `other` (days, positive = player ahead) and its sd. The player
+ *  knows its own position; the lab's is its public months behind (npc/public.ts), the error of the last report held until
+ *  the next one: est = true lead − the lab's true lag + its reported lag. sd = the public months-behind sigma (China x2).
+ *  Inactive labs return {0, 0}. */
 export function leadDays(s: GameStateV2, other: LabId): { est: number; sd: number } {
   const r = other === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === other);
   if (!r || r.core.status !== 'active') return { est: 0, sd: 0 };
-  return { est: r.intel.leadDaysEst, sd: r.intel.leadDaysSd };
+  const sd = Math.round(sigmaOf(r.core.id, 'monthsBehind') * DAYS_PER_MONTH);
+  if (!r.npc) return { est: Math.round(trueLead(s, other)), sd };
+  return { est: Math.round(trueLead(s, other) - r.npc.d + publicOf(s, r).lagDays), sd };
 }
 
-/** The lag the player ASSUMES between a lab's public and internal model, from its visible framework clause. */
-const ASSUMED_LAG: Record<string, number> = { conditional: 90, allAdopt: 60, unconditional: 50, override: 20, state: 45 };
-
-/** Prior misalignment band by visible clause type (research/17 §1.6.4: the framework is the main observable). */
+/** The player's public prior on a lab's misalignment, from its visible clause type and disclosed incidents only (research/17
+ *  §1.6.4: the framework is the main observable). Nothing about the lab's true misalignment enters; it only turns "who is
+ *  ahead" into a rough weight for the risk row. */
 const PRIOR_BAND: Record<string, [number, number]> = {
   conditional: [0.08, 0.45], allAdopt: [0.12, 0.5], unconditional: [0.15, 0.6], override: [0.2, 0.7], state: [0.15, 0.65],
 };
-
-/** One lab's weekly intel update. Evidence: public releases, evaluator reports (external access), known incidents,
- *  stolen-model knowledge and the Index. sd shrinks with evidence; the estimate is vs the player's INTERNAL frontier. */
-export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
-  const rng = ctx.rng('actors');
-  const id = r.core.id;
-  const pub = r.publicModel ?? r.internal;
-  // One lead clock (RD-L01): the true lead is lagDays(lab, player) on the recorded frontier-G histories (vs the player's
-  // best MEASURED version, below); the lab's internal model leads its own public one by lagDays(public G, lab). The lead over
-  // their public model is the sum, so the raw read below is the true lag plus the error of the assumed release lag.
-  // CP4: the player's side is its best MEASURED version (bestMeasuredVersion), not the best by true G, which includes a
-  // version still in testing: the lab estimates its lead with the model it knows. Same clock: on the player's own line
-  // while that model is at or above the lab's G (days since the player reached the lab's G, minus days since it reached
-  // the measured model's), else the days since the lab's line reached the measured model's G, negated.
-  const gLab = bestG(s, id);
-  const gMeas = bestMeasuredVersion(s)?.G;
-  const truthLead = gMeas === undefined || !Number.isFinite(gLab) ? lagDays(s, id, 'player')
-    : gMeas >= gLab ? lagDays(s, id, 'player') - lagDays(s, gMeas, 'player') : -lagDays(s, gMeas, id);
-  const pubLag = lagDays(s, pub.G, id);
-  const vsPublic = truthLead + pubLag;
-  const access = r.core.kind === 'china' ? 0.05 : s.hidden.rivalPostures[id]?.externalAccess ?? 0.3;
-  const evidence = (r.publicModel ? 1 : 0) + 1.5 * access + 0.2 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.5 : 0) + (r.visible.testers.length ? 0.5 : 0);
-  const sd = 20 + 80 * Math.exp(-0.6 * evidence);
-  const trueLag = Math.max(0, ctx.day - (ws4(s).internalDay[id] ?? r.internal.day)) <= (RELEASE_LAG[r.archetype] ?? 60) ? pubLag : 0;
-  const assumed = ASSUMED_LAG[r.visible.clauseType] ?? 60;
-  // Raw read: lead vs their public model minus the assumed hidden lag; evaluator access reveals part of the truth.
-  const raw = (1 - access) * (vsPublic - assumed) + access * truthLead + rng.normal(0, sd * 0.5);
-  r.intel.leadDaysEst = Math.round(0.6 * r.intel.leadDaysEst + 0.4 * raw);
-  r.intel.leadDaysSd = Math.round(sd + 0.25 * Math.abs(trueLag - assumed));
-  // Misalignment band: prior from the clause type; narrows toward the truth with evaluator access, incidents
-  // and thefts (seeing the model); incidents shift it up.
-  const [lo0, hi0] = PRIOR_BAND[r.visible.clauseType] ?? [0.1, 0.6];
-  const info = clamp(0.35 * access + 0.08 * r.intel.knownIncidents.length + (r.core.security.stolen.length ? 0.2 : 0), 0, 0.8);
-  const c0 = (lo0 + hi0) / 2 + 0.02 * r.intel.knownIncidents.length;
-  const c = (1 - info) * c0 + info * rivalMis(r);
-  const half = ((hi0 - lo0) / 2) * (1 - 0.6 * info);
-  r.intel.misalignBand = [Math.round(clamp(c - half, 0, 1) * 100) / 100, Math.round(clamp(c + half, 0, 1) * 100) / 100];
-  r.intel.lastReportDay = ctx.day;
+function publicBand(r: RivalLab): [number, number] {
+  const [lo, hi] = PRIOR_BAND[r.visible.clauseType] ?? [0.1, 0.6];
+  const shift = 0.02 * r.intel.knownIncidents.length;
+  return [clamp(lo + shift, 0, 1), clamp(hi + shift, 0, 1)];
 }
 
-/** intel (210, weekly): rival/China lead posteriors vs the player's internal frontier. */
+/** intel (210, weekly): nothing left to update; the public values refresh on their own report days (npc/public.ts
+ *  refreshPublic, from the lab's daily step). Kept so the registry needs no change. */
 export const intelSystem: EngineSystem = {
   id: 'intel', owner: 'WS4', cadence: 'weekly', order: 210, system: 'relations',
-  run(s, ctx) {
-
-    for (const r of activeRivals(s)) updateIntel(s, ctx, r);
-    if (s.china.lab.core.status === 'active') updateIntel(s, ctx, s.china.lab);
-  },
+  run() {},
 };
 
 /** What-if changes to the inputs of the risk-source estimates (J2 RK1): each is an engine lever's effect on what the
@@ -108,7 +86,7 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   // Who reaches ASI first (M4): one distribution over the player and every active lab, w ∝ exp(−days behind the
   // estimated leader / 180) (the scoring epilogue's weights), so the lab rows no longer add up to more than 100%.
   const labs: RivalLab[] = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
-  const behind = labs.map((r) => r.intel.leadDaysEst + (m.leadDays ?? 0)); // > 0: the player leads that lab
+  const behind = labs.map((r) => leadDays(s, r.core.id).est + (m.leadDays ?? 0)); // > 0: the player leads that lab
   const lead = Math.max(0, ...behind.map((b) => -b)); // days the best lab is ahead of the player
   const wPlayer = Math.exp(-lead / 180);
   const wLab = behind.map((b) => Math.exp(-(lead + b) / 180));
@@ -131,13 +109,13 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
     ] });
   }
   const labRow = (r: RivalLab, kind: 'rival' | 'china'): RiskSource => {
-    const [lo, hi] = r.intel.misalignBand;
+    const [lo, hi] = publicBand(r);
     const mid = (lo + hi) / 2;
     const first = firstShare(labs.indexOf(r)); // P(they reach ASI first), from the lead estimates
     return {
       id: kind === 'china' ? 'china' : `rival:${r.core.id}`, label: r.core.name, kind,
       estimate: clamp(first * curve(mid), 0, 1), band: [clamp(first * curve(lo), 0, 1), clamp(first * curve(hi), 0, 1)],
-      drivers: [{ label: 'Chance they get there first', share: 0.5 }, { label: 'Misalignment band', share: 0.5 }],
+      drivers: [{ label: 'Chance they get there first', share: 0.5 }, { label: 'Their stated safety posture', share: 0.5 }],
     };
   };
   for (const r of activeRivals(s)) out.push(labRow(r, 'rival'));
@@ -155,7 +133,7 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   // Theft: P(a weight theft) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4];
   // the row used to show the theft probability itself as a catastrophe probability.
   const pTheft = clamp(0.05 + (3.5 - (s.player.security.wsl + (m.wsl ?? 0))) * 0.15 + clamp(s.china.meters.theftIntent + (m.theftIntent ?? 0), 0, 100) / 300, 0, 1);
-  const cnMid = s.china.lab.core.status === 'active' ? (s.china.lab.intel.misalignBand[0] + s.china.lab.intel.misalignBand[1]) / 2 : 0;
+  const cnMid = s.china.lab.core.status === 'active' ? (publicBand(s.china.lab)[0] + publicBand(s.china.lab)[1]) / 2 : 0;
   const theftEst = clamp(pTheft * 0.3 * curve(cnMid), 0, 1);
   out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(Math.min(1, pTheft + 0.1) * 0.3 * curve(cnMid) + 0.01, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
   out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });

@@ -47,7 +47,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
       id, label: r.core.name, sub: l.est >= 0 ? `you ${F.lead(l.est)} ahead` : `you ${F.lead(-l.est).replace('+', '')} behind`, x: W / 2 + Math.cos(a) * 520, y: H / 2 - 20 + Math.sin(a) * 240, r: 20,
       color: isCN ? C.china : C.rival, halo: lev[id] ?? 0, pulse: s.ws4?.rivalIncidents.some((x) => x.lab === id && s.time.day - x.day < 14) ?? false,
       panel: 'relations',
-      tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="misBand">Would try (range)</Term>, value: `${F.short(r.intel.misalignBand[0])}–${F.short(r.intel.misalignBand[1])}` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
+      tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
     });
     edges.push({ from: 'player', to: id, kind: 'distill', w: distillationAccess(s, id), label: `distillation ${F.pct(distillationAccess(s, id))}` });
     if (r.meters.poachAggression > 20) edges.push({ from: id, to: 'player', kind: 'talent', w: r.meters.poachAggression / 100, label: 'talent poaching' });
