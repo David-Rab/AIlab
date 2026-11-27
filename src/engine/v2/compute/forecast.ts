@@ -64,6 +64,22 @@ export function siteLiveQ(s: GameStateV2, x: Site): { q: number; firm: boolean }
 /** MW of one building of a site (a site without a campus record is one building). */
 const buildingMWOf = (x: Site, n: number) => x.ws3.buildingMW ?? x.mw / n;
 
+/** One site's buildings for the Sites rows and the build card: how many (`of`), how many are live today (`live`, =
+ *  siteLiveMW ÷ building MW) and how many are under construction now (`inConstruction`: construction started, not
+ *  yet live); `firm` as siteBuildingLiveQs; per building its expected go-live quarter, the quarter its construction
+ *  starts (go-live − the site's construction quarters; rent: none) and whether it is live today. Undefined for a
+ *  blocked site. */
+export interface SiteBuildingsView { of: number; live: number; inConstruction: number; firm: boolean; buildings: { liveQ: number; buildFromQ?: number; live: boolean }[] }
+export function siteBuildingsView(s: GameStateV2, x: Site): SiteBuildingsView | undefined {
+  const l = siteBuildingLiveQs(s, x);
+  if (!l) return undefined;
+  const q0 = quarterIndex(s.time.startDate, s.time.day);
+  const live = Math.round(siteLiveMW(x, s.time.day) / buildingMWOf(x, l.qs.length));
+  const buildings = l.qs.map((liveQ, k) => ({ liveQ, ...(x.path === 'rent' ? {} : { buildFromQ: liveQ - x.ws3.buildQ }), live: k < live }));
+  const inConstruction = buildings.filter((b) => b.buildFromQ !== undefined && b.buildFromQ <= q0 && q0 < b.liveQ).length;
+  return { of: buildings.length, live, inConstruction, firm: l.firm, buildings };
+}
+
 /** A site's bars on the Sites rows (quarter indices): permits, power wait and construction, planned by the same rules
  *  as siteLiveQ. `liveQ`: the first building; a campus whose buildings go live over several quarters also has
  *  `lastLiveQ`, and its construction bar runs to it. Undefined for a blocked site. */

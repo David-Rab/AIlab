@@ -34,18 +34,27 @@ export const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub
 /** Odds that the large reactive package (E27) unblocks a blocked site: 0.85 − 0.5 × local opposition, ≥ 0.3 [D]. */
 export const reactiveUnblockOdds = (s: GameStateV2) => Math.max(COMMUNITY.unblockMin, COMMUNITY.unblockBase - COMMUNITY.unblockPerAnti * localOpposition(s));
 
-/** Opposition roll at the end of permits [D-6]: block 5% grid / 10% gas, delay 20% / 30%, both × public mood
- *  (pub.dcNimby ÷ 50) and × 1.5 with crash construction; block × 0.5 with a community package; block ≤ 0.5, delay ≤
- *  0.9 − block (1–3 quarters). Rent has none. A site re-permitting after the E27 reactive package is blocked again with
- *  1 − its unblock odds and not delayed. */
-export function oppositionOdds(s: GameStateV2, site: Pick<Site, 'path' | 'crash' | 'communityPackage'> & { ws3?: Pick<SiteWS3, 'reactive'> }): { block: number; delay: number } {
-  if (site.path === 'rent') return { block: 0, delay: 0 };
-  if (site.ws3?.reactive) return { block: 1 - reactiveUnblockOdds(s), delay: 0 };
+/** What the opposition odds are made of (DATACENTERS §5; [D-6]): the source's base block / delay chance, the public
+ *  mood factor (pub.dcNimby ÷ 50), the crash-construction factor (× 1.5) and the community package's block factor
+ *  (× 0.5), then `block` and `delay` after the caps (block ≤ 0.5, delay ≤ 0.9 − block). Rent has none (bases 0). A site
+ *  re-permitting after the E27 reactive package is blocked again with 1 − its unblock odds, never delayed (base =
+ *  that, all factors 1). */
+export interface OppositionParts { blockBase: number; delayBase: number; mood: number; crashMult: number; communityMult: number; block: number; delay: number }
+export function oppositionParts(s: GameStateV2, site: Pick<Site, 'path' | 'crash' | 'communityPackage'> & { ws3?: Pick<SiteWS3, 'reactive'> }): OppositionParts {
+  if (site.path === 'rent') return { blockBase: 0, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: 0, delay: 0 };
+  if (site.ws3?.reactive) { const p = 1 - reactiveUnblockOdds(s); return { blockBase: p, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: p, delay: 0 }; }
   const src = SOURCES[site.path];
   const mood = Math.max(0, s.pub.dcNimby) / OPPOSITION.moodRef;
-  const crash = site.crash ? LEVERS.crash.oddsMult : 1;
-  const block = Math.min(OPPOSITION.blockMax, src.blockBase * mood * crash * (site.communityPackage ? LEVERS.community.blockMult : 1));
-  const delay = Math.max(0, Math.min(OPPOSITION.delayMax - block, src.delayBase * mood * crash));
+  const crashMult = site.crash ? LEVERS.crash.oddsMult : 1;
+  const communityMult = site.communityPackage ? LEVERS.community.blockMult : 1;
+  const block = Math.min(OPPOSITION.blockMax, src.blockBase * mood * crashMult * communityMult);
+  const delay = Math.max(0, Math.min(OPPOSITION.delayMax - block, src.delayBase * mood * crashMult));
+  return { blockBase: src.blockBase, delayBase: src.delayBase, mood, crashMult, communityMult, block, delay };
+}
+
+/** Opposition roll at the end of permits: the block and delay odds of oppositionParts (delay 1–3 quarters). */
+export function oppositionOdds(s: GameStateV2, site: Parameters<typeof oppositionParts>[1]): { block: number; delay: number } {
+  const { block, delay } = oppositionParts(s, site);
   return { block, delay };
 }
 
@@ -66,6 +75,16 @@ export const siteBuildings = (o: Pick<SiteOpts, 'path' | 'buildings'>): number =
 /** The whole site's MW: building MW × buildings. */
 export const campusMW = (o: Pick<SiteOpts, 'path' | 'mw' | 'buildings'>) => o.mw * siteBuildings(o);
 const fmtMW = (mw: number) => (mw >= 1000 ? `${+(mw / 1000).toFixed(2)} GW` : `${Math.round(mw)} MW`);
+/** The options as newSite builds them: the building clamped to [100 MW, the source's cap] and the buildings the
+ *  largest of 1 / 3 / 5 that is at most the asked count and whose campus total fits the cap (rent: 1). Callers check
+ *  siteSizeError first; this is what is left when they did not. */
+export function siteFit(o: SiteOpts): SiteOpts {
+  const cap = SOURCES[o.path].maxMW;
+  const mw = Math.max(SITE_MIN_MW, Math.min(cap, o.mw));
+  const asked = siteBuildings(o);
+  const buildings = (o.path === 'rent' ? 1 : [...CAMPUS.counts].reverse().find((c) => c <= asked && c * mw <= cap + 1e-9) ?? 1) as CampusBuildings;
+  return { ...o, mw, buildings };
+}
 /** Why these options cannot be built, or undefined: buildings not 1, 3 or 5, or the campus total over the source's
  *  size cap (grid and rent ≤ 1 GW, gas ≤ 5 GW per site; DATACENTERS §5b). */
 export function siteSizeError(o: SiteOpts): string | undefined {
@@ -112,20 +131,31 @@ export function siteLastLiveInQ(s: GameStateV2, o: SiteOpts): number {
 /** Old name of siteLiveInQ (the engine barrel and the build card still import it). */
 export const siteEtaQ = siteLiveInQ;
 
-/** Capex ($B) of a new site, per GW of the whole campus (DATACENTERS §5b): the building (grid/gas upfront) × (1 −
- *  repetition discount: 3 buildings 10%, 5 buildings 15%), + crash 35% and fast-track 5% of that discounted building,
- *  + extra (turbines, utility upgrades), rush (grid $0.3B/GW; gas 30% of the turbines) and community $1B/GW,
- *  undiscounted. Rent: the network fit-out only. */
-export function siteCapex(o: SiteOpts): Money {
+/** What a site's capex ($B, the whole campus) is made of (DATACENTERS §5b): `building` before the repetition saving
+ *  (rent: the network fit-out), `repeatSaving` (building × the 3-building 10% / 5-building 15% discount), `extra`
+ *  (turbines, utility upgrades), `crash` 35% and `fastTrack` 5% of the discounted building, `rush` (grid $0.3B/GW; gas
+ *  30% of the turbines) and `community` $1B/GW; extra, rush and community are undiscounted. `total` = building −
+ *  repeatSaving + the rest. */
+export interface CapexParts { building: Money; repeatSaving: Money; extra: Money; crash: Money; rush: Money; fastTrack: Money; community: Money; total: Money }
+export function siteCapexParts(o: SiteOpts): CapexParts {
   const x = levers(o);
   const src = SOURCES[o.path];
-  const n = siteBuildings(o);
+  const gw = campusMW(o) / 1000;
+  const building = src.upfrontPerGW;
+  const discount = o.path === 'rent' ? 0 : CAMPUS.discount[siteBuildings(o) as CampusBuildings] ?? 0;
+  const net = building * (1 - discount);
   const rush = x.rush ? (o.path === 'grid' ? LEVERS.rushGrid.perGW : o.path === 'gas' ? LEVERS.rushGas.turbineShare * src.extraPerGW : 0) : 0;
-  const building = o.path === 'rent' ? src.upfrontPerGW : src.upfrontPerGW * (1 - (CAMPUS.discount[n as CampusBuildings] ?? 0));
-  const perGW = building + src.extraPerGW + (x.crash ? LEVERS.crash.buildingShare * building : 0) + rush
-    + (x.fastTrack ? LEVERS.fastTrack.buildingShare * building : 0) + (x.community ? LEVERS.community.perGW : 0);
-  return (campusMW(o) / 1000) * perGW;
+  const crash = x.crash ? LEVERS.crash.buildingShare * net : 0;
+  const fastTrack = x.fastTrack ? LEVERS.fastTrack.buildingShare * net : 0;
+  const community = x.community ? LEVERS.community.perGW : 0;
+  return {
+    building: gw * building, repeatSaving: gw * building * discount, extra: gw * src.extraPerGW, crash: gw * crash, rush: gw * rush,
+    fastTrack: gw * fastTrack, community: gw * community, total: gw * (net + src.extraPerGW + crash + rush + fastTrack + community),
+  };
 }
+
+/** Capex ($B) of a new site: siteCapexParts' total. */
+export const siteCapex = (o: SiteOpts): Money => siteCapexParts(o).total;
 
 /** Add the community package ($1B per GW, block odds × 0.5) to a site not yet past its permitting roll. Returns false
  *  if it cannot take one. */
@@ -172,16 +202,12 @@ const SOURCE_LABEL: Record<SiteSource, string> = { rent: 'rented hall', grid: 'g
  *  share). Its power wait is fixed now [D-4]. Rent waits for its hall and adds the 5-year rent from go-live; grid and gas
  *  start permits (fast-tracked grid has none and rolls its opposition now). A financing lease (`pay: 'lease'`, not for
  *  rent) has the lessor fund 80% of capex as it is spent. Callers check siteSizeError first; here the building is
- *  clamped to [100 MW, source cap] and a campus over the cap gets fewer buildings. */
+ *  fitted (siteFit). */
 export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
   ensureWs3(s);
-  const src = SOURCES[o.path];
   const rent = o.path === 'rent';
-  const bmw = Math.max(SITE_MIN_MW, Math.min(src.maxMW, o.mw));
-  const asked = siteBuildings(o);
-  const n = (rent ? 1 : [...CAMPUS.counts].reverse().find((c) => c <= asked && c * bmw <= src.maxMW + 1e-9) ?? 1) as CampusBuildings;
-  const mw = bmw * n;
-  const opts = levers({ ...o, mw: bmw, buildings: n });
+  const opts = levers(siteFit(o));
+  const n = siteBuildings(opts), bmw = opts.mw, mw = campusMW(opts);
   const leased = o.pay === 'lease' && !rent && o.leaseRate !== undefined;
   const spvFunded = leased ? CAPEX_LEASE.siteShare : 0;
   const q = qOf(s);
