@@ -53,7 +53,7 @@ Forced runs: the AIFM's compute and staff path go in (staff are hired through th
 | `cap.TREE.P24.rShare` | 0.3 | 0.1–0.3 | P24's share of returns |
 | `cap.ASI_EXTRA_GAPS` | 1.3 | 0.9–1.85 (AIFM 12–15 SD) | the SIAR→ASI gap only |
 
-(Check the exact ids with `npx tsx scripts/v2/paramOverride.ts --census`.) Per-game draw values (SC threshold gSC, r, dBM, La, Ca, …) are source draws: **never** change them. Procedure: a sweep on tl-central only, 12 seeds, 3 values of the one knob that matches the miss (games early before SC → P24 mean; ASI too early/late after SIAR → ASI gaps), via `--sets` (one cell per value); pick the value closest to the bar; one confirming run on all three timelines. If the confirming run misses the bar, report and stop Stage 1 (don't keep sweeping).
+(Check the exact ids with `npx tsx scripts/v2/paramOverride.ts --census --ids`.) Per-game draw values (SC threshold gSC, r, dBM, La, Ca, …) are source draws: **never** change them. Procedure: a sweep on tl-central only, 12 seeds, 3 values of the one knob that matches the miss (games early before SC → P24 mean; ASI too early/late after SIAR → ASI gaps), via `--sets` (one cell per value); pick the value closest to the bar; one confirming run on all three timelines. If the confirming run misses the bar, report and stop Stage 1 (don't keep sweeping).
 
 **Commit** the chosen value(s) in the data file + registry note; regenerate nothing else.
 
