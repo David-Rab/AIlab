@@ -43,11 +43,7 @@ Written 2026-11-27 by the session that built this (branch `bal`, worktree `C:\Us
 - **Mechanic changes are the designer's decision:** diagnose first, propose with a recommendation, then implement on approval. Source-derived settings can go ahead within the agreed method.
 - The designer is happy to defer decisions ("I prefer not to decide on these now"). Record them as parked and don't re-ask unprompted.
 
-**Agent working style** (memory: `opus-only`, `context-and-cache`, `small-subagent-tasks`, `manage-agent-time`)
-- **The lead (Opus) designs, briefs and reviews; workers are Sonnet 5.5 at high or medium, never low.** The designer chose this for the balance workstream.
-- Tasks are small and single-concern, with an exact spec, a "done when", stop-and-report instead of judgement calls, and a time budget.
-- **Keep context small:** a run and its analysis are separate agents, results go to files, and reports are about 15 lines.
-- Long runs go in background jobs under 2 hours each, resumable from the cache.
+**Agent working style:** the single source is the lead's memory `subagents` (model and effort, briefs, task size, parallel work, time, context).
 
 ---
 
