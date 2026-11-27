@@ -28,14 +28,17 @@ export function initialSites(baseline: BaselineId, startDate: string): Site[] {
   return sites;
 }
 
-/** Local opposition strength 0–1 (AntiAI = pub.dcNimby / 100). */
-const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub.dcNimby / 100));
+/** Local data-centre opposition 0..100. W1d stand-in until W4: 45, the calibrated F10 case (mood 0.9;
+ *  scripts/v2/finance.ts). */
+const DC_NIMBY = 45;
+/** Local opposition strength 0–1 (AntiAI = DC_NIMBY / 100). */
+const localOpposition = (_s: GameStateV2) => Math.max(0, Math.min(1, DC_NIMBY / 100));
 
 /** Odds that the large reactive package (E27) unblocks a blocked site: 0.85 − 0.5 × local opposition, ≥ 0.3 [D]. */
 export const reactiveUnblockOdds = (s: GameStateV2) => Math.max(COMMUNITY.unblockMin, COMMUNITY.unblockBase - COMMUNITY.unblockPerAnti * localOpposition(s));
 
 /** What the opposition odds are made of (DATACENTERS §5; [D-6]): the source's base block / delay chance, the public
- *  mood factor (pub.dcNimby ÷ 50), the crash-construction factor (× 1.5) and the community package's block factor
+ *  mood factor (DC_NIMBY ÷ 50), the crash-construction factor (× 1.5) and the community package's block factor
  *  (× 0.5), then `block` and `delay` after the caps (block ≤ 0.5, delay ≤ 0.9 − block). Rent has none (bases 0). A site
  *  re-permitting after the E27 reactive package is blocked again with 1 − its unblock odds, never delayed (base =
  *  that, all factors 1). */
@@ -44,7 +47,7 @@ export function oppositionParts(s: GameStateV2, site: Pick<Site, 'path' | 'crash
   if (site.path === 'rent') return { blockBase: 0, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: 0, delay: 0 };
   if (site.ws3?.reactive) { const p = 1 - reactiveUnblockOdds(s); return { blockBase: p, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: p, delay: 0 }; }
   const src = SOURCES[site.path];
-  const mood = Math.max(0, s.pub.dcNimby) / OPPOSITION.moodRef;
+  const mood = Math.max(0, DC_NIMBY) / OPPOSITION.moodRef;
   const crashMult = site.crash ? LEVERS.crash.oddsMult : 1;
   const communityMult = site.communityPackage ? LEVERS.community.blockMult : 1;
   const block = Math.min(OPPOSITION.blockMax, src.blockBase * mood * crashMult * communityMult);

@@ -292,7 +292,7 @@ export function playerDraw(s: GameStateV2, d: BaseDesign, tokens: number = d.par
   return drawData(s.player.dataPortfolio, tokens, designTarget(d), { worth: tokenWorth(s) });
 }
 
-/** Public-web tokens the lab trains on without a licence (copyright litigation, actors/china.ts; data.license 'web'). */
+/** Public-web tokens the lab trains on without a licence (copyright litigation, finance copyrightQ; data.license 'web'). */
 export function unlicensedPublicT(p: DataPortfolio): number {
   const u = publicUse(p);
   return u && !u.licensed ? assetTokensT(u) : 0;

@@ -14,16 +14,11 @@ export const BRIEF_OFFICIALS: ActionDef = simpleAction({
     const lvl = clamp(Math.round(numParam(p, 'level', Math.min(3, s.player.policies.govBriefing + 1))), 0, 3);
     const up = lvl - s.player.policies.govBriefing;
     return up >= 0
-      ? pv([L('security', 6 * Math.max(1, up), 'gov sees more → security demand'), L('freedom', Math.max(1, up) * 0.5)])
+      ? pv([L('freedom', Math.max(1, up) * 0.5)])
       : pv([], [L('freedom', 1)]);
   },
-  apply(s, ctx, p) {
-    const old = s.player.policies.govBriefing;
-    const lvl = clamp(Math.round(numParam(p, 'level', Math.min(3, old + 1))), 0, 3) as 0 | 1 | 2 | 3;
+  apply(s, _ctx, p) {
+    const lvl = clamp(Math.round(numParam(p, 'level', Math.min(3, s.player.policies.govBriefing + 1))), 0, 3) as 0 | 1 | 2 | 3;
     s.player.policies.govBriefing = lvl;
-    if (lvl > old) {
-      ctx.bump('gov.securityDemand', 3 * (lvl - old), 'B7 briefing');
-      ctx.bump('gov.aiPriority', 3 * (lvl - old), 'B7 briefing');
-    }
   },
 });

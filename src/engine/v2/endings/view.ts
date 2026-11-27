@@ -32,7 +32,7 @@ export type FutureHolder = Exclude<PowerOutcome, 'none'> | 'ai' | 'contested' | 
 export type EndTone = 'pos' | 'neg' | 'warn' | 'neutral';
 export type LabKind = 'player' | 'rival' | 'china';
 export type LabStatusView = 'active' | 'bankrupt' | 'merged' | 'nationalized' | 'shutdown';
-export type CompanyStatus = 'independent' | 'under committee' | 'nationalized' | 'acquired' | 'retired' | 'insolvent' | 'ousted';
+export type CompanyStatus = 'independent' | 'nationalized' | 'acquired' | 'retired' | 'insolvent' | 'ousted';
 export type AsiOutcome = 'held' | 'contained' | 'lost';
 
 export interface EndStep {
@@ -119,9 +119,7 @@ export interface EndingView {
       unemployment: number; unemploymentChange: number; aiIncomeShare: number;
     };
     geopolitics: {
-      rung: number; rungName: string;
       taiwan: 'calm' | 'disrupted' | 'recovered' | 'war'; taiwanLabel: string;
-      treaty: 'none' | 'talks' | 'restraint' | 'verified'; treatyLabel: string;
       /** Days China trails the best US lab (negative = China ahead). */
       chinaLagDays: number;
     };
@@ -130,8 +128,6 @@ export interface EndingView {
       /** $B. */
       valuation: number; multiple: number; valuationHistory: number[];
       status: CompanyStatus;
-      /** Net approval (−100…100) and its change since the start. */
-      approval: number; approvalChange: number;
       playerShare: number; largestOutside: { name: string; share: number };
       ownership: { name: string; share: number; you: boolean }[];
     };
@@ -163,7 +159,6 @@ export interface EndingView {
 const PROJECTED_IDS: EndingId[] = [...COMPANY_LOSS, 'overtaken', 'retired'];
 const ASI_IDS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const RUNG_NAMES = ['Coexistence', 'Retaliation', 'Acquisition', 'Centralization', 'Cyber operations', 'Taiwan pressure', 'War footing'];
 const DOMAIN_NAME: Record<ControlDomainId, string> = { ECON: 'Economy', GOV: 'Government', MIL: 'Military', INFRA: 'Infrastructure' };
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const word = (n: number) => WORDS[n] ?? String(n);
@@ -319,7 +314,7 @@ export function endingView(s: GameStateV2): EndingView | null {
     ratio: ratioText(exposureOfWhy, why?.tolerance ?? lossThreshold(s)),
     nearLine: nearLineOf(near),
     systems: `${word(1 + near.length)} systems, ${countries.size === 1 ? 'one country' : `${word(countries.size)} countries`}`,
-    treatyLine: s.gov.treaty === 'talks' ? 'only talks toward a treaty' : s.gov.treaty === 'restraint' ? 'a restraint pact no one can verify' : 'no treaty between them',
+    treatyLine: 'no treaty between them', // W1d stand-in until W6 (the treaty track went with the China actor)
     nearest: nearest ? `${nearest.ref.name}, the nearest rival, is ${lagText(nearest.lag)} behind` : 'No other lab is still racing',
     gov: pct(gov), infra: pct(infra),
     usLab: us?.name ?? 'No American lab', usLag: us ? lagText(lagDays(s, us.id, 'china')) : 'far',
@@ -436,7 +431,6 @@ export function endingView(s: GameStateV2): EndingView | null {
   if (gdpIndex.length) gdpIndex[gdpIndex.length - 1] = r3(1 + gdpChange);
   const taiwan: EndingView['world']['geopolitics']['taiwan'] = e.id === 'war' ? 'war' : w.taiwanDisrupted ? 'disrupted' : s.flags['ws4:taiwanEver'] ? 'recovered' : 'calm';
   const TAIWAN_LABEL = { calm: 'Calm', disrupted: 'Shipping disrupted', recovered: 'Crisis passed', war: 'War' };
-  const TREATY_LABEL = { none: 'None', talks: 'Talks', restraint: 'Restraint pact', verified: 'Verified' };
   const own = s.player.finance.ownership;
   const holders = [
     { name: 'Founders (you)', share: own.founder, you: true }, { name: 'Mission trust', share: own.mission, you: false },
@@ -445,7 +439,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   ].filter((h) => h.share > 0).map((h) => ({ ...h, share: r3(h.share) }));
   const outside = holders.filter((h) => !h.you).sort((a, b) => b.share - a.share)[0] ?? { name: 'None', share: 0 };
   const status: CompanyStatus = e.id === 'retired' ? 'retired' : e.id === 'insolvent' ? 'insolvent' : e.id === 'ousted' ? 'ousted'
-    : e.id === 'nationalized' || w.nationalizedHard || w.dpaAccepted ? 'nationalized' : e.id === 'acquired' || w.soldControl ? 'acquired' : s.gov.oversight ? 'under committee' : 'independent';
+    : e.id === 'nationalized' || w.nationalizedHard || w.dpaAccepted ? 'nationalized' : e.id === 'acquired' || w.soldControl ? 'acquired' : 'independent';
   const v0 = S.valuation.find((x) => x > 0) ?? s.player.finance.valuation;
   const valuation = fin(s.player.finance.valuation);
 
@@ -521,10 +515,10 @@ export function endingView(s: GameStateV2): EndingView | null {
     world: {
       power: powerTiles,
       economy: { gdpChange: r3(gdpChange), gdpSince: shortMonth(s, 0), gdpIndex, unemployment: r3(s.world.unemployment.US), unemploymentChange: r3(s.world.unemployment.US - (S.unemp[0] ?? s.world.unemployment.US)), aiIncomeShare: r3(fin(s.world.aiIncomeShare)) },
-      geopolitics: { rung: s.china.rung, rungName: RUNG_NAMES[s.china.rung] ?? '', taiwan, taiwanLabel: TAIWAN_LABEL[taiwan], treaty: s.gov.treaty, treatyLabel: TREATY_LABEL[s.gov.treaty], chinaLagDays: Math.round(chinaVsUs) },
+      geopolitics: { taiwan, taiwanLabel: TAIWAN_LABEL[taiwan], chinaLagDays: Math.round(chinaVsUs) },
       company: {
         name: s.player.name, valuation: r3(valuation), multiple: r3(valuation / Math.max(1e-9, v0)), valuationHistory: sampleIdx(S.valuation.length).map((i) => r3(S.valuation[i])),
-        status, approval: r3(s.pub.approval), approvalChange: r3(s.pub.approval - (S.approval[0] ?? s.pub.approval)),
+        status,
         playerShare: r3(own.founder), largestOutside: { name: outside.name, share: outside.share }, ownership: holders,
       },
     },

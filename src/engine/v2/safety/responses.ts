@@ -16,6 +16,7 @@ import { removeFoothold } from './footholdDetection';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import { reportingLaw } from '../../../data/v2/laws';
 /** An incident's model, by name, for log lines (VOCAB §4: names, never ids). */
 const incModel = (s: GameStateV2, inc: Incident) => versionById(s, inc.versionId)?.name ?? 'a model';
 
@@ -264,7 +265,7 @@ export const disclosurePolicy = (s: GameStateV2): DisclosurePolicy => s.player.s
 
 /** Must this incident be reported by law (statutoryDaily's rule: SB 53 / RAISE in force, not internal, severity ≥ 3)? */
 export function mustReport(s: GameStateV2, inc: Incident): boolean {
-  return (s.gov.statutes.sb53 || s.gov.statutes.raise) && inc.exposure !== 'internal' && inc.severity >= 3;
+  return reportingLaw(s) && inc.exposure !== 'internal' && inc.severity >= 3;
 }
 /** Will the lab disclose this incident: the per-incident override, else the policy (legal = only what must be reported). */
 export function willDisclose(s: GameStateV2, inc: Incident): boolean {

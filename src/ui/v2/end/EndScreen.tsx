@@ -75,7 +75,7 @@ export function EndScreen({ s }: { s: GameStateV2 }) {
     return JSON.stringify({
       setup: s.setup, ending: s.ending, day: s.time.day, world: { preset: s.setup.world, label: h.timeline.label, latents: h.latents, difficulty: h.difficultyMult },
       milestones: Object.fromEntries(Object.entries(s.player.milestoneDays).map(([i, d]) => [MILESTONE_NAMES[Number(i)], fmtDate(dateOf(s, d!))])),
-      final: { cash: s.player.finance.cash, valuation: s.player.finance.valuation, compute: s.player.computeOnline, approval: s.pub.approval },
+      final: { cash: s.player.finance.cash, valuation: s.player.finance.valuation, compute: s.player.computeOnline },
     }, null, 2);
   };
   return (
@@ -227,9 +227,8 @@ function Tiles({ v }: { v: View }) {
   const e = w.economy;
   const g = w.geopolitics;
   const co = w.company;
-  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' || co.status === 'under committee' ? 'neu' : 'bad';
+  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' ? 'neu' : 'bad';
   const taiwanTone = g.taiwan === 'calm' ? 'good' : g.taiwan === 'recovered' ? 'neu' : g.taiwan === 'disrupted' ? 'warn' : 'bad';
-  const treatyTone = g.treaty === 'verified' ? 'good' : 'neu';
   const own = [...co.ownership].sort((a, b) => Number(b.you) - Number(a.you));
   const lagLine = g.chinaLagDays === 0 ? `China${RSQ}s lab was level with the best US lab.` : g.chinaLagDays > 0 ? `China${RSQ}s lab was ${F.days(g.chinaLagDays)} behind the best US lab.` : `China${RSQ}s lab was ${F.days(-g.chinaLagDays)} ahead of the best US lab.`;
   return (
@@ -277,13 +276,10 @@ function Tiles({ v }: { v: View }) {
 
         <div className="es-card es-tile">
           <div className="es-card-hd"><ICON.china size={16} /><span className="ttl">Geopolitics</span><span className="sub">US–China</span></div>
-          <div className="es-t3"><Term id="ladderChn">China ladder</Term> · rung {g.rung} of 6</div>
-          <Tip content={termCard('ladderChn', `${g.rung} of 6`, <div className="tipcard-foot">{g.rungName} at the end. {lagLine}</div>)}><div className="es-rungname">{g.rungName}</div></Tip>
-          <div className="es-ladder">{[0, 1, 2, 3, 4, 5, 6].map((i) => <i key={i} className={`${i < g.rung ? 'f' : ''} ${i === g.rung ? 'cur' : ''} ${i === 6 ? 'war' : ''}`} />)}</div>
-          <div className="es-ladder-l"><span>Coexistence</span><span>War</span></div>
+          <div className="es-t3">China&apos;s lab</div>
+          <div className="es-rungname">{lagLine}</div>
           <div className="es-gap" />
           <KV k={<><ICON.taiwan size={14} /><Term id="taiwanStatus">Taiwan</Term></>} tip={termCard('taiwanStatus', g.taiwanLabel)}><span className={`es-tag ${taiwanTone}`}>{g.taiwanLabel}</span></KV>
-          <KV k={<><ICON.commitment size={14} /><Term id="treaty">Treaty</Term></>} tip={termCard('treaty', g.treatyLabel)}><span className={`es-tag ${treatyTone}`}>{g.treatyLabel}</span></KV>
         </div>
 
         <div className="es-card es-tile">
@@ -295,9 +291,6 @@ function Tiles({ v }: { v: View }) {
             <span className="u"><Term id="valuation">valuation</Term> · <span className={`num ${co.multiple >= 1 ? 'up-good' : 'up-bad'}`}>{multTxt(co.multiple)}</span></span>
           </div>
           <Tip content={() => <TipCard title="Valuation" value={F.money(co.valuation)}>Your company{RSQ}s valuation over the game.</TipCard>}><Spark vals={co.valuationHistory} color={C.you} h={38} /></Tip>
-          <KV k={<><ICON.approval size={14} /><Term id="approval">Public approval</Term></>} tip={termCard('approval', signed(co.approval), <div className="tipcard-foot">{signed(co.approvalChange)} since the start.</div>)}>
-            <span className="v num">{signed(co.approval)}</span>{delta(co.approvalChange, `${co.approvalChange >= 0.5 ? '▲ ' : co.approvalChange <= -0.5 ? '▼ ' : ''}${signed(co.approvalChange)}`, false)}
-          </KV>
           <KV k={<><ICON.ownership size={14} /><Term id="ownership">Ownership</Term></>} tip={() => <TipCard title="Ownership" rows={own.map((o) => ({ label: o.name, value: F.pct(o.share) }))} />}>
             <span className="es-t3">you {F.pct(co.playerShare)} · largest outside {F.pct(co.largestOutside.share)}</span>
           </KV>

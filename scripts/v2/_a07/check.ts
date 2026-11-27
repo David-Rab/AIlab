@@ -1,5 +1,5 @@
 // RD-A07 targeted check: a frontier pause stops capability (frontier) experiment FLOP but not ideation or safety
-// experiments; a clearance lowers team capacity (heads off the teams), not a speed factor. Run: npx tsx scripts/v2/_a07/check.ts
+// experiments. (The clearance check went with E12, W1d.) Run: npx tsx scripts/v2/_a07/check.ts
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { expFlopAllowed, humansOf, researchMods } from '../../../src/engine/v2/departments/workfit';
 import { capReCapacity, experimentRate, sciOn } from '../../../src/engine/v2/models/research';
@@ -23,12 +23,5 @@ ok(expFlopAllowed(s, 'saf', F) === F, 'pause: safety experiment FLOP unchanged')
 ok(p.speed === before.mods.speed && sciOn(s, id).cap === before.sci.cap, `pause: ideation inputs unchanged (speed ${p.speed}, capacity ${before.sci.cap.toFixed(3)})`);
 ws4(s).frontierPauseUntil = -1;
 
-s.flags['ws4:sidelinedUntil'] = s.time.day + 60;
-const c = researchMods(s);
-ok(c.speed === before.mods.speed, `clearance: speed factor unchanged (${c.speed})`);
-ok(sciOn(s, id).cap < before.sci.cap && capReCapacity(s) < before.re && humansOf(s, 'IDEAS') < before.hum,
-  `clearance: capacity down (sci ${before.sci.cap.toFixed(3)} -> ${sciOn(s, id).cap.toFixed(3)}, RE ${before.re.toFixed(3)} -> ${capReCapacity(s).toFixed(3)})`);
-s.flags['ws4:sidelinedUntil'] = s.time.day - 1;
-ok(sciOn(s, id).cap === before.sci.cap, 'clearance over: capacity back');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

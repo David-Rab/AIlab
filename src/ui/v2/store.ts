@@ -6,6 +6,7 @@ import {
   serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
+import { lawsInForce } from '../../data/v2/laws';
 
 export type Screen = 'start' | 'setup' | 'game';
 export interface QSnap { q: number; L: number; U: number; cash: number; lead: number }
@@ -48,7 +49,7 @@ function sig(s: GameStateV2): Sig {
     runway: p.board.preset === 'parent' ? 0 : RUNWAY_RANK[p.finance.state] ?? 0, // a division never stops on runway (jank F2)
     findings: p.safety.findings.filter((f) => f.type === 'DISC' || f.type === 'NEG' || f.revealedFalseDay !== undefined).length,
     otherMs,
-    statutes: Object.values(s.gov.statutes).filter(Boolean).length,
+    statutes: Object.values(lawsInForce(s)).filter((x) => x === true).length,
     thefts: p.security.detectedThefts.length,
     playerMs: Object.keys(p.milestoneDays).length,
     q: quarterIndex(s.time.startDate, s.time.day),

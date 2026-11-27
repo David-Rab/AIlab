@@ -211,8 +211,8 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:314',
     notes: 'Re-employment rate multiplier of the displaced pool.',
   }),
-  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25 * (pol.ubi', 0.25, '1/yr', {
-    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:315; header sectors.ts:23 "exit 0.25/yr (×3 with UBI)"',
+  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25;', 0.25, '1/yr', {
+    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts header "exit 0.25/yr" (the ×3 with UBI went with the government actor, W1d)',
   }),
   inl('sectors.retrainPer10B', 'sectors.ts', '(0.1 * s.player.policies.transitionFund) / 10', 0.1, 'Retrain per $10B/yr', {
     ...W, kind: 'sourced', evidence: 'sectors.ts:227 "Player transition-fund + government training → Retrain (each $10B/yr +0.1, cap +0.5; R16 §1A.2 step 9)"',
@@ -226,27 +226,17 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'designer', source: 'research/16 N3a', evidence: 'sectors.ts:215 "≈3% of adults [D, R16 N3a]"',
     notes: 'A2: [D, R16 N3a] is designer with the pointer in source. Also the floor of friendStar.',
   }),
-  inl('sectors.sezFrictionCut', 'sectors.ts', "(id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;", 0.3, 'x friction', {
-    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:110; policy.ts:17 says "SEZ friction waiver"',
-  }),
 
   // ---- techtree.ts
   inl('techtree.expCapBase', 'techtree.ts', 'Math.min(1, 0.4 + 0.3 * techRamp(s, \'W04\')', 0.4, 'fraction', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:10 "ExpCap = min(1, 0.4 + 0.3·[W04 autonomous labs] + 0.3·RobotAvail_SCI)"; header cites R16 §3.1',
     notes: 'The two 0.3 weights are in the same expression.',
   }),
-  inl('techtree.fastTrackLag', 'techtree.ts', 'if (pol.fdaFastTrack) lag *= 0.5;', 0.5, 'x lag', {
-    ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:98',
-  }),
   inl('techtree.sezPhysicalLag', 'techtree.ts', 'lag *= 0.3;', 0.3, 'x lag', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:101',
   }),
   inl('techtree.rampSteepness', 'techtree.ts', 'sigmoid(10 * (yrs / lag - 0.5))', 10, 'logistic steepness', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:156; header :12 "Impact ramps as a logistic over Lag years after discovery"',
-  }),
-  inl('techtree.discoveryApproval', 'techtree.ts', "ctx.bump('pub.approval', 0.3 * t.effects.benefit,", 0.3, 'approval per unit benefit', {
-    ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:148 (a comment in actions.ts:114-115 restates it as "+0.3·benefit on discovery")',
-    notes: 'Patients-reached approval 0.5 x benefit (techtree.ts:157) is the sibling.',
   }),
 
   // ---- robots.ts
@@ -269,10 +259,6 @@ export const PARAMS_WORLDFX = defineParams([
   }),
 
   // ---- mix.ts / serving.ts / actions.ts
-  inl('mix.brandApprovalSwing', 'mix.ts', '1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50))', 0.1, 'brand multiplier swing', {
-    ...W, actor: 'player', kind: 'designer', source: 'V2-SPEC §3.11.1', evidence: 'no tag; mix.ts:318 "±0.1 with approval (§3.11.1)" (a spec section pointer, not a source)',
-    notes: 'A8c: spec §3.11.1 states "moves ±0.1 with approval". Approval 50 gives the full swing.',
-  }),
   inl('mix.chinaOpenAccessUS', 'mix.ts', '(r === \'US\' ? 0.3 : 0.7)', 0.3, 'fraction of buyers who can use', {
     ...W, actor: 'china', kind: 'untagged', evidence: 'no tag; mix.ts:313',
     notes: 'Access to DeepCent open weights in the US (0.3) and ROW (0.7); closed models 0.05 US / 0.4 ROW; non-China labs in China 0.6 open / 0.05 closed (mix.ts:314).',
@@ -286,9 +272,5 @@ export const PARAMS_WORLDFX = defineParams([
   inl('serving.verifiabilityRef', 'serving.ts', 'COVER.kappaV * (0.9 - v)', 0.9, 'verifiability', {
     ...W, kind: 'untagged', evidence: 'no tag; serving.ts:112',
     notes: 'Reference verifiability in the sector coverage threshold; kappaV is data (market chunk).',
-  }),
-  inl('actions.transitionFundApproval', 'actions.ts', "ctx.bump('pub.approval', Math.min(5, d * 0.4), 'transition fund');", 0.4, 'approval per $B/yr', {
-    ...W, actor: 'public', kind: 'untagged', evidence: 'no tag; actions.ts:62; doc comment :14-16 cites research/16 §1A.2 step 9 and research/07 for the fund, not these effects',
-    notes: 'The preview (actions.ts:33) repeats the numbers; the 5 cap and the 0.5 jobAnxiety relief (:63) are siblings.',
   }),
 ]);

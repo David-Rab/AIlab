@@ -149,7 +149,7 @@ const MODELS: Param[] = [
     notes: 'analogue (A6). An analogue, flagged "low confidence" in the comment; 0.25 sits at the low end of the quoted range.' }),
   ex(MD + 'deployments.ts', 'DEFAULT_SERVING', [], [0.4, 0.3, 0.15, 0.05, 0, 0], 'fraction of serving pool', { ...MK, kind: 'designer', layer: 'policy', actor: 'player',
     evidence: 'deployments.ts:47 "Default serving-pool reservation per channel [D]."', notes: 'Player default (A10). Array order = consumer, api, enterprise, vetted, internal, open.' }),
-  inl('mod.deployments.distillAccess', MD + 'deployments.ts', 'distillationAccess / 60 : 0.3', [60, 0.3], 'China divisor (meter 0-100 to 0-1.7), US-rival access 0..1', { ...SAF, actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.3.5',
+  inl('mod.deployments.distillAccess', MD + 'deployments.ts', 'lab === CHINA_ID ? 1 : 0.3', [1, 0.3], 'China access (its meter at the start value 60, /60; W1d), US-rival access 0..1', { ...SAF, actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.3.5',
     evidence: 'no tag; deployments.ts:213 "Distillation access of a receiving lab: China = distillationAccess/60; US rivals 0.3 (§3.3.5)."', notes: 'A8c: spec states distillationAccess/60 for China and 0.3 for rivals.' }),
 
   // labReadouts.ts

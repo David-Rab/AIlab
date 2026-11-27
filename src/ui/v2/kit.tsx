@@ -162,7 +162,6 @@ export const METERS: Partial<Record<CostLine['currency'], Meter>> = {
   cash: { label: 'Cash', term: 'cash', icon: ICON.cash, get: (s) => s.player.finance.cash, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x), upGood: true },
   revenue: { label: 'Revenue', term: 'revenueRun', icon: ICON.revenue, get: (s) => s.player.finance.revenueRun, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x, { perYear: true }), upGood: true },
   credibility: { label: 'Investor credibility', term: 'investorCred', icon: ICON.credibility, get: (s) => s.player.finance.credibility, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
-  approval: { label: 'Approval', term: 'approval', icon: ICON.approval, get: (s) => s.pub.approval, lo: -100, hi: () => 100, fmt: (x) => F.num(x, 0, true), upGood: true },
   boardConf: { label: 'Board', term: 'boardConf', icon: ICON.board, get: (s) => s.player.board.confidence, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   morale: { label: 'Morale', term: 'morale', icon: ICON.morale, get: (s) => s.player.morale.overall, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   leadDays: { label: 'Lead', term: 'lead', icon: ICON.lead, get: bestLead, lo: -365, hi: () => 365, fmt: F.lead, upGood: true },
@@ -170,7 +169,7 @@ export const METERS: Partial<Record<CostLine['currency'], Meter>> = {
 };
 /** Net effect per currency of a view: gains − costs (exposure kept apart as probabilistic). */
 /** Currencies where a higher meter is worse: a cost RAISES them, a gain lowers them. */
-export const BAD_UP = new Set<CostLine['currency']>(['chinaTension', 'dilution']);
+export const BAD_UP = new Set<CostLine['currency']>(['dilution']);
 export function netByCurrency(v: Pick<ActionView, 'costs' | 'gains'>) {
   const m = new Map<CostLine['currency'], { d: number; target?: string }>();
   for (const c of v.gains) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d += (BAD_UP.has(c.currency) ? -1 : 1) * c.amount; m.set(c.currency, e); }

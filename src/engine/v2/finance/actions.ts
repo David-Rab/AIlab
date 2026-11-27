@@ -302,7 +302,6 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const below = s.player.board.preset === 'pbcTrust' && !ip.trust ? "; capability-threshold models stay out without the trust's yes" : '';
     costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
-  if (t.politics) costs.push({ currency: 'freedom', amount: -1, target: `government security demand +${t.politics.securityDemand}` });
   if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
@@ -711,13 +710,11 @@ const community: ActionDef = {
       const x = packageable(s).find((y) => y.id === one);
       if (!x) return 'That site cannot take a package (past permitting or already has one)';
       addCommunityPackage(x);
-      ctx.bump('pub.approval', 1, 'community benefits package', x.name);
       return;
     }
     if (!s.player.policies.communityBenefits) {
       s.player.policies.communityBenefits = true;
       signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {});
-      ctx.bump('pub.dcNimby', -10, 'community package policy');
     }
     for (const x of packageable(s)) addCommunityPackage(x);
   },

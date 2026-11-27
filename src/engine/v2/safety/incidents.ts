@@ -33,6 +33,7 @@ import { rollFleetCovert } from './covert';
 import { footholdsStep } from './footholdDetection';
 import { backdoorReach, lineageOf } from './footholds';
 import { controlStep } from './control';
+import { lawsInForce } from '../../../data/v2/laws';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -284,16 +285,10 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
  *  used to shorten it; they went with the relation stocks, W1c.) */
 function publicTimer(s: GameStateV2, rng: RngLike): number {
   let t = Math.round(rng.range(14, 60));
-  if (s.gov.statutes.sb53) t = Math.min(t, 15);
-  if (s.gov.statutes.raise) t = Math.min(t, 3);
+  const law = lawsInForce(s);
+  if (law.sb53) t = Math.min(t, 15);
+  if (law.raise) t = Math.min(t, 3);
   return Math.max(2, t);
-}
-
-/** Approval and concern hit when an incident becomes public: approval −severity × mult, concern +half that. */
-function publicPenalty(ctx: SystemCtx, inc: Incident, mult: number, why: string) {
-  const sev = inc.severity;
-  ctx.bump('pub.approval', -sev * mult, 'incident', why);
-  ctx.bump('pub.concern', (sev * mult) / 2, 'incident', why);
 }
 
 function newIncidentId(s: GameStateV2): string {
@@ -346,7 +341,6 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
   pushIncident(s, inc);
   const label = row.apparent === 'unexplained' ? 'Unexplained behaviour' : row.apparent === 'misuse' ? `${row.domain === 'BIO' ? 'Bio' : 'Cyber'} misuse` : `${row.apparent} incident`;
   ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}${caught ? ': caught by its monitor before customers saw it' : ''}.`, sev, inc.id);
-  if (exposure === 'public') publicPenalty(ctx, inc, 1, inc.id);
   if (row.source === 'misuse' && sev === 5) {
     setFlag(s, 'sev5MisuseDay', ctx.day);
     setFlag(s, 'sev5MisuseKind', row.domain === 'BIO' ? 'bio' : 'cyber');
@@ -372,12 +366,10 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
     if (inc.status === 'covered') {
       if (rng.chance(coverUpDiscovery(s))) {
         inc.status = 'leaked';
-        publicPenalty(ctx, inc, 3, `cover-up ${inc.id}`);
         ctx.log('alert', `Cover-up exposed: the incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} leaks.`, 4, inc.id);
       } else inc.status = 'resolved';
     } else {
       inc.status = 'leaked';
-      publicPenalty(ctx, inc, 1.5, `leak ${inc.id}`);
       ctx.log('alert', `The incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} goes public.`, Math.min(5, inc.severity + 1) as 1 | 2 | 3 | 4 | 5, inc.id);
     }
   }

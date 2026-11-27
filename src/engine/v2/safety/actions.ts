@@ -19,12 +19,12 @@ import { publishFinding } from './findings';
 import { caseComputeScale } from './lineProjects';
 import { CASE_WORK, INV_FTE, INV_MAX_DAYS, caseDailyWork, casePreview, closeInvestigation, corruptOdds, defaultTools, caseRoom, openInvestigation } from './investigations';
 import {
-  DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
-  disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
+  DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
+  hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
   setIncidentDisclosure,
 } from './responses';
 import { methodPolicyOn } from './methods';
-import { coverUpDiscovery } from './incidents';
+import { lawsInForce } from '../../../data/v2/laws';
 import { L, moraleSafety, pv } from '../actors/fx';
 import { frameworkPublished, hasCommitment, signCommitment } from '../actors/commitments';
 import { simpleAction } from '../core/actionDef';
@@ -326,28 +326,19 @@ const RESPOND: ActionDef = {
 };
 
 /** SR-18: what disclosing an incident does (discloseIncident) as preview lines; public state only. The trust and
- *  scrutiny it used to move went with the relation stocks (W1c): disclosing now tells government and evaluators, shares
- *  the failure mode it shows, and ends its public timer. */
-function discloseLines(inc: { severity: 1 | 2 | 3 | 4 | 5; publicTimerDays?: number } | undefined): Preview {
-  return {
-    costs: [],
-    gains: inc?.publicTimerDays !== undefined ? [{ currency: 'approval', amount: 0, target: `public timer ends: no leak penalty (approval −${1.5 * inc.severity}) if outsiders find it` }] : [],
-    exposure: [],
-  };
+ *  scrutiny it used to move went with the relation stocks (W1c), the approval penalty a leak avoided with the public
+ *  actor (W1d; W4 brings it back): disclosing now tells government and evaluators, shares the failure mode it shows,
+ *  and ends its public timer. */
+function discloseLines(): Preview {
+  return { costs: [], gains: [], exposure: [] };
 }
-/** SR-18: what withholding does: a must-report incident is a cover-up (statutory fine; ×3 public penalty if outsiders
- *  find it when its timer ends); anything else runs its public timer (a leak at ×1.5 if outsiders find it). The public
- *  penalty is approval −severity × that multiple (safety/incidents.ts publicPenalty). */
-function withholdLines(s: GameStateV2, must: boolean, timer?: number): CostLine[] {
-  const raise = s.gov.statutes.raise;
+/** SR-18: what withholding does: a must-report incident is a cover-up (a statutory fine once the report is late). The
+ *  public penalty if outsiders find it went with the public actor (W1d; W4 brings it back). */
+function withholdLines(s: GameStateV2, must: boolean): CostLine[] {
+  const raise = lawsInForce(s).raise;
   return must
-    ? [
-        { currency: 'cash', amount: raise ? -0.003 : -0.001, target: `statutory fine (${raise ? 'RAISE' : 'SB 53'}) once the report is late` },
-        { currency: 'approval', amount: -3, unit: '× severity', probability: coverUpDiscovery(s), target: 'if outsiders find the cover-up when its timer ends' },
-      ]
-    : timer !== undefined
-      ? [{ currency: 'approval', amount: -1.5, unit: '× severity', lagDays: Math.round(timer), target: `if outsiders find it within ${Math.round(timer)} d (it leaks)` }]
-      : [];
+    ? [{ currency: 'cash', amount: raise ? -0.003 : -0.001, target: `statutory fine (${raise ? 'RAISE' : 'SB 53'}) once the report is late` }]
+    : [];
 }
 
 const DISCLOSURE_POLICY: ActionDef = {
@@ -355,16 +346,13 @@ const DISCLOSURE_POLICY: ActionDef = {
   available: () => true,
   preview(s, p) {
     const pol = (DISCLOSURE_POLICIES as string[]).includes(str(p, 'policy') ?? '') ? (str(p, 'policy') as DisclosurePolicy) : 'legal';
-    const d = discloseLines(undefined);
-    const what = pol === 'legal' ? 'incidents the law requires (SB 53 / RAISE in force, external, severity ≥ 3) are reported on time; others are not, and their public timers run'
-      : pol === 'full' ? 'every external incident and every internal one of severity ≥ 3 is reported the day it appears'
-        : 'nothing is reported: a must-report incident becomes a cover-up';
+    const d = discloseLines();
     // CP3d: setting the policy changes no meter today; each line applies per future incident it covers, and says so.
     const per = (cond: string) => (l: CostLine): CostLine => ({ ...l, condition: cond });
     return {
       costs: (pol === 'none' ? withholdLines(s, true) : d.costs).map(per(pol === 'none' ? 'per must-report incident (withheld)' : 'per incident disclosed')),
-      gains: [{ currency: 'approval', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains.map(per('per incident disclosed')))],
-      exposure: (pol === 'legal' ? withholdLines(s, false, 30) : []).map(per('per incident not reported')),
+      gains: pol === 'none' ? [] : d.gains.map(per('per incident disclosed')),
+      exposure: [],
     };
   },
   apply(s, _ctx, p) {
@@ -379,11 +367,11 @@ const DISCLOSE: ActionDef = {
   available: (s) => s.player.safety.incidents.some((i) => i.status !== 'disclosed' && i.status !== 'leaked') || 'No incident to disclose',
   preview(s, p) {
     const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
-    if (!inc) return { costs: [{ currency: 'approval', amount: 0, target: 'no such incident' }], gains: [], exposure: [] };
+    if (!inc) return { costs: [], gains: [], exposure: [] };
     const choice = str(p, 'choice') ?? 'yes';
     const must = mustReport(s, inc);
-    if (choice === 'no') return { costs: withholdLines(s, must, inc.publicTimerDays), gains: must ? [{ currency: 'approval', amount: 0, target: 'the law requires this report: withholding it is a cover-up' }] : [], exposure: [] };
-    return discloseLines(inc);
+    if (choice === 'no') return { costs: withholdLines(s, must), gains: [], exposure: [] };
+    return discloseLines();
   },
   apply(s, ctx, p) {
     const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
@@ -402,7 +390,7 @@ const PUBLISH: ActionDef = {
     return {
       costs: [{ currency: 'leadDays', amount: disc ? -3 : -5, target: 'rivals learn it too' }],
       gains: [{ currency: 'alignment', amount: disc ? 0.04 : 0.02, target: "rivals' alignment (shared pool)" }],
-      exposure: [{ currency: 'approval', amount: -1, probability: disc ? 0.3 : 0.05, target: 'model-organism papers raise public concern' }],
+      exposure: [],
     };
   },
   apply(s, ctx, p) {
@@ -787,10 +775,9 @@ const METHOD_POLICY: ActionDef = {
 const PREDEPLOY_TESTING: ActionDef = simpleAction({
   id: 'A1', verb: 'policy', system: 'relations', title: 'Pre-deploy testing',
   available: (s) => (hasCommitment(s, 'preDeployTesting') ? 'Already signed' : true),
-  preview: () => pv([L('leadDays', 21, 'each frontier launch'), L('staffTime', 5)], [], [L('security', 15, 'gov awareness → security demand', { lagDays: 30 })]),
+  preview: () => pv([L('leadDays', 21, 'each frontier launch'), L('staffTime', 5)]),
   apply(s, ctx) {
     signCommitment(s, ctx, 'testingAgreement', 'Pre-deployment testing with government evaluators', 'preDeployTesting', { days: 21 });
-    ctx.bump('gov.awareness', 15, 'A1 testing agreement');
   },
 });
 

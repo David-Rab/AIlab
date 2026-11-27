@@ -73,14 +73,13 @@ const KIND_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech
 
 /** Power outcome when lab X's ASI is aligned (§5.2 priority table). */
 export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
-  if (s.gov.treaty === 'verified') return 'treaty';
+  // 'treaty' (a verified treaty) and 'committee' (the oversight committee): nothing sets them until W5/W6 (W1d).
   if (lab === 'china') return 'beijing';
   const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(lagDays(s, id, lab)) < 90 && (id !== 'player' || s.player.status === 'active'));
   if (lab !== 'player') {
     if (near) return 'multipolar';
     return KIND_POWER[labOf(s, lab)?.npc.kind ?? 'bigtech'] ?? 'corporate';
   }
-  if (s.gov.oversight) return 'committee';
   // W1c stand-in: 'government' needed the DPA plus executive trust < 40; that trust is gone (its stand-in, 55, never
   // meets it), so the outcome waits for W5's government trust.
   if (near) return 'multipolar';

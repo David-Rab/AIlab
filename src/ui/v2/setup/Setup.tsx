@@ -1,6 +1,5 @@
 // Start and setup screens (§6.9, §6.10). "AI 2027 scenario" is the only pre-game use of the name.
 import { useRef } from 'react';
-import { GOV_PRESETS, PUBLIC_PRESETS } from '../../../data/actors';
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
@@ -129,7 +128,6 @@ function StartPicker() {
   );
 }
 
-const presetOpts = (xs: { id: string; name: string; desc: string }[]): Opt<string>[] => [{ v: 'realistic', label: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...xs.map((x) => ({ v: x.id, label: x.name, desc: x.desc.replace(/[^.]*AI 2027[^.]*\.\s*/g, '').trim() }))]; // canon names only in the World picker (§6.9)
 
 export function SetupScreen() {
   const st = useV2();
@@ -163,8 +161,6 @@ export function SetupScreen() {
           <Picker label="Storyteller" k="storyteller" opts={[{ v: 'rising', label: 'Rising', desc: 'Tension builds with each act.' }, { v: 'measured', label: 'Measured' }, { v: 'chaotic', label: 'Chaotic' }]} />
         </div>
         <div className="setup-col">
-          <Picker label="Government" k="gov" opts={presetOpts(GOV_PRESETS)} />
-          <Picker label="Public" k="public" opts={presetOpts(PUBLIC_PRESETS)} />
           <RivalsSection />
           <Picker label="Tutorial (panels unlock by act)" k="tutorial" opts={[{ v: true, label: 'On' }, { v: false, label: 'Off: everything unlocked' }]} />
           <div>

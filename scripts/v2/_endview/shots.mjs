@@ -20,7 +20,6 @@ const cases = [
   ['retired', 'day900', `store.act('RETIRE')`, 3],
   ['chinaTakeover', 'day900', `${LOSE} s.china.lab.core.milestoneDays[6]=s.time.day`, 2],
   ['rivalTakeover', 'day400', `${LOSE} const r=s.rivals.find(r=>r.core.status==='active'); r.core.milestoneDays[6]=s.time.day`, 2],
-  ['war', 'day400', `s.china.rung=6`, 800],
   ['insolvent', 'day900', `s.player.finance.state='insolvent'`, 2],
 ];
 const only = process.argv[2];

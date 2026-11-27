@@ -10,14 +10,20 @@ import { WS4_TUNING } from '../actors/tuning';
 import { adopted } from '../models/paradigms';
 import { stolenModelG } from '../production/diffusion';
 
+/** China's posture rung (0 coexistence … 6 war footing; research/10 §1.4). W1d stand-in until W6: the start value 0,
+ *  so China's weight theft stays off (theftMinRung 2) exactly as at the start of today's game. */
+export const CHINA_RUNG = 0;
+/** China's theft intent 0..100. W1d stand-in until W6: the start value 20. */
+export const CHINA_THEFT_INTENT = 20;
+
 /** P(successful theft in 2 months) = 1/(1 + 19·6^(d−a)) (R11 #24: 5% at d = a, base 6 per level). */
 export function theftP2mo(defence: number, attacker: number): number {
   return 1 / (1 + 19 * Math.pow(6, defence - attacker));
 }
 
 /** Attacker level a = 4 + [China rung ≥ 3] + 0.5·min(1, theftIntent/50), capped at 5 (R11 #24). */
-export function attackerLevel(s: GameStateV2): number {
-  return Math.min(5, 4 + (s.china.rung >= 3 ? 1 : 0) + 0.5 * Math.min(1, s.china.meters.theftIntent / 50));
+export function attackerLevel(_s: GameStateV2): number {
+  return Math.min(5, 4 + (CHINA_RUNG >= 3 ? 1 : 0) + 0.5 * Math.min(1, CHINA_THEFT_INTENT / 50));
 }
 
 /** Share of the player's compute hosted at Gulf sites (sovereign strings lower effective WSL by 0.3 there). */
@@ -39,10 +45,10 @@ export const P25_DEFENCE = 0.5;
 
 /** Daily theft hazard on a target with security `sec` holding a model `leadDays` ahead of China (§3.6). */
 export function theftHazardOn(s: GameStateV2, sec: SecurityState, leadDays: number, gulf = 0): number {
-  if (leadDays <= 90 || s.china.lab.core.status !== 'active' || s.china.rung < WS4_TUNING.theftMinRung) return 0; // China holds nothing worth stealing
+  if (leadDays <= 90 || s.china.lab.core.status !== 'active' || CHINA_RUNG < WS4_TUNING.theftMinRung) return 0; // China holds nothing worth stealing
   // P25 Formal verification at scale (model v3 V2): verified infrastructure, +0.5 defence level for the player.
   const p = theftP2mo(effectiveDefence(sec, gulf) + (sec === s.player.security && adopted(s, 'P25') ? P25_DEFENCE : 0), attackerLevel(s));
-  return (-Math.log(1 - Math.min(0.999, p)) / 61) * (s.china.meters.theftIntent / 100);
+  return (-Math.log(1 - Math.min(0.999, p)) / 61) * (CHINA_THEFT_INTENT / 100);
 }
 
 /** Daily theft hazard against the player (§3.6). */
@@ -87,11 +93,9 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     const pDetect = clamp(0.5 + 0.1 * (sec.wsl - 2) + 0.3 * sec.counterIntel, 0, 1);
     if (ctx.rng('security').chance(pDetect)) {
       sec.detectedThefts.push(v.id);
-      w.lastTheftOrCyberDay = ctx.day;
       ctx.log('alert', `Security detects that the weights of ${v.name} were stolen.`, 5, v.id);
       request(s, 'E10', { versionId: v.id });
     }
-    ctx.bump('china.theftIntent', -15, 'theft succeeded');
   } else {
     const r = s.rivals.find((x) => x.core.id === victim) as RivalLab | undefined;
     if (!r || r.core.status !== 'active') return;
@@ -106,7 +110,6 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });
     if (ctx.rng('security').chance(0.5)) {
       ctx.log('rival', `${r.core.name} reports that its model weights were stolen.`, 4, victim);
-      ctx.bump('gov.securityDemand', 8, 'rival theft');
     }
   }
 }

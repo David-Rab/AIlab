@@ -1,6 +1,5 @@
 // Hidden world sampling at newGame (V2-SPEC §2.3). Owner: WS1. All draws from stream 'world', in spec order.
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
-import { CHINA_PRESETS, GOV_PRESETS, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS, METHOD_SCALE, METHOD_TESTED_OOM, ORGANISM_REALISM } from '../../../data/v2/agendas';
 import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { drawAt, drawCount, timelineOf } from '../../../data/v2/timelineWorlds';
@@ -29,12 +28,6 @@ export const DIFFICULTY_RANGE: [number, number] = [0.6, 1.65];
 function drawEdge(rng: Rng, e: EdgeDef, schemingDefault: number): number {
   const wBar = e.schemingScaled ? e.wBar * Math.exp(0.5 * schemingDefault) : e.wBar;
   return wBar * clamp(Math.exp(rng.normal(0, GRADE_SIGMA[e.grade] * EDGE_SIGMA_SCALE)), EDGE_FACTOR_RANGE[0], EDGE_FACTOR_RANGE[1]);
-}
-
-export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng, list: readonly T[], choice: string): T {
-  if (choice !== 'realistic') return list.find((p) => p.id === choice) ?? list[0];
-  // Weight-0 entries (the leader archetype) are never drawn; filtering them keeps the draw identical.
-  return rng.weighted(list.filter((p) => p.weight > 0).map((p) => ({ item: p, weight: p.weight })));
 }
 
 /** R3.1: a per-game draw world's AIFM run: the index in the timeline's SAR group is a hash of the game's seed (no named stream moves, so a
@@ -136,10 +129,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
     ? rng.weighted<EconPresetId>([{ item: 'normal', weight: 35 }, { item: 'ai2027', weight: 45 }, { item: 'gate', weight: 20 }])
     : setup.econ;
 
-  // 9. Actor presets (v1 lists, Realistic weights) and postures (R17 §1.6.4, ±0.15 noise in Realistic).
-  const gov = pickWeighted(rng, GOV_PRESETS, setup.gov).id;
-  const pub = pickWeighted(rng, PUBLIC_PRESETS, setup.public).id;
-  const china = pickWeighted(rng, CHINA_PRESETS, setup.china).id;
+  // 9. Postures (R17 §1.6.4, ±0.15 noise in Realistic). The actor presets (gov, public, China) were deleted in W1d.
   // The NPC cast is built from setup.cast (core/init.ts), which writes the labs' postures (npc/lab.ts postureOfKind): nothing is drawn for them.
   const noise = 0.15;
   const rivalPostures: Record<LabId, SafetyPosture> = {};
@@ -151,7 +141,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   return {
     timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity, econ,
     doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), organismRealism: organismRealismOf(setup.seed), methodScale: methodScaleOf(setup.seed), difficultyMult,
-    actorPresets: { gov, public: pub, china }, rivalPostures, chinaPosture,
+    rivalPostures, chinaPosture,
   };
 }
 

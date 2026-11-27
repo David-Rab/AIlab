@@ -102,7 +102,6 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
     cash: s.player.finance.cash,
     leadRival,
     leadChina: leadDays(s, 'china').est,
-    approval: s.pub.approval,
     misTrue: v ? misalignment(v.traitsTrue, v.uModes) : 0,
   };
 }

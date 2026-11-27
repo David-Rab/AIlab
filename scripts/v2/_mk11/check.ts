@@ -12,7 +12,6 @@ import { tick } from '../../../src/engine/v2/core/loop';
 import { revenueReadout } from '../../../src/engine/v2/worldfx/revenue';
 import { worldMix } from '../../../src/engine/v2/worldfx/mix';
 import { frictionOf } from '../../../src/engine/v2/worldfx/sectors';
-import { policyState } from '../../../src/engine/v2/worldfx/policy';
 import { SECTOR_BY_ID } from '../../../src/data/v2/sectors';
 import { agentsGate, measuredHorizonH } from '../../../src/engine/v2/models/products';
 import { certifiedBuyerShare, certifiedHere } from '../../../src/engine/v2/models/certs';
@@ -119,7 +118,7 @@ for (const d of live) console.log(`  ${d.id} ${d.channel}: Agent mode ${d.featur
       const mix = worldMix(x);
       const m = mix.sec.US[sid];
       const share = certifiedBuyerShare(x, sid, m.playerProdW);
-      return { share, R: frictionOf(x, 'US', SECTOR_BY_ID[sid], policyState(x), share * (m.share[mix.providers.findIndex((p) => p.key === 'player')] ?? 0)) };
+      return { share, R: frictionOf(x, 'US', SECTOR_BY_ID[sid], share * (m.share[mix.providers.findIndex((p) => p.key === 'player')] ?? 0)) };
     };
     const ae = a.player.deployments.find((d) => d.id === ent.id)!;
     const certSecs = (ae.certs ?? []).map((c) => c.sector);

@@ -3,6 +3,7 @@
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { reqSpend, wslFloor, WSL_TARGET_RANGE } from '../security/security';
+import { CHINA_THEFT_INTENT } from '../security/theft';
 import { buildCapacity } from '../departments/teams';
 import { upkeepLines } from '../departments/build';
 import type { GameStateV2, LogEntry } from '../types';
@@ -31,7 +32,7 @@ export interface SecurityLevelRow {
  *  believed theft odds and the time to reach it. */
 export function securityLevelsView(s: GameStateV2): { rows: SecurityLevelRow[]; floorNow: number; floor2027: number; rate: number } {
   const sec = s.player.security;
-  const intent = s.china.meters.theftIntent;
+  const intent = CHINA_THEFT_INTENT; // W1d stand-in until W6
   const online = s.player.computeOnline;
   const now = Math.round(sec.wsl * 10) / 10;
   const rows: SecurityLevelRow[] = [{ level: now, spend: reqSpend(sec.wsl, online), theft: believedTheftChance(sec.wsl, intent), days: 0, now: true }];

@@ -50,7 +50,7 @@ import { robotAvail } from './robots';
 import { agentCeilingOf, seatHoursPerMonth, workHoursOf, type AgentCeiling } from './use';
 import { bandMu, mergeChoices, surplusChoice, type Choice, type Tier } from './choice';
 import { buyerGroups } from '../../../data/v2/market';
-import { techRamp } from './policy';
+import { techRamp } from './util';
 import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
@@ -315,11 +315,10 @@ function access(p: Provider, r: RegionId): number {
   return 1;
 }
 
-function playerBrand(s: GameStateV2): number {
-  // ±0.1 with approval (§3.11.1). RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
-  // stock (CUSTOMER_TAU switching inertia), the same for every provider.
-  return 1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50));
-}
+/** The player's brand factor on demand: ±0.1 with approval (§3.11.1). W1d stand-in until W4: approval is gone, so ×1.
+ *  RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer stock (CUSTOMER_TAU
+ *  switching inertia), the same for every provider. */
+const PLAYER_BRAND = 1;
 
 /** Compute the world mix (memoised per tick when a ctx is given). */
 export function worldMix(s: GameStateV2, ctx?: SystemCtx): WorldMix {
@@ -425,7 +424,7 @@ const tiersOf = (s: GameStateV2, r: RivalLab) =>
 /** The market's providers (computeMix's list, in its order). */
 function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelVersion>): Provider[] {
   const providers: Provider[] = [];
-  if (paid.length) providers.push({ key: 'player', lab: 'player', paid: true, open: false, brand: playerBrand(s), appeal: 1, markup: 1 });
+  if (paid.length) providers.push({ key: 'player', lab: 'player', paid: true, open: false, brand: PLAYER_BRAND, appeal: 1, markup: 1 });
   const open = s.player.deployments.filter((d) => d.channel === 'open' && d.status !== 'withdrawn');
   if (open.length) {
     let best: ModelVersion | undefined;

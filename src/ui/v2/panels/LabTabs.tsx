@@ -9,6 +9,7 @@ import {
   securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
 } from '../../../engine/v2';
 import { privilegedOf } from '../../../engine/v2/security/security';
+import { CHINA_THEFT_INTENT } from '../../../engine/v2/security/theft';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
 import { P0, PREMIUM_STEPS, W0 } from '../../../data/v2/labourMarket';
@@ -432,7 +433,7 @@ function WeightSecurity({ s }: { s: GameStateV2 }) {
 
 function TheftRisk({ s }: { s: GameStateV2 }) {
   const sec = s.player.security;
-  const intent = s.china.meters.theftIntent;
+  const intent = CHINA_THEFT_INTENT;
   const p = believedTheftChance(sec.wsl, intent);
   const partW = Math.max(0, 0.05 + (3.5 - sec.wsl) * 0.15);
   const partI = Math.max(0, Math.min(100, intent)) / 300;
@@ -445,12 +446,12 @@ function TheftRisk({ s }: { s: GameStateV2 }) {
       <Tip content={() => <TipCard title="Weight security's part" value={F.pct(partW)}>Falls as weight security rises; nothing past 3.8.</TipCard>}>
         <div className="ls-drv"><span>Weight security</span><span className="lh-meter w"><i style={{ width: `${(partW / tot) * 100}%`, background: '#6f8fb5' }} /></span><span className="num dim">{F.pct(partW / tot)}</span></div>
       </Tip>
-      <Tip content={() => <TipCard title="China's intent's part" value={F.pct(partI)}>Rises with China&apos;s theft intent (Relations).</TipCard>}>
+      <Tip content={() => <TipCard title="China's intent's part" value={F.pct(partI)}>Rises with China&apos;s theft intent.</TipCard>}>
         <div className="ls-drv"><span>China&apos;s intent</span><span className="lh-meter w"><i style={{ width: `${(partI / tot) * 100}%`, background: '#d0804a' }} /></span><span className="num dim">{F.pct(partI / tot)}</span></div>
       </Tip>
       <div className="ls-kv">
         <div className="row"><span>Who wants your weights</span><span><b>{s.china.lab.core.name}</b> <span className="dim">· China</span></span></div>
-        <div className="row"><Term id="theftIntent">Theft intent</Term><Ref id="theftIntent" to={{ panel: 'relations' }}>Relations</Ref></div>
+        <div className="row"><Term id="theftIntent">Theft intent</Term><b className="num">{intent.toFixed(0)}</b></div>
         <Tip content={() => <TipCard title="Thefts detected" value={detected ? String(detected) : 'none'}>Thefts of your weights your security team has found.</TipCard>}>
           <div className="row"><span>Thefts detected</span><b className={detected ? 'tone-neg' : ''}>{detected ? detected : <span className="row-i"><ICON.check size={12} /> none</span>}</b></div>
         </Tip>
@@ -478,7 +479,7 @@ function Access({ s }: { s: GameStateV2 }) {
           <div className="row sub"><span>people with access</span><span className="num">{SILO.map((o) => F.count(at(o.lv))).join(' · ')}</span></div>
         </Tip>
         <div className="row"><Term id="counterIntel">Counter-intelligence</Term><span className="row-i"><Tip content={() => <TipCard title={<Term id="counterIntel">Counter-intelligence</Term>} value={F.pct(sec.counterIntel)}>Finds thefts and spies. Each step +20% for $0.1B a year.</TipCard>}><b className="num">{F.pct(sec.counterIntel)}</b></Tip><ActBtn id="SEC_CI" icon={ICON.plus} label="" ariaLabel="More counter-intelligence" /></span></div>
-        <Tip content={() => <TipCard title={<Term id="clearances">Security clearances</Term>} value={sec.clearances ? 'required' : 'not required'}>Government clearances for frontier work: fewer spies, but some staff are sidelined while they are vetted.</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="clearances">Security clearances</Term>} value={sec.clearances ? 'required' : 'not required'}>Government clearances for frontier work: fewer spies get in.</TipCard>}>
           <div className="row"><Term id="clearances">Security clearances</Term><b>{sec.clearances ? 'required' : 'not required'}</b></div>
         </Tip>
         <Tip content={() => <TipCard title={<Term id="ssl">Secrets security</Term>} value={lvl(sec.ssl)}>How hard your know-how is to leak. It follows weight security, 0.6 behind.</TipCard>}>

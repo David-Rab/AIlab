@@ -12,7 +12,7 @@
 import { SECTORS, SECTOR_BY_ID, US_EMPLOYMENT, REGION_SCALE } from '../../../data/v2/sectors';
 import { decimalYear } from '../core/time';
 import type { GameStateV2, RegionId, SectorId, SystemCtx } from '../types';
-import { econOf, policyState, techRamp } from './policy';
+import { econOf, techRamp } from './util';
 
 export const ROBOT = {
   stock0: 1.5e6,
@@ -61,16 +61,10 @@ export function advanceRobots(s: GameStateV2, ctx: SystemCtx): void {
   const R = s.world.robots;
   const fx = s.world.fx;
   const dt = 1 / 365;
-  const pol = policyState(s);
   const econ = econOf(s);
 
-  // SEZs open (policy, WS4) → car-plant conversion (100k/month, → 1M/month within ~a year) [A27].
-  if (pol.sez && !R.sezOpen) {
-    R.sezOpen = true;
-    fx.sezProd = Math.max(fx.sezProd, ROBOT.sezOpenRate);
-    if (fx.sezDay < 0) fx.sezDay = ctx.day;
-  }
-  if (!pol.sez && R.sezOpen) R.sezOpen = false;
+  // SEZs open → car-plant conversion (100k/month, → 1M/month within ~a year) [A27]. The government's SEZ policy went
+  // with the government actor (W1d): nothing opens them until W5 (fx.sezProd at ROBOT.sezOpenRate, fx.sezDay = today).
   const sezAge = fx.sezDay >= 0 ? (ctx.day - fx.sezDay) / 365 : -1;
   const conv = R.sezOpen && sezAge >= 0 && sezAge < ROBOT.sezRampYears ? ROBOT.sezRampPerYear * dt : 0;
 

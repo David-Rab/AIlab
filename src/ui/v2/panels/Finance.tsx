@@ -789,7 +789,7 @@ function SignedDeal({ s, d }: { s: GameStateV2; d: StrategicDeal }) {
 
 /** The strings of a deal as pills (each explains itself on hover). `ipName`: the affiliated lab an IP-access string
  *  licenses to (FIN4b). */
-function Strings({ s, partner, strings, years, politics, asic, ipName }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; politics?: PartnerTerms['politics']; asic?: boolean; ipName?: string }) {
+function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; asic?: boolean; ipName?: string }) {
   const rivals = partnerDef(partner)?.competitors ?? [];
   const ip = strings.ipAccess;
   return (
@@ -798,7 +798,6 @@ function Strings({ s, partner, strings, years, politics, asic, ipName }: { s: Ga
       {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' && !ip.trust ? ' Capability-threshold models stay out of the licence (the trust did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
       {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
       {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
-      {politics && <Pill kind="bad" title={`Foreign money: government security demand +${politics.securityDemand}.`}>Washington notices</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
     </>
   );
@@ -874,7 +873,7 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
           {sp.prepaid ? <Pill kind="cost" title="Supplier terms: a lab with a small share of investor money or a short runway prepays part of the first delivery at signing (part of the take-or-pay total).">prepay {F.money(sp.prepaid)} now</Pill> : null}
         </div>
       )}
-      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} politics={t.politics} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} />{t.kind === 'sovereign' && <Pill kind="neu" title="A passive cheque: no seat, no supply, no strings beyond the politics.">passive</Pill>}</div>
+      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} />{t.kind === 'sovereign' && <Pill kind="neu" title="A passive cheque: no seat, no supply, no strings.">passive</Pill>}</div>
       <div className="btn-row"><ActBtn id="fin.partner" params={{ partner: o.partner, ...(choice.supply ? { supply: choice.supply } : {}), exclusive: !!t.options.exclusive.on, ipAccess: !!t.options.ipAccess.on }} label={`Sign with ${o.partner}`} primary icon={ICON.relations} anchor="partner" reason /></div>
     </div>
   );
