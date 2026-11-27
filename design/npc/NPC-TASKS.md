@@ -23,7 +23,7 @@ the merge wave.
 | N2b-1 | NPC lab core: state, init from the Realistic cast, the daily lag / model / release step, adapters so every existing reader keeps working (spec §3–4) | Opus high, reason (c) | N1, N2a, N3 | done, merged |
 | N2b-2 | Race pressure, misalignment m (M_world), incidents (spec §4, §7) | Sonnet high | N2b-1 | done, merged |
 | N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | done, merged (tool build time set to 120 d by the lead) |
-| N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | running |
+| N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | done, merged |
 | N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | running |
 | N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b (funding option 1) | superseded by N8b (designer: NPC money is display-only) |
 | N8b | Simple NPC money: one compute growth 2.25×/yr through the chip market, money display-only, failure only through the bust; keeps N8's LEADER_ID removal and order top-up | Sonnet high | — | running |
@@ -46,3 +46,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N1 | accepted (lead checked the test: max |G(AC) − gSC| 0.0009 on 9 runs) | ~55 min (incl. the decomposition stop and two rescopes) | 0.1-yr grid (quarterly missed AC by up to 1.4 OOM). Progress dips in 3 of 869 runs (max 2.38 OOM below the running max). 4 runs > 0.05 OOM at AC (fast runs at 750-1100 OOM/yr). |
 | N3 fingerprint | identical | ~25 min | botfingerprint --seeds 2 --bots ref (6 games, tl-fast/central/slow): 35b24c9 vs npc f7b6d1d, byte-identical. N3 refactor proven behaviour-neutral for the player. |
 | N2b-1 | accepted (lead re-ran tsc and scripts/v2/npcLabs.ts after the merge: all ok) | 2 h 20 min (over budget; stopped during the whole-game comparison) | SCHEMA_REV 113, no migration: ws4/control/products crash on stale fixtures (expected; regenerate). Open: private labs cannot fund their compute appetite (Marenth 111 d behind by day 900; Lanternworks, Zorvane distressed ~mid-2027) — designer decision. Leftover worktree AI27-npc-n2b1-base for the designer to remove. |
+| N5 | accepted | ~15 min | Rule 7 already read npc.m; projectedMisAtAsi = npcM at max(ASI G, internal G); projectLabMis deleted; otherContain 0.2 × safety emphasis. Moves calibration: maybe (epilogue). |
