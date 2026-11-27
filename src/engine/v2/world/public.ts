@@ -72,11 +72,12 @@ export function approvalPush(s: GameStateV2, ctx: SystemCtx, base: number, why: 
   return ctx.bump('public.approval', approvalScaled(s, base), why);
 }
 
-/** Daily (120): concern drifts to its target, approval to its baseline; a protest headline above the threshold. */
+/** Daily (120): concern drifts to its target, approval to its baseline (× attention on the lab); a protest headline above the threshold. */
 export function stepPublic(s: GameStateV2, ctx?: SystemCtx): void {
   const p = s.public;
   p.concern = clamp(p.concern + (concernTarget(s) - p.concern) * halfLifeK(PUBLIC.concernHalfLifeDays), 0, 100);
-  const base = -PUBLIC.concernToApproval * (p.concern - 50);
+  // The baseline is scaled by the attention on the player's lab: an unknown lab stays neutral (R1: concern about AI is not blame on it).
+  const base = -PUBLIC.concernToApproval * (p.concern - 50) * attention(s, PLAYER_ID);
   p.approval = clamp(p.approval + (base - p.approval) * halfLifeK(PUBLIC.approvalHalfLifeDays), -100, 100);
   if (ctx && p.concern > PUBLIC.protestConcern && (p.lastProtestDay === undefined || ctx.day - p.lastProtestDay >= PUBLIC.protestGapDays)) {
     p.lastProtestDay = ctx.day;
