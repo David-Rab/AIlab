@@ -3,7 +3,7 @@
 // A lease changes timing, not cost: the lessor pays the capex and recovers it with its return, priced by your rating,
 // as funded × CRF(r, n) a year for n years. It adds a long fixed obligation (in the rating's commitments term) and a
 // residual-value guarantee: 50% of the unamortised balance if you walk away, a contingent liability.
-import { BUILD_Q, CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS } from '../../../data/v2/deals';
+import { CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS, SITE_UPFRONT } from '../../../data/v2/deals';
 import type { Commitment$, Day, GameStateV2, Money, Site } from '../types';
 
 /** Capital-recovery factor: the annual payment that repays 1 over `years` at rate `r`. */
@@ -88,7 +88,7 @@ export function buildingGrowth(r: number, etaQ: number, sch: SiteSchedule): numb
   let build = 0;
   if (n <= 0) build = 1;
   else for (let k = k0; k < sch.buildQ; k++) build += g(sch.buildQ - k) / n;
-  return BUILD_Q.upfront * g(etaQ) + (1 - BUILD_Q.upfront) * build;
+  return SITE_UPFRONT * g(etaQ) + (1 - SITE_UPFRONT) * build;
 }
 
 /** Construction interest a site lease capitalises: the mean over its buildings (each its own share of the capex, each

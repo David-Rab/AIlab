@@ -1,6 +1,6 @@
 // Data-centre sites: permits → power and construction side by side → live; installs (DATACENTERS.md §3, DC-TASKS
 // [D-4]..[D-7]). The power wait is fixed at commitment from the world wait (compute/waits.ts). Owner: WS3.
-import { BUILD_Q, CAMPUS, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SCALE, SITE_MIN_MW, SOURCES, type CampusBuildings, type SiteSource } from '../../../data/v2/deals';
+import { BUILD_TIME_EXP, CAMPUS, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SITE_MIN_MW, SITE_UPFRONT, SOURCES, type CampusBuildings, type SiteSource } from '../../../data/v2/deals';
 import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
 import { dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { BaselineId, Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
@@ -11,9 +11,9 @@ import { siteCapacityH, siteLiveMW } from './power';
 export { siteLiveMW };
 import { worldWaitQ } from './waits';
 
-/** Player sites at Jul 2025 (DC-TASKS [D-10]): S1 rented hall and S2 grid campus live (0.6 GW, 0.5M H100e), S3 gas
- *  1.2 GW building to Apr 2026, S4 Red River 1 GW grid: permits done, 17 q power wait, construction from Q4 27, live
- *  Q4 29. */
+/** Player sites at Jul 2025 (DC-TASKS [D-10]; no building above 1 GW): S1 rented hall and S2 grid site live (0.6 GW, 0.5M
+ *  H100e), S3 Lone Pine gas campus of 4 × 300 MW (1.2 GW) building, all four live together in Apr 2026, S4 Red River
+ *  1 GW grid: permits done, 17 q power wait, construction from Q4 27, live Q4 29. */
 export function initialSites(baseline: BaselineId, startDate: string): Site[] {
   const k = baseline === 'reality' ? 0.85 : 1;
   const base = { crash: false, communityPackage: false, spvFunded: 0 };
@@ -22,14 +22,14 @@ export function initialSites(baseline: BaselineId, startDate: string): Site[] {
   const sites: Site[] = [
     { ...base, id: 'S1', name: 'Abilene North', region: 'US', path: 'rent', mw: 300, stage: 'live', stageEndDay: 0, capex: 0, capexPaid: 0, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 0, powerQ: 1, startDay: -500, liveDay: d('2024-01-01') } },
     { ...base, id: 'S2', name: 'Abilene South', region: 'US', path: 'grid', mw: 300, stage: 'live', stageEndDay: 0, capex: 0.3 * 14.2, capexPaid: 0.3 * 14.2, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -700, liveDay: d('2024-07-01') } },
-    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: d('2026-04-01'), capex: 12 * k, capexPaid: 6 * k, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -450, powerDay: d('2026-04-01'), liveAt: d('2026-04-01') } },
+    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: d('2026-04-01'), capex: 12 * k, capexPaid: 6 * k, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 6, powerQ: 0, startDay: -450, powerDay: d('2026-04-01'), liveAt: d('2026-04-01'), buildings: 4, buildingMW: 300, liveDays: [d('2026-04-01'), d('2026-04-01'), d('2026-04-01'), d('2026-04-01')] } },
     { ...base, id: 'S4', name: 'Red River', region: 'US', path: 'grid', mw: 1000, stage: 'power', stageEndDay: d('2027-10-01'), capex: redRiverCapex, capexPaid: 0.05 * redRiverCapex, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 17, startDay: d('2025-04-01'), powerDay: d('2029-10-01'), liveAt: d('2029-10-01') } },
   ];
   return sites;
 }
 
 /** Local opposition strength 0–1 (AntiAI = pub.dcNimby / 100). */
-export const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub.dcNimby / 100));
+const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub.dcNimby / 100));
 
 /** Odds that the large reactive package (E27) unblocks a blocked site: 0.85 − 0.5 × local opposition, ≥ 0.3 [D]. */
 export const reactiveUnblockOdds = (s: GameStateV2) => Math.max(COMMUNITY.unblockMin, COMMUNITY.unblockBase - COMMUNITY.unblockPerAnti * localOpposition(s));
@@ -97,10 +97,10 @@ export function siteSizeError(o: SiteOpts): string | undefined {
 
 /** Permit quarters: the source's, − 1 with fast-track (gas 2 → 1, grid 1 → 0). */
 export const sitePermitQ = (o: SiteOpts) => Math.max(0, SOURCES[o.path].permitQ - (levers(o).fastTrack ? LEVERS.fastTrack.permitQ : 0));
-/** Construction quarters of one building (`o.mw`): rent 0 (the landlord builds); else the source's × (building GW /
- *  refGW)^0.4 (bigger buildings take longer, more slowly than their size), × 0.5 with crash construction, at least 1. */
+/** Construction quarters of one building (`o.mw`): rent 0 (the landlord builds); else the source's × (building GW)^0.4
+ *  (bigger buildings take longer, more slowly than their size), × 0.5 with crash construction, at least 1. */
 export const siteBuildQ = (o: SiteOpts) => (o.path === 'rent' ? 0
-  : Math.max(1, Math.round(SOURCES[o.path].buildQ * Math.pow(o.mw / 1000 / SCALE.refGW, SCALE.buildTimeExp) * (levers(o).crash ? LEVERS.crash.buildMult : 1))));
+  : Math.max(1, Math.round(SOURCES[o.path].buildQ * Math.pow(o.mw / 1000, BUILD_TIME_EXP) * (levers(o).crash ? LEVERS.crash.buildMult : 1))));
 
 /** Power wait in whole quarters, fixed at commitment from today's world wait before the new site joins the queue
  *  [D-4]: grid max(1, round(W × 0.75 if rushed)); gas rushed min(round(W), 4), else max(1, round(W)); rent max(1, round(W)). */
@@ -198,7 +198,7 @@ export function siteSchedule(s: GameStateV2, o: SiteOpts): SiteSchedule {
 
 const SOURCE_LABEL: Record<SiteSource, string> = { rent: 'rented hall', grid: 'grid', gas: 'gas' };
 
-/** Start a new site (one building or a campus of 3 or 5). Pays 5% (BUILD_Q.upfront) of the whole capex now (your
+/** Start a new site (one building or a campus of 3 or 5). Pays 5% (SITE_UPFRONT) of the whole capex now (your
  *  share). Its power wait is fixed now [D-4]. Rent waits for its hall and adds the 5-year rent from go-live; grid and gas
  *  start permits (fast-tracked grid has none and rolls its opposition now). A financing lease (`pay: 'lease'`, not for
  *  rent) has the lessor fund 80% of capex as it is spent. Callers check siteSizeError first; here the building is
@@ -230,7 +230,7 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     addLedger(s, { id: `L-rent-${id}`, payee: 'Data-centre rent', kind: 'lease', perQuarter: ((mw / 1000) * RENT.perGWYear) / 4, startDay: site.stageEndDay, endDay: site.stageEndDay + RENT.years * 365, cancellableNoticeQ: null, penalty: 0 });
   } else site.stageEndDay = dayOfQuarter(start, q + permitQ);
   s.player.sites.push(site);
-  payCapex(s, ctx, site, site.capex * BUILD_Q.upfront);
+  payCapex(s, ctx, site, site.capex * SITE_UPFRONT);
   const extras = [opts.crash && 'crash construction', opts.rush && 'rush power', opts.fastTrack && 'fast-track permits'].filter(Boolean).join(', ');
   ctx.log('company', `${site.name}: ${n > 1 ? `${n} × ${fmtMW(bmw)} ` : `${(mw / 1000).toFixed(1)} GW `}${SOURCE_LABEL[o.path]}${n > 1 ? ' campus' : ''} started${extras ? ` (${extras})` : ''}${leased ? ` (${Math.round(spvFunded * 100)}% funded by ${LESSOR} at ${((o.leaseRate as number) * 100).toFixed(0)}%)` : ''}.`);
   if (!rent && permitQ === 0) advanceSite(s, ctx, site, q); // fast-track grid: permits end now, the roll happens now
@@ -268,11 +268,10 @@ export function siteLeasePerYear(site: Site, funded = site.ws3.lease?.funded ?? 
 function schedule(s: GameStateV2, site: Site, pq: number) {
   const w = site.ws3;
   const start = s.time.startDate;
-  const total = Math.max(w.buildQ, w.powerQ);
   w.powerDay = dayOfQuarter(start, pq + w.powerQ);
   w.liveDays = Array.from({ length: w.buildings ?? 1 }, (_, k) => dayOfQuarter(start, pq + Math.max(w.powerQ, w.buildQ + k)));
   w.liveAt = w.liveDays[0];
-  const buildStart: Day = dayOfQuarter(start, pq + total - w.buildQ);
+  const buildStart: Day = dayOfQuarter(start, pq + Math.max(w.buildQ, w.powerQ) - w.buildQ);
   if (buildStart <= s.time.day) startBuilding(s, site);
   else {
     site.stage = 'power';
@@ -339,7 +338,7 @@ function buildStep(s: GameStateV2, ctx: SystemCtx, site: Site) {
     site.ws3.liveDay = day;
   }
   if (live > before) ctx.log('company', `${site.name}: building ${live} of ${n} live (${fmtMW(siteLiveMW(site, day))} of ${fmtMW(site.mw)}).`);
-  const share = (site.capex * (1 - BUILD_Q.upfront)) / n;
+  const share = (site.capex * (1 - SITE_UPFRONT)) / n;
   let unstarted = 0, qLeft = 0;
   const building: number[] = [];
   days.forEach((d, k) => {

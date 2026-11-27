@@ -98,17 +98,31 @@ export function cashFlows(s: GameStateV2): Flow[] {
     if (o.pay === 'lease' && o.leaseRate !== undefined) out.push({ part: 'commitments', perDay: -(amount * crf(o.leaseRate, CAPEX_LEASE.years.chips)) / 365, from: due, to: due + CAPEX_LEASE.years.chips * 365 });
     else out.push({ part: 'chips', amount: -amount * (o.pay === 'loan' ? 1 - DEBT_SIZING.chipLTV * DEBT_SIZING.chipHaircut : 1), day: due });
   }
-  // Site capex: the quarterly site step pays (capex left) / (quarters left) while building, the rest at go-live.
-  // A site still permitting or waiting on power is assumed to start building when that stage ends.
+  // Site capex: the quarterly site step pays (capex left) / (quarters left) while building, the rest at go-live (a
+  // campus: by its last building). A site still permitting or waiting on power is assumed to start building when that
+  // stage ends; a campus with some buildings live is still building.
   for (const x of s.player.sites) {
-    if (x.stage !== 'building' && x.stage !== 'power' && x.stage !== 'permitting') continue;
+    const days = x.ws3?.liveDays;
+    const campusBuilding = x.stage === 'live' && !!days && days[days.length - 1] > day;
+    if (x.stage !== 'building' && x.stage !== 'power' && x.stage !== 'permitting' && !campusBuilding) continue;
     const own = 1 - x.spvFunded;
     let left = x.capex - x.capexPaid;
     if (left <= 1e-6 || own <= 0) continue;
-    const buildFrom = x.stage === 'building' ? 0 : nextQ(Math.max(x.stageEndDay, day + 1));
-    const end = x.stage === 'building' ? x.stageEndDay : dayOfQuarter(start, qOf(s, buildFrom) + (x.ws3?.buildQ ?? 8));
-    // A leased site starts paying its lease at go-live: on what the lessor has funded plus its share of the rest.
-    if (x.ws3?.lease) out.push({ part: 'commitments', perDay: -siteLeasePerYear(x, x.ws3.lease.funded + left * x.spvFunded) / 365, from: Math.max(day, end), to: far });
+    const building = x.stage === 'building' || campusBuilding;
+    const buildFrom = building ? 0 : nextQ(Math.max(x.stageEndDay, day + 1));
+    const end = building ? (days ? days[days.length - 1] : x.stageEndDay) : dayOfQuarter(start, qOf(s, buildFrom) + (x.ws3?.buildQ ?? 8));
+    // A leased site pays one lease per building, each from the day that building goes live, on what the lessor has
+    // funded for it plus an equal share of what it will still fund for the buildings without a lease (DC-15). A
+    // single building: one lease from go-live. A campus still permitting has no building days yet: building k at permits
+    // end + max(power, construction + k) quarters, as schedule() will set them (compute/sites.ts).
+    const L = x.ws3?.lease;
+    if (L) {
+      const n = L.byBuilding.length, open = n - L.booked;
+      for (let k = L.booked; k < n; k++) {
+        const from = n === 1 ? end : days ? days[k] : dayOfQuarter(start, qOf(s, buildFrom) + Math.max(x.ws3.powerQ, x.ws3.buildQ + k));
+        out.push({ part: 'commitments', perDay: -siteLeasePerYear(x, L.byBuilding[k] + (left * x.spvFunded) / open) / 365, from: Math.max(day, from), to: far });
+      }
+    }
     for (let k = 1; k <= PROJECTION_Q + 1 && left > 1e-6; k++) {
       const D = dayOfQuarter(start, q0 + k);
       if (D < buildFrom) continue;

@@ -1,7 +1,6 @@
-// Power grid, online compute and compute pools (V2-SPEC §3.8, §2.2 order 20). Owner: WS3.
+// Online compute, power and O&M bills, and compute pools (V2-SPEC §2.2 order 20; sites: DATACENTERS.md). Owner: WS3.
 import { OM_RATE, POWER_PRICE, SOURCES } from '../../../data/v2/deals';
-import { memo } from '../core/memo';
-import type { ComputeSplit, Day, EngineSystem, GameStateV2, LabId, PowerGrid, Site, SystemCtx } from '../types';
+import type { ComputeSplit, Day, EngineSystem, GameStateV2, LabId, PowerGrid, Site } from '../types';
 import { ensureWs3 } from '../finance/ext';
 import { labCore } from '../models/labs';
 import { hiddenComputeH } from '../safety/footholds';
@@ -57,9 +56,6 @@ export function poolsOf(s: GameStateV2, lab: LabId = 'player'): ComputeSplit {
   return out;
 }
 
-/** Memoised pools for this tick ('WS3:pools:<lab>'). */
-export const poolsMemo = (s: GameStateV2, ctx: SystemCtx, lab: LabId = 'player') => memo(ctx, `WS3:pools:${lab}`, () => poolsOf(s, lab));
-
 /** Power + O&M of owned sites, $B/yr: kW × 8760 h × $0.083/kWh × source multiplier (gas 0.5×), plus 3% a year of the
  *  capex of the buildings live today (a campus's capex × live MW ÷ total MW) and of the chip book [R15]. */
 export function powerAndOMPerYear(s: GameStateV2): number {
@@ -78,16 +74,14 @@ export function powerAndOMPerYear(s: GameStateV2): number {
 }
 
 /** computeOnline (20, daily): player online H100e less what hidden compute footholds reserve (model v3 E8: the lab's
- *  usable compute; the gap to the installed fleet is the "unexplained compute use" symptom); pools memoised for the
- *  tick. Rivals' and China's online compute grows by chip deliveries in marketQ (installed directly; no site model for
+ *  usable compute; the gap to the installed fleet is the "unexplained compute use" symptom). Rivals' and China's online compute grows by chip deliveries in marketQ (installed directly; no site model for
  *  non-player labs). */
 export const computeOnlineSystem: EngineSystem = {
   id: 'computeOnline', owner: 'WS3', cadence: 'daily', order: 20, system: 'compute',
-  run(s, ctx) {
+  run(s) {
     ensureWs3(s);
     const online = computeOnlineOf(s);
     const hidden = hiddenComputeH(s);
     s.player.computeOnline = hidden > 0 ? Math.max(0, online - hidden) : online;
-    poolsMemo(s, ctx);
   },
 };

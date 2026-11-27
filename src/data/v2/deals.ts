@@ -1,5 +1,5 @@
-// Strategic partners, debt instruments, site power paths and market constants (FINANCE-V3 §3–§6; V2-SPEC §3.8;
-// research/15 §1.2, §1.3, §1.7; research/21 §1 B). Owner: WS3.
+// Strategic partners, debt instruments, data-centre sites and market constants (FINANCE-V3 §3–§6; DATACENTERS.md for
+// sites and power; V2-SPEC §3.8 and research/15 §1.2, §1.7 for the market and debt; research/21 §1 B). Owner: WS3.
 // Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
 import type { Debt, PartnerKind, PartnerSupply } from '../../engine/v2/types';
 
@@ -102,14 +102,14 @@ export const CAPEX_LEASE = { rate: { BBB: 0.07, BB: 0.09, B: 0.12 } as Partial<R
 export const FIRM_TERMS = { discount2y: 0.05, discount4y: 0.1, cancellableMult: 1.15, noticeQ: 1 } as const;
 /** Firm discount for a contract of `quarters`. */
 export const firmDiscount = (quarters: number) => (quarters >= 16 ? FIRM_TERMS.discount4y : quarters >= 8 ? FIRM_TERMS.discount2y : 0);
-/** Community packages (FIN1, spec §4; research/16, /17). Upfront ≈ 3% of site capex halves the block odds (kept). After
- *  a block (E27): ≈ 15% of capex and a 2-quarter permit delay; it unblocks with odds 0.85 − 0.5 × local opposition
- *  (pub.dcNimby / 100), at least 0.3 [D]. */
-export const COMMUNITY = { upfront: 0.03, blockMult: 0.5, reactive: 0.15, reactiveDelayQ: 2, unblockBase: 0.85, unblockPerAnti: 0.5, unblockMin: 0.3 } as const;
+/** The reactive community package after a block (E27; FIN1, spec §4; research/16, /17): ≈ 15% of capex and a 2-quarter
+ *  permit delay; it unblocks with odds 0.85 − 0.5 × local opposition (pub.dcNimby / 100), at least 0.3 [D]. The upfront
+ *  package is LEVERS.community. */
+export const COMMUNITY = { reactive: 0.15, reactiveDelayQ: 2, unblockBase: 0.85, unblockPerAnti: 0.5, unblockMin: 0.3 } as const;
 
 // Facility $11.4B/GW IT ≈ $10B/GW facility, network $4.9B/GW IT ≈ $4B/GW facility (Epoch, 14 May 2026) [R15].
 export const FACILITY_PER_GW = 10;
-export const NETWORK_PER_GW = 4;
+const NETWORK_PER_GW = 4;
 /** Building sizes offered by the build card (DATACENTERS §5b: size = one building; rent: the hall size). Hall ≈ one
  *  ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two halls); 1 GW ≈ the largest live sites in 2026 (Epoch AI
  *  data centers hub) [D]. Bigger sites are campuses of several buildings (CAMPUS). */
@@ -121,7 +121,7 @@ export const SITE_TIERS = [
 /** Fixed chip order and cloud sizes, H100e [D]. */
 export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
 /** Share of a site's capex paid at commitment (the rest over the construction quarters; rent: at go-live) [D-7]. */
-export const BUILD_Q = { upfront: 0.05 } as const;
+export const SITE_UPFRONT = 0.05;
 /** Power price $/kWh (8.3¢ grid tariff, R15) and O&M 3% of capex per year [R15]. */
 export const POWER_PRICE = 0.083;
 export const OM_RATE = 0.03;
@@ -129,8 +129,8 @@ export const OM_RATE = 0.03;
 // ---- DC data block (DATACENTERS.md §2–§5): sources, levers and waits. ----
 export type SiteSource = 'rent' | 'grid' | 'gas';
 /** Building = facility $10B + network $4B per GW (Epoch May 2026: $11.4B/GW IT facility + $4.9B network). */
-export const BUILDING_PER_GW = FACILITY_PER_GW + NETWORK_PER_GW; // 14
-export interface SourceDef { permitQ: number; buildQ: number; maxMW: number; upfrontPerGW: number;
+const BUILDING_PER_GW = FACILITY_PER_GW + NETWORK_PER_GW; // 14
+interface SourceDef { permitQ: number; buildQ: number; maxMW: number; upfrontPerGW: number;
   extraPerGW: number; powerCostMult: number; blockBase: number; delayBase: number }
 export const SOURCES: Record<SiteSource, SourceDef> = {
   // rent: hall in a colo/neocloud campus; you pay the network ($4B/GW); landlord builds; no opposition
@@ -141,10 +141,10 @@ export const SOURCES: Record<SiteSource, SourceDef> = {
   gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
 };
 export const SITE_MIN_MW = 100;
-/** Construction time of one building (DATACENTERS §5b): the source's quarters × (building GW / refGW)^0.4, 9.5 q at
- *  1 GW (Epoch timelines fit, research/23 §9). No cost economy of size (research/23 §9: cost per MW flat or rising
- *  with size); the saving comes from repetition (CAMPUS). */
-export const SCALE = { refGW: 1, buildTimeExp: 0.4 } as const;
+/** Construction time of one building (DATACENTERS §5b): the source's quarters × (building GW)^0.4, 9.5 q at 1 GW
+ *  (Epoch timelines fit, research/23 §9). No cost economy of size (research/23 §9: cost per MW flat or rising with
+ *  size); the saving comes from repetition (CAMPUS). */
+export const BUILD_TIME_EXP = 0.4;
 /** Campuses (DATACENTERS §5b): 1, 3 or 5 buildings of the same size on one site (grid, gas; rent is one hall).
  *  Repeating the design cuts the building cost 10% (3) / 15% (5) (McKinsey: standardisation saves 10–20%
  *  [unverified snippet]; values [design]). The source's size cap applies to the campus total. */

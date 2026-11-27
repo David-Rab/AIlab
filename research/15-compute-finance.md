@@ -165,6 +165,8 @@ At Q4 2026 this is about $8-9K, against AI27's derived ~$7.5K for 2026. Cloud â‰
 
 ## 1.3 Power and datacenters
 
+> Replaced by [design/DATACENTERS.md](../design/DATACENTERS.md) (2026-11-27): sources, waits, levers and campuses there; data in research/23. The text below is history.
+
 Chips are useless until **installed** in a **site** with free MW. Delivered but uninstalled chips sit in inventory: they depreciate at 6%/q and produce no compute.
 
 ```

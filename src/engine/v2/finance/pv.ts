@@ -2,7 +2,7 @@
 // on undiscounted totals it always looks worse than cash, so the build and buy cards also show each option's payments
 // discounted to today at one stated rate. Pure: reads the options payOptions() returns and the payment timing the
 // engine uses (site build schedule, chip delivery); changes nothing.
-import { BUILD_Q, CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_TERMS } from '../../../data/v2/deals';
+import { CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_TERMS, SITE_UPFRONT } from '../../../data/v2/deals';
 import type { GameStateV2 } from '../types';
 import { buildingGrowth, leaseRate, scheduleEtas, type PayOption, type SiteSchedule } from './capex';
 
@@ -24,7 +24,7 @@ const annuityQ = (r: number, perQ: number, n: number, q0: number) => {
   return a;
 };
 
-/** When a site's own cash goes out, as the engine pays it (BUILD_Q.upfront at the start, the rest in equal parts over
+/** When a site's own cash goes out, as the engine pays it (SITE_UPFRONT at the start, the rest in equal parts over
  *  each building's construction quarters ending at its go-live; see constructionGrowth): PV of 1 of capex, the mean
  *  over the buildings (each an equal share). */
 function siteCashFactor(r: number, sch: SiteSchedule): number {
@@ -34,7 +34,7 @@ function siteCashFactor(r: number, sch: SiteSchedule): number {
     let build = 0;
     if (n <= 0) build = df(r, etaQ);
     else for (let k = k0; k < sch.buildQ; k++) build += df(r, etaQ - sch.buildQ + k) / n;
-    return BUILD_Q.upfront + (1 - BUILD_Q.upfront) * build;
+    return SITE_UPFRONT + (1 - SITE_UPFRONT) * build;
   };
   const etas = scheduleEtas(sch);
   return etas.reduce((a, e) => a + one(e), 0) / etas.length;
