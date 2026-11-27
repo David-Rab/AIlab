@@ -312,10 +312,9 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   m.geoTW = geoTWAt(decimalYear(s));
   if (w.exoMultDecay > 0) w.exoMult = 1 + (w.exoMult - 1) * (1 - w.exoMultDecay);
 
-  // 2. Inventory ages: last quarter's deliveries become installable; idle chips lose 6% book value.
+  // 2. Inventory ages: last quarter's deliveries become installable.
   fx.inventory.ready += fx.inventory.transit;
   fx.inventory.transit = 0;
-  fx.inventory.book *= 1 - MARKET.inventoryDecayQ;
 
   // 3–4. Capacity arrives; supply S_t = min(components) × geo factors.
   arrive(m);

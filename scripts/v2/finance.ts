@@ -15,7 +15,7 @@ import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
 import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
-import { newSite, oppositionOdds, reactiveUnblockOdds, siteSchedule } from '../../src/engine/v2/compute/sites';
+import { newSite, oppositionOdds, reactiveUnblockOdds, siteLiveMW, siteSchedule } from '../../src/engine/v2/compute/sites';
 import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { chipCollateral, creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
@@ -120,7 +120,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
     }
     if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) firstDistress = s.time.day;
     if (s.time.day === END_2026 - 1) {
-      const liveMW = s.player.sites.reduce((a, x) => a + (x.stage === 'live' ? x.mw : 0), 0);
+      const liveMW = s.player.sites.reduce((a, x) => a + siteLiveMW(x, s.time.day), 0);
       const cloud = s.player.cloud.reduce((a, c) => a + (c.startDay <= s.time.day && c.endDay > s.time.day ? c.h100e : 0), 0);
       gw2026 = liveMW / 1000 + (cloud * s.power.kWPerH100e) / 1e6;
       v2026 = s.player.finance.valuation;
@@ -300,24 +300,25 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
 // ───────────────────────────── F10: sites ─────────────────────────────
 {
   const s = newGame(defaultSetupV2({ seed: 11 }));
-  s.power.ws3.transformersGW = 1e4;
   const ctx = makeCtx(s);
   const N = 400;
   const ids = new Set<string>();
-  for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'brownfield', mw: 500 }).id);
+  // Rushed gas (used turbines): power wait 4 q, so 2 q of permits and 7 q of construction (500 MW: 9.5 x 0.5^0.4, DATACENTERS 5b) set the go-live; no package.
+  for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'gas', mw: 500, rush: true, community: false }).id);
   s.player.finance.cash = 1e6; // isolate the stage machine from money
-  // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at its start value for the site rolls.
-  const nimby0 = s.pub.dcNimby;
-  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, system: 'core', run: (x) => void (x.pub.dcNimby = nimby0) };
-  // C15 is the permitting roll: WS4's director is off too, else E27 "Site blocked" (default: community deal) re-permits
-  // every blocked site over the 5 years.
+  // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at 45 (public mood 45 ÷ 50 = 0.9, its 2025 start
+  // value) for the site rolls: gas block 10% × 0.9 = 9%, delay 30% × 0.9 = 27% (DATACENTERS §3; odds [design D-6]).
+  const NIMBY = 45;
+  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, system: 'core', run: (x) => void (x.pub.dcNimby = NIMBY) };
+  // The opposition roll at the end of permits: WS4's director is off too, else E27 "Site blocked" (default: community
+  // deal) re-permits every blocked site over the 5 years.
   while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'], extraSystems: [neutral] });
   const sites = s.player.sites.filter((x) => ids.has(x.id));
   const blocked = share(sites.map((x) => x.stage === 'blocked'));
   const delayed = share(sites.map((x) => x.ws3.delayedQ > 0));
   const builds = sites.filter((x) => x.ws3.liveDay !== undefined && x.ws3.buildStartDay !== undefined).map((x) => Math.round(((x.ws3.liveDay as number) - (x.ws3.buildStartDay as number)) / 91.25));
-  check(blocked >= 0.05 && blocked <= 0.1 && delayed >= 0.2 && delayed <= 0.4, 'F10 sites at neutral sentiment: 5–10% blocked, 20–40% delayed (C15)', `blocked ${f1(blocked * 100)}%, delayed ${f1(delayed * 100)}%`);
-  check(median(builds) === 8, 'F10 median construction-to-live 8 quarters (C14)', `median ${median(builds)} q`);
+  check(Math.abs(blocked - 0.09) <= 0.03 && Math.abs(delayed - 0.27) <= 0.05, 'F10 400 rushed gas 500 MW sites at neutral sentiment (dcNimby 45, mood 0.9, no package): blocked 9% ± 3 pp, delayed 27% ± 5 pp (DATACENTERS §3; odds [design D-6])', `blocked ${f1(blocked * 100)}%, delayed ${f1(delayed * 100)}%`);
+  check(median(builds) === 7, 'F10 median construction-to-live 7 quarters, rushed 500 MW gas (C14; 9.5 q x 0.5^0.4, DATACENTERS 5b)', `median ${median(builds)} q`);
 }
 
 // ───────────────────────────── F11: revenue path consumption ─────────────────────────────
@@ -652,7 +653,7 @@ for (const a of FINANCE_ACTIONS) {
     const bigRaise = vote('fin.raise', { ask: 0.5 * s.player.finance.valuation });
     const smallDebt = vote('fin.drawDebt', { kind: 'gpuTerm', amount: 0.5 * R });
     const bigDebt = debtVote(s, 4 * R);
-    const ops = ['cmp.newSite', 'cmp.community', 'cmp.preorderTransformers', 'fin.sellChips'].every((id) => !FINANCE_ACTIONS.find((a) => a.id === id)!.vote) && !vote('cmp.buyChips', { term: 1, qty: 5e6 }) && !vote('cmp.buyChips', { term: 0, qty: 5e6 }) && !vote('cmp.rentCompute', { term: 1, h100e: 5e6 }) && !vote('cmp.rentCompute', { term: 8, h100e: 50e6, firm: false });
+    const ops = ['cmp.newSite', 'cmp.community', 'fin.sellChips'].every((id) => !FINANCE_ACTIONS.find((a) => a.id === id)!.vote) && !vote('cmp.buyChips', { term: 1, qty: 5e6 }) && !vote('cmp.buyChips', { term: 0, qty: 5e6 }) && !vote('cmp.rentCompute', { term: 1, h100e: 5e6 }) && !vote('cmp.rentCompute', { term: 8, h100e: 50e6, firm: false });
     const firm = vote('cmp.rentCompute', { term: 8, h100e: 50e6, firm: true });
     check(!bigRaise && !smallDebt && bigDebt?.decision === 'debt' && ops && firm?.decision === 'commitments', 'FIN3a votes: no dilution vote, no 20%-of-revenue debt vote; debt or firm commitments above 3× revenue are voted; compute orders, sites and spot rentals never', `raise of half the valuation: ${bigRaise ? 'voted' : 'no vote'} · debt 0.5× revenue: ${smallDebt ? 'voted' : 'no vote'} · ${bigDebt?.trigger} · ${firm?.trigger}`);
     // A failed vote stops the action with the vote's reason and no side effects (no confidence hit, no block).
@@ -1493,22 +1494,22 @@ for (const a of FINANCE_ACTIONS) {
     check(loan?.decision === 'debt' && lease?.decision === 'commitments' && !cash && !loanRich, 'FIN4r M2 Buy chips on a chip loan needs the debt vote and on a lease the commitments vote (above 3× revenue only); cash needs none', `loan ${loan?.decision} · lease ${lease?.decision} · cash ${cash?.decision ?? 'none'} · loan at $${f1(rich.player.finance.revenueRun)}B revenue ${loanRich?.decision ?? 'none'}`);
   }
   {
-    // M3: a site lease capitalises construction interest on what the lessor has paid: the upfront part over the whole
-    // build-out, each building payment from when it is paid. The booking follows that schedule; the preview uses it.
+    // M3: a site lease capitalises construction interest on what the lessor has paid: the upfront 5% over the whole
+    // wait and build-out, each building payment from when it is paid (nothing is paid while waiting for power; the first
+    // building payment falls in the quarter construction starts [D-7]). The booking follows that schedule; the preview uses it.
     const s = fx();
     s.player.finance.cash = 1e4;
     s.player.finance.rating = 'BB';
     const ids: string[] = [];
     for (let i = 0; i < 4; i++) ids.push(newSite(s, makeCtx(s), { path: 'gas', mw: 500, pay: 'lease', leaseRate: 0.09, community: false }).id);
     const start = qOf(s);
-    const sched = new Map<string, { power: boolean; buildQ0?: number }>();
-    for (const id of ids) sched.set(id, { power: false });
+    const sched = new Map<string, { buildQ0?: number }>();
+    for (const id of ids) sched.set(id, {});
     while (s.time.day < 400 + 6 * 365 && ids.some((id) => { const x = s.player.sites.find((y) => y.id === id)!; return x.stage !== 'live' && x.stage !== 'blocked'; })) {
       tick(s, { skip: ['endings', 'director'] });
       for (const id of ids) {
         const x = s.player.sites.find((y) => y.id === id)!;
         const r = sched.get(id)!;
-        if (x.stage === 'power') r.power = true;
         if (x.stage === 'building' && r.buildQ0 === undefined) r.buildQ0 = qOf(s);
       }
     }
@@ -1521,7 +1522,7 @@ for (const a of FINANCE_ACTIONS) {
       n++;
       const r = sched.get(id)!;
       const liveQ = qOf(s, x.ws3.liveDay ?? s.time.day);
-      const g = constructionGrowth(0.09, { etaQ: liveQ - start, buildQ: liveQ - (r.buildQ0 ?? liveQ), firstNow: !r.power });
+      const g = constructionGrowth(0.09, { etaQ: liveQ - start, buildQ: liveQ - (r.buildQ0 ?? liveQ), firstNow: true });
       const l = s.player.finance.ledger.find((c) => c.id === siteLeaseId(id))!;
       const funded = (l.perQuarter * 4) / crf(0.09, 15);
       if (near(funded, x.capex * CAPEX_LEASE.siteShare * g, 1e-9)) ok++;

@@ -304,33 +304,48 @@ const f3 = (x: number) => x.toFixed(3);
   resetWorkContext(s);
   const ctx = makeCtx(s);
   const pull = successorPull(s);
-  let up = 0;
-  let caught = 0;
-  let wrong = 0;
-  const inc0 = s.player.safety.incidents.length;
-  for (let k = 0; k < 300; k++) {
+  // The mechanism, one act per outcome. An act's fate is a pure function of (seed, run key) and its terms, so pick the
+  // first run key whose draw gives each fate by reading the draws alone (no engine run, no sampling of rates).
+  const fates = (k: string) => pull.parts.map((p) => {
+    const v = s.player.models.versions.find((x) => x.id === p.versionId)!;
+    return covertOutcome(itemTerms(s, v, 'SUCCSTEER', p.share, WORK_TYPES[p.slot].H), covertDraw(s, `SUCC:${k}:${p.slot}`));
+  });
+  const keyFor = (want: (f: string[]) => boolean) => {
+    for (let k = 0; k < 200000; k++) if (want(fates(`R${k}`))) return `R${k}`;
+    return undefined;
+  };
+  const kU = keyFor((f) => f.includes('uncaught'));
+  const kC = keyFor((f) => f.includes('caught') && !f.includes('uncaught'));
+  const kN = keyFor((f) => !f.includes('caught') && !f.includes('uncaught'));
+  check(kU !== undefined && kC !== undefined && kN !== undefined, 'successor steering: an uncaught, a caught and a no-act run each exist among the fixed run keys', `keys ${kU} / ${kC} / ${kN}`);
+  if (kU !== undefined) {
     const n0 = s.player.safety.incidents.length;
-    const out = steerSuccessor(s, ctx, pull, `R${k}`);
-    const nInc = s.player.safety.incidents.length - n0;
-    let nCaught = 0;
-    pull.parts.forEach((p, i) => {
-      const v = s.player.models.versions.find((x) => x.id === p.versionId)!;
-      const o = covertOutcome(itemTerms(s, v, 'SUCCSTEER', p.share, WORK_TYPES[p.slot].H), covertDraw(s, `SUCC:R${k}:${p.slot}`));
+    const out = steerSuccessor(s, ctx, pull, kU);
+    const f = fates(kU);
+    const ok = pull.parts.every((p, i) => {
       const q = out.parts[i];
-      if (o === 'uncaught') { if (!(q.omega === p.share && q.omega > p.omega && q.steered)) wrong++; else up++; }
-      else if (q.omega !== p.omega || q.steered) wrong++;
-      if (o === 'caught') nCaught++;
+      return f[i] === 'uncaught' ? q.omega === p.share && q.omega > p.omega && q.steered === true : q.omega === p.omega && !q.steered;
     });
-    caught += nCaught;
-    if (nInc !== nCaught) wrong++;
+    check(ok && s.player.safety.incidents.length - n0 === f.filter((x) => x === 'caught').length,
+      'successor steering: an uncaught act raises that model\'s pull to its share of the work (κ 1, past oversight); the others keep E4\'s pull',
+      `run ${kU}: ω ${f3(pull.omega)} → ${f3(out.omega)}`);
+    const x0 = { ...s.player.models.versions[0].traitsTrue, SUCC: 0, SCHEME: 0 };
+    const a0 = applySuccessorPull(s, x0, pull);
+    const b0 = applySuccessorPull(s, x0, out);
+    check(out.omega > pull.omega && b0.SUCC > a0.SUCC, 'successor steering: the steered pull moves the new model further toward its makers', `ω ${f3(pull.omega)} → ${f3(out.omega)}; new SUCC ${f3(a0.SUCC)} → ${f3(b0.SUCC)}`);
   }
-  check(up > 0 && caught > 0 && wrong === 0, 'successor steering: an uncaught act raises that model\'s pull to its share of the work (κ 1, past oversight); caught or none leave E4\'s pull; each caught attempt is an incident',
-    `300 runs: ${up} parts raised, ${caught} caught (${s.player.safety.incidents.length - inc0} incidents), ${wrong} mismatches; E4 ω ${f3(pull.omega)}`);
-  const hit = Array.from({ length: 300 }, (_, k) => steerSuccessor(s, ctx, pull, `R${k}`)).find((p) => p.parts.some((x) => x.steered))!;
-  const x0 = { ...s.player.models.versions[0].traitsTrue, SUCC: 0, SCHEME: 0 };
-  const a = applySuccessorPull(s, x0, pull);
-  const b = applySuccessorPull(s, x0, hit);
-  check(hit.omega > pull.omega && b.SUCC > a.SUCC, 'successor steering: the steered pull moves the new model further toward its makers', `ω ${f3(pull.omega)} → ${f3(hit.omega)}; new SUCC ${f3(a.SUCC)} → ${f3(b.SUCC)}`);
+  if (kC !== undefined) {
+    const n0 = s.player.safety.incidents.length;
+    const out = steerSuccessor(s, ctx, pull, kC);
+    const nC = fates(kC).filter((x) => x === 'caught').length;
+    check(out.omega === pull.omega && out.parts.every((q, i) => q.omega === pull.parts[i].omega && !q.steered) && s.player.safety.incidents.length - n0 === nC && nC > 0,
+      'successor steering: a caught attempt is an incident and leaves E4\'s pull', `run ${kC}: ${nC} incident(s), ω ${f3(out.omega)}`);
+  }
+  if (kN !== undefined) {
+    const n0 = s.player.safety.incidents.length;
+    const out = steerSuccessor(s, ctx, pull, kN);
+    check(out.omega === pull.omega && s.player.safety.incidents.length === n0, 'successor steering: no act leaves E4\'s pull and books nothing', `run ${kN}`);
+  }
 }
 
 // ───────────── backdoors and hidden compute: caught → incidents, uncaught → hidden records ─────────────

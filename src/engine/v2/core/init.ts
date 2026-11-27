@@ -364,7 +364,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     relations: { ...initialRelations(rivals.map((r) => r.core.id)), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
-    power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
+    power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
     labour: initialLabour({ rng: rngState, hidden }, rivals.map((r) => r.core.id), player),

@@ -54,7 +54,7 @@ were checked by hand.
 | `power.ts:19` | Chips beyond site power sit idle | **OK** |
 | `orders.ts:55,64` | LTA 4–12 quarters, prepay 30–100% silently clamped | **Show** on the order form |
 | `orders.ts:92-98` | Spot rental ≤ 10% of the market; excess dropped silently | **Show** before commit ("you'll get N of M") |
-| `sites.ts:67` | Site MW clamped to 50–max and the lease pool | **Show** on the form |
+| `sites.ts:67` | Building size 100 MW–1 GW (1, 3 or 5 buildings; the campus total within the source cap) | **Show** on the form |
 | `market.ts:189-212` | Rationing weights | **OK** (vendor fill) |
 
 ## Products, deployments, revenue

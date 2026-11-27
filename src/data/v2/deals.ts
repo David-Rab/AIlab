@@ -1,7 +1,7 @@
-// Strategic partners, debt instruments, site power paths and market constants (FINANCE-V3 §3–§6; V2-SPEC §3.8;
-// research/15 §1.2, §1.3, §1.7; research/21 §1 B). Owner: WS3.
+// Strategic partners, debt instruments, data-centre sites and market constants (FINANCE-V3 §3–§6; DATACENTERS.md for
+// sites and power; V2-SPEC §3.8 and research/15 §1.2, §1.7 for the market and debt; research/21 §1 B). Owner: WS3.
 // Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
-import type { Debt, PartnerKind, PartnerSupply, Site } from '../../engine/v2/types';
+import type { Debt, PartnerKind, PartnerSupply } from '../../engine/v2/types';
 
 export type { PartnerKind, PartnerSupply };
 
@@ -102,59 +102,73 @@ export const CAPEX_LEASE = { rate: { BBB: 0.07, BB: 0.09, B: 0.12 } as Partial<R
 export const FIRM_TERMS = { discount2y: 0.05, discount4y: 0.1, cancellableMult: 1.15, noticeQ: 1 } as const;
 /** Firm discount for a contract of `quarters`. */
 export const firmDiscount = (quarters: number) => (quarters >= 16 ? FIRM_TERMS.discount4y : quarters >= 8 ? FIRM_TERMS.discount2y : 0);
-/** Community packages (FIN1, spec §4; research/16, /17). Upfront ≈ 3% of site capex halves the block odds (kept). After
- *  a block (E27): ≈ 15% of capex and a 2-quarter permit delay; it unblocks with odds 0.85 − 0.5 × local opposition
- *  (pub.dcNimby / 100), at least 0.3 [D]. */
-export const COMMUNITY = { upfront: 0.03, blockMult: 0.5, reactive: 0.15, reactiveDelayQ: 2, unblockBase: 0.85, unblockPerAnti: 0.5, unblockMin: 0.3 } as const;
+/** The reactive community package after a block (E27; FIN1, spec §4; research/16, /17): ≈ 15% of capex and a 2-quarter
+ *  permit delay; it unblocks with odds 0.85 − 0.5 × local opposition (pub.dcNimby / 100), at least 0.3 [D]. The upfront
+ *  package is LEVERS.community. */
+export const COMMUNITY = { reactive: 0.15, reactiveDelayQ: 2, unblockBase: 0.85, unblockPerAnti: 0.5, unblockMin: 0.3 } as const;
 
-/** Site power paths (R15 §1.3). Lead times in quarters; capex $B per GW of facility power. */
-export interface PathDef {
-  permitQ: number;
-  /** Power lead time (quarters) [lo, mode, hi]; the part beyond `overlapQ` adds a 'power' stage. */
-  powerQ: [number, number, number];
-  overlapQ: number;
-  maxMW: number;
-  /** Facility + network capex per GW of facility power ($B). */
-  capexPerGW: number;
-  powerCostMult: number;
-  gas: boolean;
-  needsTransformers: boolean;
-  usesGridPool: boolean;
-}
 // Facility $11.4B/GW IT ≈ $10B/GW facility, network $4.9B/GW IT ≈ $4B/GW facility (Epoch, 14 May 2026) [R15].
 export const FACILITY_PER_GW = 10;
-export const NETWORK_PER_GW = 4;
-export const SITE_PATHS: Record<Site['path'], PathDef> = {
-  lease: { permitQ: 0, powerQ: [0, 0, 0], overlapQ: 0, maxMW: 1500, capexPerGW: NETWORK_PER_GW, powerCostMult: 1, gas: false, needsTransformers: false, usesGridPool: false },
-  brownfield: { permitQ: 1, powerQ: [4, 6, 8], overlapQ: 8, maxMW: 1000, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW, powerCostMult: 1, gas: false, needsTransformers: true, usesGridPool: false },
-  // gas: 6–12 q with aero/recip units; +$1.5–2.5B/GW generation; ~1.3× grid power cost [R15]
-  gas: { permitQ: 2, powerQ: [6, 8, 12], overlapQ: 8, maxMW: 2500, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW + 2, powerCostMult: 1.3, gas: true, needsTransformers: false, usesGridPool: false },
-  // grid: 12–24 q (mode 16; LBNL median 61 months request-to-operation) [R15]
-  grid: { permitQ: 1, powerQ: [12, 16, 24], overlapQ: 4, maxMW: 5000, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW + 0.5, powerCostMult: 1, gas: false, needsTransformers: true, usesGridPool: true },
-  nuclear: { permitQ: 2, powerQ: [12, 16, 20], overlapQ: 8, maxMW: 1000, capexPerGW: FACILITY_PER_GW + NETWORK_PER_GW + 4, powerCostMult: 0.8, gas: false, needsTransformers: true, usesGridPool: false },
-};
-/** Data-centre sizes offered by the build card. Hall ≈ one ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two
- *  halls); campus ≈ the largest live sites in 2026 (~1 GW, Epoch AI data centers hub); multi-GW ≈ 5 GW announced
- *  campuses (Meta Hyperion) [D]. */
+const NETWORK_PER_GW = 4;
+/** Building sizes offered by the build card (DATACENTERS §5b: size = one building; rent: the hall size). Hall ≈ one
+ *  ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two halls); 1 GW ≈ the largest live sites in 2026 (Epoch AI
+ *  data centers hub) [D]. Bigger sites are campuses of several buildings (CAMPUS). */
 export const SITE_TIERS = [
-  { id: 'hall', name: 'Hall', full: 'Data hall', mw: 100 },
-  { id: 'building', name: 'Building', full: 'Data-centre building', mw: 300 },
-  { id: 'campus', name: 'Campus', full: 'Campus', mw: 1000 },
-  { id: 'large', name: 'Large campus', full: 'Large campus', mw: 2500 },
-  { id: 'multi', name: 'Multi-GW', full: 'Multi-gigawatt campus', mw: 5000 },
+  { id: 'hall', mw: 100 },
+  { id: 'building', mw: 300 },
+  { id: 'campus', mw: 1000 },
 ] as const;
 /** Fixed chip order and cloud sizes, H100e [D]. */
 export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
-/** Construction quarters: default 8 (Epoch median ≈ 2 y), crash 4 at +35% capex (xAI Colossus 2) [R15]. 5% of capex is
- *  paid when a site starts, the rest in equal parts over the building quarters (kept; named in FIN4r) [D]. */
-export const BUILD_Q = { normal: 8, crash: 4, crashCapexMult: 1.35, communityCapexMult: 1.03, leaseLo: 1, leaseHi: 3, upfront: 0.05 };
-/** Lease ≈ 12%/yr of $10B per GW facility [R15]; 5-year non-cancellable term [D]. */
-export const LEASE = { perGWYear: 1.2, years: 5, poolGWPerQ: 0.6, poolGrowth: 1.4 };
+/** Share of a site's capex paid at commitment (the rest over the construction quarters; rent: at go-live) [D-7]. */
+export const SITE_UPFRONT = 0.05;
 /** Power price $/kWh (8.3¢ grid tariff, R15) and O&M 3% of capex per year [R15]. */
 export const POWER_PRICE = 0.083;
 export const OM_RATE = 0.03;
-/** Transformers: 8–10 q lead (120–128 weeks); pre-order 20% deposit [R15]; $0.25B per GW [D]. */
-export const TRANSFORMER = { costPerGW: 0.25, depositShare: 0.2 };
+
+// ---- DC data block (DATACENTERS.md §2–§5): sources, levers and waits. ----
+export type SiteSource = 'rent' | 'grid' | 'gas';
+/** Building = facility $10B + network $4B per GW (Epoch May 2026: $11.4B/GW IT facility + $4.9B network). */
+const BUILDING_PER_GW = FACILITY_PER_GW + NETWORK_PER_GW; // 14
+interface SourceDef { permitQ: number; buildQ: number; maxMW: number; upfrontPerGW: number;
+  extraPerGW: number; powerCostMult: number; blockBase: number; delayBase: number }
+export const SOURCES: Record<SiteSource, SourceDef> = {
+  // rent: hall in a colo/neocloud campus; you pay the network ($4B/GW); landlord builds; no opposition
+  rent: { permitQ: 0, buildQ: 0, maxMW: 1000, upfrontPerGW: NETWORK_PER_GW, extraPerGW: 0, powerCostMult: 1, blockBase: 0, delayBase: 0 },
+  // grid: building + utility upgrades $0.2B/GW [unverified, range 0.05–0.3]; EIA tariff 1.0×; largest live grid sites ≤ ~1 GW (Epoch hub)
+  grid: { permitQ: 1, buildQ: 9.5, maxMW: 1000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 0.2, powerCostMult: 1, blockBase: 0.05, delayBase: 0.2 },
+  // gas: building + turbines $3B/GW ($1.7–2.0k/kW × 1.4–1.6 overbuild, SemiAnalysis); fuel+upkeep 0.57× grid (EIA gas price, heat rates, O&M; research/23 §10); campuses 2.3–5.2 GW
+  gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.57, blockBase: 0.1, delayBase: 0.3 },
+};
+export const SITE_MIN_MW = 100;
+/** Construction time of one building (DATACENTERS §5b): the source's quarters × (building GW)^0.4, 9.5 q at 1 GW
+ *  (Epoch timelines fit, research/23 §9). No cost economy of size (research/23 §9: cost per MW flat or rising with
+ *  size); the saving comes from repetition (CAMPUS). */
+export const BUILD_TIME_EXP = 0.4;
+/** Campuses (DATACENTERS §5b): 1, 3 or 5 buildings of the same size on one site (grid, gas; rent is one hall).
+ *  Repeating the design cuts the building cost 10% (3) / 15% (5) (McKinsey: standardisation saves 10–20%
+ *  [unverified snippet]; values [design]). The source's size cap applies to the campus total. */
+export type CampusBuildings = 1 | 3 | 5;
+export const CAMPUS: { counts: readonly CampusBuildings[]; discount: Record<CampusBuildings, number> } = {
+  counts: [1, 3, 5], discount: { 1: 0, 3: 0.10, 5: 0.15 } };
+/** Speed-ups (DATACENTERS §5). */
+export const LEVERS = {
+  crash: { buildMult: 0.5, buildingShare: 0.35, oddsMult: 1.5 },  // Colossus 2 in ~4 q for 1 GW (Epoch): half the construction time; premium, odds [design]
+  rushGrid: { waitMult: 0.75, perGW: 0.3 },                         // self-built substation (LBNL Speed to Power 2026) [design]
+  rushGas: { waitQ: 4, turbineShare: 0.3 },                         // used/refurbished turbines < 12 months (SemiAnalysis) [design]
+  fastTrack: { permitQ: 1, buildingShare: 0.05 },                   // EO 14318 FAST-41 for > 100 MW [design price]
+  community: { perGW: 1.0, blockMult: 0.5 },                        // NY Community Investment Framework $1M/MW (Sep 2026); effect [design]
+} as const;
+/** Rent ≈ $150/kW-month = $1.8B per GW-year (CBRE H1 2026 $139–185; Applied Digital leases); 5-year lease. */
+export const RENT = { perGWYear: 1.8, years: 5 } as const;
+/** Waits with the player building nothing (DATACENTERS §4), quarters, at 1 January of each year [D-3]. */
+export const WAIT_REF = { years: [2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030],
+  grid: [12, 16, 18, 20, 20, 17, 13, 10], gas: [4, 6, 8, 9, 9, 8, 7, 6], rent: [1, 2, 3, 4, 4, 4, 4, 4] } as const;
+/** What clears each queue, GW per year in 2026 and growth per year [D-2, design]. */
+export const WAIT_RATE: Record<SiteSource, { gwPerYear2026: number; growth: number }> = {
+  grid: { gwPerYear2026: 30, growth: 1.1 }, gas: { gwPerYear2026: 60, growth: 1.12 }, rent: { gwPerYear2026: 6, growth: 1.3 } };
+/** Opposition: public mood = pub.dcNimby ÷ 50; caps [D-6]. */
+export const OPPOSITION = { moodRef: 50, blockMax: 0.5, delayMax: 0.9, delayQ: [1, 3] } as const;
 
 /** Supplier components (R15 §1.2). L = quarters from decision to output. */
 export const COMPONENTS = {
@@ -173,7 +187,6 @@ export const MARKET = {
   nonTWPremium: 1.3, spotPremiumShare: 0.5,
   // Expected path (FIN1, spec §5): at D/S = 1 the premium update π' = π − 0.25π decays by 0.75 a quarter [R15 §1.2].
   premiumReversionQ: 0.75,
-  inventoryDecayQ: 0.06, // idle chips lose 6%/q [R15]
   rationW: { firm: 0.5, prepay: 0.5, strategic: 0.5, track: 0.3 }, // firm = take-or-pay order (was: LTA ≥ 4 q old) [R15]
   exoWeight: 1.6, // hyperscalers: LTAs + prepay + track record [D]
   spotRentalPoolShare: 0.1, // spot rental ≤ 10% of the rental pool [R15]
