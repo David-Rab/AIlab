@@ -69,6 +69,10 @@ export const STAR_LAB_ORDER: readonly (keyof typeof STAR_EMPLOYER0)[] = ['openai
 /** The pay-premium menu, share above the market wage [D] (LABOUR-ROUND §4.1: 0 / +10 / +25 / +50 / +100%). */
 export const PREMIUM_STEPS: readonly number[] = [0, 0.10, 0.25, 0.50, 1.00];
 
+/** Floor of the teams' base taste b (init.ts initialLabour): b = (S0 + n0 − Σ T_star,0) ÷ S0 goes non-positive only if the
+ *  start stars outweigh the scientists; the floor keeps T_h > 0 (a numerical guard, not a tuned value). */
+export const BASE_TASTE_FLOOR = 0.05;
+
 /** Poaching a rival's star costs that rival's cooperation, points [D] (today's value, kept: the old star hire took -20 from the rivals). */
 export const STAR_POACH_COOPERATION = -20;
 

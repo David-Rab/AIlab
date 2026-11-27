@@ -229,15 +229,19 @@ export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, 
   return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
 /** The lab's human research taste T_h (LABOUR-ROUND §6.2; the AIFM's aggregate is the mean over the company's researchers,
- *  taste_distribution.py:583): T_h = (S × 1 + Σ T_star) ÷ (S + n_star). S = the capabilities scientist heads (every team's
- *  taste is 1), the sum runs over the stars the lab employs; a star adds no labour, only a taste to the mean. It is the
- *  `human` factor of humanTaste / teamTaste (capability research only; unlock and safety projects do not read it). */
+ *  taste_distribution.py:583): T_h = (S × b + Σ T_star) ÷ (S + n_star). S = the capabilities scientist heads, b = the teams'
+ *  base taste s.labour.teamTaste, the sum runs over the stars the lab employs; a star adds no labour, only a taste to the
+ *  mean. Translation rule (BAL-TASKS): the AIFM's company mean taste of 1 already includes its own top researchers, so b is
+ *  set once at the start so that T_h(start) = 1 exactly (init.ts initialLabour: b = (S0 + n0 − Σ T_star,0) ÷ S0, fixed for
+ *  the game). Hiring a star then lifts T_h above 1 and losing one lowers it, a star's marginal effect about
+ *  (T_star − T_h) ÷ (S + n). It is the `human` factor of humanTaste / teamTaste (capability research only; unlock and
+ *  safety projects do not read it). */
 export function humanTasteMean(s: GameStateV2): number {
   let S = 0;
   for (const t of s.player.teams) if (t.role === 'sci' && t.dept === 'cap') S += t.heads;
   let sum = 0, n = 0;
   for (const x of s.labour.stars) if (x.employer === 'player') { sum += x.taste; n++; }
-  return S + n > 0 ? (S + sum) / (S + n) : 1;
+  return S + n > 0 ? (S * s.labour.teamTaste + sum) / (S + n) : 1;
 }
 
 // ───────────────────────────── the lab's work context (one day) ─────────────────────────────

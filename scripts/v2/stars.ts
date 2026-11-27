@@ -8,6 +8,7 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { act } from '../../src/engine/v2/core/loop';
 import { tasteSigma, Phi } from '../../src/engine/v2/production/ces';
 import { humanTasteMean } from '../../src/engine/v2/departments/workfit';
+import { hirableStars } from '../../src/engine/v2/departments/stars';
 import { payrollOf } from '../../src/engine/v2/departments/teams';
 import { isCapProject, sciOn } from '../../src/engine/v2/models/research';
 import { PREMIUM_STEPS, STAR_POACH_COOPERATION, W_STAR0 } from '../../src/data/v2/labourMarket';
@@ -28,7 +29,7 @@ const sciHeads = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sc
 const teamsSaf = (s: GameStateV2) => s.player.teams.filter((t) => t.dept === 'saf').concat(s.player.hiring.filling.filter((t) => t.dept === 'saf')).reduce((a, t) => a + (t.heads * s.player.pay[t.role]) / 1000, 0);
 const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'player');
 
-// 1. T_h = (S + sum T_star) / (S + n), computed independently, for 0, 1 and 7 stars.
+// 1. T_h = (S b + sum T_star) / (S + n), b the teams' base taste (s.labour.teamTaste), computed independently, for 0, 1 and 7 stars.
 {
   const s = fresh();
   const S = sciHeads(s);
@@ -39,11 +40,33 @@ const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'pl
     for (const x of pick) x.employer = 'player';
     let sum = 0;
     for (const x of pick) sum += x.taste;
-    const want = (S * 1 + sum) / (S + n);
+    const want = (S * s.labour.teamTaste + sum) / (S + n);
     const got = humanTasteMean(s);
-    check(near(got, want), `T_h with ${n} star(s) = (S + sum T) / (S + n)`, `S ${S}, got ${got.toFixed(6)}, want ${want.toFixed(6)}`);
+    check(near(got, want), `T_h with ${n} star(s) = (S b + sum T) / (S + n)`, `S ${S}, got ${got.toFixed(6)}, want ${want.toFixed(6)}`);
   }
-  check(S > 0 && near(humanTasteMean({ ...s, labour: { ...s.labour, stars: [] } } as GameStateV2), 1), 'no stars: T_h = 1');
+  check(S > 0 && near(humanTasteMean({ ...s, labour: { ...s.labour, stars: [] } } as GameStateV2), s.labour.teamTaste), 'no stars: T_h = b, the teams base taste');
+}
+
+// 1b. Translation rule: the start lab's human taste equals the AIFM company mean of 1 (the stars are already in it), by the
+// teams' base taste b = (S0 + n0 - sum T_star,0) / S0 set at the start; hiring a star lifts T_h above 1.
+{
+  for (const seed of [1, 2, 3]) {
+    const s = newGame(defaultSetupV2({ seed } as never));
+    const S0 = sciHeads(s), st = mine(s), b = s.labour.teamTaste;
+    const th = humanTasteMean(s);
+    const bWant = (S0 + st.length - st.reduce((a, x) => a + x.taste, 0)) / S0;
+    check(Math.abs(th - 1) < 1e-9, `seed ${seed}: T_h(start) = 1 within 1e-9`, `T_h ${th}, b ${b.toFixed(4)}, S0 ${S0}, ${st.length} stars, sum T_star ${st.reduce((a, x) => a + x.taste, 0).toFixed(3)}`);
+    check(near(b, bWant), `seed ${seed}: b = (S0 + n0 - sum T_star,0) / S0`);
+    warn(b > 0.05, `seed ${seed}: the floor on b does not bind`, `b ${b.toFixed(4)}`);
+    const sorted = [...hirableStars(s)].sort((x, y) => x.taste - y.taste);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const err = act(s, 'starHire', { star: med.id });
+    const th2 = humanTasteMean(s);
+    check(!err && th2 > th, `seed ${seed}: hiring a median star (taste ${med.taste.toFixed(3)}) raises T_h`, `${th.toFixed(6)} -> ${th2.toFixed(6)}${err ? ' ' + err : ''}`);
+    const marg = (med.taste - th) / (S0 + st.length + 1);
+    check(near(th2 - th, marg, 1e-9), `seed ${seed}: the marginal effect is (T_star - T_h) / (S + n + 1)`, `${(th2 - th).toExponential(3)} vs ${marg.toExponential(3)}`);
+    console.log(`INFO seed ${seed}: b = ${b}`);
+  }
 }
 
 // 2. Scale: one star of the median star taste, at the median m2b, on the idea quality of a capability project.
@@ -57,13 +80,12 @@ const mine = (s: GameStateV2) => s.labour.stars.filter((x) => x.employer === 'pl
   const tMed = Math.exp(-0.5 * sigma * sigma + sigma * lo);
   const s = fresh();
   s.hidden.timeline.prod.m2b = m2b;
-  for (const x of s.labour.stars) x.employer = 'outside';
   const id = s.player.research.queue.find((q) => isCapProject(PROJECT_BY_ID[q])) ?? Object.keys(PROJECT_BY_ID).find((q) => isCapProject(PROJECT_BY_ID[q]));
   const team = s.player.teams.find((t) => t.role === 'sci' && t.dept === 'cap');
   if (!id || !team) { check(false, 'a capability project and a science team to measure idea quality'); } else {
     team.projectId = id;
     const q0 = sciOn(s, id);
-    const spare = s.labour.stars[0];
+    const spare = s.labour.stars.find((x) => x.employer === 'outside') as Star;
     spare.taste = tMed;
     spare.employer = 'player';
     const q1 = sciOn(s, id);

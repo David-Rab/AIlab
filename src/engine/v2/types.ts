@@ -156,7 +156,9 @@ export interface LabourPool {
 /** A star (LABOUR-ROUND §6.1): a named researcher above the 99.9th percentile. `employer` is 'player', a rival's id,
  *  'china' or 'outside'; `pay` is $M per year. */
 export interface Star { id: string; name: string; taste: number; employer: 'player' | LabId | 'china' | 'outside'; pay: number }
-export interface LabourState { pools: Record<TeamRole, LabourPool>; stars: Star[] }
+/** `teamTaste` is the base taste b of the lab's capability scientists, set once at the start so that the lab's human taste
+ *  T_h = (S b + Σ T_star) ÷ (S + n) is 1 at the start (initialLabour; humanTasteMean). Fixed for the game. */
+export interface LabourState { pools: Record<TeamRole, LabourPool>; stars: Star[]; teamTaste: number }
 
 export interface SetupV2 {
   baseline: BaselineId;

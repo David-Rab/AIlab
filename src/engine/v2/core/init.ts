@@ -56,7 +56,7 @@ import type {
 import { emptySeries, sampleSeries } from './record';
 import { hash32, seedStreams, stream } from './rng';
 import { Phi, bisect, tasteSigma } from '../production/ces';
-import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_LAB_ORDER, STAR_FIRST_NAMES, STAR_LAST_NAMES } from '../../../data/v2/labourMarket';
+import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_LAB_ORDER, STAR_FIRST_NAMES, STAR_LAST_NAMES, BASE_TASTE_FLOOR } from '../../../data/v2/labourMarket';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -276,7 +276,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
  *  follow STAR_EMPLOYER0 by largest remainder (the player holds the leading lab's share, the rivals the next labs by rank; a
  *  named lab with no rival to hold it gives its share to "outside"), then are shuffled over the stars. All draws come from
  *  the 'labour' stream so no other stream moves. L11: state only (stars do not yet act, L17). */
-export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, rivalIds: LabId[]): LabourState {
+export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, rivalIds: LabId[], player: Pick<PlayerLab, 'teams'>): LabourState {
   const rng = stream(s, 'labour');
   const sigma = tasteSigma(s.hidden.timeline.prod.m2b);
   const n = Math.round((1 - STAR_TOP_PERCENTILE) * P0.sci);
@@ -305,9 +305,16 @@ export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, rivalIds: 
     used.add(name);
     return { id: `star${i + 1}`, name, taste: Math.exp(-0.5 * sigma * sigma + sigma * z), employer, pay: W_STAR0 };
   });
+  // The teams' base taste b: the AIFM's company mean taste is 1 and already includes its top researchers, so the start lab's
+  // T_h = (S b + Σ T_star) ÷ (S + n) = 1, b = (S0 + n0 − Σ T_star,0) ÷ S0 over the player's stars and capability scientist
+  // heads at the start. Floored at BASE_TASTE_FLOOR (a lab whose stars alone outweigh its scientists).
+  const S0 = player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap').reduce((a, t) => a + t.heads, 0);
+  const mine = stars.filter((x) => x.employer === 'player');
+  const b = S0 > 0 ? (S0 + mine.length - mine.reduce((a, x) => a + x.taste, 0)) / S0 : 1;
   return {
     pools: Object.fromEntries((['eng', 're', 'sci'] as const).map((k) => [k, { P: P0[k], w: W0[k] }])) as LabourState['pools'],
     stars,
+    teamTaste: Math.max(BASE_TASTE_FLOOR, b),
   };
 }
 
@@ -360,7 +367,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
-    labour: initialLabour({ rng: rngState, hidden }, rivals.map((r) => r.core.id)),
+    labour: initialLabour({ rng: rngState, hidden }, rivals.map((r) => r.core.id), player),
     knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
