@@ -21,7 +21,7 @@ import { estOf, type Estimate } from './types';
 export const area = 'market';
 
 const START = '2025-07-01';
-const newState = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
+export const newState = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 /** A registry band's number; 'p50' falls back to the middle of lo..hi when the source gives a range and no central value. */
 const band = (id: string, k: 'p50' | 'lo' | 'hi') => {
   const b = bandOf(id);
@@ -59,7 +59,7 @@ function setSourced2026Stocks(s: GameStateV2) {
 /** The labs at the reference frontier in clock year `y` (the clock is set to it): the best US lab (the lowest start lag:
  *  the frontier lab RefBot stands for) at G_ref(y) with the reference compute, the other US labs at their start lags and
  *  planned compute, China at its lag. The player's products are withdrawn: their share goes to the labs. */
-function putLabsAtReference(s: GameStateV2, y: number) {
+export function putLabsAtReference(s: GameStateV2, y: number) {
   const yr = Math.floor(y);
   s.time.day = dayOfDate(START, `${yr}-01-01`) + Math.round((y - yr) * 365.25);
   const w = s.hidden.timeline;

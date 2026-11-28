@@ -4,6 +4,7 @@
 // identity (the year's added reference compute at the expected chip price plus a campus's capex), and the start runway.
 import { COMPONENTS, MARKET, SOURCES } from '../../../src/data/v2/deals';
 import { expectedCloudPrice, expectedListPrice } from '../../../src/engine/v2/compute/market';
+import { kWPerH100eAt } from '../../../src/engine/v2/compute/power';
 import { campusMW, siteCapex, siteFit } from '../../../src/engine/v2/compute/sites';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { dayOfDate } from '../../../src/engine/v2/core/time';
@@ -42,23 +43,24 @@ export function estimates(): Estimate[] {
   rows.push(estOf('F7.compute2026', `$${compute.toFixed(0)}B/yr (revenue $${rev26.toFixed(0)}B: the loop ${rev26 > compute ? 'closes' : 'does not close'})`, compute,
     'per quarter of 2026: refTotal(w, yr) × expectedCloudPrice(s, k), meaned; against refRevenueRun above'));
 
-  // The capex identity: chips are ordered a package lead time (COMPONENTS.pkg.L quarters) before they are delivered, so
-  // 2026's capex buys the compute added over the following year: each 2026 quarter's order is the reference compute added
-  // L quarters later, at that quarter's expected chip price (with the network), plus a campus's capex per MW × the MW those
-  // chips draw (the start kW per H100e: the efficiency gain is not applied, so the MW and its capex are slightly high).
+  // The capex identity. The registry's definition (F7.capex2026: the capex the year incurred, chips at delivery plus sites)
+  // is the row: the reference compute added in each 2026 quarter at that quarter's expected chip price (with the network),
+  // plus a campus's capex per MW × the MW those chips draw (kW per H100e that quarter, kWPerH100eAt). The other booking
+  // convention, chips ordered a package lead time (COMPONENTS.pkg.L quarters) ahead of delivery, is INFO in the value.
   {
     const qs = quartersOf(2026);
     const capex = (lagQ: number) => {
       const added = qs.map((q) => refTotal(w, q.yr + lagQ / 4) - refTotal(w, q.yr + lagQ / 4 - 0.25));
       const chips = qs.reduce((a, q, i) => a + (added[i] * expectedListPrice(s.market, q.k) * (1 + MARKET.networkShare)) / 1e6, 0);
       const camp = siteFit({ path: 'gas', mw: SOURCES.gas.maxMW, buildings: 5 });
-      const sites = (siteCapex(camp) / campusMW(camp)) * ((added.reduce((a, x) => a + x, 0) * s.power.kWPerH100e) / 1000);
+      const mw = qs.reduce((a, q, i) => a + (added[i] * kWPerH100eAt(s.power.kWPerH100e, q.k + lagQ)) / 1000, 0);
+      const sites = (siteCapex(camp) / campusMW(camp)) * mw;
       return { chips, sites, added: added.reduce((a, x) => a + x, 0) };
     };
     const ordered = capex(COMPONENTS.pkg.L);
     const delivered = capex(0);
-    rows.push(estOf('F7.capex2026', `ordered for delivery a year on: chips $${ordered.chips.toFixed(0)}B + sites $${ordered.sites.toFixed(0)}B (${(ordered.added / 1e6).toFixed(1)}M H100e); if booked at delivery in 2026: $${(delivered.chips + delivered.sites).toFixed(0)}B (${(delivered.added / 1e6).toFixed(1)}M)`, ordered.chips + ordered.sites,
-      'Σ per 2026 quarter (refTotal(w, yr + L/4) − refTotal(w, yr + L/4 − 0.25)), L = COMPONENTS.pkg.L, × expectedListPrice(m, k) × (1 + MARKET.networkShare); + siteCapex(siteFit gas campus) / campusMW × the MW (added × s.power.kWPerH100e); all owned; the lag is the order-to-delivery convention (the alternative is in the value)'));
+    rows.push(estOf('F7.capex2026', `booked at delivery in 2026 (the registry's definition): chips $${delivered.chips.toFixed(0)}B + sites $${delivered.sites.toFixed(0)}B (${(delivered.added / 1e6).toFixed(1)}M H100e). INFO, if ordered for delivery a year on: $${(ordered.chips + ordered.sites).toFixed(0)}B (${(ordered.added / 1e6).toFixed(1)}M)`, delivered.chips + delivered.sites,
+      'Σ per 2026 quarter (refTotal(w, yr) − refTotal(w, yr − 0.25)) × expectedListPrice(m, k) × (1 + MARKET.networkShare); + siteCapex(siteFit gas campus) / campusMW × the MW (added × kWPerH100eAt(kW, k)); all owned; INFO: the same with the order lead time COMPONENTS.pkg.L'));
   }
 
   // The start runway (no registry row: reported in E1b-report.md, "registry entries wanted").
