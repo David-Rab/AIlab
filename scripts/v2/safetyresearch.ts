@@ -30,20 +30,18 @@ const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * RE_UNIT_HEADS;
 /** A leader-start lab with one research line staffed: science capacity `cap` (× SERIOUS_CAP) on the line's follow-up
  *  project, `re` research-engineer units on experiments, the line pool at `c` × the agenda's reference compute share of
  *  the leader's day-0 compute. Nothing else runs (no tick): only the line project's stages. */
-function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: number; quality?: Team['quality'] } = {}): { s: GameStateV2; id: string } {
+function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: number } = {}): { s: GameStateV2; id: string } {
   const s = newGame(defaultSetupV2({ seed: o.seed ?? 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
   const p = s.player;
   const id = lineNodeId(ag);
   const sci = p.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;
   const re = p.teams.find((t) => t.role === 're' && t.dept === 'saf') as Team;
   for (const t of p.teams) if (t.dept === 'saf' && t.role === 'sci' && t !== sci) delete t.projectId;
-  sci.quality = o.quality ?? 'strong';
   delete sci.specialty;
-  // Capacity = heads/40 × quality (no specialty bonus): SERIOUS_CAP × cap at a Strong team.
+  // Capacity = heads/40 (no specialty bonus): SERIOUS_CAP × cap.
   sci.heads = 40 * SERIOUS_CAP * (o.cap ?? 1);
   sci.projectId = id;
   sci.manual = true;
-  re.quality = 'strong';
   re.heads = REF_RE_HEADS * (o.re ?? 1) * 2; // twice the ask (pre-RD-A04: the ask at SAF_EXP_SHARE 0.5); the rest re-validates or idles
   p.research.queue = [id];
   p.split.safetyAgents = 0;

@@ -3,9 +3,8 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';
 import { DAYS_PER_MONTH } from '../../src/engine/v2/npc/lab';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const mk = (over: Parameters<typeof defaultSetupV2>[0]) => newGame(defaultSetupV2({ world: 'tl-central', seed: 11, tutorial: false, ...over }));
 
 // default: the realistic cast
@@ -47,5 +46,4 @@ for (const [name, s] of [['custom 2', c], ['overrides', o], ['zero labs', z], ['
   try { for (let i = 0; i < 30; i++) tick(s); } catch (e) { ok = false; console.log(String(e)); }
   check(ok && s.time.day >= 30, `${name}: runs 30 days`);
 }
-console.log(fails ? `npcSetup: ${fails} FAILED` : 'npcSetup ok');
-process.exit(fails ? 1 : 0);
+finish('npcSetup');

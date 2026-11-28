@@ -6,12 +6,8 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { measuredDelta, otherEffectViews, stackViews } from '../../src/engine/v2/models/researchView';
 import { addBelief, addIdea } from '../../src/engine/v2/models/stacks';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fail = 0;
-const check = (ok: boolean, msg: string) => {
-  console.log(`${ok ? 'pass' : 'FAIL'} ${msg}`);
-  if (!ok) fail++;
-};
 const s: GameStateV2 = newGame(defaultSetupV2({ seed: 3, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const day = s.time.day;
 const TRUE = 0.777;
@@ -48,5 +44,4 @@ const snap = JSON.stringify({ adopted: stack().adopted, now: stack().now, idea: 
 s.player.research.adopted[0].eff = 5;
 addIdea(st, 1, 0, 1e26, 0);
 check(JSON.stringify({ adopted: stack().adopted, now: stack().now, idea: idea() }) === snap, 'changing the true effects leaves the believed readouts unchanged');
-console.log(fail ? `${fail} FAIL` : 'all pass');
-process.exit(fail ? 1 : 0);
+finish('rdm02');

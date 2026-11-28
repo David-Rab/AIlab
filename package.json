@@ -18,11 +18,9 @@
     "test:full": "tsx scripts/v2/run.ts --tier full",
     "test:deep": "tsx scripts/v2/run.ts --tier deep",
     "test:perf": "tsx scripts/v2/run.ts --tier perf",
-    "test:v2": "npm run test:full",
-    "test:worldfx": "tsx scripts/v2/worldfx.ts",
     "bots:v2": "tsx scripts/v2/bots.ts",
     "fixtures:v2": "tsx scripts/v2/fixtures.ts --write",
-    "test": "npm run test:v2"
+    "test": "npm run test:full"
   },
   "dependencies": {
     "lucide-react": "^1.72.0",

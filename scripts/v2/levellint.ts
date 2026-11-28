@@ -13,7 +13,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { HERE } from './lib';
+import { HERE, check, finish } from './lib';
 
 const ROOT = join(HERE, '..', '..', 'src', 'engine', 'v2');
 
@@ -84,6 +84,6 @@ if (hits.length) {
   console.log(`levellint: ${hits.length} hard-coded display-level use(s) in engine mechanics:`);
   for (const h of hits) console.log('  ' + h);
   console.log('Read the milestone predicate, restate in OOM above V0 / coverage, or tag a readout `level-lint-ok: <reason>`.');
-  process.exit(1);
 }
-console.log('levellint: ok (no hard-coded display level in engine mechanics)');
+check(hits.length === 0, 'no hard-coded display level in engine mechanics', `${hits.length} use(s)`);
+finish('levellint');

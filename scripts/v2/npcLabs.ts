@@ -8,9 +8,8 @@ import { DIFFUSION_TAU_DAYS } from '../../src/data/v2/calibration';
 import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS } from '../../src/data/v2/npcLabs';
 import { DAYS_PER_MONTH, npcCapabilityDay, npcTarget, refGAt, startLagDays } from '../../src/engine/v2/npc/lab';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const labs = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab];
 
@@ -114,5 +113,4 @@ for (const r of labs(s)) {
 const rel = new Set(labs(s).map((r) => r.npc!.phase));
 check(rel.size === labs(s).length, '(f) release days are staggered', [...rel].join(', '));
 
-console.log(fails ? `${fails} FAILED` : 'ok');
-process.exit(fails ? 1 : 0);
+finish('npcLabs');

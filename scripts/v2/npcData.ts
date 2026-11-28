@@ -1,9 +1,9 @@
 // N2a: shape checks on the NPC headline-lab data tables (src/data/v2/npcLabs.ts). Run: npx tsx scripts/v2/npcData.ts
 import { KINDS, NPC_KIND_IDS, REALISTIC_CAST, type NpcKindId } from '../../src/data/v2/npcLabs';
 import { toolsAtStart, type LabArchetype } from '../../src/data/v2/tools';
+import { check, finish } from './lib';
 
-const fails: string[] = [];
-const ok = (c: boolean, m: string) => { if (!c) fails.push(m); };
+const ok = (c: boolean, m: string) => check(c, m);
 const unit = (x: number) => x >= 0 && x <= 1;
 const sum = (o: Record<string, number | undefined>) => Object.values(o).reduce<number>((a, b) => a + (b ?? 0), 0);
 
@@ -39,5 +39,5 @@ for (const c of REALISTIC_CAST) {
 const pub = Object.fromEntries(REALISTIC_CAST.map((c) => [c.kind, c.start.publicLagMonths]));
 ok(pub.leader === 0 && pub.bigtech === 2.5 && pub.safety === 3 && pub.china === 6.5 && pub.openweights === 9.6 && pub.racer === 6.5, 'public lags per CAST-2025 §1');
 
-if (fails.length) { console.log('FAIL\n' + fails.join('\n')); process.exit(1); }
-console.log(`npcData ok: ${NPC_KIND_IDS.length} kinds, ${REALISTIC_CAST.length} cast labs`);
+console.log(`npcData: ${NPC_KIND_IDS.length} kinds, ${REALISTIC_CAST.length} cast labs`);
+finish('npcData');

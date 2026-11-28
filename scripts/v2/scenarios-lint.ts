@@ -4,6 +4,7 @@
 import { ALIGNMENT_LEVELS, CHECKPOINTS, TIMELINES } from '../../balance/scenarios';
 import type { Checkpoint } from '../../balance/scenarios';
 import { TARGETS } from '../../balance/targets';
+import { check, finish } from './lib';
 
 const errors: string[] = [];
 const err = (c: Checkpoint, msg: string) => errors.push(`${c.id}: ${msg}`);
@@ -94,6 +95,6 @@ console.log(`per status: ${count((c) => c.status)}`);
 if (errors.length) {
   console.error(`\n${errors.length} problem(s):`);
   for (const e of errors) console.error(`  ${e}`);
-  process.exit(1);
 }
-console.log('scenarios lint: ok');
+check(errors.length === 0, 'scenarios lint: no problems', `${errors.length}`);
+finish('scenarios-lint');

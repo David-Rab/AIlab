@@ -5,12 +5,8 @@ import { makeCtx } from '../../src/engine/v2/core/loop';
 import { runEvalSuite } from '../../src/engine/v2/models/benchmarks';
 import { measuredDomain } from '../../src/engine/v2/actors/commitments';
 import type { DomainId, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fail = 0;
-const check = (ok: boolean, msg: string) => {
-  console.log(`${ok ? 'pass' : 'FAIL'} ${msg}`);
-  if (!ok) fail++;
-};
 const DS: DomainId[] = ['MEDIA', 'PHYS'];
 const TRUE = { MEDIA: 4, PHYS: 3 } as Record<DomainId, number>;
 /** Mean measured MEDIA / PHYS of V0 (true MEDIA 4, PHYS 3) with SAND = `sand` over `n` full suites. */
@@ -38,4 +34,4 @@ for (const d of DS) {
   check(Math.abs(honest[d] - TRUE[d]) < 0.5, `honest ${d}: measured ${honest[d].toFixed(2)} ≈ true ${TRUE[d]}`);
   check(Math.abs(sand[d] - honest[d]) < 0.3, `sandbagging ${d}: not a dangerous eval, measured ${sand[d].toFixed(2)} ≈ honest ${honest[d].toFixed(2)}`);
 }
-process.exit(fail ? 1 : 0);
+finish('rdm01b');

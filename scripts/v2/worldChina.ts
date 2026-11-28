@@ -68,9 +68,9 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   const w = load('day400.json');
   setLead(w, 0);
   w.chinagov.tension = 2;
-  w.usgov.stage = CHINAGOV.coerceStage;
+  w.usgov.stage = CHINAGOV.coerceStage as typeof w.usgov.stage;
   step(w, CHINAGOV.holdDays + 1);
-  check(w.chinagov.tension === 3, 'S5: US stage 3 at tension 2 -> tension 3', String(w.chinagov.tension));
+  check((w.chinagov.tension as number) === 3, 'S5: US stage 3 at tension 2 -> tension 3', String(w.chinagov.tension));
   // The smoothed lead: one noisy quarter does not swing it.
   const sm = load('day400.json');
   setLead(sm, 12);

@@ -10,9 +10,8 @@ import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { lossThreshold } from '../../src/engine/v2/safety/control';
 import { misOf, otherContain, projectedMisAtAsi, resolveAsi } from '../../src/engine/v2/endings/epilogue';
 import { endingView } from '../../src/engine/v2/endings/view';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, d = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${d ? `  (${d})` : ''}`); if (!ok) fails++; };
 
 const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
 const r = s.rivals.find((x) => x.npc)!;
@@ -49,5 +48,4 @@ const e = resolveAsi(s, id);
 s.ending = { id: e.id, power: e.power, day: 10, title: 't', text: 'x', scores: { total: 0 } as never, verdict: 'v' as never, epilogue: { asiDay: 10, asiLab: id, misAtAsi: e.mis } } as never;
 try { const v = endingView(s); check(!!v, 'endingView builds'); } catch (x) { check(false, 'endingView builds', String(x)); }
 
-console.log(fails ? `${fails} FAILED` : 'all passed');
-process.exit(fails ? 1 : 0);
+finish('npcEndings');
