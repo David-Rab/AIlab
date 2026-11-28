@@ -1,7 +1,8 @@
 // RD-L04 targeted check: ONE milestone predicate (departments/workfit.ts milestonesOf) decides every lab's milestones.
 // The player's versions read it on their builds, rivals and China on a reference-profile build of their model; day-0
 // records come from it; a rival meeting SAR by work-type fit is credited whatever its display level, and one at a high
-// display level that fails the criterion (AI dearer than engineers) is not. Fresh games, synthetic G; seconds.
+// display level that fails the criterion (AI dearer than engineers) is not. Fresh games, synthetic G.
+// Cost: 4 newGame + a few 1000 predicate calls, no sim days (≈ 5 CPU-s). Tier: quick, full.
 // Run alone: npx tsx scripts/v2/milestonepred.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,7 +17,10 @@ import { HERE, check, finish } from './lib';
 const fresh = (): GameStateV2 => newGame(defaultSetupV2({ seed: 11, tutorial: false }));
 const eq = (a: boolean[], b: boolean[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 const fmt = (m: boolean[]) => m.map((x) => (x ? 1 : 0)).join('');
-const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g }; r.publicModel = undefined; };
+// RD-X03: a rival's model carries its own reference-profile build, and otherLabMilestones reads that build when there is
+// one (G is then only its summary): a synthetic G has to drop the build so the rival is "known by G alone" (the fallback,
+// referenceProfileModel(G)). Setting only G left the predicate on the day-0 build (the milestones read 1000000 at any G).
+const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g, build: undefined }; r.publicModel = undefined; };
 
 // 1. Day 0: every lab's record equals the predicate's ordered first crossings at day 0.
 {

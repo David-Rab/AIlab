@@ -1,6 +1,7 @@
 // L11: the labour market's start state (design/bal/LABOUR-ROUND.md §4.1, §6.1): pools, the pay ladder, premiums, stars.
+// Cost: 4 newGame, no sim. Tier: quick, full.
 // Run: npx tsx scripts/v2/labourinit.ts   (PASS/FAIL lines, exit 1 on any failure)
-import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
+import { newGame, defaultSetupV2, initialLabour } from '../../src/engine/v2/core/init';
 import { STREAMS, seedStreams } from '../../src/engine/v2/core/rng';
 import { tasteSigma } from '../../src/engine/v2/production/ces';
 import { P0, W0, W_STAR0, PREMIUM_STEPS, STAR_TOP_PERCENTILE, STAR_EMPLOYER0 } from '../../src/data/v2/labourMarket';
@@ -43,15 +44,20 @@ check(JSON.stringify(again.labour) === JSON.stringify(L), 'same seed gives the s
 const other = newGame(defaultSetupV2({ seed: SEED + 1 } as never));
 check(JSON.stringify(other.labour.stars) !== JSON.stringify(L.stars), 'another seed gives other stars');
 
-// Stream isolation: the labour stream is new and seeded by its own name; the labour draws touch no other stream. Every stream
-// except 'world' (consumed by newGame's other draws) and 'labour' is still at its seed at day 0, and 'world' is the value
-// it had before this change (captured with the labour line removed from newGame).
+// Stream isolation: the labour draws touch no stream but 'labour' (a shape check: call initialLabour on a copy of the day-0
+// streams and compare every stream before and after; no pinned stream value). 'labour' is its own stream, new at day 0
+// (seeded by its own name), and every stream except 'world' (consumed by newGame's other draws) and 'labour' is still at
+// its seed at day 0.
 const seeds = seedStreams(SEED);
 const untouched = STREAMS.filter((id) => id !== 'world' && id !== 'labour');
 check(STREAMS.includes('labour') && s.rng.labour !== seeds.labour, "'labour' is its own stream and was consumed");
 check(untouched.every((id) => s.rng[id] === seeds[id]), 'other streams still at their seeds at day 0');
-const GOLDEN_WORLD_SEED1 = 927032937; // seed 1, measured with the labour call removed from newGame (seed 7: 4189118818)
-check(s.rng.world === GOLDEN_WORLD_SEED1, "'world' stream state unchanged by this change", String(s.rng.world));
+{
+  const rng = { ...s.rng, labour: seeds.labour };
+  const before = { ...rng };
+  const lab = initialLabour({ rng, hidden: s.hidden }, s.player);
+  check(STREAMS.every((id) => (id === 'labour') === (rng[id] !== before[id])), "initialLabour consumes the 'labour' stream and no other (incl. 'world')");
+}
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
