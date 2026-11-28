@@ -1,25 +1,21 @@
-// Finance: what it guards. F1–F11 (V2-SPEC §7.2; research/15 §1.9: market, revenue consumption, capex, valuation, rounds,
-// distress outcomes) and the finance-v3 mechanics FIN1..FIN6a (debt, raises and promises, board, charter, acquisitions,
-// partners, rivals' finance, calibration; design/FINANCE-V3.md). Owner: WS3.
-// Quick (--smoke): constructed checks only, from newGame or fixtures/day400.json, with a few short idle ticks: no bot game,
-// no demand-shock run. Full: the bot calibration on RefBot games (4 seeds to end-2027 ≈ 34 CPU-s each; the no-financing
-// and capex2x variants stop at their first distress, 6 seeds, ≈ 2 CPU-s each), 3 idle demand-shock runs (11–13 quarters), the
-// division-head bot and the 6-year site-lease wait. Revenue calibration targets (2026/2027 band) are checked once, in
-// worldfx.ts; the CAL-TARGETs failing here are registered in KNOWN (balance owns them).
-// Cost: see the end of the file. Tier: quick (smoke) and full.
-// The bot games go through the simulation cache (simcache.ts), keyed on the game (seed, autopilot, horizon, stop rule); a
-// cached run keeps the parts of the final state the checks read (finance years, deals, rounds, the hidden timeline).
+// Finance mechanism checks: what it guards. F4–F5/F9 constructed constants and the finance-v3 mechanics FIN1..FIN6a (debt,
+// raises and promises, board, charter, acquisitions, partners, rivals' finance, division budget; V2-SPEC §7.2,
+// design/FINANCE-V3.md). Owner: WS3.
+// No played bot game: every check is constructed from newGame or fixtures/day400.json, with a few short idle ticks. Two
+// checks tick longer and run in the full tier only (--smoke skips them): FIN4r H1's year of ticks on a day-400 state
+// (≈ 20 CPU-s) and the M3 6-year site-lease wait (≈ 47 CPU-s). Tier: quick (smoke) and full.
+// The sourced outcome bands read from played games (RefBot revenue/capex/valuation/rounds/deals/board, the demand-shock
+// responses, distress shares) are calibration, not tests: they live in scripts/v2/calreport/finance.ts (TESTING.md §0).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { WORLD_START, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
-import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
-import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
+import { dayOfDate, dayOfQuarter, quarterIndex } from '../../src/engine/v2/core/time';
+import { clearMarket, cloudPricePerYear, expectedCloudPrice, expectedListPrice, orderWeight, repriceCancellableCloud } from '../../src/engine/v2/compute/market';
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
-import { newSite, oppositionOdds, reactiveUnblockOdds, siteLiveMW, siteSchedule } from '../../src/engine/v2/compute/sites';
+import { newSite, oppositionOdds, reactiveUnblockOdds, siteSchedule } from '../../src/engine/v2/compute/sites';
 import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGuarantor, leaseRate, payOptions, siteLeaseId, siteRVG } from '../../src/engine/v2/finance/capex';
 import { chipCollateral, creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
@@ -33,233 +29,31 @@ import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sec
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
-import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
+import { charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
 import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
-import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
+import { addLedger, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
-import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { parentBudgetYear } from '../../src/data/v2/starts';
 import { runwayOf } from '../../src/engine/v2/finance/runway';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { editBlock } from '../../src/engine/v2/models/productOps';
 import { applyShock, capitalQSystem, trancheConditionMet } from '../../src/engine/v2/finance/investors';
-import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts } from '../../src/engine/v2/finance/plan';
-import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
-import { engine } from '../../src/engine/v2/index';
 import type { GameStateV2 } from '../../src/engine/v2/types';
-import { fileURLToPath } from 'node:url';
-import { FIXTURE_DIR, KNOWN, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
-import { cached, pick, prefill } from './simcache';
+import { FIXTURE_DIR, SMOKE, check, finish, validateJson } from './lib';
 
-// M4: the M2 deferrals (F7 capex/valuation, F8 distress-free share) now pass on integrated play; see design/archive/PROGRESS.md.
 
-// Sourced calibration targets owned by the balance session (OPEN.md § Balance); the checks keep their thresholds.
-KNOWN['FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)'] = 'OPEN.md § Balance: finance calibration (RefBot equity raised, test audit G4 CAL-TARGET)';
 
 const START = '2025-07-01';
-const END_2026 = dayOfDate(START, '2027-01-01');
-const END_Q1_2027 = dayOfDate(START, '2027-04-01');
-const END_2027 = dayOfDate(START, '2028-01-01');
-// Bot games are full-tier only (quick runs the constructed FIN checks: no bot game). Seeds, from the band arithmetic: a
-// RefBot game costs ≈ 37 ms a game-day (34 s to end-2027). The medians read here are of quantities whose seed-to-seed
-// spread is well under their bands (F7 2026 revenue ±20%, capex ±25%, valuation ×3 wide), so 4 seeds give a median that
-// holds the band; 12 seeds cost 7 CPU-min for nothing the bands can tell apart. The bare / capex2x variants are read for
-// the first day of distress only and stop there (it falls in the first quarter), so 6 seeds cost ≈ 12 CPU-s each variant.
-const SEEDS = SMOKE ? [] : [1, 2, 3, 4];
-const DISTRESS_SEEDS = SMOKE ? [] : [1, 2, 3, 4, 5, 6];
-const ME = fileURLToPath(import.meta.url);
-/** The final-state paths the checks read from a bot run. */
-const RUN_PICKS = [
-  'player.finance.ws3.years', 'player.finance.deals', 'player.finance.rounds', 'hidden.timeline', 'setup.seed', 'player.board.confidence',
-  'player.finance.credibility', 'player.finance.promises', 'player.finance.revenueRun', 'player.finance.valuation', 'player.finance.ledger', 'time',
-];
 
 
 const median = (xs: number[]) => {
   const a = [...xs].sort((x, y) => x - y);
   return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
 };
-const share = (xs: boolean[]) => xs.filter(Boolean).length / Math.max(1, xs.length);
 const f1 = (x: number) => x.toFixed(1);
 const F1pct = (x: number) => `${Math.round(x * 100)}%`;
-
-/** FINREF: the sum of the private labs' marks (you and the private rivals: each at S × its marked share, at most its
- *  cap), the game's counterpart of a sum of real post-money marks (FC1). */
-const marksSum = (st: ReturnType<typeof storyNow>) => st.labs.reduce((a, l) => a + l.valuation, 0);
-/** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, and
- *  each trailing private rival with revenue: FIN5b its marked valuation and run-rate). */
-interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; sumV: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
-/** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
-/** FIN5b: a private rival at a snapshot (end-2026). */
-interface RivalRow { id: string; arch: string; status: string; V: number; R: number; cash: number }
-interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: string[]; heldDays: number; pbcDays: number; rivals2026: RivalRow[]; private0: string[] }
-
-function runBot(seed: number, opts: AutopilotOpts | undefined, until: number, stopAtDistress = false): Run {
-  const s = newGame(defaultSetupV2({ seed }));
-  const q: QRow[] = [];
-  let firstDistress = -1;
-  let gw2026 = 0;
-  let v2026 = 0;
-  const held = new Set<string>();
-  let heldDays = 0;
-  let pbcDays = 0;
-  let rivals2026: RivalRow[] = [];
-  const private0 = s.rivals.filter((r) => r.finance.valuation > 0 && !parentFunded(r)).map((r) => r.core.id);
-  while (s.time.day < until) {
-    if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
-      pbcDays += 7;
-      const hs = s.player.models.versions.filter((v) => v.status === 'ready' && (v.variant === 'full' || v.variant === 'mini') && charterReleaseBlock(s, v, 'api'));
-      for (const v of hs) held.add(v.id);
-      if (hs.length) heldDays += 7;
-    }
-    for (const p of [...s.events.pending]) {
-      const c = refDecide(s, p);
-      if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-    }
-    if (opts) {
-      refPlay(s, engine);
-      financeAutopilot(s, opts);
-    }
-    const quarter = cadencesDue(s.time.startDate, s.time.day + 1).includes('quarterly');
-    tick(s, { skip: ['endings'] });
-    if (quarter) {
-      const st = storyNow(s);
-      const trailing = st.labs.filter((a) => a.id !== 'player' && a.revenue >= 1 && a.x.position < 0).map((a) => ({ v: a.valuation, r: a.revenue }));
-      q.push({ day: s.time.day, year: Math.floor(decimalYear(s) + 1e-9), shipped: s.market.ws3.shipped, stock: s.market.ws3.stock, margin: impliedMargin(s.market), supply: s.market.supplyQ, S: st.sector.S, sumV: marksSum(st), share: st.share, V: s.player.finance.valuation, R: s.player.finance.revenueRun, g: st.me?.growth ?? 1, bust: st.sector.bust < 1, trailing });
-    }
-    if (firstDistress < 0 && (s.player.finance.state === 'distress' || s.player.finance.state === 'insolvent')) {
-      firstDistress = s.time.day;
-      if (stopAtDistress) break;
-    }
-    if (s.time.day === END_2026 - 1) {
-      const liveMW = s.player.sites.reduce((a, x) => a + siteLiveMW(x, s.time.day), 0);
-      const cloud = s.player.cloud.reduce((a, c) => a + (c.startDay <= s.time.day && c.endDay > s.time.day ? c.h100e : 0), 0);
-      gw2026 = liveMW / 1000 + (cloud * s.power.kWPerH100e) / 1e6;
-      v2026 = s.player.finance.valuation;
-      rivals2026 = s.rivals.filter((r) => private0.includes(r.core.id)).map((r) => ({ id: r.core.id, arch: r.npc.kind, status: r.core.status, V: r.finance.valuation, R: r.finance.revenueRun, cash: r.finance.cash }));
-    }
-  }
-  return { s, q, firstDistress, gw2026, v2026, held: [...held], heldDays, pbcDays, rivals2026, private0 };
-}
-/** runBot through the simulation cache: the record keeps RUN_PICKS of the final state. */
-const runBotC = (seed: number, opts: AutopilotOpts, until: number, stopAtDistress = false): Run =>
-  cached('finance-bot', { seed, opts, until, stopAtDistress }, [ME], () => {
-    const r = runBot(seed, opts, until, stopAtDistress);
-    return { ...r, s: pick(r.s, RUN_PICKS) };
-  });
-
-// ───────────────────────────── F1–F3, F6: market under default demand (RefBot) ─────────────────────────────
-const bare: AutopilotOpts = { ...REF_AUTOPILOT, strategic: false, offBalance: false, guard: false, rescue: false };
-// The runner's --prefill shards: the bot and shock runs, in the order the checks ask for them.
-prefill(SMOKE ? [] : [
-  () => shockRun(0.7, 1, 1, 13),
-  () => shockRun(0.7, 1.5, 1, 13),
-  () => shockRun(1, 0.5, 2, 11),
-  ...SEEDS.map((seed) => () => runBotC(seed, REF_AUTOPILOT, END_2027)),
-  ...DISTRESS_SEEDS.map((seed) => () => runBotC(seed, bare, END_Q1_2027, true)),
-  ...DISTRESS_SEEDS.map((seed) => () => runBotC(seed, CAPEX2X_AUTOPILOT, END_2027, true)),
-]);
-// Full tier only (no bot game in quick): the RefBot seeds; seed 1 is the market reference run (F1–F3, F6).
-const ref = SEEDS.map((seed) => runBotC(seed, REF_AUTOPILOT, END_2027));
-const long = ref[0];
-const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
-if (!SMOKE) {
-check(prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
-const w = long.s.hidden.timeline;
-const ratios = long.q.map((r) => r.stock / globalCompute(w as never, WORLD_START.globalCompute, r.day / 365));
-smokeCheck(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2027', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
-const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin);
-const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;
-smokeCheck(meanM >= 0.7 && meanM <= 0.77 && Math.min(...m27) >= 0.65, 'F6 implied supplier margin 70–75% (mean Q4 2025–Q4 2027)', `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`);
-}
-
-// ───────────────────────────── F4, F5: demand shocks (passive player, same seed) ─────────────────────────────
-function shockRun(baseMult: number, mult: number, atQ: number, nQ = 16): { S: number[]; r: number[] } {
-  return cached('finance-shock', { seed: 5, baseMult, mult, atQ, nQ }, [ME], () => shockRun0(baseMult, mult, atQ, nQ));
-}
-function shockRun0(baseMult: number, mult: number, atQ: number, nQ: number) {
-  const s = newGame(defaultSetupV2({ seed: 5 }));
-  demandShock(s, baseMult);
-  const S: number[] = [];
-  const r: number[] = [];
-  let q = 0;
-  while (q < nQ) {
-    const due = cadencesDue(s.time.startDate, s.time.day + 1).includes('quarterly');
-    if (due && q === atQ && mult !== 1) demandShock(s, mult); // first seen by quarter atQ's clearing
-    tick(s, { skip: ['endings'] }); // market experiment: an idle player may be ousted
-    if (due) {
-      S.push(s.market.supplyQ);
-      r.push(s.market.rental);
-      q++;
-    }
-  }
-  return { S, r };
-}
-if (!SMOKE) {
-  // F4/F5 + F7/F8, full tier only.
-{
-  // C3: from a soft market (demand 30% under reference), a +50% shock at t: supply growth rises from t+4 and peaks t+6..t+8.
-  const t = 1;
-  const b = shockRun(0.7, 1, t, 13);
-  const x = shockRun(0.7, 1.5, t, 13);
-  const diff = b.S.map((_, i) => (i === 0 ? 0 : x.S[i] / x.S[i - 1] - b.S[i] / b.S[i - 1]));
-  const early = diff.slice(0, t + 4).every((d) => Math.abs(d) < 0.005);
-  const first = diff.findIndex((d) => d > 0.01) - t;
-  const win = diff.slice(0, t + 11); // main response window (later wiggles are wafer binding switches)
-  const peak = win.indexOf(Math.max(...win)) - t;
-  check(early && first >= 4 && first <= 6 && peak >= 6 && peak <= 9, 'F4 +50% demand shock: supply growth rises from t+4, peaks t+6..t+8', `first t+${first}, peak t+${peak} (+${f1(Math.max(...win) * 100)} pp/q)`);
-}
-{
-  const rb = rentalBase(15, 0.7);
-  const up = spotRental(rb, 1.5) / spotRental(rb, 1) - 1;
-  check(up >= 0.35 && up <= 0.45, 'F5 spot rental under D/S = 1.5: +35–45% (C4)', `+${f1(up * 100)}%`);
-  const t = 2;
-  const b = shockRun(1, 0.5, t, 11);
-  const fall = [6, 7, 8].map((k) => b.r[t + k] / b.r[t - 1] - 1);
-  check(fall.every((x) => x <= -0.6 && x >= -0.8), 'F5 spot rental in a glut: −60–80% over 6–8 quarters (C5)', fall.map((x) => `${f1(x * 100)}%`).join(', '));
-}
-
-// ───────────────────────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────────────────────
-// F2 on the 12 RefBot seeds (FINREF; was seed 1's long run alone): C2's 45–60M (AI 2027 60M; Epoch's ×2.2 a year) is the
-// world's expected 2027 output, and one draw is not that. 9 of 12 seeds ship the 2027 supply path in full (≈ 47.2M); a
-// seed falls short only in a quarter with a supply disruption (seeds 9, 10: Taiwan / Korea rolls) or a dip in the
-// RefBot's lumpy chip orders (seed 1, Q3 2027: demand 10.9M against 14.8M of supply). Seed 1 is printed.
-{
-  const prodOf = (r: Run, y: number) => r.q.filter((x) => x.year === y).reduce((a, x) => a + x.shipped, 0);
-  const p27 = ref.map((r) => prodOf(r, 2027));
-  smokeCheck(median(p27) >= 45e6 && median(p27) <= 60e6, 'F2 global production 2027 in 45–60M H100e (median of the RefBot seeds)', `median ${f1(median(p27) / 1e6)}M (range ${f1(Math.min(...p27) / 1e6)}–${f1(Math.max(...p27) / 1e6)}; seed 1's long run ${f1(prod(2027) / 1e6)}M)`);
-}
-const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
-// FIN1: chips a lessor paid at delivery count as capex too (supplier funding is gone, its tally stays 0). FIN4r: capex
-// and compute costs are what the year incurred, so payments a renegotiation deferred to the contracts' end count in
-// the year they were due (the bot renegotiates on a tight runway in late 2025, which now really defers 35% of 2026's
-// firm payments; the old stretched entries deferred almost nothing).
-const capex = y26.map((y) => y.capexChips + (y.capexChipsFinanced ?? 0) + y.capexSites + y.capexSitesFinanced + y.supplierFunding + (y.deferredChips ?? 0));
-const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts + (y.deferredCompute ?? 0))), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
-// F7 revenue (FINREF): AI 2027's OpenBrain $45B is a plot point; the measured 2026 leader is Anthropic, CY2026 ≈ $53–56B
-// (S-1: 9M 2026 $33.2B, Q4 at the $81B Oct run-rate; research/22 §4 [P]). The band is both, ±20%: $36–67B.
-smokeCheck(med.rev >= 36 && med.rev <= 67, 'F7 RefBot 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%', `median $${f1(med.rev)}B`);
-smokeCheck(med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
-smokeCheck(med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr (incurred: paid + deferred by a renegotiation)', `median $${f1(med.compute)}B (deferred median $${f1(median(y26.map((y) => y.deferredCompute ?? 0)))}B)`);
-smokeCheck(med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);
-smokeCheck(med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `median $${(med.v / 1000).toFixed(2)}T`);
-
-const funded = ref.map((r) => {
-  const y = r.s.player.finance.ws3.years['2026'];
-  // FIN4a: every partner deal is strategic (vendor financing is gone); stakes from before the start do not count.
-  const deal = r.s.player.finance.deals.some((d) => !d.legacy && d.day >= 0 && d.day < END_2026);
-  return { deal, fin: y.spvFinanced + y.leaseFinanced + y.cloudFinanced };
-});
-smokeCheck(share(funded.map((x) => x.deal && x.fin >= 50)) >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B lease/colocation/cloud financing in 2026 (≥ 80% of seeds)', `${share(funded.map((x) => x.deal && x.fin >= 50)) * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
-smokeCheck(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) >= 0.75, 'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)', `${f1(share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026)) * 100)}%`);
-const none = DISTRESS_SEEDS.map((seed) => runBotC(seed, bare, END_Q1_2027, true));
-smokeCheck(share(none.map((r) => r.firstDistress >= 0)) >= 0.8, 'F8 the C7 path without a strategic deal or off-balance-sheet financing hits distress by Q1 2027 (≥ 80%)', `${f1(share(none.map((r) => r.firstDistress >= 0)) * 100)}%`);
-const x2 = DISTRESS_SEEDS.map((seed) => runBotC(seed, CAPEX2X_AUTOPILOT, END_2027, true));
-smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) >= 0.8, 'F8 capex2x bot (no rescue) reaches Distress by end-2027 (≥ 80%)', `${f1(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027)) * 100)}% · ${x2.length} seeds (stopped at first distress)`);
-
-}
 
 // ───────────────────────────── F9: valuation, rounds, shocks ─────────────────────────────
 {
@@ -273,40 +67,6 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // (Mar 2025 [P]), xAI–X $113B, SSI $32B, TML $12B [R21 A8, U] ≈ $0.52T; ≈ $0.64T with Anthropic's Sep 2025 $183B (the
   // old "$0.6–0.7T mid-2025"). Late 2026: OpenAI $1.25T [U], Anthropic's IPO ≈ $1.26–1.40T, others ≈ $0.1T (+ xAI $250B
   // if counted; in SpaceX since Feb 2026) [R15 §2.9]: band kept.
-  if (!SMOKE) {
-  const start = ref.map((r) => storyNow(newGame(defaultSetupV2({ seed: r.s.setup.seed }))));
-  const s0 = median(start.map(marksSum));
-  const S0 = median(start.map((x) => x.sector.S));
-  const lateOf = (k: 'sumV' | 'S') => median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a[k] + b[k]) / 2 : NaN; }).filter(Number.isFinite));
-  const late = lateOf('sumV');
-  smokeCheck(s0 >= 450 && s0 <= 750 && late >= 2200 && late <= 3300, 'F9 (FC1) the private labs\' marks add up to ≈ $0.5–0.65T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B (sector value S: start ${f1(S0)}B, late 2026 ${f1(lateOf('S'))}B)`);
-  const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1));
-  const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
-  const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
-  smokeCheck(median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
-  // FC2's "trailing labs lower" (C11: ≈ 15–20× at ×2–3 a year): on growth for the leader-style lab, and (FIN5b) on the
-  // trailing private rivals' marked valuations through 2026 (2027 is printed: the RefBot holds ≈ 95% of the sector by
-  // then and the rivals' revenue collapses, so their team value dominates their multiple).
-  const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
-  const tr27 = ref.flatMap((r) => r.q.filter((x) => x.year === 2027 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r)));
-  // FINREF: compared within each year (years with ≥ 3 marks on both sides). C11's growth gradient is a same-date claim;
-  // pooled over 2025–27 it read growth through the year's sector multiple: most ×2.5+ marks are 2026's (S / R ≈ 35–40×),
-  // most slower ones 2027's, when the frontier factor and hype lift S / R to 45–60× (Simpson's paradox: on M10's head
-  // slower was lower in 2026, 16.5× vs 22.1×, and in 2027, 28.4× vs 30.4×, yet higher pooled, 27.6× vs 22.4×).
-  const byYear = [2025, 2026, 2027].map((y) => ({ y, h: marks.filter((x) => x.year === y && x.g >= 2.5).map((x) => x.V / x.R), l: marks.filter((x) => x.year === y && x.g < 2.5).map((x) => x.V / x.R) })).filter((z) => z.h.length >= 3 && z.l.length >= 3);
-  smokeCheck(byYear.length > 0 && byYear.every((z) => median(z.l) < median(z.h)), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower, in the same year (C11)', `${byYear.map((z) => `${z.y}: ×2.5+ ${f1(median(z.h))}× (${z.h.length}) · slower ${f1(median(z.l))}× (${z.l.length})`).join(' · ') || 'no year with both'} · pooled ${f1(median(hi))}× / ${f1(median(lo))}×`);
-  // FINREF: at the same revenue scale. The sourced multiple falls with revenue: Anthropic's marks at growth ≥ ×8 a year
-  // throughout (R15 §2.9 [P]; the IPO total [U]) ran 37× at $5B (Series F), 27× at $14B (G), 20.5× at $47B (H), ≈ 16–17×
-  // at $81B (IPO): m_A(R) = 37 × (R ÷ $5B)^−0.28 within 3%. Trailing rivals earn ≈ $4B against the leader-style lab's
-  // ≈ $47B, so their raw multiples sit above it as smaller labs' do in reality (xAI ≈ $230B on ≈ $3B, R21 [U]); the
-  // check compares each mark with m_A at its own revenue.
-  const mA = (R: number) => 37 * Math.pow(R / 5, -0.28);
-  const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r / mA(t.r))));
-  const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R));
-  smokeCheck(trA.length > 0 && median(trA) < median(hiA), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at the same revenue scale (each mark ÷ Anthropic\'s multiple at that revenue; their marks through 2026)', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`);
-  const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
-  smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
-  }
   const s = newGame(defaultSetupV2({ seed: 3 }));
   const V = s.player.finance.valuation;
   const anch = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: true }).parts.dilution;
@@ -611,16 +371,6 @@ for (const a of FINANCE_ACTIONS) {
     const o2 = whatWeOwe(x);
     check(o2.behind.some((p) => p.p.id === 'PRb') && o2.near.some((c) => c.id === 'creditLine'), 'FIN2 a promise behind its needed-by-now path and a covenant near its limit are flagged', `behind ${o2.behind.length}, near ${o2.near.map((c) => `${c.id} ${c.state}`).join(', ')}`);
   }
-  if (!SMOKE) {
-    // The reference bot (FIN2 autopilot): raises when its cash projection runs short, at the ceiling, on the milestone it
-    // is surest of. Rounds per year and promise results across the 12 RefBot seeds.
-    const per = (y: number) => median(ref.map((r) => r.s.player.finance.rounds.filter((x) => Math.floor(decimalYear(r.s, x.day) + 1e-9) === y).length));
-    const judged = ref.flatMap((r) => r.s.player.finance.promises.filter((p) => p.result));
-    const byType = (t: string) => judged.filter((p) => p.type === t).length;
-    const met = judged.filter((p) => p.result!.outcome === 'met').length;
-    const cred = median(ref.map((r) => r.s.player.finance.credibility));
-    check(per(2026) >= 1 && per(2026) <= 4 && per(2027) >= 1 && per(2027) <= 4, 'FIN2 RefBot raises 1–4 rounds a year (median; it raised at the ceiling every quarter before FIN2)', `2026 ${per(2026)} · 2027 ${per(2027)} · promises judged ${judged.length} (met ${F1pct(met / Math.max(1, judged.length))}; scale ${byType('scale')}, adoption ${byType('adoption')}, capability ${byType('capability')}) · end-2027 credibility median ${f1(cred)}`);
-  }
 }
 
 // ───────────────────────────── FIN3a: board votes and mood (FINANCE-V3 §7.3–§7.4) ─────────────────────────────
@@ -711,18 +461,6 @@ for (const a of FINANCE_ACTIONS) {
     // Every board-confidence source the engine posts is named (one of the four, the drift, or a decision/event cost).
     const named = [...srcs].every((x) => MOOD_SOURCE_OF[x] || ['board memory fades', 'forced past the board', 'critics given a seat'].includes(x));
     check(named, 'FIN3a board confidence moves only on named sources', [...srcs].join(', '));
-  }
-  if (!SMOKE) {
-    // Rebalance (FIN3a notes): the reference bot's board at the end of 2027 sits near 60 (FIN2 48 without the plan; 67
-    // with it).
-    // Lead decision after FINREF (2026-11-21): ≥ 55 is a design target, not a source. Since M10 the RefBot plays AI
-    // 2027's small safety share and has more public incidents (−26.7 vs −21.9 per game), which lowers the board: an
-    // emergent consequence, so the line is INFO and only a collapse (median < 40) fails. The 12-seed median also sits in
-    // a gap between two clusters (29–48 and 53–67), so it swings ±9 on small changes.
-    const bc = median(ref.map((r) => r.s.player.board.confidence));
-    const bcLine = `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`;
-    if (bc >= 40) console.log(`INFO  FIN3a RefBot end-2027 board confidence  — ${bcLine}`);
-    else smokeCheck(false, 'FIN3a RefBot end-2027 board confidence median ≥ 40 (collapse guard)', bcLine);
   }
 }
 
@@ -884,15 +622,6 @@ for (const a of FINANCE_ACTIONS) {
       const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
       check(repriced && r.ipo === true && r.dilution <= dMax(false, true) + 1e-9 && r.amount < ask, 'FIN3b the IPO sells at most 5% at close: a repriced IPO raises less instead', `asked ${f1(ask)}B · ${repriced ? 'repriced, accepted' : 'closed'} at ${f1(r.amount)}B = ${(r.dilution * 100).toFixed(2)}%`);
     } else check(false, 'FIN3b the IPO sells at most 5% at close', String(err));
-  }
-  if (!SMOKE) {
-    // How often the committee bites on the reference bot: leader start (legacy nonprofit), recapitalised into a
-    // nonprofit PBC around Q4 2026; ready models it held back, through 2027.
-    const pbc = ref.filter((r) => r.pbcDays > 0);
-    const games = pbc.filter((r) => r.held.length > 0).length;
-    const versions = pbc.reduce((a, r) => a + r.held.length, 0);
-    const share = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
-    check(pbc.length > 0 && share <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(share)} of PBC weeks with a hold`);
   }
 }
 
@@ -1134,14 +863,6 @@ for (const a of FINANCE_ACTIONS) {
     const d = s.player.finance.deals.find((x) => x.rescue);
     check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
   }
-  if (!SMOKE) {
-    // The reference bot's partner deal: a hyperscaler on cloud (Azimuth on the leader start), priced on the path.
-    const deals = ref.map((r) => r.s.player.finance.deals.find((d) => d.kind === 'hyperscaler' && !d.legacy && !d.rescue)).filter((d): d is NonNullable<typeof d> => !!d);
-    const by = deals.reduce((a, d) => ({ ...a, [d.partner]: (a[d.partner] ?? 0) + 1 }), {} as Record<string, number>);
-    const tot = median(deals.map((d) => d.supply?.total ?? 0));
-    const eq = median(deals.map((d) => d.equityNow + d.equityLater));
-    check(deals.length >= 0.8 * ref.length && deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0), 'FIN4a RefBot signs one hyperscaler cloud deal (≥ 80% of seeds), on the expected path with the partner discount', `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`);
-  }
 }
 
 // ───────────────────────────── FIN4b: several partners, exclusivity, IP access (FINANCE-V3 §6.1 strings) ─────────────────────────────
@@ -1264,13 +985,6 @@ for (const a of FINANCE_ACTIONS) {
     check(offered0 && !offered1 && s.player.finance.ownership.strat['Azimuth'] <= 0.15 + 1e-9 && s.player.finance.ownership.fin - fin0 * (1 - dil) > 0.9 * dil,
       'FIN4b a hyperscaler anchors a round only within its 15% cap: not offered without room for 40% of the round; its shares stop at 15%', `stake after ${F1pct(s.player.finance.ownership.strat['Azimuth'])}`);
   }
-  if (!SMOKE) {
-    // The reference bot: one hyperscaler deal, exclusive (one deep partner), no IP access.
-    const deals = ref.map((r) => r.s.player.finance.deals.find((d) => d.kind === 'hyperscaler' && !d.legacy && !d.rescue)).filter((d): d is NonNullable<typeof d> => !!d);
-    const n = ref.map((r) => partnersNow(r.s).length);
-    check(deals.length >= 0.8 * ref.length && deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
-      'FIN4b RefBot takes one hyperscaler deal with exclusivity and without IP access; never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
-  }
 }
 
 // ───────────────────────────── FIN5c: big-tech division budget (FINANCE-V3 §13) ─────────────────────────────
@@ -1329,21 +1043,6 @@ for (const a of FINANCE_ACTIONS) {
     check(!!rv && rv.year === 0 && rv.over >= 10 && rv.over < 10.6 && over.length === 1 && near(over[0].delta, -DIVISION.overConf * (rv.over / budget0) * moodWeight(s, 'setbacks')) && near(d.carryIn, -rv.over) && near(s.player.finance.cash, d.carryIn + d.budget / 4, 0.01), 'FIN5c review: the overspend the parent is still covering costs −30 × overspend ÷ budget; it is not written off (the new year starts with the advance, repaid from its payments); cash −$10B on the eve plus that day\'s payroll', `over ${f1(rv?.over ?? 0)} · ${f1(over[0]?.delta ?? 0)} confidence · cash after the first payment ${f1(s.player.finance.cash)}`);
     check(d.year === 1 && near(d.plan, parentBudgetYear(1)) && near(d.budget, d.plan * budgetFactor(d.confidence)) && d.confidence < 70 && newGoals.length >= 2 && newGoals.every((g) => g.closeDay === review && g.deadline === dayOfDate(START, '2027-07-01')), 'FIN5c review: this year\'s budget = the plan × the factor at the confidence after the review (missed goals and overspend cut it); new goals due at the next review', `budget ${f1(d.budget)} = ${f1(d.plan)} × ${F1pct(d.factor)} at ${f1(d.confidence)} · goals ${newGoals.map((g) => g.type).join(', ')}`);
     check(!causes(s, 'behind a rival').length && s.player.finance.state === 'healthy', 'FIN5c the parent judges capability through its goals: no quarterly "behind a rival" source for a division; never in distress');
-  }
-  if (!SMOKE) {
-    // The mixed bot as a division head (one seed, a year and a half): it keeps to the budget room, the state is never
-    // distress, the first review judges three goals and sets the budget by the rule.
-    const s = bigtech(30000);
-    let distress = 0;
-    while (s.time.day < 550 && !s.ending) {
-      for (const p of [...s.events.pending]) if (resolve(s, p.instance, mixedBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-      mixedBot.act(s, engine);
-      tick(s);
-      if (s.player.finance.state !== 'healthy') distress++;
-    }
-    const d = s.player.finance.ws3.division!;
-    const rv = d.reviews[0];
-    check(distress === 0 && !!rv && rv.goals.met + rv.goals.near + rv.goals.missed === 3 && near(d.budget, d.plan * budgetFactor(d.confidence)), 'FIN5c mixed bot as a division head: never tight or in distress; the first review judges three goals and sets the budget by the rule', `year 0: spent $${f1(rv?.spent ?? 0)}B of $${f1(rv?.budget ?? 0)}B, over $${f1(rv?.over ?? 0)}B (${f1(rv?.overConf ?? 0)}), goals ${JSON.stringify(rv?.goals)} · year 1 budget $${f1(d.budget)}B at confidence ${f1(d.confidence)}`);
   }
 }
 
@@ -1726,13 +1425,6 @@ for (const a of FINANCE_ACTIONS) {
     const prepaidLine = pv.costs.find((c) => /prepaid now/.test(String(c.target)));
     check(strong.batch === SUPPLIER.base && strong.firstDelivery === 0 && weak.batch > 0.8 && near(qb.prepay, weak.batch, 1e-12) && near(qt.now, weak.firstDelivery * qt.prices![0] * 0.1, 1e-9) && !err && near(cash0 - s.player.finance.cash, qt.now, 1e-6) && !!first && near(first.perQuarter + qt.now, (0.1e6 * qt.prices![0]) / 1e6, 1e-9) && !!prepaidLine && near(-prepaidLine.amount, qt.now, 1e-9), 'FIN5a supplier terms = f(share, runway): 30% deposit for a lab investors fund easily, up to 100% for a small, short-runway lab; supply contracts prepay that premium on their first delivery (preview = booked)', `strong ${F1pct(strong.batch)} / ${F1pct(strong.firstDelivery)} · weak ${F1pct(weak.batch)} / ${F1pct(weak.firstDelivery)} · prepaid ${f1(qt.now)}B`);
   }
-  if (!SMOKE) {
-    // The reference bot's equity a year stays in the 2025–26 range (OpenAI raised $40B in 2025, $122B in 2026).
-    const e25 = median(ref.map((r) => r.s.player.finance.ws3.years['2025']?.equity ?? 0));
-    const e26 = median(ref.map((r) => r.s.player.finance.ws3.years['2026']?.equity ?? 0));
-    const sh = median(ref.map((r) => r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01'))?.share ?? NaN).filter(Number.isFinite));
-    check(e25 >= 5 && e25 <= 45 && e26 >= 50 && e26 <= 150, 'FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)', `2025 H2 ${f1(e25)}B · 2026 ${f1(e26)}B · story share Oct 2026 ${F1pct(sh)}`);
-  }
 }
 
 // ───────────────────────────── FIN5b: rivals' finance (FINANCE-V3 §12) ─────────────────────────────
@@ -1801,14 +1493,6 @@ for (const a of FINANCE_ACTIONS) {
     rivalMoneyQ(s2, makeCtx(s2), t2);
     check(pushed && offered && target.finance.distress && target.finance.valuation === V0 && t2.core.status !== 'active', 'FIN5b a bust pushes the most over-committed private rival into distress: it raises nothing that quarter and is offered to you (E32); unbought, it exits next quarter (license-and-hire, §12)', target.core.name);
   }
-  if (!SMOKE) {
-    // FC6 on the reference path: private rivals stay funded through 2026; the end-2026 picture by kind (analogues:
-    // Anthropic $380B–1.3T on $14–47B, xAI $230–250B, SSI $32B; FIN5b notes).
-    const all = ref.flatMap((r) => r.private0);
-    const alive = ref.flatMap((r) => r.rivals2026.filter((x) => x.status === 'active'));
-    const show = (k: string) => { const xs = alive.filter((x) => x.arch === k); return xs.length ? `${k} ${xs.length}: V $${f1(median(xs.map((x) => x.V)))}B on $${f1(median(xs.map((x) => x.R)))}B (${f1(median(xs.map((x) => x.V / Math.max(0.1, x.R))))}×)` : `${k} 0`; };
-    check(all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'racer', 'upstart'].map(show).join(' · ')}`);
-  }
 }
 // ───────────────────────────── FIN6a: calibration (FINANCE-V3 §14) ─────────────────────────────
 {
@@ -1873,22 +1557,9 @@ for (const a of FINANCE_ACTIONS) {
     const p = s.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0 && !parentFunded(r));
     check(p.length > 0 && p.every((r) => near(r.finance.commitments, rivalSpend(r), 1e-12)), 'FIN6a a private rival\'s commitments book is its spend a year (marked each quarter)', p.map((r) => `${r.core.name} $${f1(r.finance.commitments)}B`).join(' · '));
   }
-  if (!SMOKE) {
-    // FC2 on the reference path, by year: the leader-style multiple stays in 20–37× at high growth in 2027 too (it ran
-    // to ≈ 44× before the cap, ≈ 60× at the end of 2027), and the 2026 marks sit near the band's low end. FC4 printed:
-    // commitments ÷ revenue run-rate (a known miss, FIN6a notes).
-    const hi = (y: number) => ref.flatMap((r) => r.q.filter((x) => x.year === y && !x.bust && x.R >= 1 && x.g >= 2.5).map((x) => x.V / x.R));
-    const m26 = median(hi(2026));
-    const m27 = median(hi(2027));
-    smokeCheck(hi(2027).length > 0 && m27 >= 20 && m27 <= 37 && m26 >= 15, 'FIN6a (FC2) leader-style multiple at high growth by year: 2027 inside 20–37× (no runaway), 2026 at least 15×', `2026 ${f1(m26)}× (${hi(2026).length}) · 2027 ${f1(m27)}× (${hi(2027).length}) · end-2027 valuation median $${(median(ref.map((r) => r.s.player.finance.valuation)) / 1000).toFixed(2)}T`);
-    const R27 = median(ref.map((r) => r.s.player.finance.revenueRun));
-    console.log(`  info  FIN6a (FC4) RefBot end-2027 commitments remaining $${f1(median(ref.map((r) => commitmentsRemaining(r.s))))}B on a $${f1(R27)}B run-rate; partner take-or-pay ÷ its equity ${f1(median(ref.flatMap((r) => r.s.player.finance.deals.filter((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0 && d.supply).map((d) => d.supply!.total / Math.max(1e-9, d.equityNow + d.equityLater)))))}×`);
-  }
 }
 
 console.log(`finance: ${FINANCE_ACTIONS.length} actions (${applied} applied on day400), no events`);
 finish('finance');
-// Cost (measured, one coarse run, cache off): quick (--smoke) ≈ 70 s wall, 144 checks, no bot game (was 407 CPU-s + 2 prefill
-// shards of ≈ 185 s). Remaining quick cost: FIN5c bigtech sims (≈ 15 s), idle ticks of FIN1/FIN2/FIN3 (≈ 20 s), day-400 loads.
-// Full (not run, estimate by count): 4 RefBot seeds × 914 days × 37 ms ≈ 2.3 min + 3 shock runs ≈ 1 min + distress seeds
-// 12 × 2 s + FIN5c mixed bot 34 s + M3 site wait 47 s + H1 year of ticks ≈ 20 s + the quick part ≈ 7 CPU-min.
+// Cost (count): quick (--smoke) ≈ 70 s wall, no bot game; the quick part is FIN5c bigtech sims (≈ 15 s), idle ticks of
+// FIN1/FIN2/FIN3 (≈ 20 s), day-400 loads. Full adds the year of ticks (≈ 20 s) and the site wait (≈ 47 s).

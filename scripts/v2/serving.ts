@@ -1,7 +1,7 @@
 // GUARDS: the serving / pricing / consumer / seat / ceiling invariants of the market (who pays what for work use, price never
 // below cost, shares sum to 1, preview = effect, the agent-work ceiling) and the exact decomposition of the fixed-capability
-// price. Mechanism checks (shape, identities); the few sourced start numbers (C1 700M users, A7 0.24 Wh, A8 revenue) are
-// CAL-TARGETs listed in KNOWN.
+// price. Mechanism checks (shape, identities); the sourced start numbers (C1 700M users, A7 0.24 Wh, A8 revenue and spend
+// shares, C5 paid share, A3 decline band) are calibration targets in scripts/v2/calreport/market.ts (TESTING.md §0).
 // COST: quick (--smoke) ≈ 15 CPU-s: one game built once and cloned (day 3 / day 20), the day-0/400/900 fixtures, about 130
 // simulated days in all; D2 runs 30 RefBot days from the day-900 fixture. Full: D2 runs 300 RefBot days (day 900 → 1200,
 // ≈ 50 CPU-s more). TIER: quick (needs run.ts to pass --smoke) and full.
@@ -57,66 +57,26 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentMixOf, agentLeverage, blendTiers, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentMixOf, agentLeverage, blendTiers, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, labToolOpts,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
-import { REFERENCE_BASE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
-import { DISTILL, DISTILL_TPP } from '../../src/data/v2/runDesign';
-import { distillGap } from '../../src/engine/v2/models/effective';
+import { DISTILL } from '../../src/data/v2/runDesign';
 import { baseParams, fptOfParams, npcDecodeU, npcServeFpt, npcServeOom } from '../../src/engine/v2/npc/model';
-import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL, type WorkTypeId } from '../../src/data/v2/workTypes';
+import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL } from '../../src/data/v2/workTypes';
 import { SERVE_RATE0 } from '../../src/data/v2/npcLabs';
 import { decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
 import { serveTechMult } from '../../src/engine/v2/models/runs';
 import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2/departments/workfit';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, KNOWN, SMOKE, check, finish } from './lib';
+import { cheapestAt } from './cheapest';
 
-// Known failures (design/test-audit/G3-report.md; OPEN.md § Balance "Re-derive ~100 quick-test expectations" for the CAL-TARGETs):
-KNOWN["C1 the leader's Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: start users 620M vs the sourced ≈ 700M)';
-KNOWN["A7 a free message costs within ×3 of Google's measured 0.24 Wh median"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: the free tier is the cheapest lineup model since RD-P02, 0.02 Wh)';
-KNOWN["A8 the leader's day-1 revenue $12–15B, Chat 60–75% of it"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: day-1 revenue $15.6B, Chat 49%; MARKET-CP (c))';
+// Known failures (design/test-audit/G3-report.md):
 KNOWN["B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat's serving cost)"] = "OPEN.md: BUG seat price readout is the last sector cell's, not the average (worldfx/revenue.ts:575 a.seatPrice = o.seat; MARKET-CP (b) 1)";
-
-// The cheapest model a lab can serve at a capability (A3; moved here from worldfx/serving.ts in RD-C04: only this
-// suite reads it).
-/** The cheapest model a lab can serve at capability G. */
-interface CheapestAt {
-  /** Serving FLOP per token and active parameters of that model. */
-  fpt: number;
-  params: number;
-  /** The version itself, or the teacher of the student. */
-  versionId: string;
-  student: boolean;
-  /** The teacher's fit and the distillation gap (OOM; 0 for the version itself). */
-  teacherFit: number;
-  gap: number;
-}
-/** The cheapest model a lab can serve at capability `G` (fit on work type `wt`, OOM): the smallest of (1) its own
- *  versions that hold G and (2) a distilled student of any of them, sized to hold G exactly. A student follows the
- *  game's distillation rule (R20 C4, runs.ts planRun): gap δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP
- *  tokens per student parameter, N_S ≥ PARAM_RANGE[0], FLOP per token = the teacher's × N_S/N_T (its shape and serving
- *  efficiency). Distillation is ★ (P04), so every lab can do this. It is what the lab could sell at G, not what it
- *  sells. research/20 D3's fixed-capability price (Cottier et al. 2025: the cheapest model above a benchmark threshold)
- *  is the price of this model. Undefined when no version holds G. */
-function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): CheapestAt | undefined {
-  let best: CheapestAt | undefined;
-  for (const v of s.player.models.versions) {
-    if (v.status === 'retired' || v.variant === 'imported') continue;
-    const fit = workFit(s, v, wt).fit;
-    if (fit < G) continue;
-    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-    const nS = studentParamsFor(nT, fit - G);
-    const student = nS < nT;
-    const c: CheapestAt = { fpt: (flopPerToken(s, v) * nS) / nT, params: nS, versionId: v.id, student, teacherFit: fit, gap: student ? distillGap(nT, nS, DISTILL_TPP * nS) : 0 };
-    if (!best || c.fpt < best.fpt) best = c;
-  }
-  return best;
-}
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 // One game is built once and cloned per section (TESTING §2): day 0, day 3 (the old "run(s, 3)" start) and, lazily, day 20.
@@ -334,8 +294,6 @@ for (const d of [400, 900]) {
   const g0 = fresh0();
   check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow) < 1e-12,
     'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.548 × the US (A6b: the leader starts at ChatGPT’s ≈ 700M weekly users)', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
-  const u0 = revenueReadout(g0).deps.filter((x) => x.channel === 'consumer').reduce((a, x) => a + (x.users ?? 0), 0);
-  check(u0 > 630e6 && u0 < 770e6, 'C1 the leader\'s Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)', `${(u0 / 1e6).toFixed(0)}M`);
 }
 {
   // C2 the paid share is a stock that moves toward its target; C5 a better consumer model raises the paid share.
@@ -363,8 +321,8 @@ for (const d of [400, 900]) {
   check(m1.consumer.US.cover[pi] > a0 + 0.05 && m1.consumer.US.paidTarget[pi] > t0 * 1.05 && s.world.fx.paid.US.player > sub0,
     'C5 a better consumer model (same price) raises the paid-share target, and the stock follows',
     `coverage ${a0.toFixed(3)} → ${m1.consumer.US.cover[pi].toFixed(3)}, target ${t0.toFixed(4)} → ${m1.consumer.US.paidTarget[pi].toFixed(4)}, stock ${sub0.toFixed(4)} → ${s.world.fx.paid.US.player.toFixed(4)}`);
-  check(paidShareTarget(0.14, 22, 22) > 0.05 && paidShareTarget(0.14, 22, 22) < 0.06 && paidShareTarget(0.14, 11, 22) > paidShareTarget(0.14, 22, 22) && paidShareTarget(1, 22, 22) > paidShareTarget(0.14, 22, 22),
-    'C5 paid-share target: ≈5.5% for the start model at the going price (R22: 5–6%); a cheaper plan or a better model converts more',
+  check(paidShareTarget(0.14, 11, 22) > paidShareTarget(0.14, 22, 22) && paidShareTarget(1, 22, 22) > paidShareTarget(0.14, 22, 22),
+    'C5 paid-share target: a cheaper plan or a better model converts more (the start value against the measured 5–6% is calreport/market.ts)',
     `${(paidShareTarget(0.14, 22, 22) * 100).toFixed(2)}% (half price ${(paidShareTarget(0.14, 11, 22) * 100).toFixed(2)}%, full coverage ${(paidShareTarget(1, 22, 22) * 100).toFixed(2)}%)`);
 }
 {
@@ -401,7 +359,7 @@ for (const d of [400, 900]) {
 {
   // A7 free tiers with parity: every provider's free tier holds its consumer model's chat fit less one year of the
   // reference frontier (RD-P02: rivals: their cheapest real lineup model); users choose on the free tier; the start's free users are
-  // served and a free message costs within ≈ 3× of Google's measured 0.24 Wh median (arXiv 2508.15734).
+  // served.
   const s = fresh();
   const mix = worldMix(s);
   // RD-P02: a rival's free tier is its cheapest real lineup model (below its model's fit when it has a lineup).
@@ -421,12 +379,8 @@ for (const d of [400, 900]) {
     'A7 every lab\'s free tier is a real model of its lineup at or below its consumer model\'s fit (below with a lineup); users choose on it',
     `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
-  const msgS = (h100eHoursPer(ft.fpt, CONSUMER_MKT.perDay.free, decodeUtilNow(s)) * 3600) / CONSUMER_MKT.messagesPerDay;
-  const wh = (msgS * 0.7) / 3.6; // accelerator energy at 0.7 kW per H100e
   check((x.cutFree ?? 0) <= 0.1 * (x.needFree ?? 0) && (x.needFree ?? 0) > 0, 'A7 at the start the free users are served (≥ 90% of their need)', `free need ${Math.round((x.needFree ?? 0) / 1e3)}k cut ${Math.round((x.cutFree ?? 0) / 1e3)}k`);
-  // CAL-TARGET (sourced: Google's measured median Gemini Apps text prompt, arXiv 2508.15734). Since RD-P02 the free tier is
-  // the lab's cheapest lineup model, ~12× cheaper to serve than the Gemini median the anchor measures.
-  check(wh >= 0.24 / 3 && wh <= 0.24 * 3, "A7 a free message costs within ×3 of Google's measured 0.24 Wh median", `${msgS.toFixed(2)} H100e-s ≈ ${wh.toFixed(2)} Wh`);
+  // (The free message's energy against Google's measured 0.24 Wh median is a calibration target: calreport/market.ts.)
 }
 {
   // A8 multi-homing: each provider is in a sector buyer's set with probability min(1, MULTI_HOMING.providers ÷ the
@@ -441,15 +395,6 @@ for (const d of [400, 900]) {
     const m = mix.sec[r][def.id];
     m.share.forEach((x, i) => { if (Math.abs(x - m.target[i]) > 2e-6) bad++; });
   }
-  const pi = mix.providers.findIndex((p) => p.key === 'player');
-  let sp = 0;
-  let pl = 0;
-  for (const r of ['US', 'ROW'] as const) for (const def of SECTORS) {
-    const x = sectorSpendParts(s, r, def.id, mix);
-    const y = x.adopted + x.agent + x.seat;
-    sp += y;
-    pl += y * mix.sec[r][def.id].share[pi];
-  }
   // Toy market: provider 0 alone does the upper half of the tasks; four rivals do the lower half.
   const lead: Tier[] = [{ fit: 27.6, a: 0.1, price: 0.6 }];
   const riv: Tier[] = [{ fit: 27.2, a: 0.05, price: 0.5 }];
@@ -458,9 +403,9 @@ for (const d of [400, 900]) {
   const full = surplusChoice(lin, br, [1, 1, 1, 1, 1], 30).target[0];
   const q = Math.min(1, MULTI_HOMING.providers / 5);
   const mh = surplusChoice(lin, br, [q, q, q, q, q], 30).target[0];
-  check(bad === 0 && pl / sp >= 0.25 && pl / sp <= 0.45 && full > 0.75 && mh < q + 0.05 && mh > 0.5 * q,
-    'A8 multi-homing: start stocks at the day-0 targets; the classic leader holds 0.25–0.45 of US + ROW sector spend; a sole frontier model wins only the buyers who reach it',
-    `${bad} cells off; leader ${(pl / sp).toFixed(3)} of $${sp.toFixed(2)}B; toy leader ${full.toFixed(3)} with everyone reachable → ${mh.toFixed(3)} at q ${q.toFixed(2)}`);
+  check(bad === 0 && full > 0.75 && mh < q + 0.05 && mh > 0.5 * q,
+    'A8 multi-homing: start stocks at the day-0 targets; a sole frontier model wins only the buyers who reach it',
+    `${bad} cells off; toy leader ${full.toFixed(3)} with everyone reachable → ${mh.toFixed(3)} at q ${q.toFixed(2)}`);
   // REACH: the reach target is a rank-ordered logit: each firm contracts with the MULTI_HOMING.providers labs it ranks
   // best among those it can buy from. (1) Σ R* = the providers per firm, so a firm's second contract goes to the next
   // lab however far ahead the first is (Ramp AI Index Oct 2026 [P]: 44.8% of businesses pay Anthropic, 40.6% OpenAI,
@@ -481,28 +426,11 @@ for (const d of [400, 900]) {
     'REACH: firms contract with the MULTI_HOMING.providers labs they rank best (Σ reach = providers per firm; the next lab gets the second contract; 1.5 OOM behind gets ≈ none; a barely reachable leader does not take the others\' contracts)',
     `leader 0.5 OOM ahead: ${rStart.map((x) => x.toFixed(2)).join(' / ')}; even ${rEven[0].toFixed(2)}; far ${rFar.map((x) => x.toFixed(2)).join(' / ')}; access-0.05 leader ${rCn.map((x) => x.toFixed(2)).join(' / ')}; start US Σ ${sum(startUS).toFixed(3)}`);
   // A8 part 2: ROW firms start paying for AI work at the rate their AI-using workers hold paid seats (REGION_SCALE.ROW
-  // A0 = use × SEATS.start ROW ÷ US), so US buyers are 40–72% of the start sector spend outside China (72%: Anthropic's
-  // US billing share, an upper bound [UNVERIFIED]); workers' use keeps its scale (ROW / US hours of use ≈ 3.6, the
-  // Anthropic Economic Index's Claude.ai split); the leader's day-1 revenue ≈ $12–15B with Chat ≈ two thirds of it.
-  let us = 0;
-  let row = 0;
-  for (const def of SECTORS) {
-    const a = sectorSpendParts(s, 'US', def.id, mix);
-    const b = sectorSpendParts(s, 'ROW', def.id, mix);
-    us += a.adopted + a.agent + a.seat;
-    row += b.adopted + b.agent + b.seat;
-  }
-  const hrs = (r: 'US' | 'ROW') => SECTORS.reduce((x, def) => x + sectorHours(s, r, def.id), 0);
-  const hr = hrs('ROW') / hrs('US');
+  // A0 = use × SEATS.start ROW ÷ US): the ROW sector scale is that seats ratio (identity). The sourced start numbers read
+  // off it (US buyers' share of the start spend, ROW / US hours of use, the leader's day-1 revenue) are calibration targets:
+  // calreport/market.ts.
   const a0 = REGION_SCALE.ROW.A0;
-  run(s, 1);
-  const rd = revenueReadout(s);
-  const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
-  check(us / (us + row) >= 0.4 && us / (us + row) <= 0.72 && hr > 3 && hr < 4.2 && near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9),
-    'A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6 (ROW sector scale = use × seats ratio)',
-    `US ${us.toFixed(2)}B of ${(us + row).toFixed(2)}B (${((100 * us) / (us + row)).toFixed(0)}%); hours ROW / US ${hr.toFixed(2)}`);
-  // CAL-TARGET (sourced: research/22 §4, the leader's 2025 run-rate ≈ $12–15B, Chat ≈ two thirds).
-  check(rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75, "A8 the leader's day-1 revenue $12–15B, Chat 60–75% of it", `revenue ${rd.total.toFixed(2)}B (Chat ${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
+  check(near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9), 'A8 ROW sector scale = use × seats ratio', `A0 ${a0.toFixed(3)}`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).
@@ -751,15 +679,8 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   check(near(prod6, total, 1e-9) && near(perTok * tokCount, total, 1e-9),
     'A3 the fixed-capability decline per task = active parameters × FLOP per parameter × serving stack (utilisation) × tokens per task × $ per H100e-hour × margin (exact); per token = per task ÷ tokens per task',
     `params ${fmt(f.params)}, FLOP/param (shape, serving-stack FLOP part) ${fmt(f.fpp)}, serving stack (decode utilisation ${a.ud.toFixed(3)} → ${b.ud.toFixed(3)}) ${fmt(f.util)}, tokens per task (τ ${a.tau.toFixed(3)} → ${b.tau.toFixed(3)}; H100e-time) ${fmt(f.tokens)}, hardware (rental) ${fmt(f.hardware)}, margin ${fmt(f.margin)} → ${fmt(total)}/yr per task; per token ${fmt(perTok)}/yr (token count per task ${fmt(tokCount)}/yr)`);
-  // Band ×6–×900 (M9 re-baseline, lead decision): the ceiling was ×30; it is now the sourced range's top. Cottier,
-  // Snodin, Owen & Adamczewski (Epoch AI, Mar 2025; research/20 D3) measure price-for-fixed-capability declines of ×9 to
-  // ×900 a year depending on the capability threshold (GPT-4-level GPQA ≈ ×40/yr). F4's ai2027 refit (sd_SC 0.5 → 1.25)
-  // puts seed 2027's Feb-2027 teacher 2.62 OOM above V0's fit, so the cheapest V0-level student is a 2.7B model and the
-  // decline is ×44.8/yr: inside the measured range, outside the old ×30 ceiling. The floor ×6 is kept (below Epoch's ×9 to
-  // allow the slower conservative estimates, ×5–10/yr, research/12 §0.6).
-  check(total >= 6 && total <= 900 && perTok >= 6 && perTok <= 900,
-    'A3 the price of a fixed capability (V0\'s) falls ×6–×900 a year per task and per token (R20 D3: ≈ ×10, ×9–×900; Cottier et al. 2025)',
-    `${fmt(total)}/yr per task, ${fmt(perTok)}/yr per token over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
+  // (The decline's size against the sourced ×6–×900 a year, Cottier et al. 2025, is a calibration target: calreport/market.ts.)
+  console.log(`INFO  A3 the price of V0's capability falls ${fmt(total)}/yr per task, ${fmt(perTok)}/yr per token over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
   // V1 (D10): the reference lab's serving stack grows by mechanism (its Inference-efficiency line: adopted ideas in the
   // serve stack), and so does the rivals' aggregate one (RivalPhys.serve from their research speed).
   const nServe = sEnd.player.research.stacks.serve.n;
