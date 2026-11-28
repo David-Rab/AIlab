@@ -1,24 +1,21 @@
-// Events, endings and China-lead acceptance tests (V2-SPEC §8.3: E1–E5; §7.1 T3, T4). Owner: events.
+// Events and endings acceptance tests (V2-SPEC §8.3: E1–E5, C1). Owner: events. The rival-gap and China-lead targets (T3, T4) moved to calreport/rivals.ts (TESTING.md §0).
 //   E1  catalog shape: the kept events, ≥ 2 choices each, titles, text length (preview truth is lint-tradeoffs.ts)
 //   E2  no event text references an inactive lab (every (fixture, rival subset) pair: 93 seeds)
 //   E3  rival comparisons use the PUBLIC models (player vs NPC, both stepped; F7)
 //   E4  pacing limits hold
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
-//   T3  China's lead at the start is the sourced 6.5–8 months (SC1-SPEC; Epoch mean 7) (constructed, quick); on RefBot play to day 540 China trails the US frontier on average and almost always (full only)
-//   T4  rival gaps at start sit inside the cast's span (npc/CAST-2025.md: 0 for the leader's peer to 9.5 months, ±1.5 band)
 //   C1  commitments / framework gate on the day-400 fixture
 // Cost: quick (--smoke) = E2 31 seeds (one deserialise + a few ticks each), E4 1 seed x 300 idle days, E5 ~16 newGames,
-// T3 constructed (4 newGames), T4 10 newGames, C1 ~0: ~1,100 sim-days, ~20 s. Full = E2 93 seeds, E4 3 seeds x 300 days,
-// T3 3 bot games x 540 days (1,620 bot-days ≈ 20-60 s), T4 40 newGames: ~1.5 CPU-min. Tier: quick (SMOKE) and full.
-// E2, E4, E5, T3 and the T4 spread go through the simulation cache (simcache.ts). `--smoke` (test:quick): E2 on 31
-// seeds, E4 on 1 seed, T4 on 10; the bot-game T3 runs in full only.
+// C1 ~0: ~1,100 sim-days, ~20 s. Full = E2 93 seeds, E4 3 seeds x 300 days.
+// E2, E4 and E5 go through the simulation cache (simcache.ts). `--smoke` (test:quick): E2 on 31
+// seeds, E4 on 1 seed.
 //
 // Band arithmetic. E2: the rival subset is mask = 1 + seed % (2^k - 1) and the fixture is seed % 3. For k = 5 rivals that
 // is 31 x 3 = 93 distinct (mask, fixture) pairs and the periods are coprime, so seeds 1..93 visit every pair once; seeds
 // beyond 93 only repeat a pair with another rng stream (the texts read no rng), so 1,000 seeds added nothing. 100 seeds
 // in full (every pair + a few repeats); quick 31 seeds (every mask once, mixed fixtures).
 // E4: the pacing limits are per-tick invariants; the spam fires the same crises each day, so one seed already sees ~30
-// crises (check: > 50 in all); 3 seeds in full. T3 (full): 3 seeds x ~510 daily readings; see T3.
+// crises (check: > 50 in all); 3 seeds in full.
 import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { asiControl } from '../../src/engine/v2/safety/control';
 import { readFileSync } from 'node:fs';
@@ -31,7 +28,6 @@ import { blockingCommitments, measuredDomain, signCommitment } from '../../src/e
 import { refreshFramework, worldHighL } from '../../src/engine/v2/safety/framework';
 import { FRAMEWORK_CRITICAL_L } from '../../src/data/v2/framework';
 import { deployGate } from '../../src/engine/v2/models/deployments';
-import { CHINAGOV } from '../../src/engine/v2/world/chinagov';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { EVENTS } from '../../src/engine/v2/core/registry';
@@ -46,10 +42,8 @@ const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import type { EndingId, EngineSystem, GameStateV2, LabId, MilestoneIdx, TraitVector } from '../../src/engine/v2/types';
-import { refBot } from '../../src/engine/v2/bots/ref';
-import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_DIR, KNOWN, SMOKE, check, finish, smokeCheck } from './lib';
+import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck } from './lib';
 import { cached } from './simcache';
 
 const ME = [fileURLToPath(import.meta.url)];
@@ -296,84 +290,6 @@ const load = (i: number) => deserialize(fixtures[i]);
   return missing;
   });
   check(missing.length === 0, `E5 every EndingId is reachable (${Object.keys(setups).length} endings, forced states)`, missing.join(', '));
-}
-
-// ───────── T3: China lead ─────────
-// China's lab runs on the NPC compute rule (W6) and its lead is read from the public view (W2). Its start lag is the sourced
-// 6.5–8 months (design/bal/SC1-SPEC.md:30; npc/CAST-2025.md "China gap check": IFP 6.5, CAISI ~8, Epoch mean 7) = 198–243 d; the
-// old 150–200 d pinned the pre-NPC rule. (A theft's effect on China's lag is npcShocks.ts F6; the public lead the clock reads
-// only moves when China releases the stolen model, so a lead-clock "theft never widens" check after one week read +8 d of
-// drift and could not fail: removed.) Constructed here: a fresh game after one tick. Full only: real RefBot play with no theft,
-// sampled daily over days 30–540: China stays behind the US frontier (the best of the player and the active rivals), on
-// average by 90–270 d (the cast span) and on ≥ 95% of days.
-{
-  const minRung = CHINAGOV.theftRung;
-  CHINAGOV.theftRung = 99; // no natural theft: the lead is read without it
-  const leads0: number[] = [];
-  for (let seed = 1; seed <= 4; seed++) {
-    const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
-    tick(s, { skip: ['endings'] });
-    leads0.push(leadBetween(s, 'player', 'china'));
-  }
-  CHINAGOV.theftRung = minRung;
-  check(leads0.length > 0 && leads0.every((x) => x >= 6.5 * 30.4 && x <= 8 * 30.4), 'T3 China lead at start is 6.5–8 months (198–243 d)', leads0.map((x) => x.toFixed(0)).join(', '));
-}
-// CAL-TARGET (balance session): with no theft China's lag closes (secrets leak, open weights) until it sits ahead of the US
-// frontier on ~30% of days (p10 -33 d, min -61 d, mean 102 d at 3 seeds). The check stays as written.
-KNOWN["T3 China's lab stays behind the US frontier on ≥ 95% of days"] = 'OPEN.md § Balance: China trails the US frontier (T3, directorEndings)';
-if (!SMOKE) {
-  // Seeds: the failing share is 30% of days against a 5% allowance, visible from one seed; the mean (102 d) sits 12 d above
-  // its 90 d floor and the daily lead of one game wanders over ~±100 d, so 3 games (~1,500 correlated readings) is the minimum
-  // that shows a between-seed spread; 8 seeds (the old count) cost 2.7x for the same two verdicts.
-  const T3_SEEDS = 3;
-  const pre = cached('directorEndings-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
-    const pre: number[] = [];
-    const minRung = CHINAGOV.theftRung;
-    CHINAGOV.theftRung = 99;
-    for (let seed = 1; seed <= T3_SEEDS; seed++) {
-      const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
-      tick(s, { skip: ['endings'] });
-      const usFrontier = (): LabId => [...s.rivals.filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player' as LabId].reduce((a, b) => (bestG(s, b) > bestG(s, a) ? b : a));
-      while (s.time.day < 540 && !s.ending) {
-        refBot.act(s, engine);
-        tick(s, { skip: ['endings'] });
-        if (s.time.day >= 30) pre.push(leadBetween(s, usFrontier(), 'china'));
-      }
-    }
-    CHINAGOV.theftRung = minRung;
-    return pre;
-  });
-  const mean = pre.reduce((a, x) => a + x, 0) / Math.max(1, pre.length);
-  const sorted = [...pre].sort((a, b) => a - b);
-  const pct = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
-  check(pre.length > 0 && mean >= 90 && mean <= 270, `T3 China's lab trails the US frontier by 90–270 d (the cast span, 3–9 months) on average until a theft (RefBot, days 30–540 daily, ${T3_SEEDS} seeds)`, `mean ${mean.toFixed(0)} d`);
-  check(pre.length > 0 && pre.filter((x) => x > 0).length / pre.length >= 0.95, "T3 China's lab stays behind the US frontier on ≥ 95% of days", `${(100 * pre.filter((x) => x > 0).length / pre.length).toFixed(1)}%`);
-  // M5 (lead decision on F2): the mean is the test; the percentiles of the daily lead are reported (INFO).
-  console.log(`INFO  T3 China lead: p10 ${pct(0.1).toFixed(0)} d, p25 ${pct(0.25).toFixed(0)}, median ${pct(0.5).toFixed(0)}, p75 ${pct(0.75).toFixed(0)}, p90 ${pct(0.9).toFixed(0)}; min–max ${sorted[0].toFixed(0)}–${sorted[sorted.length - 1].toFixed(0)} d; share of days below 75 d ${(100 * pre.filter((x) => x < 75).length / pre.length).toFixed(1)}%, above 275 d ${(100 * pre.filter((x) => x > 275).length / pre.length).toFixed(1)}%`);
-}
-
-// ───────── T4: rival start gaps inside the cast's span ─────────
-// Same metric as WS1's calib T4 (the lead clock). The cast's measured start lags (npc/CAST-2025.md §1: 0 for the leader and
-// its peer, up to 9.5 months behind the public frontier for Meta; public-lag band ±1.5 months, line 203) are the rule
-// (NPC-LABS §13): at the leader start a rival is level with the player or behind it, and never more than 9.5 + 1.5 months.
-// The old "3–9 months, positive" pinned the pre-cast gaps. The calib spread over seeds is an INFO line.
-{
-  const LO = -0.05, HI = 11; // months
-  const fx = newGame(defaultSetupV2({ seed: 2027, alignment: 'medium' }));
-  const fxMonths = fx.rivals.map((r) => leadBetween(fx, 'player', r.core.id) / 30.4);
-  check(fxMonths.length > 0 && fxMonths.every((m) => m >= LO && m <= HI), 'T4 rival gaps at start are within the cast span (0 to 11 months; fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
-  const T4_SEEDS = SMOKE ? 10 : 40;
-  const months: number[] = cached('directorEndings-t4', { seeds: T4_SEEDS }, ME, () => {
-    const months: number[] = [];
-    for (let seed = 1; seed <= T4_SEEDS; seed++) {
-      const s = newGame(defaultSetupV2({ seed }));
-      for (const r of s.rivals) months.push(leadBetween(s, 'player', r.core.id) / 30.4);
-    }
-    return months;
-  });
-  months.sort((x, y) => x - y);
-  console.log(`      T4 over ${T4_SEEDS} seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months`);
-  check(months.length > 0 && months[0] >= LO && months[months.length - 1] <= HI, 'T4 every rival gap at start over the seeds is within the cast span (0 to 11 months)', `${months[0].toFixed(2)}–${months[months.length - 1].toFixed(2)}`);
 }
 
 // ───────── C1 (R1 B1/B2): a commitment blocks only launches in its own scope, judged on the candidate ─────────
