@@ -21,7 +21,7 @@ information. Each task runs tsc plus its own targeted test; heavy runs happen on
 | C7c | Distribution: the partner's channel adds API/enterprise reach and takes a cut of that channel only (replaces the 8% revenue share); the legacy Northwind stake's all-revenue share, projected | Opus high, reason (a): touches the products model, choices while coding | 100 min | C7a | done c2875bcf (15 min, merged) |
 | C8 | UI: Board card header and "who controls you" row, owner budget and goals in the card, Partners card, previews (after-state board and controller), glossary in player words | Sonnet high | 100 min | C4, C7b | done e4a130bc (15 min, merged) |
 | C9 | Checkpoint: test:full; bot runs for difficulty labels per lab kind; the deal-balance check (offer script: no free money, no never-worth-it); target F8 re-judged | Sonnet high (runs) + lead (judgement) | 120 min | C1–C8 | |
-| C10 | Cleanup (spec §9) | Sonnet medium | 45 min | C9 | |
+| C10 | Cleanup (spec §9) | Sonnet high | 75 min | C8 (run before C9, designer 2026-11-28) | done f886dc7f (merged) |
 
 ## Notes
 - 2026-11-28: C5 split. **C5a** (positions + lab kinds + minimal setup; Sonnet high, 120 min) is running in corp-c5a. **C5b** (the companies cast incl. the Meta-like parent, who owns or backs each lab, Create-rivals owner/backer data) comes after C5a.
