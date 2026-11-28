@@ -16,7 +16,7 @@ with its source and band, one home per target. It does not live in a test.
 | Tier | Contents | When | Budget |
 |---|---|---|---|
 | quick | type-checks, lints, mechanism tests on constructed cases. **No played games.** | every task | ≤ 3 min wall, ≤ 10 CPU-min |
-| full | quick + the UI test + a few played games (cached) checked against **wide sanity bounds** ("nothing is absurd": no NaN, milestones in order between 2026 and 2040, probabilities strictly inside 0..1, money within ×10 of the sourced range) | merge | ≤ 10 min wall, ≤ 15 CPU-min |
+| full | quick + the UI test + a few played games (cached) checked against **wide sanity bounds** ("nothing is absurd": no NaN, milestones in order between 2026 and 2040, probabilities strictly inside 0..1, money within ×10 of the sourced range) | merge | ≤ 10 min wall, ≤ 18 CPU-min |
 | perf | wall-time benchmarks | on demand, quiet machine | — |
 
 A sanity bound must be loose enough that tuning can't break it, and tight enough that a real bug does.

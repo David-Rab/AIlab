@@ -52,7 +52,7 @@ const SMOKE = ['--smoke'];
 const S = (tiers: Tier[], est: number, extra: Partial<Job> = {}): Partial<Job> => ({ tiers, est, ...extra });
 const ALL: Tier[] = ['quick', 'full'];
 const DEFAULT_BUDGET = 20; // CPU-s per job when a job declares none
-const TIER_BUDGET_MIN: Partial<Record<Tier, number>> = { quick: 10, full: 15 }; // CPU-min for the tier in total (TESTING.md §0)
+const TIER_BUDGET_MIN: Partial<Record<Tier, number>> = { quick: 10, full: 18 }; // CPU-min for the tier in total (TESTING.md §0; full 18: the sanity game and the full forms of finance, hygiene, npcShocks, directorEndings, worktypes, designer 2026-11-28)
 /** Every job. `full` lists exactly the old test:v2 chain (+ test:ui); quick adds the main tsc and SMOKE modes. */
 const JOBS: Job[] = [
   { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
