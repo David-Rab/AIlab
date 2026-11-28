@@ -11,20 +11,20 @@ export interface Estimate extends Row {
 
 /**
  * The only way an estimates module makes a row. Band, unit and source come from the registry entry `id`
- * (balance/targets.ts), exactly as in the calibration report (`rowOf`); `measured` is the estimate (a number, or a
+ * (balance/targets.ts), exactly as in the calibration report (`rowOf`); `measured` is the estimate (a number, an array of numbers that must each be in band, or a
  * boolean for a target with no numeric band). `chain` names the engine functions called: estimates call the engine,
  * they never copy its maths.
  */
-export function estOf(id: string, value: string, measured: number | boolean, chain: string, suffix?: string): Estimate {
+export function estOf(id: string, value: string, measured: number | number[] | boolean, chain: string, suffix?: string): Estimate {
   const row = rowOf(id, value, measured, suffix);
   let absurd = false;
-  if (typeof measured === 'number') {
+  for (const x of Array.isArray(measured) ? measured : typeof measured === 'number' ? [measured] : []) {
     const v = bandOf(id) ?? {};
     const lo = v.lo ?? v.p50;
     const hi = v.hi ?? v.p50;
-    if (!Number.isFinite(measured)) absurd = true;
-    else if (lo !== undefined && lo > 0 && measured < lo / 10) absurd = true;
-    else if (hi !== undefined && hi > 0 && measured > hi * 10) absurd = true;
+    if (!Number.isFinite(x)) absurd = true;
+    else if (lo !== undefined && lo > 0 && x < lo / 10) absurd = true;
+    else if (hi !== undefined && hi > 0 && x > hi * 10) absurd = true;
   }
   return { ...row, chain, absurd };
 }
