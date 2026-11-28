@@ -55,6 +55,9 @@ export interface PositionDef {
   /** Compute owned (installed in live sites) and rented (cloud contract), H100e. */
   owned: number;
   rented: number;
+  /** The owned compute sits in grid campuses already built and paid for (no rent), whoever owns the company; absent: in a
+   *  rented hall. Capital-heavy only [D: xAI's Colossus was built before mid-2025]. */
+  ownedCampusesPaid?: true;
   /** Months behind the leader on the capabilities index (research/18 §0.1): the start model's lag. */
   lagMonths: number;
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
@@ -171,7 +174,7 @@ export const POSITIONS: PositionDef[] = [
     // $20B on hand [D: xAI raised about $10B in mid-2025 plus Colossus; a market-funded capital-heavy lab needs cash]. A
     // division also gets the parent's first quarterly budget on top (finance/parent.ts). Revenue (~$4B attributed).
     cash: 20, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
-    owned: 800e3, rented: 0,
+    owned: 800e3, rented: 0, ownedCampusesPaid: true,
     lagMonths: 6,
     mods: { talentPull: 0 },
     securityLevel: 2.4,

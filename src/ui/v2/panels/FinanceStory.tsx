@@ -3,6 +3,7 @@
 // owe). One card, one selector (engine storyNow). FIN5b: home of the private rivals' valuations (their bars' tooltips).
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { tiesLabel } from '../../../data/v2/deals';
 import { capMultiple, credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, rivalStructure, STORY, storyNow, structureLabel } from '../../../engine/v2';
 import type { Driver, GameStateV2, LabStory, StoryNow } from '../../../engine/v2';
 import { Term, Tip, TipCard, Why } from '../ui';
@@ -96,7 +97,9 @@ const capWhy = (a: LabStory) => (a.revenue < STORY.preRevenue || (a.cap ?? 0) <=
 
 /** FIN6b: a rival's story details, one level down from its bar's tooltip (hover "details"). */
 function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
-  const gov = rivalStructure(s.rivals.find((r) => r.core.id === a.id)?.npc.kind ?? '');
+  const npc = s.rivals.find((r) => r.core.id === a.id)?.npc;
+  const gov = rivalStructure(npc?.kind ?? '');
+  const ties = tiesLabel(npc?.owner, npc?.backers);
   return (
     <Tip content={() => <TipCard title={`${a.name}: its story`} value={`weight ${a.weight.toFixed(2)}`} rows={[
       { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },
@@ -104,6 +107,7 @@ function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
       { label: 'Story score', value: a.z.toFixed(2) },
       { label: <Term id="investorCred">Investor credibility</Term>, value: a.rung },
       { label: <Term id="govFactor">Governance</Term>, value: `${X(a.gov)} ${gov}` },
+      ...(ties ? [{ label: <Term id={npc?.owner ? 'ownedBy' : 'backedBy'}>Company ties</Term>, value: ties }] : []),
       { label: <Term id="valuationCap">Cap</Term>, value: `${F.money(a.cap ?? 0)} = ${capRule(a)}` },
     ]}>{`Weight = credibility × governance × exp(score ÷ ${STORY.tau}), as yours; its share is its weight ÷ every private lab's. The mark moves half-way each quarter.`}</TipCard>}>
       <span className="term" data-test="rival-why">details</span>

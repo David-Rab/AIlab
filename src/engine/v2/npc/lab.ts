@@ -190,7 +190,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const d0 = startLagDays(e);
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
-  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), hist: [], m: 0, p: 0 };
+  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), ...(e.owner ? { owner: e.owner } : {}), ...(e.backers ? { backers: { ...e.backers } } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), hist: [], m: 0, p: 0 };
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], isPublic, openWeights: false,
   });
@@ -263,6 +263,7 @@ export function castOf(setup: Pick<SetupV2, 'cast' | 'labKind' | 'custom'>): Cas
     const e: NpcCastEntry = {
       ...base, id: nth > 1 ? base.id + nth : base.id, name: base.name + sfx, family: base.family + sfx,
       start: { ...base.start, ...(base.start.publicLagMonths === null ? { publicLagBandMonths: m } : { publicLagMonths: m }) },
+      ...(c.owner ?? base.owner ? { owner: c.owner ?? base.owner } : {}), ...(c.backers ?? base.backers ? { backers: c.backers ?? base.backers } : {}),
     };
     out.push({ e, ...(c.personality ? { p: { ...KINDS[c.kind], ...c.personality } } : {}) });
   }

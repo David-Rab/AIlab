@@ -1,7 +1,6 @@
 // Strategic partners, debt instruments, data-centre sites and market constants (FINANCE-V3 §3–§6; DATACENTERS.md for
 // sites and power; V2-SPEC §3.8 and research/15 §1.2, §1.7 for the market and debt; research/21 §1 B). Owner: WS3.
 // Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
-import type { NpcKindId } from './npcLabs';
 import type { Debt, PartnerKind, PartnerSupply } from '../../engine/v2/types';
 
 export type { PartnerKind, PartnerSupply };
@@ -12,17 +11,32 @@ export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; 
   chipVendor: { label: 'Chip vendor', gives: 'equity per GW of its chips you buy', wants: 'you buy its chips (take-or-pay)' },
 };
 
-export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[]; /** Its in-house lab is the big-tech NPC lab (IP access). */ inHouse?: true }
+export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[] }
 
-/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, the NPC lab of the big-tech kind. Only
- *  a partner marked `inHouse` has one (Azimuth, the Google-like cloud); the others (chip vendors) offer no
- *  IP access (one simple rule, NPC principle 7; the cast has one big-tech lab). */
-export const AFFILIATE_KIND = 'bigtech' as const satisfies NpcKindId;
+/** The companies cast (CORPORATE.md §5.8): one fixed list, the counterparties of the whole game. A company that is a
+ *  partner sells to labs (PARTNER_DEFS); which lab a company owns or backs is cast data (npcLabs.ts REALISTIC_CAST
+ *  `owner` / `backers`). `like` is the real analogue, for tooltips only. */
+export type CompanyId = 'Northwind Cloud' | 'Azimuth' | 'Silica Systems' | 'Lattice';
+export interface Company { id: CompanyId; like: string; role: { partner: boolean } }
+export const COMPANIES: Company[] = [
+  { id: 'Northwind Cloud', like: 'Microsoft', role: { partner: true } },
+  { id: 'Azimuth', like: 'Google / Amazon', role: { partner: true } },
+  { id: 'Silica Systems', like: 'Nvidia', role: { partner: true } },
+  // "Lattice" is a working name (designer to choose). It only owns the open-weights lab: it offers no partner terms.
+  { id: 'Lattice', like: 'Meta', role: { partner: false } },
+];
+export const COMPANY_IDS: CompanyId[] = COMPANIES.map((c) => c.id);
 
-/** Fictional partners (real analogues in comments). */
+/** A lab's ties as a short tag for rival rows: "Owned by Azimuth", "Backed by Northwind Cloud 27%" (empty: none). */
+export const tiesLabel = (owner?: CompanyId, backers?: Partial<Record<CompanyId, number>>): string => [
+  ...(owner ? [`Owned by ${owner}`] : []),
+  ...Object.entries(backers ?? {}).map(([c, v]) => `Backed by ${c} ${Math.round((v ?? 0) * 100)}%`),
+].join(' · ');
+
+/** Fictional partners (the partner subset of the companies; real analogues in comments). */
 export const PARTNER_DEFS: Partner[] = [
   { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], supply: ['cloud'] }, // Microsoft-like
-  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'], inHouse: true }, // Amazon/Google-like (Trainium/TPU)
+  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'] }, // Amazon/Google-like (Trainium/TPU)
   { id: 'Silica Systems', kind: 'chipVendor', competitors: [], supply: ['chips'] }, // Nvidia-like
 ];
 /** Default provider on the Rent compute card: a neocloud (CoreWeave-like). Neoclouds are providers, not deals (FIN1,
