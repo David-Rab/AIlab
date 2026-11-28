@@ -1,9 +1,10 @@
-// WS2 acceptance tests S1–S6 (V2-SPEC §8.3) plus safety-state hygiene. Owner: WS2.
+// WS2 acceptance tests S1–S6 (V2-SPEC §8.3) plus safety-state hygiene. Owner: WS2. Tier: quick (--smoke) and full.
 //
-// S4/S5 play real games on the integrated engine (safety-emu.ts: RefBot, the safe-only recipe on reference finance,
-// the mixed bot); WS1's runs call the WS2 trait hooks on every completed run. The games go through the simulation cache
-// (simcache.ts). `--smoke` (test:quick) plays 1 seed per bot (the mixed bot to SAR); S4/S5 then print SMOKE.
-// `--deep` (run.ts --tier deep, npm run test:deep; M10) adds S5's played mechanism checks (half staff, sabotage on / off: 180 RefBot
+// Constructed cases only (TESTING.md §0): S1 agenda draws, S2/S3 formulas, S5 mechanism (neuralese deepens the lag, on the
+// day-900 fixture), the S5 sabotage pair, S6, B3, SAFMECH, and S4's direction check (paired arms from the day-400 fixture).
+// The played S4/S5 targets (RefBot / safe-only P_mis at ASI, Mixed sight limit, half staffing) and the RefBot-game rates
+// moved to scripts/v2/calreport/safety.ts, the calibration report.
+// Cost: ~10 s of constructed cases plus the S4 direction check (2 × 120 days ≈ 10 s); no cached game. `--smoke` changes nothing.
 // games to SAR; M11: 20 + 2 × 80), which the full tier skips to stay ≲ 20 min wall; the merge wave runs it once.
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -17,8 +18,7 @@ import { openInvestigation } from '../../src/engine/v2/safety/investigations';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
 import type { GameStateV2, TraitId } from '../../src/engine/v2/types';
-import { fileURLToPath } from 'node:url';
-import { check, finish, FIXTURE_DIR, SMOKE, smokeCheck } from './lib';
+import { check, finish, FIXTURE_DIR } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
@@ -26,40 +26,15 @@ import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimi
 import { internalVersion } from '../../src/engine/v2/models/labs';
 // SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
 const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, lo: r.lo, hi: r.hi }; };
-const DEEP = process.argv.includes('--deep');
-import { MIXED, REF_HALF_STAFF, SAFE, play, refGame, sarRead, type Outcome } from './safety-emu';
+import { sarRead } from './safety-emu';
+import { refAct, refDecide, REF_PLAY, type RefPlayOpts } from '../../src/engine/v2/bots/ref';
+import { resolve, tick } from '../../src/engine/v2/core/loop';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { engine } from '../../src/engine/v2/index';
+import { misalignment, pMis } from '../../src/engine/v2/safety/traits';
 import { COVERT_ACTS } from '../../src/data/v2/danger';
 import { flagNum } from '../../src/engine/v2/safety/common';
-import { cached, prefill } from './simcache';
 
-// Cost (CPU-s, one process). SMOKE (test:quick): S1–S3, B3, S6, SAFMECH and the sabotage pair are constructed (~10 s); S4/S5
-// play ONE short game per bot (40 days each, ~3 s apiece) and the checks on them are structural, not bands.
-// Full: S4 REF = 20 seeds to ASI (shared with safetyrates.ts through refGame: one cached game per seed), S4 SAFE = 16
-// seeds to ASI, S5 Mixed = 10 games to SAR (~1.4k game-days at ~12 ms: ≈ 17 s a game, so ≈ 6 + 5 + 2 ≈ 13 CPU-min cold,
-// ≈ 0 warm; was 40 + 40 + 20 games ≈ 26 CPU-min). Deep adds S5 half staff (20 games to SAR).
-// Seed arithmetic (S4): per-world P_mis has sd ≈ 0.31 (B-heavy.md's estimate; not re-measured). The REF band [0.40, 0.80]
-// is 0.4 wide and the authors' credences are the sourced centre, so 20 worlds give se = 0.31/√20 = 0.07: a mean at the
-// band centre is 2.9 se from either edge (at 40 worlds 4.1 se). SAFE has a one-sided bound ≤ 0.25 and sd ≈ 0.25 →
-// 16 worlds se 0.06. S5 Mixed compares two means (Mixed U vs RefBot's 20 worlds) on U with sd ≈ 0.5 levels; 10 worlds se 0.16.
-const SMOKE_DAYS = 40;
-const MAX_DAY = SMOKE ? SMOKE_DAYS : 1600;
-/** play() through the simulation cache (the record is the Outcome). RefBot games to ASI go through refGame instead. */
-const EMU = fileURLToPath(new URL('./safety-emu.ts', import.meta.url));
-const playC = (bot: typeof SAFE, seed: number, stopAt: 'asi' | 'sar', variant = ''): Outcome =>
-  cached('safety-play', { bot: bot.id, variant, seed, stopAt, alignment: 'medium', maxDay: MAX_DAY }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt, 'medium', undefined, undefined, MAX_DAY));
-const N_REF = SMOKE ? 1 : 20;
-const N_SAFE = SMOKE ? 1 : 16;
-const N_S5 = SMOKE ? 1 : 10;
-/** S5's played mechanism check (half staff): the first N_MECH of the S4 RefBot seeds (paired), played to SAR, deep only. */
-const N_MECH = SMOKE ? 0 : 20;
-const N_MECH_PLAY = DEEP ? N_MECH : 0;
-// The runner's --prefill shards: the S4/S5 games, in the order the checks ask for them.
-prefill([
-  ...Array.from({ length: N_REF }, (_, i) => () => refGame(500 + i, MAX_DAY)),
-  ...Array.from({ length: N_SAFE }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
-  ...Array.from({ length: N_S5 }, (_, i) => () => playC(MIXED, 900 + i, 'sar')),
-  ...Array.from({ length: N_MECH_PLAY }, (_, i) => () => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')),
-]);
 
 // S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
 // by a quarter (§3.5.2) and the target widened to 2–4.5.
@@ -142,90 +117,50 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
   check(Math.abs(familyPenalty(s, v, 'EA', 'BB') - 1) < 1e-9, 'S3 EA itself is not EA-penalised');
 }
 
-// ───────────────────────────── S4: Mis at ASI ─────────────────────────────
-const t0 = performance.now();
-const ref = Array.from({ length: N_REF }, (_, i) => refGame(500 + i, MAX_DAY).outcome);
-const safe = Array.from({ length: N_SAFE }, (_, i) => playC(SAFE, 700 + i, 'asi'));
-const refP = mean(ref.map((o) => o.pmis));
-const safeP = mean(safe.map((o) => o.pmis));
-console.log(`      RefBot Mis at ASI: mean ${mean(ref.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...ref.map((o) => o.mis)).toFixed(2)}–${Math.max(...ref.map((o) => o.mis)).toFixed(2)}  (ASI day ≈ ${mean(ref.map((o) => o.asiDay ?? 0)).toFixed(0)})`);
-console.log(`      Safe-only Mis at ASI: mean ${mean(safe.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...safe.map((o) => o.mis)).toFixed(2)}–${Math.max(...safe.map((o) => o.mis)).toFixed(2)}`);
-// CAL2-S (designer decision 2): the band is the AI Futures / AI 2027 authors' own credences. P_mis averaged over worlds
-// is the chance that the reference lab (no slowdown, AI 2027's safety share) reaches an ASI misaligned past the world's
-// tolerance. Authors' first-person statements: Kokotajlo "I think AI doom is 70% likely" (LessWrong comment, 25 May
-// 2023); Larsen, conditional on a nearcast with current techniques and little government action, "25/25/50%" on (1)
-// handled well / (2) "adversarially misaligned" / (3) "try to align their successors but fail", i.e. 75% misaligned
-// successors (LessWrong shortform, 28 Mar 2026); Alexander 20% that the first AIs past the point of no return "will want
-// to eliminate the human population" plus "an additional 30% chance that they otherwise permanently curtail human
-// potential" (ACX "My AI Opinions", 11 Jun 2026); the AI Goals Forecast (Apr 2025), credence that unintended goals
-// "feature prominently" in Agent-3: unintended spec 70 / 40 / 50%, proxies / ICGs 50 / 80 / 50% (Daniel / Thomas /
-// Eli). Takeover / doom also needs the misaligned ASI to escape control, so those credences are lower bounds on P_mis;
-// the band 0.40–0.80 spans the authors' spread (0.40 the lowest category credence, 0.80 the highest).
-// design/archive/RD-AUDIT/BUILD-NOTES.md "CAL2-S". (The V2-SPEC row 0.55–0.85 had no source.)
-smokeCheck(refP >= 0.4 && refP <= 0.8, "S4 RefBot/medium: P_mis at ASI ∈ [0.40, 0.80] (AI Futures authors' credences)", refP.toFixed(3));
-smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.toFixed(3));
-check([...ref, ...safe].every((o) => o.jsonOk && o.pmis >= 0 && o.pmis <= 1 && Number.isFinite(o.mis)), 'safety and model state stay plain JSON through the game, and P_mis is a probability');
-
-// ───────────────────────────── S5: Understanding vs capability ─────────────────────────────
-// S5R (design/archive/V3-BUILD.md "S5R" notes): emergent, not forced. RefBot's safety programme is AI 2027's (bots/ref.ts: the alignment
-// share of internal compute, 3–4%, on its research, the safety agents mixed like the capabilities research; four line
-// teams). The criterion: believed U (§3.5.7) below L at SAR in at least half the worlds. AI 2027's OpenBrain is the
-// authors' "best guess" (Sep 2027 box) and by SAR (Aug 2027) its safety team is "far from a full understanding" (Apr 2027)
-// and "Bottom-up interpretability doesn't work" (Sep 2027): in the reference lab the lag is at least as likely as not.
-// Mechanism checks (paired worlds, RefBot variants): the lag grows with opaque reasoning (the same SAR state with the
-// internal model in neuralese, AI 2027's Agent-3/4: constructed from the day-900 fixture in SMOKE, the played SAR states
-// in full) and with less safety staffing (half the line teams; played, deep). Sabotage of safety research (M11): since
-// SAFMECH the saboteur attacks only on-track results that would expose it (AI 2027: Agent-4 "sandbags on the small fraction of
-// alignment research that it thinks is actually on track to solve the problem or reveal Agent-4's scheming"), so the sourced
-// effect is overconfidence: rigged tools keep believed U up while true U falls. It was checked by 2 x 80 played RefBot games
-// to SAR (rare event: ~0.25 rigged tools a game); it is now two constructed cases (the S5 sabotage block below): the odds
-// of the act (kappa on/off) -> rigged tools and sandbagged results, directly on fireFinding; and a rigged tool -> believed - true U.
-// U - L is understanding().margin (L with the lineage fallback while the internal model is in evaluation).
-const S5_BELOW_MIN = 0.5;
-const median = (xs: number[]) => {
-  const a = [...xs].sort((p, q) => p - q);
-  return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
-};
-const below = (xs: number[]) => xs.filter((g) => g < 0).length / Math.max(1, xs.length);
-const sarOf = (os: Outcome[]) => os.flatMap((o) => (o.sar ? [o.sar] : []));
-const refSar = sarOf(ref);
-const gap = refSar.map((r) => r.margin);
-const tgap = refSar.map((r) => r.trueGap);
-// Designer 2026-11-23 (review/S5-analysis.md option c): INFO only. The ≥ 50% is a design reading of AI 2027's text, not a
-// sourced number, and the row swings ±6 pp between runs (a lottery over hidden draws). Option (a), a sourced "instruments
-// get harder with capability even after re-fitting" term, may come later at the designer's choice.
-console.log(`INFO  S5 RefBot (AI 2027 alignment share): U falls below L by SAR (design reading ≥ ${pct(S5_BELOW_MIN)}): ` +
-  `below in ${pct(below(gap))} of ${gap.length}; median U − L ${median(gap).toFixed(2)}; true U below true L in ${pct(below(tgap))} (median ${median(tgap).toFixed(2)}); SAFMECH: the bottom of believed U's 80% range below L in ${pct(below(refSar.map((r) => (r.uLo ?? r.u) - (r.u - r.margin))))} (mean range ${mean(refSar.map((r) => (r.uHi ?? r.u) - (r.uLo ?? r.u))).toFixed(2)} levels)`);
+// ───────────────────────────── S4/S5 mechanism checks (constructed; the sourced bands live in calreport/safety.ts) ─────────────────────────────
+// The sourced S4 / S5 targets (RefBot P_mis at ASI, safe-only P_mis, Mixed sight limit above RefBot's, half staffing)
+// are calibration: they moved to the calibration report with their games (TESTING.md §0). What stays is what can fail
+// when the code is broken.
+const day900 = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
 {
-  // Paired worlds (the first N_MECH RefBot seeds). "Deepens the lag" = the mean U − L at SAR is lower, believed and true.
-  const m = (xs: number[]) => mean(xs);
-  type Pair = { margin: number; trueGap: number; u?: number; uLo?: number; uHi?: number };
-  const band = (xs: Pair[]) => xs.every((r) => r.uLo !== undefined) ? `; range ${mean(xs.map((r) => (r.uHi ?? 0) - (r.uLo ?? 0))).toFixed(2)} levels, bottom below L in ${pct(below(xs.map((r) => (r.uLo ?? 0) - ((r.u ?? 0) - r.margin))))}` : '';
-  const cmp = (name: string, ok: string, v: Pair[], b: Pair[], base: string) => {
-    const g = v.map((r) => r.margin), g0 = b.map((r) => r.margin), tg = v.map((r) => r.trueGap), tg0 = b.map((r) => r.trueGap);
-    smokeCheck(g.length === g0.length && m(g) < m(g0) && m(tg) < m(tg0), ok,
-      `${name}: mean U − L ${m(g).toFixed(2)} vs ${m(g0).toFixed(2)} (${base}), U < L in ${pct(below(g))} vs ${pct(below(g0))}; true ${m(tg).toFixed(2)} vs ${m(tg0).toFixed(2)}, ${pct(below(tg))} vs ${pct(below(tg0))}${band(v)}${band(b) ? ` (${base}${band(b)})` : ''}`);
-  };
-  const base = SMOKE ? [sarRead(deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8')))] : refSar.slice(0, N_MECH);
-  // Opaque reasoning: the same SAR states with the internal model reasoning in neuralese.
-  cmp('neuralese', 'S5 mechanism: opaque (neuralese) reasoning deepens the lag (the same SAR states)', base.map((r) => ({ margin: r.marginLatent, trueGap: r.trueGapLatent })), base, 'RefBot');
-  if (DEEP) {
-    const half = sarOf(Array.from({ length: N_MECH_PLAY }, (_, i) => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')));
-    cmp('half staff', 'S5 mechanism: less safety staffing (half the line teams) deepens the lag (paired worlds)', half, base, 'RefBot');
-  } else if (!SMOKE) console.log(`INFO  S5 mechanism check half staff (${N_MECH} paired games to SAR) runs in the deep tier only: npm run test:deep (at merges)`);
+  // S5 mechanism: opaque reasoning deepens the lag. The same state with the internal model reasoning in neuralese
+  // (AI 2027's Agent-3/4): U − L, believed and true, is lower (S5R, design/archive/V3-BUILD.md "S5R").
+  const r = sarRead(day900());
+  check(r.marginLatent < r.margin && r.trueGapLatent <= r.trueGap, 'S5 mechanism: opaque (neuralese) reasoning deepens the lag (the same state: believed U − L lower, true U − L not higher)',
+    `believed ${r.margin.toFixed(2)} → ${r.marginLatent.toFixed(2)}, true ${r.trueGap.toFixed(2)} → ${r.trueGapLatent.toFixed(2)}`);
 }
-const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
-const mm = mixed.map((o) => o.minMarginToSar);
-const mixedOk = mm.filter((m) => m >= -0.5).length / mm.length;
-// CAL2-S (designer decision 4): the Mixed-bot row tests the sight limit, what the sources support: a lab that funds
-// safety more than AI 2027's reference lab sees further at SAR (sight limit = the highest level its instruments read
-// hidden-goal traits at ≥ 50% believed reliability). The old "U ≥ L − 0.5 up to SAR" (a game-feel requirement, no
-// source) stays as INFO. Unpaired worlds (Mixed seeds 900+, RefBot 500+): means over the worlds that reach SAR.
-const mixU = mixed.flatMap((o) => (o.uAtSar !== undefined ? [o.uAtSar] : []));
-const refU = refSar.map((r) => r.u);
-smokeCheck(mixU.length > 0 && mean(mixU) > mean(refU), "S5 Mixed bot: its sight limit at SAR is above RefBot's (mean over worlds)",
-  `Mixed ${mean(mixU).toFixed(2)} (median ${median(mixU).toFixed(2)}, ${mixU.length} worlds) vs RefBot ${mean(refU).toFixed(2)} (median ${median(refU).toFixed(2)}, ${refU.length})`);
-console.log(`INFO  S5 Mixed bot U ≥ L − 0.5 up to SAR (pre-CAL2 row): median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds`);
+
+// ───────────────────────────── S4 direction: more safety → less misalignment (paired arms) ─────────────────────────────
+// The same world and seed (day-400 fixture), the same bot, 120 days under two safety allocations: RefBot's reference
+// (AI 2027's alignment share of compute and its staffing) vs a safety-heavy one (40% of compute and of staff on safety,
+// heavy safety post-training, faithful CoT). World noise cancels, so one world over a short stretch is enough: the
+// safety-heavy arm's newest model ends with lower Mis (and P_mis). Measured 2026-11-28, Mis of the newest version, day-400
+// fixture: 60 d 0.128 vs 0.121; 90 d 0.134 vs 0.121; 120 d 0.136 vs 0.079; 150 d 0.136 vs 0.032; 240 d 0.091 vs 0.026
+// (reference vs heavy). The released model (bestPlayerVersion) flips with release timing, so the newest version is read.
+// The day-900 fixture shows no consistent direction over 90–150 days (0.150 vs 0.147; 0.135 vs 0.148), so it is not used.
+{
+  const base = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const heavy: RefPlayOpts = { safetyShare: () => 0.4, safStaffShare: 0.4, post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy' }) };
+  const arm = (o: RefPlayOpts) => {
+    const s = structuredClone(base);
+    const end = s.time.day + 120;
+    while (s.time.day < end && s.player.status === 'active') {
+      for (const p of [...s.events.pending]) {
+        const c = refDecide(s, p);
+        if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+      }
+      refAct(s, engine, o);
+      tick(s, { skip: ['endings'] });
+    }
+    const v = internalVersion(s);
+    const mis = v ? misalignment(v.traitsTrue, v.uModes) : NaN;
+    return { mis, pmis: pMis(s, mis) };
+  };
+  const a = arm(REF_PLAY);
+  const b = arm(heavy);
+  check(Number.isFinite(a.mis) && Number.isFinite(b.mis) && b.mis < a.mis && b.pmis <= a.pmis, 'S4 direction: a safety-heavy allocation ends with a less misaligned newest model than the reference allocation (paired, same world, 120 days from day 400)',
+    `Mis ${b.mis.toFixed(3)} vs ${a.mis.toFixed(3)}, P_mis ${b.pmis.toFixed(4)} vs ${a.pmis.toFixed(4)}`);
+}
 
 // ──────────── S5 sabotage (M11), constructed: the act's odds on / off, and what a rigged tool does to believed vs true U ────────────
 {
@@ -373,5 +308,4 @@ console.log(`INFO  S5 Mixed bot U ≥ L − 0.5 up to SAR (pre-CAL2 row): median
 
 // RD-B07 (the safety pool's claims) retired by RD-A05a: monitors and safety agents have their own lines of the flat allocation.
 
-console.log(`      (${((performance.now() - t0) / 1000).toFixed(1)} s for the emulated games)`);
 finish('safety');
