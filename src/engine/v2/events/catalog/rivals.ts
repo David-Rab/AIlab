@@ -11,7 +11,6 @@ import type { CostLine, EventDefV2, GameStateV2, RivalLab, SystemCtx } from '../
 import { morale } from '../../actors/fx';
 import { deactivateRival, postureOf } from '../../actors/rivals';
 import { exitBuyer } from '../../finance/rivalFinance';
-import { ws4 } from '../../actors/state';
 import { changeHeads } from '../../departments/teams';
 import { acquireBlock, acquireTerms, acquireVotes, forceLines, obligationLines, payForRival, paymentLines, sellsControl, shownVote, type PayWith } from '../../finance/acquire';
 import { L, activeLab, ch, ev, labName, requestOnly } from '../kit';
@@ -52,7 +51,7 @@ function buyApply(pay: PayWith) {
       ctx.log('finance', `The ${r.core.name} deal did not go through: ${no}.`, 2);
       return;
     }
-    if (sold) ws4(s).soldControl = true; // its holders now control the company (the 'acquired' ending)
+    if (sold) s.endingProgress.soldControl = true; // its holders now control the company (the 'acquired' ending)
     const st = staffOf(r);
     changeHeads(s, 'cap', st.cap);
     changeHeads(s, 'saf', st.saf);

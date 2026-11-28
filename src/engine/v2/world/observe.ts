@@ -8,7 +8,6 @@
 //   Frontier: months behind the reference leader, as outsiders see it (player: its deployed models' best G read against the
 //   leader's recorded line; NPC: the public view's reported lag), so the two sit on one axis.
 import { hasCommitment } from '../actors/commitments';
-import { ws4r } from '../actors/state';
 import { versionMilestones } from '../departments/workfit';
 import { lagDays } from '../models/capability';
 import { CHINA_ID, otherLabs, PLAYER_ID, versionById } from '../models/labs';
@@ -191,13 +190,13 @@ export function attention(s: GameStateV2, lab: LabId, f: Frontier = frontier(s),
 const decay = (age: number) => Math.pow(0.5, age / OBSERVE.incidentHalfLifeDays);
 
 /** Severity-weighted public incidents of one lab, each halving every OBSERVE.incidentHalfLifeDays. The player's: disclosed
- *  or leaked incident records (their day); NPC labs': ws4.rivalIncidents (already public). */
+ *  or leaked incident records (their day); NPC labs': s.rivalIncidents (already public). */
 export function incidentHeatOf(s: GameStateV2, lab: LabId): number {
   let h = 0;
   if (lab === PLAYER_ID) {
     for (const i of s.player.safety.incidents) if ((i.status === 'disclosed' || i.status === 'leaked') && i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
   } else {
-    for (const i of ws4r(s).rivalIncidents) if (i.lab === lab && i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
+    for (const i of s.rivalIncidents) if (i.lab === lab && i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
   }
   return h;
 }
@@ -205,6 +204,6 @@ export function incidentHeatOf(s: GameStateV2, lab: LabId): number {
 /** The world's incident heat: every lab's public incidents together. */
 export function incidentHeat(s: GameStateV2): number {
   let h = incidentHeatOf(s, PLAYER_ID);
-  for (const i of ws4r(s).rivalIncidents) if (i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
+  for (const i of s.rivalIncidents) if (i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
   return h;
 }

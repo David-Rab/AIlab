@@ -10,7 +10,6 @@ import { makeCtx } from '../../../src/engine/v2/core/loop';
 import { endGame, endingsSystem, ENDING_TEXT } from '../../../src/engine/v2/endings/endings';
 import { resolveAsi, playerContain, otherContain } from '../../../src/engine/v2/endings/epilogue';
 import { endingView, type EndingView } from '../../../src/engine/v2/endings/view';
-import { ws4 } from '../../../src/engine/v2/actors/state';
 import { bestPlayerVersion } from '../../../src/engine/v2/models/labs';
 import { misalignment } from '../../../src/engine/v2/safety/traits';
 import { CONTROL } from '../../../src/data/v2/danger';
@@ -51,14 +50,14 @@ const CASES: Record<EndingId, (s: GameStateV2) => void> = {
   war: (s) => endGame(s, makeCtx(s), 'war', 'none'), // in play: a quarterly roll at China tension 4 (world/chinagov.ts)
   rogue: (s) => {
     const v = bestPlayerVersion(s)!;
-    ws4(s).loose = { day: s.time.day - 45, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };
+    s.player.security.loose = { day: s.time.day - 45, versionId: v.id, mis: misalignment(v.traitsTrue, v.uModes) };
     endGame(s, makeCtx(s), 'rogue', 'none');
   },
   insolvent: (s) => { s.player.finance.state = 'insolvent'; run(s); },
   ousted: (s) => { s.flags['ws3.ousterDay'] = s.time.day; run(s); },
-  nationalized: (s) => { ws4(s).nationalizedHard = true; run(s); },
-  acquired: (s) => { ws4(s).soldControl = true; run(s); },
-  retired: (s) => { ws4(s).retired = true; run(s); },
+  nationalized: (s) => { s.usgov.consolidated = 'nationalized'; run(s); },
+  acquired: (s) => { s.endingProgress.soldControl = true; run(s); },
+  retired: (s) => { s.endingProgress.retired = true; run(s); },
 };
 
 /** Every number finite; every string free of '{'. Returns the offending paths. */

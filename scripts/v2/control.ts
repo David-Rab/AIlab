@@ -11,7 +11,6 @@ import { join } from 'node:path';
 import { CONTROL, EXFIL } from '../../src/data/v2/danger';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
-import { ws4 } from '../../src/engine/v2/actors/state';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -209,10 +208,10 @@ for (const fx of ['day400.json', 'day900.json']) {
     securitySystem.run(w, makeCtx(w));
     for (const f of footholdsOf(w).slice(before)) {
       if (f.kind !== 'exfiltratedCopy') continue;
-      if (f.status === 'hidden' && !ws4(w).loose) hidden++;
-      if (f.status === 'detected' && ws4(w).loose?.day === w.time.day) loud++;
+      if (f.status === 'hidden' && !w.player.security.loose) hidden++;
+      if (f.status === 'detected' && w.player.security.loose?.day === w.time.day) loud++;
     }
-    delete ws4(w).loose;
+    delete w.player.security.loose;
   }
   EXFIL.kappa = kappa;
   check(hidden > 0 && loud > 0, 'growth: escapes split into noticed (located, the hunt) and unnoticed (hidden, no alert) copies', `${loud} noticed, ${hidden} unnoticed`);

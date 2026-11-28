@@ -15,7 +15,6 @@ import { readFileSync } from 'node:fs';
 import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
 import { deploy, deployGate } from '../../../src/engine/v2/models/deployments';
 import { editBlock } from '../../../src/engine/v2/models/productOps';
-import { ws4 } from '../../../src/engine/v2/actors/state';
 import { join } from 'node:path';
 import { engine } from '../../../src/engine/v2';
 import { deserialize } from '../../../src/engine/v2/core/save';
@@ -90,7 +89,6 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
     const { x, v, ch } = setup(FRAMEWORK_CRITICAL_L + 0.5);
     const d = deploy(x, makeCtx(x), { versionId: v.id, channel: ch });
     check(typeof d === 'string' && d.includes('external evaluation') && !d.includes('hardened'), 'BIO Critical without an external evaluation: refused for the evaluation only', String(typeof d === 'string' ? d : d.id));
-    ws4(x).reportedVersions.push(v.id);
     x.player.deployments = x.player.deployments.filter((y) => y.channel !== ch);
     const pv = ACTIONS.find((a) => a.id === 'product.launch')!.preview(x, { channel: ch, versionId: v.id });
     const line = pv.costs.find((c) => String(c.target).includes('Safety framework adds'));

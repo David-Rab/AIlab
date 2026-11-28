@@ -7,7 +7,6 @@ import { addSafeguard } from '../safety/safeguards';
 import { withdraw } from '../models/deployments';
 import { cash, L, pv } from './fx';
 import { amendCommitment, blockingCommitments, breakCommitment, latentVersion, pledgeBreachRun, PREDICATES } from './commitments';
-import { ws4 } from './state';
 import { approvalScaled, PUBLIC } from '../world/public';
 
 type P = Record<string, number | string | boolean>;
@@ -43,7 +42,7 @@ export function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
       for (const i of s.player.safety.incidents) if (i.status === 'open' || i.status === 'covered') i.status = 'disclosed';
       break;
     case 'whistleblower':
-      delete ws4(s).internalReport;
+      delete s.player.security.internalReport;
       break;
     case 'communityPledge':
       for (const x of s.player.sites) if (!x.communityPackage) {

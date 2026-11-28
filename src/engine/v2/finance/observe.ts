@@ -167,9 +167,9 @@ export const copyrightQSystem: EngineSystem = {
     // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
     // the crawl (data.license, domain 'web') is the way to avoid it (finance/observe.ts copyrightExposure).
     const lit = copyrightExposure(s);
-    const lastSuit = Number(s.flags['ws4:lastSuitDay'] ?? -1e9);
+    const lastSuit = s.player.finance.lastSuitDay ?? -1e9;
     if (lit.pQ > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(lit.pQ)) {
-      s.flags['ws4:lastSuitDay'] = day;
+      s.player.finance.lastSuitDay = day;
       cash(s, ctx, -lit.settlement, 'copyright settlement');
       ctx.log('company', `Authors and publishers sued over ${Math.round(lit.tokensT)}T tokens of unlicensed training data; you settled for ${lit.settlement.toFixed(1)}B. Licensing the data stops further suits.`, 3);
     }

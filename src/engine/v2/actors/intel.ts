@@ -6,7 +6,6 @@ import { activeRivals, bestG, bestMeasuredVersion, internalVersion } from '../mo
 import { lossOfControlRisk } from '../safety/lossRisk';
 import type { GameStateV2, LabId, RivalLab, RiskSource } from '../types';
 import { lagDays } from '../models/capability';
-import { ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
 import { publicOf, sigmaOf } from '../npc/public';
 import { DAYS_PER_MONTH } from '../npc/lab';
@@ -112,7 +111,7 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   };
   for (const r of activeRivals(s)) out.push(labRow(r, 'rival'));
   if (s.china.lab.core.status === 'active') out.push(labRow(s.china.lab, 'china'));
-  const w = ws4r(s);
+  const loose = s.player.security.loose;
   const misuseLevel = m.noFlags ? 0 : Math.max(0, ...(v ? [v.flags.bioUplift ? 0.3 : 0, v.flags.cyberOffense ? 0.25 : 0] : [0]));
   // M4 recalibration: the flags give the chance of a severity-5 misuse incident; it turns civilisation-scale only
   // through the §5.1 #4 chain (world tech exposure > 0.6, then P = 0.15·exposure·(1 − defence)). The old row read the
@@ -129,7 +128,7 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   const cnMid = s.china.lab.core.status === 'active' ? (publicBand(s.china.lab)[0] + publicBand(s.china.lab)[1]) / 2 : 0;
   const theftEst = clamp(th.p * 0.3 * curve(cnMid), 0, 1);
   out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(th.p * 0.3 * curve(cnMid) * 2 + 0.01, 0, 1)], drivers: th.p > 0 ? [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] : [{ label: th.blocker, share: 1 }] });
-  out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
+  out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: loose ? 0.5 : 0.01, band: loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
   // War: the game ends in war only at China's war footing (tension 4), CHINAGOV.warPerQuarter a quarter (endings.ts); rung 4 is reached
   // only after a rejected treaty with a long US lead (chinagov.ts climb). chinaWarOdds reads exactly that rule.
   const wr = chinaWarOdds(s);

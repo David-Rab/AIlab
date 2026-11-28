@@ -4,7 +4,6 @@
 import type { EventDefV2 } from '../../types';
 import { morale, pv } from '../../actors/fx';
 import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
-import { ws4 } from '../../actors/state';
 import { approvalPush, approvalScaled } from '../../world/public';
 import { CHINAGOV, provokeChina, resolveTreaty } from '../../world/chinagov';
 import { L, P, ch, ev, requestOnly } from '../kit';
@@ -17,7 +16,6 @@ export const CHINA_EVENTS: EventDefV2[] = [
     choices: [
       // Going public: the public rallies a little; Beijing takes it as a provocation (world/chinagov.ts provokeChina).
       ch('Go public', ['hawk', 'disclose'], (s) => pv([], [L('approval', approvalScaled(s, CHINAGOV.goPublicApproval), 'the public rallies')]), (s, ctx) => {
-        ws4(s).disclosed++;
         approvalPush(s, ctx, CHINAGOV.goPublicApproval, 'Went public about the weight theft');
         provokeChina(s, ctx.day);
       }),
@@ -28,8 +26,8 @@ export const CHINA_EVENTS: EventDefV2[] = [
         addCoverup(s, 'a weight theft', COVERUP_DISCOVERY_ODDS);
       }),
       ch('Purge insiders', ['security', 'hawk'], P([L('morale', 15)], [L('security', 0.5, 'spies ×0.3')]), (s, ctx) => {
-        ws4(s).spyMult *= 0.3;
-        s.flags['ws4:purged'] = true;
+        s.player.security.spyMult *= 0.3;
+        s.player.security.purged = true;
         morale(ctx, -15, 'E10 purge');
       }),
     ],

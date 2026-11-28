@@ -97,7 +97,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const ex = wc.slots.EXP;
   const pools = poolsOf(s);
   const mod = researchMods(s);
-  const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > day;
+  const off = (s.player.safety.agentsOffUntil ?? -1) > day;
   const alloc = reAllocation(s);
   // Research engineers not on run operations (idle ones too; SR-21: evals are safety engineers' work now): what
   // experiments + tuning held before RD-B08 gave tuning a finite demand (M goes with RD-R01 / RD-R04).

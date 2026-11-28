@@ -15,7 +15,6 @@ import { deployGate } from '../../../src/engine/v2/models/deployments';
 import { frontierPaused } from '../../../src/engine/v2/models/runs';
 import { productUsageMult } from '../../../src/engine/v2/safety/safeguards';
 import { frameworkOf, refreshFramework, trainingHeld } from '../../../src/engine/v2/safety/framework';
-import { ws4r } from '../../../src/engine/v2/actors/state';
 import type { GameStateV2, ModelVersion } from '../../../src/engine/v2/types';
 import { FIXTURE_DIR } from '../lib';
 
@@ -57,11 +56,11 @@ const pv = action('safety.frameworkOverride')!.preview(s, { ruleId: 'cyber-high'
 const pvText = JSON.stringify(pv.costs);
 check(pvText.includes('morale') && pvText.includes('red flag') && JSON.stringify(pv.gains).includes(`product ${d.id}`),
   'override preview states the staff consequences and what it releases', pv.costs.map((c) => `${c.currency} ${c.amount}`).join(', '));
-const before = { morale: s.player.morale.safety, flags: ws4r(s).redFlags };
+const before = { morale: s.player.morale.safety, flags: s.player.security.redFlags };
 action('safety.frameworkOverride')!.apply(s, ctx, { ruleId: 'cyber-high', versionId: v.id });
 const o = fw.overrides.find((x) => x.ruleId === 'cyber-high' && x.versionId === v.id);
 check(!d.held && productUsageMult(d) > 0 && !!o && o.consequences.length === 1, 'override releases the hold and records the stated consequences', o?.consequences.join(' | ') ?? 'none');
-check(s.player.morale.safety < before.morale && ws4r(s).redFlags === before.flags + 1,
+check(s.player.morale.safety < before.morale && s.player.security.redFlags === before.flags + 1,
   'override consequences applied: safety morale down, one red flag',
   `morale ${before.morale.toFixed(1)} → ${s.player.morale.safety.toFixed(1)}`);
 check(deployGate(s, v, d.channel, { safeguards: 'standard' }) === true || !String(deployGate(s, v, d.channel, { safeguards: 'standard' })).includes('Safety framework'), 'after the override a launch of that version is not held by that rule');

@@ -1,8 +1,7 @@
 // A small ActionDef builder for one-click levers with a cooldown or a once-only rule (security levers, poach, open
-// weights, pledges, retire, briefing). Owner: WS4. Last use is kept in ws4.actionDay by action id.
+// weights, pledges, retire, briefing). Owner: WS4. Last use is kept in player.actionDay by action id.
 import type { ActionDef, ActionVerb, GameStateV2, StructureSystem, SystemCtx } from '../types';
 import type { Preview } from '../actors/fx';
-import { ws4, ws4r } from '../actors/state';
 
 export type ActionParams = Record<string, number | string | boolean>;
 
@@ -25,7 +24,7 @@ export function simpleAction(x: SimpleAction): ActionDef {
     id: x.id, verb: x.verb, system: x.system, sphere: x.sphere ?? 'relations', owner: 'WS4', title: x.title,
     available(s) {
       if (s.player.status !== 'active') return 'Company inactive';
-      const last = ws4r(s).actionDay[x.id];
+      const last = s.player.actionDay[x.id];
       if (last !== undefined && x.once) return 'Already done';
       if (last !== undefined && x.cooldown !== undefined && s.time.day - last < x.cooldown) return `Again in ${x.cooldown - (s.time.day - last)} d`;
       return x.available ? x.available(s) : true;
@@ -33,7 +32,7 @@ export function simpleAction(x: SimpleAction): ActionDef {
     preview: x.preview,
     apply(s, ctx, p) {
       x.apply(s, ctx, p);
-      ws4(s).actionDay[x.id] = s.time.day;
+      s.player.actionDay[x.id] = s.time.day;
     },
   };
 }

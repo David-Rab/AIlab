@@ -9,7 +9,6 @@
 //   is still small then) and 0.0074 (day 900, within 3%). The day-900 fit is used.
 import { REGIONS } from '../../../data/v2/sectors';
 import type { EngineSystem, GameStateV2, RegionId } from '../types';
-import { ws4r } from '../actors/state';
 import { automationShare } from './readouts';
 import { worldTechEffects } from './techtree';
 import { CHINAGOV } from '../world/chinagov';
@@ -27,11 +26,10 @@ export const OUTPUT_SHOCK = { taiwan: 0.03, misuse: 0.02 };
 
 /** The US output shock today (growth penalty per year). */
 export function outputShock(s: GameStateV2): number {
-  const w = ws4r(s);
   const day = s.time.day;
   const last = s.flags['ws2.sev5MisuseDay'];
-  const sev5 = (typeof last === 'number' && day - last < MISUSE_SHOCK_DAYS) || w.rivalIncidents.some((i) => i.misuse && i.severity >= 5 && day - i.day < MISUSE_SHOCK_DAYS);
-  return (w.taiwanDisrupted ? OUTPUT_SHOCK.taiwan : 0) + (sev5 ? OUTPUT_SHOCK.misuse : 0) + (s.chinagov.tension >= 4 ? CHINAGOV.warShock : 0);
+  const sev5 = (typeof last === 'number' && day - last < MISUSE_SHOCK_DAYS) || s.rivalIncidents.some((i) => i.misuse && i.severity >= 5 && day - i.day < MISUSE_SHOCK_DAYS);
+  return (s.market.taiwanDisrupted ? OUTPUT_SHOCK.taiwan : 0) + (sev5 ? OUTPUT_SHOCK.misuse : 0) + (s.chinagov.tension >= 4 ? CHINAGOV.warShock : 0);
 }
 
 /** Total AI-lab revenue run-rate ($B/yr): player + rivals + DeepCent. */

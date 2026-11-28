@@ -197,6 +197,7 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     cust: { US: {}, CN: {}, ROW: {} },
   };
   return {
+    gdp0: 0,
     sectors,
     displacedPool: { US: 0, CN: 0, ROW: 0 },
     unemployment: { ...U_BASE },

@@ -60,7 +60,7 @@ s.capital.busted = { day: s.time.day, recoverDay: s.time.day + 365, rival: tgt.c
 const others = s.rivals.filter((x) => x !== tgt);
 rivalMoneyQ(s, makeCtx(s), tgt);
 for (const x of others) rivalMoneyQ(s, makeCtx(s), x);
-check(tgt.finance.distress && s.ws4!.requests.some((q) => q.id === 'E32' && q.data.lab === tgt.core.id), 'the bust pushes the most over-committed private lab into distress and an E32 offer');
+check(tgt.finance.distress && s.events.requests.some((q) => q.id === 'E32' && q.data.lab === tgt.core.id), 'the bust pushes the most over-committed private lab into distress and an E32 offer');
 check(others.every((x) => !x.finance.distress), 'no other lab is touched');
 s.time.day += 91; rivalMoneyQ(s, makeCtx(s), tgt);
 check(tgt.core.status !== 'active', 'a quarter later it exits (license-and-hire or bankruptcy)', tgt.core.status);

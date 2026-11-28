@@ -10,7 +10,7 @@ import { cadencesDue, decimalYear } from '../core/time';
 import { clamp } from '../../rng';
 import { numParam, simpleAction } from '../core/actionDef';
 import { L, pv } from '../actors/fx';
-import { request, ws4, ws4r } from '../actors/state';
+import { request } from '../events/request';
 import { wslFloor } from '../security/security';
 import { unemploymentChange12m } from '../worldfx/readouts';
 import { worldMix } from '../worldfx/mix';
@@ -102,7 +102,7 @@ export const USGOV = {
 export const STAGE_NAMES = ['Business as usual', 'Security expectations', 'Clearances', 'Oversight committee', 'Consolidation'] as const;
 
 export function initialUsgov(): UsGovState {
-  return { stage: 0, stageDay: {}, trust: USGOV.trustStart, oversight: false, consolidated: 'none', holdDays: {}, laws: {}, thefts: [], asked: {} };
+  return { stage: 0, stageDay: {}, trust: USGOV.trustStart, oversight: false, consolidated: 'none', holdDays: {}, laws: {}, thefts: [], asked: {}, dpaAccepted: false };
 }
 
 /** The first day the government saw milestone `i` or a later one (milestones are nested), or undefined. */
@@ -171,7 +171,6 @@ function nationalize(s: GameStateV2, ctx: SystemCtx) {
   const g = s.usgov;
   if (g.stage < 4) reach(s, ctx, 4);
   g.consolidated = 'nationalized';
-  ws4(s).nationalizedHard = true;
   ctx.log('gov', 'The government takes control of your lab.', 5);
 }
 
@@ -187,7 +186,7 @@ export function acceptDpa(s: GameStateV2, ctx: SystemCtx): number {
     pooled += x;
   }
   g.consolidated = 'dpa';
-  ws4(s).dpaAccepted = true;
+  g.dpaAccepted = true;
   if (pooled > 0) s.player.cloud.push({ id: `DPA-${ctx.day}`, provider: 'DPA pool', h100e: pooled, costPerYear: 0, startDay: ctx.day, endDay: ctx.day + 36500, cancellableNoticeQ: null });
   ctx.log('gov', 'Under the Defense Production Act, the American labs pool their compute into your lab.', 4);
   return pooled;
@@ -203,7 +202,7 @@ function lawRules(s: GameStateV2, ctx: SystemCtx, sarSeen: boolean) {
   const c = s.public.concern;
   const sh = USGOV.concernShift;
   const rise = unemploymentChange12m(s);
-  const leak = ws4r(s).misalignLeakDay !== undefined;
+  const leak = s.public.misalignLeakDay !== undefined;
   const scare = leak || incidentHeat(s) > USGOV.scareHeat;
   const want: Record<CondLawId, boolean> = {
     exportStrict: g.stage >= 2 || (g.thefts.length > 0 && ctx.day - g.thefts[g.thefts.length - 1]! < USGOV.exportTheftDays),
@@ -248,11 +247,11 @@ export function stepUsgov(s: GameStateV2, ctx: SystemCtx): void {
   // What lands on the player: only with the government's attention.
   const att = playerAttention(s, ctx);
   const seen = att >= USGOV.attentionMin;
-  if (seen && g.consolidated !== 'nationalized' && !ws4r(s).dpaAccepted) {
+  if (seen && g.consolidated !== 'nationalized' && !s.usgov.dpaAccepted) {
     if (g.stage >= 2 && g.asked.E12 === undefined) { g.asked.E12 = ctx.day; request(s, 'E12'); }
     if (g.stage >= 3 && g.asked.E20 === undefined) { g.asked.E20 = ctx.day; request(s, 'E20'); }
     if (g.stage >= 4 && g.asked.E22 === undefined && g.trust > USGOV.softTrust && frontier(s).lab === PLAYER_ID) { g.asked.E22 = ctx.day; request(s, 'E22'); }
-    const leakScare = ws4r(s).misalignLeakDay !== undefined && s.public.concern > USGOV.hardConcern;
+    const leakScare = s.public.misalignLeakDay !== undefined && s.public.concern > USGOV.hardConcern;
     if (g.stage >= 3 && (g.holdDays.lowTrust >= USGOV.hardHoldDays || leakScare)) nationalize(s, ctx);
   }
 
@@ -294,7 +293,7 @@ export function usgovView(s: GameStateV2): { stage: number; stageName: string; t
   const g = s.usgov;
   return {
     stage: g.stage, stageName: STAGE_NAMES[g.stage], trust: g.trust, applies: playerAttention(s) >= USGOV.attentionMin,
-    oversight: g.oversight, consolidated: g.consolidated, dpaAccepted: ws4r(s).dpaAccepted, laws: lawIdsInForce(s),
+    oversight: g.oversight, consolidated: g.consolidated, dpaAccepted: s.usgov.dpaAccepted, laws: lawIdsInForce(s),
   };
 }
 

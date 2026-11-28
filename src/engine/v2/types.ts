@@ -17,7 +17,6 @@
 // M2 integration (SCHEMA_REV 2, migration 1 → 2 in core/save.ts):
 //  - WS3 working blocks folded in from finance/ext.ts: FinanceState.ws3, ChipMarket.ws3, PowerGrid.ws3, CapitalMarkets.ws3,
 //    Site.ws3 (required; `ensureWs3` fills them on older saves).
-//  - WS4 working state folded in from actors/state.ts: GameStateV2.ws4 (optional, created lazily by `ws4(s)`).
 //  - WS5 WorldEconomy.fx (WorldFxState) is part of the contract.
 //
 // Rules:
@@ -126,8 +125,10 @@ export interface GameStateV2 {
   tutorial: TutorialState;
   flags: Record<string, number | boolean | string>;
   ending?: EndingV2;
-  /** WS4 working state (relations memory, timers, cover-ups, ladder bookkeeping). Created lazily by `ws4(s)`. */
-  ws4?: Ws4State;
+  /** Public incidents of the NPC labs and China (last 60; actors/rivals.ts writes; E31, intel and the economy's misuse shock read). */
+  rivalIncidents: RivalIncident[];
+  /** Progress toward the loss endings the player's choices set (sale of control, retirement, being overtaken). */
+  endingProgress: EndingProgress;
   /** W4 (world/public.ts): concern about AI (0..100, Pew's question) and the public's approval of the player's lab (-100..100). */
   public: PublicState;
   /** W5 (world/usgov.ts): the US government (security stage, trust in the player, oversight, consolidation, laws it passed). */
@@ -136,7 +137,11 @@ export interface GameStateV2 {
   chinagov: ChinaGovState;
 }
 
-export interface PublicState { concern: number; approval: number; lastProtestDay?: number }
+export interface PublicState {
+  concern: number; approval: number; lastProtestDay?: number;
+  /** Day an internal safety memo leaked to the press (E19): the misalignment leak the US and China governments react to. */
+  misalignLeakDay?: Day;
+}
 
 /** The US government's conditional laws (data/v2/laws.ts COND_LAWS). */
 export type CondLawId = 'exportStrict' | 'licensing' | 'relief' | 'ubi' | 'hitl' | 'sez' | 'fdaFastTrack';
@@ -162,6 +167,8 @@ export interface UsGovState {
   thefts: Day[];
   /** The day each government decision was put to the player (E12, E20, E22; each once). */
   asked: Partial<Record<'E12' | 'E20' | 'E22', Day>>;
+  /** The player accepted DPA consolidation (E22). */
+  dpaAccepted: boolean;
 }
 
 /** The China government (W6, world/chinagov.ts; design/world/OUTSIDE-WORLD.md §7). */
@@ -1067,6 +1074,8 @@ export interface SafetyDept {
    *  evidence, holds, overrides; safety/framework.ts). Replaces the eval gate. */
   framework: SafetyFramework;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
+  /** The agents are switched off until this day (a containment downtime: foothold detection, the E25 hunt). */
+  agentsOffUntil?: Day;
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
   /** Model v3 E8 (MODEL-V3 §11.4): hidden AI assets left by uncaught covert acts and escapes. Engine state; the player
@@ -1287,12 +1296,30 @@ export interface SecurityState {
   counterIntel: number; // 0..1
   stolen: { day: Day; versionId: string; by: LabId }[]; // known thefts (truth list lives here; player sees detected ones)
   detectedThefts: string[];
+  /** Theft attempts on the player's weights so far (security/security.ts). */
+  theftAttempts: number;
+  /** Quiet fixes outsiders may still discover (events/coverups.ts); they raise what the lab is worth stealing. */
+  coverups: Coverup[];
+  /** Continue-through-red-flag counter (E09/E17); feeds the lab's worth to a thief and leaks. */
+  redFlags: number;
+  /** Escaped copy of a player model (E25 / 'rogue' ending), and how the hunt for it goes (E25 choices). */
+  loose?: { day: Day; versionId: string; mis: number };
+  hunt?: 'loud' | 'quiet' | 'public';
+  /** Open internal whistleblower report (E18) and its fix-or-escalate deadline. */
+  internalReport?: { day: Day; deadline: Day };
+  /** Spy multiplier after purges (recovers over a year), and whether China's spies were purged (E-china). */
+  spyMult: number;
+  purged: boolean;
+  /** Days China/rival distillation inflow has exceeded the E06 threshold. */
+  distillDays: number;
 }
 
 // ───────────────────────────── Player lab ─────────────────────────────
 
 export interface PlayerLab extends LabCore {
   kind: 'player';
+  /** Day each action was last used, by action id (cooldowns; core/actionDef.ts). */
+  actionDay: Record<string, Day>;
   finance: FinanceState;
   board: Board;
   sites: Site[];
@@ -1524,6 +1551,8 @@ export interface PlayerPolicies {
 
 export interface FinanceState {
   cash: Money;
+  /** Day of the last copyright suit (finance/observe.ts copyrightQ: at most one a year). */
+  lastSuitDay?: Day;
   revenueRun: Money; // annualised, smoothed 30 d
   revenueHistory: Money[]; // quarterly, for g and momentum
   valuation: Money; // last mark (post-money of the last round, or the story mark: sector value × share, FIN5a)
@@ -1756,6 +1785,9 @@ export interface ChipMarket {
   backlog: number; // B_t EWMA
   cumOrders8q: number[];
   geoTW: number; disruptTW: number; disruptKR: number;
+  /** A Taiwan crisis is on (set by the quarterly roll, cleared when the shock has decayed), and one has happened in this game. */
+  taiwanDisrupted?: boolean;
+  taiwanEver?: boolean;
   exportPolicy: 'strict' | 'caseByCase' | 'open';
   demandQ: number; // D_t
   exoDemandQ: number; // hyperscalers/others not modelled as labs
@@ -1787,6 +1819,8 @@ export interface Site {
   id: string; name: string; region: 'US' | 'Gulf' | 'other';
   /** Power source (DATACENTERS §2): a rented hall, a grid connection or on-site gas turbines. */
   path: SiteSource;
+  /** The player already sued over this site's block (compute/siteBlock.ts): once each. */
+  sued?: boolean;
   mw: number; // facility MW of the whole site (all buildings); MW live on a day: siteLiveMW (compute/sites.ts)
   stage: 'permitting' | 'power' | 'building' | 'live' | 'blocked';
   stageEndDay: Day;
@@ -2125,6 +2159,10 @@ export interface RivalFinance {
 /** N2b-1 (design/npc/NPC-LABS.md §4, engine/v2/npc/lab.ts): an NPC lab's moving state. */
 export interface NpcLabState {
   kind: import('../../data/v2/npcLabs').NpcKindId;
+  /** Dynamic posture changes on top of the hidden posture (moving goalposts, joint evals; actors/rivals.ts postureOf). */
+  postureDelta?: Partial<SafetyPosture>;
+  /** Moving-goalposts revisions of its safety framework (headline version number). */
+  goalposts?: number;
   /** The player's adjusted seven values (setup.cast); absent: the kind's. */
   pers?: import('../../data/v2/npcLabs').Personality;
   /** Model family (invented, data/v2/npcLabs.ts). */
@@ -2221,6 +2259,8 @@ export interface Commitment {
 // ───────────────────────────── Outside world (§3.11) ─────────────────────────────
 
 export interface WorldEconomy {
+  /** US GDP at the game start, the reference for Prosperity (set on the first day). */
+  gdp0: number;
   sectors: Record<RegionId, Record<SectorId, SectorState>>;
   displacedPool: Record<RegionId, number>; // persons
   unemployment: Record<RegionId, number>; youthUnemployment: number;
@@ -2325,6 +2365,8 @@ export interface EventQueue {
   pending: PendingDecision[];
   fired: Record<string, Day>; // event id -> last fired day
   director: { tension: number; lastCrisisDay: Day; quietUntil: Day; concurrentCrises: number };
+  /** Decisions the game's systems ask the director to raise (events/request.ts); it fires them under its pacing limits and drops them after 60 d. */
+  requests: { id: string; day: Day; data: Record<string, number | string> }[];
 }
 
 export interface PendingDecision {
@@ -2520,7 +2562,7 @@ export interface TickOptions {
 /** Risk-source view row (§6.9). Built from player BELIEFS, never truth. */
 export interface RiskSource { id: string; label: string; kind: 'ownModel' | 'rival' | 'china' | 'misuse' | 'theft' | 'war' | 'rogue'; estimate: number; band: [number, number]; drivers: { label: string; share: number }[]; }
 
-// ───────────────────────────── WS4 working state (folded from actors/state.ts at M2) ─────────────────────────────
+// ───────────────────────────── Cover-ups and rival incidents ─────────────────────────────
 
 /** A quiet fix that outsiders may still discover (§3.9.3 rule 1). */
 export interface Coverup { id: string; day: Day; what: string; pDaily: number; until: Day }
@@ -2528,49 +2570,14 @@ export interface Coverup { id: string; day: Day; what: string; pDaily: number; u
 /** A rival/China incident made public (drives E31 and intel bands). */
 export interface RivalIncident { lab: LabId; day: Day; severity: number; misuse: boolean }
 
-export interface Ws4State {
-  coverups: Coverup[];
-  /** Continue-through-red-flag counter (E09/E17); feeds leaks. */
-  redFlags: number;
-  theftAttempts: number;
-  /** Escaped copy of a player model (E25 / 'rogue' ending). */
-  loose?: { day: Day; versionId: string; mis: number };
-  /** Open internal whistleblower report (E18) and its fix-or-escalate deadline. */
-  internalReport?: { day: Day; deadline: Day };
+/** How far the ending conditions have progressed (endings/endings.ts, endings/retire.ts, events/catalog/rivals.ts). */
+export interface EndingProgress {
+  /** The holders of a stake bought the company (E32 sale): the 'acquired' ending. */
+  soldControl: boolean;
+  /** The player retired (endings/retire.ts). */
+  retired: boolean;
   /** Consecutive days each competitor has led the player by ≥ 365 d after its SC (overtaken rule). */
   overtakenDays: Record<LabId, number>;
-  taiwanDisrupted: boolean;
-  taiwanUntil: Day;
-  /** Day an action was last used (cooldowns). */
-  actionDay: Record<string, Day>;
-  /** Dynamic posture changes on top of hidden postures (moving goalposts, joint evals). */
-  postureDelta: Record<LabId, Partial<SafetyPosture>>;
-  /** Moving-goalposts revisions per NPC lab (headline version number). */
-  goalposts: Record<LabId, number>;
-  rivalIncidents: RivalIncident[];
-  /** Next post-training day per non-player lab. */
-  nextPost: Record<LabId, Day>;
-  /** Day the current internal model of a non-player lab was finished (release lag). */
-  internalDay: Record<LabId, Day>;
-  /** Spy multiplier after purges (recovers over a year). */
-  spyMult: number;
-  /** Days China/rival distillation inflow has exceeded the E06 threshold. */
-  distillDays: number;
-  /** The player accepted DPA consolidation (E22, world/usgov.ts). */
-  dpaAccepted: boolean;
-  /** The hard nationalisation path was taken (world/usgov.ts; the 'nationalized' ending). */
-  nationalizedHard: boolean;
-  /** Day an internal safety memo leaked to the press (E19): the misalignment leak the US government reacts to. */
-  misalignLeakDay?: Day;
-  soldControl: boolean;
-  retired: boolean;
-  /** Disclosure record: disclosed vs leaked/covered incidents and findings. */
-  disclosed: number;
-  leaked: number;
-  /** World GDP (US) at game start, for Prosperity. */
-  gdp0: number;
-  /** Event requests from WS4 systems; the director fires them under its pacing limits (E4). Expire after 60 d. */
-  requests: { id: string; day: Day; data: Record<string, number | string> }[];
 }
 
 /** SR-13 safeguard items (safety/safeguards.ts). */

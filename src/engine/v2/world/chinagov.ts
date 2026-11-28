@@ -7,7 +7,7 @@
 // (compute/market.ts), China's chip access (npc/china.ts), the war ending (endings.ts) and a verified treaty's compute cap
 // (the player's AI R&D pool, compute/power.ts poolsOf; the NPC labs' reference clock, npc/shocks.ts refYear).
 import { cadencesDue } from '../core/time';
-import { request, ws4r } from '../actors/state';
+import { request } from '../events/request';
 import { hasCommitment } from '../actors/commitments';
 import { centraliseChina } from '../npc/china';
 import { poolsOf } from '../compute/power';
@@ -233,7 +233,7 @@ export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
   const quiet = s.usgov.thefts[s.usgov.thefts.length - 1] !== day && g.tension <= 2;
   g.holdDays.quiet = quiet ? (g.holdDays.quiet ?? 0) + 1 : 0;
   if (g.talks === 0) {
-    const leak = ws4r(s).misalignLeakDay;
+    const leak = s.public.misalignLeakDay;
     const scare = (leak !== undefined && day - leak < CHINAGOV.scareDays) || incidentHeat(s) > USGOV.scareHeat;
     if (!g.rejected && s.usgov.stage >= CHINAGOV.talksStage && (scare || lead < CHINAGOV.talksLead * b)) setTalks(s, ctx, 1);
   } else if (g.talks === 1 && g.holdDays.quiet >= CHINAGOV.quietDays / b) {
@@ -327,7 +327,7 @@ export function talksProgress(s: GameStateV2): StepProgress {
   const day = s.time.day;
   const lead = usLeadOverChinaMonths(s, frontier(s)) ?? 0;
   const quiet = s.usgov.thefts[s.usgov.thefts.length - 1] !== day && g.tension <= 2;
-  const leak = ws4r(s).misalignLeakDay;
+  const leak = s.public.misalignLeakDay;
   const scare = (leak !== undefined && day - leak < CHINAGOV.scareDays) || incidentHeat(s) > USGOV.scareHeat;
   let needs = 'Nothing further: the verified treaty is in force';
   let parts: StepPart[] = [];

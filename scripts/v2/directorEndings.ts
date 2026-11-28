@@ -1,4 +1,4 @@
-// WS4 acceptance tests (V2-SPEC §8.3: E1–E5; §7.1 T3, T4). Owner: WS4.
+// Events, endings and China-lead acceptance tests (V2-SPEC §8.3: E1–E5; §7.1 T3, T4). Owner: events.
 //   E1  catalog shape: the kept events, ≥ 2 choices each, titles, text length (preview truth is lint-tradeoffs.ts)
 //   E2  no event text references an inactive lab (fuzz 1,000 seeds)
 //   E3  rival comparisons use the player's INTERNAL frontier
@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
 import { leadDays } from '../../src/engine/v2/actors/intel';
 import { deactivateRival } from '../../src/engine/v2/actors/rivals';
-import { request, ws4 } from '../../src/engine/v2/actors/state';
+import { request } from '../../src/engine/v2/events/request';
 import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
 import { refreshFramework, worldHighL } from '../../src/engine/v2/safety/framework';
 import { FRAMEWORK_CRITICAL_L } from '../../src/data/v2/framework';
@@ -81,7 +81,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 // ───────── E2: never name inactive labs (fuzz 1,000 seeds) ─────────
 {
   const N = SMOKE ? 60 : 1000;
-  const { violations, checkedTexts } = cached('ws4-e2', { N }, ME, () => {
+  const { violations, checkedTexts } = cached('directorEndings-e2', { N }, ME, () => {
   const violations: string[] = [];
   let checkedTexts = 0;
   for (let seed = 1; seed <= N; seed++) {
@@ -120,7 +120,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       const n = named(e.text(s, data));
       if (n) violations.push(`seed ${seed} ${e.id} names ${n}`);
     }
-    if (ws4(s).requests.some((r) => typeof r.data.lab === 'string' && s.rivals.find((x) => x.core.id === r.data.lab)?.core.status !== 'active')) violations.push(`seed ${seed}: stale request survives`);
+    if (s.events.requests.some((r) => typeof r.data.lab === 'string' && s.rivals.find((x) => x.core.id === r.data.lab)?.core.status !== 'active')) violations.push(`seed ${seed}: stale request survives`);
   }
   return { violations, checkedTexts };
   });
@@ -167,7 +167,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 // ───────── E4: pacing limits ─────────
 {
   const E4_SEEDS = SMOKE ? 2 : 12;
-  const { bad, crisesSeen } = cached('ws4-e4', { seeds: E4_SEEDS, days: 300 }, ME, () => {
+  const { bad, crisesSeen } = cached('directorEndings-e4', { seeds: E4_SEEDS, days: 300 }, ME, () => {
   const bad: string[] = [];
   let crisesSeen = 0;
   {
@@ -211,14 +211,14 @@ const load = (i: number) => deserialize(fixtures[i]);
   // 'war' is a quarterly roll at China tension 4 (world/chinagov.ts); scripts/v2/worldChina.ts covers it.
   const setups: Partial<Record<EndingId, (s: GameStateV2) => void>> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
-    acquired: (s) => void (ws4(s).soldControl = true),
+    acquired: (s) => void (s.endingProgress.soldControl = true),
     ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster vote
     nationalized: (s) => void (s.usgov.consolidated = 'nationalized'),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
     rogue: (s) => {
       atLevel(s, 4);
-      ws4(s).loose = { day: s.time.day - 100, versionId: 'V0', mis: 1 };
+      s.player.security.loose = { day: s.time.day - 100, versionId: 'V0', mis: 1 };
       // Model v3 E9: the copy is a foothold that has acquired compute (4 copies) and acts once its exposure is above θ_w.
       footholdFromEscape(s, s.time.day - 100, internalVersion(s)!, 1).size = 4;
     },
@@ -230,7 +230,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     asiTakeover: (s) => playerAsi(s, true, false),
     asiContested: (s) => playerAsi(s, true, true),
     overtaken: (s) => void (s.rivals[0].core.milestoneDays[5] = s.time.day),
-    retired: (s) => void (ws4(s).retired = true),
+    retired: (s) => void (s.endingProgress.retired = true),
   };
   function misuse(s: GameStateV2, kind: 'bio' | 'cyber') {
     const v = internalVersion(s)!;
@@ -266,7 +266,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       s.hidden.agendaEfficacy.AG10 = 0.9;
     }
   }
-  const missing = cached('ws4-e5', { endings: Object.keys(setups), maxSeed: 300, days: 3 }, ME, () => {
+  const missing = cached('directorEndings-e5', { endings: Object.keys(setups), maxSeed: 300, days: 3 }, ME, () => {
   const missing: string[] = [];
   for (const [id, setup] of Object.entries(setups) as [EndingId, (s: GameStateV2) => void][]) {
     let hit = false;
@@ -291,7 +291,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 // a theft then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
   const T3_SEEDS = SMOKE ? 2 : 8;
-  const { leads0, pre, post } = cached('ws4-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
+  const { leads0, pre, post } = cached('directorEndings-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
   const leads0: number[] = [];
   const pre: number[] = [];
   const post: number[] = [];
@@ -332,7 +332,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const fxMonths = fx.rivals.map((r) => leadBetween(fx, 'player', r.core.id) / 30.4);
   check(fxMonths.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start are 3–9 months (fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
   const T4_SEEDS = SMOKE ? 20 : 200;
-  const months: number[] = cached('ws4-t4', { seeds: T4_SEEDS }, ME, () => {
+  const months: number[] = cached('directorEndings-t4', { seeds: T4_SEEDS }, ME, () => {
     const months: number[] = [];
     for (let seed = 1; seed <= T4_SEEDS; seed++) {
       const s = newGame(defaultSetupV2({ seed }));
@@ -356,7 +356,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     check(deployGate(s, v, 'api') === true, 'C1 baseline: the version can launch on the API');
     // B1: a breached whistleblower pledge binds but has nothing to do with launches.
     signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {});
-    ws4(s).internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
+    s.player.security.internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
     check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
     check(deployGate(s, v, 'api') === true, 'C1 (B1) an out-of-scope binding commitment does not block a launch', String(deployGate(s, v, 'api')));
     // B2: the framework judges the candidate.
@@ -386,4 +386,4 @@ const load = (i: number) => deserialize(fixtures[i]);
   }
 }
 
-finish('ws4');
+finish('directorEndings');

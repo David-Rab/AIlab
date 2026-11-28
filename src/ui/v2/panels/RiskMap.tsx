@@ -45,7 +45,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
     const id = r.core.id;
     nodes.push({
       id, label: r.core.name, sub: l.est >= 0 ? `you ${F.lead(l.est)} ahead` : `you ${F.lead(-l.est).replace('+', '')} behind`, x: W / 2 + Math.cos(a) * 520, y: H / 2 - 20 + Math.sin(a) * 240, r: 20,
-      color: isCN ? C.china : C.rival, halo: lev[id] ?? 0, pulse: s.ws4?.rivalIncidents.some((x) => x.lab === id && s.time.day - x.day < 14) ?? false,
+      color: isCN ? C.china : C.rival, halo: lev[id] ?? 0, pulse: s.rivalIncidents.some((x) => x.lab === id && s.time.day - x.day < 14),
       panel: 'relations',
       tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
     });
