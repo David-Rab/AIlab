@@ -59,7 +59,7 @@ import { believedProd, observedScale } from '../production/believed';
 import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, researchMods, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
-import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
+import { addBelief, addIdea, diffusedLift, latestBaseFlop, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { lentTrainingH100e } from './runs';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
@@ -1357,7 +1357,7 @@ export function capProgress(st: CapProjectState | undefined): number {
  *  `rate` (until RD-L03): the change since the last research day of the lab's research recipe G (stacks.ts researchG:
  *  no public knowledge), both ends at the last day's base FLOP, so a new, bigger base does not count; adopted ideas
  *  (engineers' build system, 38) and tuning do. Public knowledge (pubRate, OOM/day, a 14-day average): the change of the
- *  stacks' bases since the last research day (diffusion, C4 tacit knowledge, safety spillover). */
+ *  diffused know-how's lift over own since the last research day (stacks.ts diffusedLift: rule A, C4 tacit knowledge; F1). */
 export function softwareProgressDay(s: GameStateV2) {
   const res = s.player.research;
   if (res.gLast !== undefined && res.gLastF !== undefined) { // an older save's gLast was the whole G: restart there
@@ -1366,7 +1366,7 @@ export function softwareProgressDay(s: GameStateV2) {
   }
   res.gLastF = latestBaseFlop(s);
   res.gLast = researchG(s, res.gLastF);
-  const pub = publicBase(s);
+  const pub = diffusedLift(s);
   if (res.pubLast !== undefined) res.pubRate = (res.pubRate ?? 0) + (pub - res.pubLast - (res.pubRate ?? 0)) / 14;
   res.pubLast = pub;
 }

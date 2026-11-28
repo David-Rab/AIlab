@@ -23,7 +23,7 @@ import {
 } from './research';
 import { measuredSd } from './benchmarks';
 import { gEquivOf, latestBaseFlop, STACK_KEYS } from './stacks';
-import { lentTrainingH100e } from './runs';
+import { believedKnowhow, lentTrainingH100e } from './runs';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
 import { evalM } from './evals';
@@ -299,9 +299,11 @@ function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
 
 /** Recipe readout (RD-B17): per stack, in its own unit, its believed value now (RF-R5: start and public knowledge + Σ the
  *  adopted results' estimates, ± their band), what the internal model embodies, and the adopted ideas (believed band, and
- *  the first evaluated model trained with each). */
+ *  the first evaluated model trained with each). F1: the pretraining stack's public part (`base`) is its start plus the
+ *  diffused know-how in effect over the believed own recipe (runs.ts believedKnowhow lift; 0 once own passes it). */
 export function stackViews(s: GameStateV2): StackView[] {
   const res = s.player.research;
+  const lift = believedKnowhow(s).lift;
   const v = agentVersion(s, 'capRoutine');
   const base = v ? s.player.models.bases.find((b) => b.id === v.baseId) : undefined;
   // UB-2: the day each area's recipe froze for the internal model (facts: run dates); Waiting sums the believed
@@ -316,15 +318,16 @@ export function stackViews(s: GameStateV2): StackView[] {
     const st = res.stacks[k];
     const est = st.est;
     const since = frozen[k];
+    const pub = st.base + (k === 'pre' ? lift : 0);
     let w: { gap: number; gapSd: number; gapN: number; gapSince: number; inModel: number } | undefined;
     if (since !== undefined) {
       let g = 0, vv = 0, n = 0;
       for (const a of res.adopted) if (a.stack === k && a.day > since) { g += a.est; vv += a.estSd ** 2; n += a.b ?? 1; }
       const gap = Math.max(0, Math.min(est, g));
-      w = { gap, gapSd: Math.sqrt(vv), gapN: n, gapSince: since, inModel: st.base + est - gap };
+      w = { gap, gapSd: Math.sqrt(vv), gapN: n, gapSince: since, inModel: pub + est - gap };
     }
     return {
-      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: st.base + est, adopted: est, adoptedSd: Math.sqrt(st.estVar), base: st.base,
+      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: pub + est, adopted: est, adoptedSd: Math.sqrt(st.estVar), base: pub,
       ...(w ?? {}), n: st.n,
       ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };

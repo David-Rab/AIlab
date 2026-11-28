@@ -23,7 +23,7 @@ import { believedEfficacy, clamp01, setFlag, trueEfficacy } from './common';
 import { jobAiShare, jobRecord } from './workPackage';
 import { versionOom } from './oversight';
 import { observeVersion } from './detection';
-import { addKnowledge } from '../models/stacks';
+import { addOwnInsight } from '../models/stacks';
 import * as shock from '../npc/shocks';
 import { decayAt, unlockTechnique } from './techniques';
 import { toolExposed } from './footholds';
@@ -428,8 +428,9 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       const row = candidates(s, agenda, ['SPILL'])[0];
       id = row?.id ?? nextId(s, 'SPILL');
       title = row?.title ?? 'Interpretability insight speeds up training';
-      // Model v3 V2: the insight enters the pretraining stack as a public idea (0.02 progress-years × B OOM).
-      addKnowledge(s, ctx, SPILL_G, 'safety spillover', id);
+      // Model v3 V2: the insight enters the pretraining stack (0.02 progress-years × B OOM). F1: the lab's own finding, so own
+      // know-how (an own idea, known exactly), not the diffused level.
+      addOwnInsight(s, ctx, SPILL_G, 'safety spillover', id);
       break;
     }
     case 'FALSE': {

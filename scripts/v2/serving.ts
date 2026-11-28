@@ -62,7 +62,7 @@ import { distillGap } from '../../src/engine/v2/models/effective';
 import { baseParams, fptOfParams, npcDecodeU, npcServeFpt, npcServeOom } from '../../src/engine/v2/npc/model';
 import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL, type WorkTypeId } from '../../src/data/v2/workTypes';
 import { SERVE_RATE0 } from '../../src/data/v2/npcLabs';
-import { addPublic, decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
+import { decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
 import { serveTechMult } from '../../src/engine/v2/models/runs';
 import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2/departments/workfit';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
@@ -775,11 +775,11 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   const at = (ud: number) => tk.input / U_PREFILL + (tk.output * tokEff(v0)) / ud;
   const sizes = near(SERVE_U_OOM, Math.log10(U_DECODE_MAX / U_DECODE)) && near(decodeUtilOf(0.2), U_DECODE * Math.pow(10, 0.2)) && near(decodeUtilOf(1), U_DECODE_MAX)
     && decodeUtilOf(0) === U_DECODE && serveFlopOomOf(0.2) === 0 && near(serveFlopOomOf(0.5), 0.5 - SERVE_U_OOM) && serveFlopOomOf(30) === SERVE_FLOP_MAX;
-  addPublic(s.player.research.stacks.serve, 0.2);
+  s.player.research.stacks.serve.base += 0.2; // a serving-stack raise (the stack's value is base + ideas)
   const ud1 = decodeUtilNow(s);
   const cost1 = off().hph;
   const tm1 = serveTechMult(s);
-  addPublic(s.player.research.stacks.serve, 0.3);
+  s.player.research.stacks.serve.base += 0.3;
   const ud2 = decodeUtilNow(s);
   const cost2 = off().hph;
   const tm2 = serveTechMult(s);

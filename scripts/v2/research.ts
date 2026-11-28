@@ -21,7 +21,7 @@ import {
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, publicBase, researchG, stackAt, stacksGEquiv,
+  addIdea, diffusedLift, playerRecipeG, raiseDiffused, STACK_KEYS, initialStacks, latestBaseFlop, researchG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
 import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
 import { projectEta } from '../../src/engine/v2/models/tree';
@@ -571,7 +571,7 @@ if (process.argv.includes('--rd-a03')) {
   // A diffusion inflow: public knowledge, its own readout, not Software progress.
   const dif = clone(s);
   const dG = 0.05;
-  addKnowledge(dif, undefined, dG, 'knowledge diffusion', 'test');
+  raiseDiffused(dif, undefined, playerRecipeG(dif) + dG, 'knowledge diffusion', 'test'); // F1: the diffused level D above the effective recipe by dG
   softwareProgressDay(dif);
   const dPub = (dif.player.research.pubRate ?? 0) - (ref.player.research.pubRate ?? 0);
   check(Math.abs(rate(dif) - rate(ref)) < 1e-12 && Math.abs(dPub - dG / 14) < 1e-12 && softwareRate(dif).publicPerYear > softwareRate(ref).publicPerYear,
@@ -585,20 +585,20 @@ if (process.argv.includes('--rd-a03')) {
   const dRate = rate(ad) - rate(ref);
   check(Math.abs(dRate - x / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its whole effect (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
 
-  // (The RD-B16 check that theft and leaks compare recipes in one unit went with the old China recipe state: an NPC lab's recipe is one number, npc/lab.ts npcRecipe.)
+  // (The RD-B16 check that theft and leaks compare recipes in one unit went with the old China recipe state: an NPC lab's know-how is read from its lag, npc/shocks.ts npcKnowhow.)
 
   // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
   // change of the stacks' G at the latest base) reads far faster.
   const ch = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
   let pubMax = 0;
   let pubSum = 0;
-  let pub0 = publicBase(ch);
+  let pub0 = diffusedLift(ch);
   let gl: number | undefined;
   let old = ch.player.research.gRate ?? 0;
   runRef(ch, 200, (g) => {
     pubMax = Math.max(pubMax, g.player.research.pubRate ?? 0);
-    pubSum += publicBase(g) - pub0;
-    pub0 = publicBase(g);
+    pubSum += diffusedLift(g) - pub0;
+    pub0 = diffusedLift(g);
     const x = stacksGEquiv(g);
     if (gl !== undefined) old += (Math.max(0, x - gl) - old) / 14;
     gl = x;
@@ -680,7 +680,7 @@ if (process.argv.includes('--rd-a03')) {
     src.forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '').replace(/\/\*\*?.*?(\*\/|$)/, '').replace(/^\s*\*.*$/, '');
       // Reads of the readout: `player.pa` / `p.pa` not followed by an assignment. Allowed: copying it into readout
-      // fields (paAtStart) and addKnowledge's cause bookkeeping (the change of the readout).
+      // fields (paAtStart) and cause bookkeeping (the change of the readout).
       if (/(player|\bp)\.pa\b(?!\s*=[^=])/.test(code) && !/paAtStart|const before = s\.player\.pa|s\.player\.pa - before/.test(code)) bad.push(`${name}:${i + 1}: ${line.trim()}`);
     });
   }

@@ -12,7 +12,8 @@ import type { GameStateV2 } from '../types';
 // china.computeAbs → china.access). 124: W11b, the old working-state block is split into its owners (events.requests, player.security,
 // player.actionDay, rivalIncidents, endingProgress, usgov.dpaAccepted, public.misalignLeakDay, world.gdp0, the market, npc and site fields).
 // 125: weekly record series aiWork, aiIncome, robots (World tab tiles, W8b-3). 126: bal merged with master (series.GP, the public-model G per lab, F7).
-export const SCHEMA_REV = 126;
+// 127: F1, the diffused know-how level (research.diffused); NpcLabState.rec and SimpleModel.recG are gone.
+export const SCHEMA_REV = 127;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
