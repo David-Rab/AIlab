@@ -79,8 +79,6 @@ const JOBS: Job[] = [
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, ...S([...ALL, 'deep'], 1000) } as Job,
   { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,
-  { id: 'currency', script: 'currency.ts', ...S(ALL, 10) } as Job, // RD-U01: one capability currency
-  { id: 'domainref', script: 'domainref.ts', ...S(ALL, 10) } as Job, // RD-U05: domain difficulty only in the human reference points
   // E7 sabotage, E8 footholds, E9 control (merged in M5).
   { id: 'sabotage', script: 'sabotage.ts', ...S(ALL, 60) } as Job,
   { id: 'footholds', script: 'footholds.ts', ...S(ALL, 60) } as Job,

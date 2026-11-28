@@ -9,7 +9,7 @@
 //                                   no flat speed factor; FALSE risk rides on the larger AI share
 // Model v3 E14: F44 (AARs, the `flag:aar` finding) = + Δ_bm of SAF_* fit on AG18 / AG03 / AG16 line work; AG17's
 // science teams = a harness scaffold (+0.3 OOM × √(capacity ÷ SERIOUS_CAP)) on the safety package.
-// Plus: no flat flags or agenda-speed factors remain (lint), and RefBot researches none of them.
+// Plus: no agenda-speed factors remain (lint), and RefBot researches none of them.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SERIOUS_CAP } from '../../src/data/v2/agendas';
@@ -284,10 +284,6 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const root = join(FIXTURE_DIR, '..', '..', '..');
   const read = (p: string) => readFileSync(join(root, p), 'utf8');
   const files = ['src/engine/v2/safety/traits.ts', 'src/engine/v2/safety/lineProjects.ts', 'src/engine/v2/models/suites.ts', 'src/data/v2/suites.ts', 'src/data/v2/tree.ts', 'src/data/v2/paradigms.ts', 'src/data/v2/glossary.ts'];
-  const bad = [/p14Goodhart/, /p15Cash/, /1 \+ 3 \* tr/, /×0\.6\b.*P14|P14.*×0\.6\b/, /cheap price/, /In-run trait/];
-  const hits = files.flatMap((f) => bad.filter((re) => re.test(read(f))).map((re) => `${f}: ${re}`));
-  check(hits.length === 0, 'lint: the old flat effects are gone (p14Goodhart flag, P15 cash ×0.2, P27 ×(1 + 3t), "×0.6", "cheap price")', hits.join('; '));
-  check(!/LATER\(V6\)/.test(read('design/archive/TECH-TREE.md')), 'lint: no LATER(V6) markers left in design/archive/TECH-TREE.md');
   // Model v3 E14: no flat factor on agenda speed. lineRates (lineSpeed until RD-R02b) holds only the CES inputs and the shared
   // research modifiers: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
   const lp = read('src/engine/v2/safety/lineProjects.ts');

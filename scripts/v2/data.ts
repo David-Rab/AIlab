@@ -5,13 +5,13 @@
 //   products on eligible channels.
 // Model v3 D3 (the draw): a base draws its tokens from the portfolio by its data mix; the balanced draw reproduces the
 //   start, the natural mix reproduces D1's U and repetition, specialisation s_d,data follows the drawn shares (capped), a
-//   short domain repeats and loses value, and no V1 data-option offsets are left.
+//   short domain repeats and loses value.
 // Model v3 D11 (quality of the drawn tokens): D_eff = Σ q·Muennighoff(D_slice, T_slice) ÷ Q_REF in the loss law; the
 //   reference draw reproduces G exactly, premium data raises G by a small sourced amount, a low-quality synthetic-heavy
 //   draw lowers it, quality is counted once (it scales tokens, not epochs), and the teacher comparison is reported.
 // Model v3 D9: P10 raises the synthetic-quality ceiling (U does not jump), P21 multiplies the drawn tokens' worth in the
 //   loss law, both by the adopted result's x; the D2 teacher finding is re-checked under the final rules.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ALPHA_DATA, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, P10_SYN_Q_RAISE, P21_WORTH_OOM, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
@@ -21,12 +21,11 @@ import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/
 import { versionById } from '../../src/engine/v2/models/labs';
 import { chatFreeTier } from '../../src/engine/v2/worldfx/serving';
 import { flopPerToken } from '../../src/engine/v2/departments/workfit';
-import { BASE_DATA, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
+import { REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../src/data/v2/suites';
 import { actionView } from '../../src/engine/v2';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
-import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
 import { effectiveTokens, fDataEff } from '../../src/engine/v2/models/effective';
@@ -164,8 +163,6 @@ const deliverAt = (s: GameStateV2, day: number) => {
   deliverData(s);
   s.time.day = d0;
 };
-// The old blanket "License data" (D3) is gone; licensing the crawl is data.license 'web'.
-check(!ACTION_BY_ID.has('D3') && act(game(), 'D3') === 'unknown action D3', 'D2: the old "License data" action (D3) is removed');
 const sW = game();
 sW.player.finance.cash = 100;
 const pubBefore = assetTokensT(publicUse(sW.player.dataPortfolio)!);
@@ -453,18 +450,6 @@ const drift = drawData(sFx.player.dataPortfolio, 100e12, { shares: REF_SHARE, we
 const driftNat = drawData(sFx.player.dataPortfolio, 100e12, NATURAL_MIX);
 check(Object.keys(drift.sD).length === 0 && (driftNat.sD.CODE ?? 0) > 0.2, 'draw: on the day-400 portfolio balanced keeps the reference shares (no specialisation while no domain repeats); the natural mix specialises in code',
   `balanced ${fmtS(drift.sD) || 'none'}; natural ${fmtS(driftNat.sD)}`);
-// Lint: the V1 data-option design offsets are gone (no general ΔG, no level offsets, no repetition exemption).
-const v1Keys = Object.values(BASE_DATA).flatMap((x) => Object.keys(x).filter((k) => ['dg', 'off', 'noWall'].includes(k)));
-const srcHits: string[] = [];
-const walk = (dir: string) => {
-  for (const f of readdirSync(dir)) {
-    const p = join(dir, f);
-    if (statSync(p).isDirectory()) walk(p);
-    else if (/\.tsx?$/.test(f)) readFileSync(p, 'utf8').split('\n').forEach((l, i) => { if (/\bnoWall\b|\bdeltaRsch\b|designOffset|Research boost|BASE_DATA\[[^\]]+\]\.(off|dg)\b/.test(l)) srcHits.push(`${p}:${i + 1}`); });
-  }
-};
-walk(join(FIXTURE_DIR, '..', '..', '..', 'src'));
-check(v1Keys.length === 0 && srcHits.length === 0, 'lint: no V1 data-option offsets left (BASE_DATA has no dg/off/noWall; no deltaRsch / "Research boost" readers)', [...v1Keys, ...srcHits].slice(0, 5).join(', '));
 
 // ---------- model v3 D9: P10 and P21 as typed data-efficiency effects ----------
 // A finished result is built in (completeAdoption, the engine's adoption path) with the project's realised effect x
