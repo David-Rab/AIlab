@@ -18,6 +18,13 @@ export interface Target {
 }
 
 const BY_ID = new Map<string, RegTarget>(TARGETS.map((t) => [t.id, t]));
+
+/** The numeric band of registry target `id` (lo / hi / p50 / slack, in the entry's unit), or undefined for an unknown id.
+ *  The one place that resolves a band: the calibration report (rowOf) and the estimates (estimates/types.ts) both read it. */
+export function bandOf(id: string): { lo?: number; hi?: number; p50?: number; slack?: number; unit?: string } | undefined {
+  const t = BY_ID.get(id);
+  return t ? { ...t.value, slack: t.slack } : undefined;
+}
 /** Float noise allowed on every comparison (the moved checks used the same 1e-9). */
 const EPS = 1e-9;
 
