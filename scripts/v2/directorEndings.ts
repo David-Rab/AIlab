@@ -223,7 +223,6 @@ const load = (i: number) => deserialize(fixtures[i]);
       if (lab) lab.npc.d -= -90 - leadDays(s, lab.core.id).est;
       s.flags['ws3.ousterDay'] = s.time.day;
     },
-    nationalized: (s) => void (s.usgov.consolidated = 'nationalized'),
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
     rogue: (s) => {

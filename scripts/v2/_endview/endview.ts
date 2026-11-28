@@ -55,7 +55,6 @@ const CASES: Record<EndingId, (s: GameStateV2) => void> = {
   },
   insolvent: (s) => { s.player.finance.state = 'insolvent'; run(s); },
   ousted: (s) => { s.flags['ws3.ousterDay'] = s.time.day; run(s); },
-  nationalized: (s) => { s.usgov.consolidated = 'nationalized'; run(s); },
   acquired: (s) => { s.endingProgress.soldControl = true; run(s); },
   retired: (s) => { s.endingProgress.retired = true; run(s); },
 };

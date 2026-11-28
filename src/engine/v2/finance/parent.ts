@@ -15,6 +15,9 @@
 //    misses and overspend cut the budget, and results restore it;
 // 4. it sets the new year's goals: capability, scale and adoption on the division's trend at the base pitch (as a
 //    raise's base pitch), a third each (adoption is skipped while there is no revenue to extrapolate).
+// The government as controller (CORPORATE.md §3.2) is the same machine with two differences: it does not take the
+// company's revenue, and its yearly goals are three plain checks (security level at its floor, still ahead of China's lab,
+// no incident of severity 4 or more), each ± a third of a promise result on confidence at the next review.
 // No outside equity, deals or debt (the parent's treasury borrows); no bankruptcy. No runway distress verdict (board.ts).
 // The board's ouster vote is held as under any board (CORPORATE.md §3.3): the parent's seats vote it.
 // (Covering an overspend by writing it off would make overspending free money at a bounded confidence cost: the advance
@@ -24,12 +27,16 @@
 // one last seen; a partner that takes control starts the owner budget at the company's last four quarters of spending.
 import { parentBudgetYear } from '../../../data/v2/starts';
 import { controllerOf, holderName, ownerFunded } from './control';
+import { leadDays } from '../actors/intel';
+import { CHINA_ID } from '../models/labs';
+import { decimalYear } from '../core/time';
+import { wslFloor } from '../security/security';
 import { dayOfQuarter } from '../core/time';
-import type { Day, DivisionBudget, DivisionReview, FinancePromise, GameStateV2, Money, SystemCtx } from '../types';
+import type { Day, DivisionBudget, DivisionReview, FinancePromise, GameStateV2, GovGoalId, Money, SystemCtx } from '../types';
 import { cumulativeCapex } from './ext';
 import { bookCash, qOf } from './ledger';
 import { boardMood, moodWeight } from './mood';
-import { livePromises, makeThesis, MILESTONES, promiseDeadline, promiseStatus, type PromiseStatus } from './promises';
+import { livePromises, makeThesis, MILESTONES, PROMISE_RESULT, promiseDeadline, promiseStatus, type PromiseStatus } from './promises';
 import { runwayOf } from './runway';
 
 /** Why an equity, deal or debt action is unavailable to a division (undefined for other companies). */
@@ -70,6 +77,34 @@ function setGoals(s: GameStateV2, budget: Money, ctx?: SystemCtx): FinancePromis
   return goals;
 }
 
+/** The government's goals (CORPORATE.md §3.2): each a plain check on today's state. `since` = the day the goals were set. */
+export const GOV_GOALS: readonly GovGoalId[] = ['security', 'lead', 'incident'];
+export function govGoalCheck(s: GameStateV2, id: GovGoalId, since: Day): { label: string; met: boolean; detail: string } {
+  if (id === 'security') {
+    const floor = wslFloor(decimalYear(s) - 2025);
+    return { label: "Security level at or above the government's floor", met: s.player.security.wsl >= floor - 1e-9, detail: `level ${s.player.security.wsl.toFixed(1)} vs the floor ${floor.toFixed(1)}` };
+  }
+  if (id === 'lead') {
+    const est = leadDays(s, CHINA_ID).est;
+    return { label: "Still ahead of China's lab", met: est > 0, detail: `your estimated lead over China: ${Math.round(est)} days` };
+  }
+  const bad = s.player.safety.incidents.filter((i) => i.day >= since && i.severity >= 4).length;
+  return { label: 'No incident of severity 4 or more this year', met: bad === 0, detail: bad === 0 ? 'none this year' : `${bad} this year` };
+}
+
+/** Judge last year's government goals at the review: confidence ± the promise result × a third each, as a parent's goal. */
+function judgeGovGoals(s: GameStateV2, ctx: SystemCtx, d: DivisionBudget): NonNullable<DivisionReview['gov']> | undefined {
+  if (!d.govGoals) return undefined;
+  const k = moodWeight(s, 'results');
+  return d.govGoals.map((id) => {
+    const c = govGoalCheck(s, id, d.govGoalsDay ?? 0);
+    const delta = (c.met ? PROMISE_RESULT.metBoard : PROMISE_RESULT.missBoard) * (1 / GOV_GOALS.length) * k;
+    ctx.bump('board.confidence', delta, c.met ? 'government goal met' : 'government goal missed', c.label);
+    ctx.log('finance', `Government goal ${c.met ? 'met' : 'missed'}: ${c.label} (${c.detail}).`, c.met ? 1 : 2);
+    return { id, ...c };
+  });
+}
+
 /** A division's budget state (newGame creates it, startDivision). */
 export function divisionOf(s: GameStateV2): DivisionBudget | undefined {
   return ownerFunded(s) ? s.player.finance.ws3.division : undefined;
@@ -108,7 +143,7 @@ export function startOwnerBudget(s: GameStateV2, ctx: SystemCtx): void {
   const spend = spendLastYear(s);
   const d = newYear(y, s.player.board.confidence, s.player.finance.cash, 0, [], spend / parentBudgetYear(y));
   s.player.finance.ws3.division = d;
-  ctx.log('finance', `The owner budget starts: $${d.budget.toFixed(1)}B this year (your last four quarters' spending, $${spend.toFixed(1)}B, × ${Math.round(d.factor * 100)}% at confidence ${d.confidence.toFixed(0)}), paid at each quarter start. Revenue now goes to the owner; it sets your goals at its review.`, 3);
+  ctx.log('finance', `The owner budget starts: $${d.budget.toFixed(1)}B this year (your last four quarters' spending, $${spend.toFixed(1)}B, × ${Math.round(d.factor * 100)}% at confidence ${d.confidence.toFixed(0)}), paid at each quarter start. ${controllerOf(s)?.kind === 'government' ? 'You keep your revenue' : 'Revenue now goes to the owner'}; it sets your goals at its review.`, 3);
 }
 
 /** Daily (opex): has the controller changed since last seen (a rescue, a tranche, a sale)? Log and headline it; a
@@ -130,7 +165,7 @@ export function controlCheck(s: GameStateV2, ctx: SystemCtx): void {
     ctx.log('alert', `${who} now ${verb} ${s.player.name}: more than half of all votes.`, 4);
     ctx.headline('control', `${who} now ${verb} ${s.player.name}`);
   } else ctx.log('alert', `No single holder controls ${s.player.name} any more: the board runs by vote.`, 3);
-  if (c?.kind === 'partner' && ownerFunded(s)) startOwnerBudget(s, ctx);
+  if ((c?.kind === 'partner' || c?.kind === 'government') && ownerFunded(s)) startOwnerBudget(s, ctx);
   else if (!ownerFunded(s) && fx.division) {
     delete fx.division;
     ctx.log('finance', 'The owner budget stops: the company funds itself again.', 2);
@@ -165,15 +200,21 @@ function review(s: GameStateV2, ctx: SystemCtx, d: DivisionBudget, year: number)
   if (over > 0) {
     overConf = boardMood(s, ctx, 'setbacks', -DIVISION.overConf * Math.min(1, over / Math.max(1e-6, d.budget)), 'over budget', `$${over.toFixed(1)}B over the $${d.budget.toFixed(1)}B budget`);
   }
+  const govCtl = controllerOf(s)?.kind === 'government';
+  const gov = govCtl ? judgeGovGoals(s, ctx, d) : undefined;
   const judged = (f.promises ?? []).filter((p) => p.by === 'parent' && p.result && p.result.day === s.time.day);
   const count = (o: 'met' | 'near' | 'missed') => judged.filter((p) => p.result!.outcome === o).length;
-  const goals = { met: count('met'), near: count('near'), missed: count('missed') };
-  const rv: DivisionReview = { year: d.year, day: s.time.day, budget: d.budget, spent, over, overConf, goals };
+  const goals = gov ? { met: gov.filter((x) => x.met).length, near: 0, missed: gov.filter((x) => !x.met).length } : { met: count('met'), near: count('near'), missed: count('missed') };
+  const rv: DivisionReview = { year: d.year, day: s.time.day, budget: d.budget, spent, over, overConf, goals, ...(gov ? { gov } : {}) };
   const next = newYear(year, s.player.board.confidence, 0, 0, [...d.reviews, rv].slice(-DIVISION.keep), d.planScale);
   next.carryIn = f.cash; // signed: an outstanding advance is repaid from this year's payments first
   f.ws3.division = next;
-  ctx.log('finance', `Parent review: goals ${goals.met} met, ${goals.missed} missed${over > 0 ? `; it is covering $${over.toFixed(1)}B of overspend (confidence ${overConf.toFixed(0)}), repaid from this year's payments first` : ''}. This year's budget: $${next.budget.toFixed(1)}B (plan $${next.plan.toFixed(1)}B × ${Math.round(next.factor * 100)}% at confidence ${next.confidence.toFixed(0)}).`, goals.missed || over > 0 ? 2 : 1);
-  setGoals(s, next.budget, ctx);
+  ctx.log('finance', `${govCtl ? 'Government' : 'Parent'} review: goals ${goals.met} met, ${goals.missed} missed${over > 0 ? `; it is covering $${over.toFixed(1)}B of overspend (confidence ${overConf.toFixed(0)}), repaid from this year's payments first` : ''}. This year's budget: $${next.budget.toFixed(1)}B (plan $${next.plan.toFixed(1)}B × ${Math.round(next.factor * 100)}% at confidence ${next.confidence.toFixed(0)}).`, goals.missed || over > 0 ? 2 : 1);
+  if (govCtl) {
+    next.govGoals = [...GOV_GOALS];
+    next.govGoalsDay = s.time.day;
+    ctx.log('finance', `The government sets this year's goals: ${GOV_GOALS.map((id) => govGoalCheck(s, id, s.time.day).label.toLowerCase()).join('; ')}. Judged at the next review.`);
+  } else setGoals(s, next.budget, ctx);
 }
 
 /** Quarterly (capitalQ, after the goals are judged and the histories roll): the year's review at a budget-year start,
@@ -191,9 +232,10 @@ export function divisionQ(s: GameStateV2, ctx: SystemCtx): void {
   }
 }
 
-/** Revenue goes to the parent: book the day's revenue, then hand it over (both lines stay on the statement). */
+/** Revenue goes to a parent company: book the day's revenue, then hand it over (both lines stay on the statement). The
+ *  government, unlike a parent, does not take it: the company keeps its revenue on top of the budget. */
 export function revenueToParent(s: GameStateV2, ctx: SystemCtx, amount: Money): void {
-  if (amount > 0 && ownerFunded(s)) bookCash(s, ctx, -amount, 'financing', 'revenue to the parent');
+  if (amount > 0 && controllerOf(s)?.kind === 'partner') bookCash(s, ctx, -amount, 'financing', 'revenue to the parent');
 }
 
 export interface DivisionView {

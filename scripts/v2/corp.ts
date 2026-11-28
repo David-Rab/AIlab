@@ -16,9 +16,16 @@ import { boardQSystem, ousterVote } from '../../src/engine/v2/finance/board';
 import { opexSystem } from '../../src/engine/v2/finance/cashflow';
 import { capitalQSystem } from '../../src/engine/v2/finance/investors';
 import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
-import { budgetFactor, budgetYearOf, DIVISION_REASON, divisionBlock } from '../../src/engine/v2/finance/parent';
+import { budgetFactor, budgetYearOf, DIVISION_REASON, divisionBlock, divisionQ, revenueToParent } from '../../src/engine/v2/finance/parent';
 import { qOf } from '../../src/engine/v2/finance/ledger';
 import { absorbingLab, endingsSystem } from '../../src/engine/v2/endings/endings';
+import { acceptDpa, dpaStaffPlan, nationalize } from '../../src/engine/v2/world/usgov';
+import { frontier } from '../../src/engine/v2/world/observe';
+import { GOV_EVENTS } from '../../src/engine/v2/events/catalog/gov';
+import { charterReleaseBlock, transferVote } from '../../src/engine/v2/finance/charter';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
+import { independentAtEnd } from '../../src/engine/v2/endings/scoring';
+import { labOf } from '../../src/engine/v2/actors/rivals';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol = 1e-3) => Math.abs(a - b) <= tol;
@@ -223,6 +230,78 @@ function lowDivision(): GameStateV2 {
   check(JSON.stringify(v.player.finance.ownership) === own0 && !v.player.finance.tranches.some((x) => x.partner === 'Northwind Cloud') && v.log.some((e) => /more than half of all votes/.test(e.text)), 'C3f a voting partner\'s tranche past half of all votes, never voted at signing, lapses with a log line');
 }
 
+
+// C4: the government's soft path (E22: pooled compute and staff, a golden share with security approval) and its hard
+// path (nationalize: state control while the player leads, absorbed while it is behind).
+{
+  const leader = () => mk({ missionBody: true, profitCap: true }, { founder: 0.3, mission: 0.26, fin: 0.17, strat: { Northwind: 0.27 } });
+  /** A fresh game's player leads the frontier (its starting product is the best public model). */
+  const asFrontier = (s: GameStateV2) => s;
+  // Soft path.
+  const s = leader();
+  const seats0 = seatsOf(s).length;
+  const ctl0 = controllerOf(s)?.id;
+  const staff0 = s.rivals.reduce((a, r) => a + r.core.staff.cap + r.core.staff.saf, 0);
+  const teams0 = s.player.teams.length;
+  const heads0 = s.player.teams.reduce((a, t) => a + t.heads, 0);
+  const plan = dpaStaffPlan(s);
+  const e22 = GOV_EVENTS.find((e) => e.id === 'E22')!.choices[0]!;
+  const pre = e22.preview(s);
+  const res = acceptDpa(s, makeCtx(s));
+  const staff1 = s.rivals.reduce((a, r) => a + r.core.staff.cap + r.core.staff.saf, 0);
+  const heads1 = s.player.teams.reduce((a, t) => a + t.heads, 0);
+  const whole = s.player.teams.every((t) => t.heads === TEAM_SIZE[t.role]);
+  check(s.player.charter.goldenShare && seats0 === 7 && seatsOf(s).length === 9 && seatsBy(s, 'gov') === 2 && controllerOf(s)?.id === ctl0 && securityPowers(s), 'C4 E22 accepted: golden share, 9 seats (2 government), the controller unchanged, security approval', `${seats0} → ${seatsOf(s).length}, controller ${ctl0} → ${controllerOf(s)?.id}`);
+  check(plan.heads > 0 && res.teams > 0 && s.player.teams.length === teams0 + res.teams && heads1 - heads0 === plan.heads && whole && near(staff0 - staff1, plan.heads, 1e-6) && staff1 < staff0, 'C4 E22 accepted: the pooled staff arrive as whole teams (100/50/20) and the American labs lose exactly those heads', `+${res.teams} teams, ${plan.heads} heads; rivals ${staff0.toFixed(0)} → ${staff1.toFixed(0)}`);
+  check(pre.gains.some((l) => l.currency === 'compute') && pre.gains.some((l) => l.currency === 'staffTime' && l.amount > 0) && pre.costs.some((l) => /2 government directors/.test(l.target ?? '') && /security approval/.test(l.target ?? '')), 'C4 E22 preview lists compute, staff and the 2 government directors with security approval');
+  // Security approval: a capability-threshold model's open weights need the government directors' yes.
+  const g = mk({ goldenShare: true }, { founder: 0.9, fin: 0.1 });
+  g.player.board.confidence = 50; // a neutral mood: the directors' own stance decides
+  const risky = { name: 'Test-9', flags: { cyberOffense: true } } as never;
+  const plain = { name: 'Test-1', flags: {} } as never;
+  const tv = transferVote(g, risky, 'open');
+  const block = charterReleaseBlock(g, risky, 'open');
+  check(!!tv && tv.body === 'security' && !tv.canForce && tv.seats.length === 2 && tv.seats.every((x) => x.kind === 'gov') && !tv.passes && typeof block === 'string' && /government's directors vote no/.test(block) && !transferVote(g, plain, 'open') && charterReleaseBlock(g, plain, 'open') === undefined && !transferVote(g, risky, 'api'), 'C4 security approval: the government directors vote no on open weights of a threshold model, cannot be forced; no vote without a threshold flag or for a private channel', String(block));
+
+  // Hard path while leading.
+  const h = asFrontier(leader());
+  h.player.board.confidence = 70;
+  opexSystem.run(h, makeCtx(h)); // records the controller
+  nationalize(h, makeCtx(h));
+  opexSystem.run(h, makeCtx(h));
+  endingsSystem.run(h, makeCtx(h));
+  check(frontier(h).lab === 'player' && h.player.charter.stateControl && controllerOf(h)?.kind === 'government' && structureLabel(h) === 'Government-controlled' && ownerFunded(h) && !!h.player.finance.ws3.division && near(h.player.board.confidence, 40, 1e-6) && !h.ending && h.usgov.consolidated === 'nationalized' && securityPowers(h) && !missionPowers(h), 'C4 nationalize while leading: state control, Government-controlled, owner-funded, budget started, confidence 40, no ending', `${structureLabel(h)} · confidence ${h.player.board.confidence} · ending ${h.ending?.id}`);
+  check(near(votes(h, 'government'), 2 / 3) && seatsBy(h, 'gov') === 4 && !independentAtEnd(h), 'C4 state control: the government holds 2/3 of the votes (4 of the 6 elected seats)');
+
+  // The government's yearly review: three goals, a missed security floor costs confidence; revenue stays.
+  const d = h.player.finance.ws3.division!;
+  h.player.finance.ws3.division = { ...d, year: budgetYearOf(qOf(h)) - 1, govGoals: ['security', 'lead', 'incident'], govGoalsDay: h.time.day - 365 };
+  const ok = structuredClone(h) as GameStateV2; // the same review with the floor met
+  ok.player.security.wsl = 9;
+  divisionQ(ok, makeCtx(ok));
+  h.player.security.wsl = 0; // below the government's floor
+  const c0 = h.player.board.confidence;
+  divisionQ(h, makeCtx(h));
+  const after = h.player.finance.ws3.division!;
+  const rv = after.reviews[after.reviews.length - 1];
+  const sec = rv?.gov?.find((x) => x.id === 'security');
+  check(!!rv?.gov && rv.gov.length === 3 && sec?.met === false && h.player.board.confidence < ok.player.board.confidence && after.govGoals?.length === 3 && !(h.player.finance.promises ?? []).some((p) => p.by === 'parent'), 'C4 the government\'s review judges three goals (a missed security floor lowers confidence) and sets three new ones, not parent promises', `confidence ${c0.toFixed(1)} → ${h.player.board.confidence.toFixed(1)} (floor met: ${ok.player.board.confidence.toFixed(1)}) · ${rv?.gov?.map((x) => `${x.id} ${x.met ? 'met' : 'missed'}`).join(', ')}`);
+  const cash0 = h.player.finance.cash;
+  revenueToParent(h, makeCtx(h), 5);
+  const p = mk({}, { founder: 0.3, strat: { 'Northwind Cloud': 0.7 } }, { voting: ['Northwind Cloud'] });
+  const pc0 = p.player.finance.cash;
+  revenueToParent(p, makeCtx(p), 5);
+  check(h.player.finance.cash === cash0 && p.player.finance.cash === pc0 - 5, 'C4 revenue stays with the company under government control (a parent takes it)');
+
+  // Hard path while behind: absorbed under the frontier lab.
+  const b = leader();
+  b.player.deployments = []; // nothing public: a rival leads
+  const front = frontier(b).lab;
+  nationalize(b, makeCtx(b));
+  endingsSystem.run(b, makeCtx(b));
+  const name = labOf(b, front as string)?.core.name ?? '';
+  check(front !== null && front !== 'player' && !b.player.charter.stateControl && b.ending?.id === 'absorbed' && /folds your lab into the national project under/.test(b.ending.text) && b.ending.text.includes(name), 'C4 nationalize while behind: the absorbed ending, the government folds the lab into the national project under the frontier lab', `${b.ending?.id}: ${b.ending?.text}`);
+}
 
 // C6: the setup screen's custom kinds and Create-rivals ties.
 const c6a = cu('founderMajority', { missionBody: true }, 'contender'), c6b = cu('investorHeavy', {}, 'talent'), c6c = cu('wholly', {}, 'capital');

@@ -114,7 +114,17 @@ export function syncTeams(s: GameStateV2) {
   p.staff.saf = st.saf;
 }
 
-export const teamsOfKey = (p: Pick<PlayerLab, 'teams'>, k: TeamKey) => p.teams.filter((t) => keyOf(t) === k);
+/** Add `n` whole teams of kind `k` to the roster at once (a transfer such as the DPA pooling, not a hire: the hiring
+ *  targets and market are untouched). New science teams take the department's least-covered column. */
+export function addWholeTeams(s: GameStateV2, k: TeamKey, n: number): void {
+  const p = s.player;
+  const role = roleOfKey(k);
+  const dept = deptOfKey(k);
+  for (let i = 0; i < n; i++) p.teams.push(newTeam(p.hiring, role, dept, role === 'sci' ? nextSpecialty(p.teams, dept) : undefined));
+  syncTeams(s);
+}
+
+export const teamsOfKey =(p: Pick<PlayerLab, 'teams'>, k: TeamKey) => p.teams.filter((t) => keyOf(t) === k);
 
 /** Weeks until the next team of kind k arrives at this week's hires: (size − progress) ÷ hires (departments/market.ts
  *  weeksToNextTeam). `extraV` = the seats of a team not yet in the targets (a hire preview). Infinity when nothing is open. */

@@ -7,13 +7,13 @@ import { pMisOf, projectedMisAtAsi } from './epilogue';
 import { lawsInForce } from '../../../data/v2/laws';
 import { controllerOf } from '../finance/control';
 
-export const COMPANY_LOSS: EndingV2['id'][] = ['insolvent', 'ousted', 'absorbed', 'nationalized'];
+export const COMPANY_LOSS: EndingV2['id'][] = ['insolvent', 'ousted', 'absorbed'];
 
 /** Independent at the end: no controller other than your founders or the mission body (CORPORATE.md §3), and not
- *  under the government's committee or nationalized. */
+ *  under the government's committee or state control. */
 export function independentAtEnd(s: GameStateV2): boolean {
   const k = controllerOf(s)?.kind;
-  return (k === undefined || k === 'founders' || k === 'mission') && !s.usgov.oversight && s.usgov.consolidated !== 'nationalized' && !s.usgov.dpaAccepted;
+  return (k === undefined || k === 'founders' || k === 'mission') && !s.usgov.oversight && !s.player.charter.stateControl && !s.usgov.dpaAccepted;
 }
 
 const SURVIVAL_BASE: Partial<Record<EndingV2['id'], number>> = {

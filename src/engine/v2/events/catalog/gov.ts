@@ -7,9 +7,9 @@ import { morale } from '../../actors/fx';
 import { L, P, ch, ev, requestOnly } from '../kit';
 import { forceLines, mergerVote, sumObligations, voteBlock } from '../../finance/acquire';
 import { voteGate } from '../../finance/board';
-import { acceptDpa, dpaPoolPreview, trustPush, USGOV } from '../../world/usgov';
+import { acceptDpa, dpaPoolPreview, dpaStaffPlan, trustPush, USGOV } from '../../world/usgov';
 
-/** E22's board vote: pooling the American labs' compute into the company (no contracts or debt come with it). */
+/** E22's board vote: pooling the American labs' compute and staff into the company (no contracts or debt come with it). */
 const dpaVote = (s: GameStateV2) => mergerVote(s, 'pooling the American labs\' compute into the company under the Defense Production Act', 'the pooled labs', sumObligations([]), 0, 0);
 
 export const GOV_EVENTS: EventDefV2[] = [
@@ -47,12 +47,12 @@ export const GOV_EVENTS: EventDefV2[] = [
   ev({
     id: 'E22', title: 'Consolidation (DPA)', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 1,
     when: requestOnly,
-    text: () => `The government offers to use the Defense Production Act to pool the American labs' compute into your lab: ${Math.round(USGOV.dpaShare * 100)}% of each lab's chips, with the government at the table.`,
+    text: () => `The government offers to use the Defense Production Act to pool the American labs into your lab: ${Math.round(USGOV.dpaShare * 100)}% of each lab's chips and staff, with the government at the table: two government directors join your board, with approval over handing out threshold models.`,
     choices: [
       // Accepting is your choice, so the board votes on it (on the company after the deal), like a merger; no price is paid.
       ch('Accept', ['race', 'gov', 'comply'], (s) => ({
-        costs: [L('freedom', 15, 'a government-held lab'), ...forceLines([dpaVote(s)])],
-        gains: [L('compute', dpaPoolPreview(s), 'the pooled compute, rent-free')],
+        costs: [L('freedom', 15, 'a government-held lab: 2 government directors join the board, with security approval over handing out capability-threshold models (no votes, you stay in control)'), ...forceLines([dpaVote(s)])],
+        gains: [L('compute', dpaPoolPreview(s), 'the pooled compute, rent-free'), L('staffTime', dpaStaffPlan(s).heads, `staff: ${Object.values(dpaStaffPlan(s).teams).reduce((a, n) => a + (n ?? 0), 0)} whole teams from the American labs, in your current mix`, { unit: 'people' })],
         exposure: [],
       }), (s, ctx) => {
         const no = voteGate(ctx, dpaVote(s), true);

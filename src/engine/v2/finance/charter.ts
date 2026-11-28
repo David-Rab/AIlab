@@ -8,9 +8,9 @@
 // | Safety committee halts a red-flagged release     | a mission body             | every external launch or model swap     |
 // | Trust approval: sale of control, threshold model | a mission body             | a deal past 50%; open weights; IP access |
 // | Override forces a major decision                 | a holder with > 50% of votes | board votes (board.ts voteGate)       |
-// | Security approval                                | golden share, state control | (label only for now)                   |
+// | Security approval (can't be forced)              | golden share, state control | threshold models (open weights, IP)    |
 import type { BoardVote, Channel, GameStateV2, ModelVersion } from '../types';
-import { boardVote, trustVote } from './board';
+import { boardVote, securityVote, trustVote } from './board';
 import { missionPowers, overrideAvailable, securityPowers } from './control';
 import { capabilityThresholds, licensedModel, safetyRedFlags } from './observe';
 
@@ -35,23 +35,30 @@ const external = (c: Channel) => c !== 'internal';
  *  race bot's and almost none of the careful bots'; at 30% it held 70% of the reference bot's (FIN3b notes). */
 export const COMMITTEE_EST = 0.5;
 
-/** The mission body's vote on releasing a capability-threshold model's weights, or undefined if none is needed. */
-export function transferVote(s: GameStateV2, v: ModelVersion, channel: Channel): BoardVote | undefined {
-  if (!missionPowers(s) || channel !== 'open') return undefined;
-  const t = capabilityThresholds(v);
-  if (!t.length) return undefined;
-  return trustVote(s, 'transferModel', `${v.name} crossed ${t.join(', ')}: open weights hand it to everyone`);
+/** Handing out a capability-threshold model needs two bodies' approval where they exist: the mission body's seats (trust
+ *  approval) and the government's directors (security approval). Neither can be forced. This is the vote that stops it
+ *  (a failed one, the mission body's first), else the vote that passes; undefined when no body holds the power. */
+function approvals(s: GameStateV2, decision: 'transferModel', trigger: string): BoardVote | undefined {
+  const votes = [missionPowers(s) ? trustVote(s, decision, trigger) : undefined, securityPowers(s) ? securityVote(s, decision, trigger) : undefined].filter((x): x is BoardVote => !!x);
+  return votes.find((x) => !x.passes) ?? votes[0];
 }
 
-/** The mission body's vote on IP access that would license a capability-threshold model (FIN4b): a licence to a
- *  partner's lab (`to`) transfers the model as surely as open weights do. Undefined when no vote is needed (no mission
- *  body, or the best model the licence would reach crosses no threshold). */
+/** The approval vote on releasing a capability-threshold model's weights, or undefined if none is needed. */
+export function transferVote(s: GameStateV2, v: ModelVersion, channel: Channel): BoardVote | undefined {
+  if (channel !== 'open') return undefined;
+  const t = capabilityThresholds(v);
+  if (!t.length) return undefined;
+  return approvals(s, 'transferModel', `${v.name} crossed ${t.join(', ')}: open weights hand it to everyone`);
+}
+
+/** The approval vote on IP access that would license a capability-threshold model (FIN4b): a licence to a partner's lab
+ *  (`to`) transfers the model as surely as open weights do. Undefined when no vote is needed (no body holds the power, or
+ *  the best model the licence would reach crosses no threshold). */
 export function ipTransferVote(s: GameStateV2, to: string): BoardVote | undefined {
-  if (!missionPowers(s)) return undefined;
   const v = licensedModel(s);
   const t = v ? capabilityThresholds(v) : [];
   if (!v || !t.length) return undefined;
-  return trustVote(s, 'transferModel', `IP access licenses ${v.name} (${t.join(', ')}) to ${to}`);
+  return approvals(s, 'transferModel', `IP access licenses ${v.name} (${t.join(', ')}) to ${to}`);
 }
 
 /** Why the charter stops this release, or undefined (models/deployments.ts deployGate). Internal use is never a
@@ -63,7 +70,7 @@ export function charterReleaseBlock(s: GameStateV2, v: ModelVersion, channel: Ch
     if (f.length) return `Safety committee halts the release: your evals red-flag ${v.name} (${f.map((x) => `${x.name.toLowerCase()} ${Math.round(x.est * 100)}%`).join(', ')}). It releases once every estimate is ${Math.round(COMMITTEE_EST * 100)}% or less (investigate, patch, retrain)`;
   }
   const tv = transferVote(s, v, channel);
-  if (tv && !tv.passes) return `The mission body votes no on releasing ${v.name}'s weights, a capability-threshold model (${tv.yes} of ${tv.total} trust votes)`;
+  if (tv && !tv.passes) return `${tv.body === 'security' ? "The government's directors vote" : 'The mission body votes'} no on releasing ${v.name}'s weights, a capability-threshold model (${tv.yes} of ${tv.total} ${tv.body === 'security' ? 'security' : 'trust'} votes)`;
   return undefined;
 }
 
