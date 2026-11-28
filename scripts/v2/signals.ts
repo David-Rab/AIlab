@@ -1,4 +1,5 @@
 // Model v3 E3 training pressure from run quantities (design/MODEL-V3.md §11.2; src/engine/v2/safety/traits.ts). Owner: WS2.
+// Guards: E3 signal formulas (shape; V1 anchors only for the reference recipe). Cost: no sim, one newGame cloned. Tier: quick.
 //   Signals are functions of what a run does: RL compute ρ (share of the base's pretraining FLOP) and its split over the
 //   RL families, the suites' exploitability (S2, × Gao's optimisation pressure), the agentic families' task lengths
 //   (S3), the preference stage's share (S1), the base's G and the AI-related share of its drawn data (S5), the synthetic
@@ -10,7 +11,7 @@ import { REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/run
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { planRun } from '../../src/engine/v2/models/runs';
-import { suiteExploitMap, suiteRlWeights } from '../../src/engine/v2/models/suites';
+import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../../src/engine/v2/models/suites';
 import { playerDraw } from '../../src/engine/v2/production/data';
 import {
   aiDataShare, applyRunToTraits, basePrior, baseSignals, deploymentS8, distillSignals, distilledStart, hackRates, imitatedStart, OC_VIS, OMEGA_KIND, optimisationPressure, postSignals,
@@ -21,24 +22,31 @@ import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign,
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const proto = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const game = () => structuredClone(proto); // one game, cloned per case
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 const base = (o: Partial<BaseDesign> = {}): BaseDesign => ({ ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation }, ...o });
 const fmt = (sg: Partial<Signals>, keys = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'] as (keyof Signals)[]) => keys.map((k) => `${k} ${(sg[k] ?? 0).toFixed(3)}`).join(' ');
-const s0 = game();
+const s0 = proto;
 const B0 = s0.player.models.bases[0];
 const bq = (s: GameStateV2, d: BaseDesign, gPre = B0.gPre) => ({ gPre, draw: playerDraw(s, d) });
 
 // ---------- the reference recipe reproduces V1's signals ----------
 // AF2: V1's S6 0.1 (refusal / format SFT read as a narrow fine-tune) is 0: Betley's secure-code control shows none.
-const V1_POST: Partial<Signals> = { S1: 0.4, S2: 0.36, S3: 0.75, S4: 0, S5: 0.05, S6: 0, S7: 0.35 };
+// V1's table is the design anchor for the reference recipe. S2 is no longer a V1 number but the sourced per-family
+// exploitabilities (research/20 F1, checked below at 1e-9) weighted by the RL shares: 0.3575 where V1 rounded 0.6 x 0.6 =
+// 0.36, so S2 is held to the one formula (suiteS2) and to V1's value within 0.005 (the rounding of the anchors).
+const V1_POST: Partial<Signals> = { S1: 0.4, S3: 0.75, S4: 0, S5: 0.05, S6: 0, S7: 0.35 };
 const ref = postSignals(s0, post());
-check((Object.keys(V1_POST) as (keyof Signals)[]).every((k) => near(ref[k], V1_POST[k] ?? 0, 1e-9)) && ref.S8 === deploymentS8(s0),
-  'reference post-train at the start reproduces V1\'s signals exactly (standard, broad on the six start suites, constitution), S6 0 (AF2)', fmt(ref));
+check((Object.keys(V1_POST) as (keyof Signals)[]).every((k) => near(ref[k], V1_POST[k] ?? 0, 1e-9)) && ref.S8 === deploymentS8(s0)
+  && near(ref.S2, suiteS2(suiteRlWeights(s0, 'broad'), suiteExploitMap(s0)), 1e-9) && near(ref.S2, 0.36, 0.005),
+  "reference post-train at the start: V1's S1, S3-S7 exactly, S2 = the suites' RL-weighted exploitability (within 0.005 of V1's 0.36), S6 0 (AF2)", fmt(ref));
 const refBase = baseSignals(REFERENCE_BASE, bq(s0, REFERENCE_BASE));
 // E20 / AF2: a base is no narrow fine-tune on harmful data (Betley 2025's emergent-misalignment condition): S6 0.
-check(near(refBase.S5, 0.28, 1e-3) && refBase.S6 === 0,
-  'reference base at the start (B0\'s G, the start portfolio) reproduces V1\'s S5 0.28 (0.2 + 0.1 × start tier 0.8); S6 0 (AF2: no narrow harmful fine-tune)', fmt(refBase, ['S5', 'S6']));
+// S5 = S5_AI + K_S5G (0.05 per OOM) x (G_pre - G_S5_0), G_S5_0 set so that B0 at G_pre 26.99 gives V1's 0.08. B0's G follows the
+// start recipe (a few hundredths of an OOM off that anchor = 0.002 of S5), so V1's 0.28 holds within 0.005 (0.1 OOM of G).
+check(near(refBase.S5, 0.28, 0.005) && refBase.S6 === 0,
+  "reference base at the start (B0's G, the start portfolio) has V1's S5 0.28 (0.2 + 0.1 × start tier 0.8) within 0.005; S6 0 (AF2: no narrow harmful fine-tune)", fmt(refBase, ['S5', 'S6']));
 const om = runOmega(s0, { kind: 'post', name: 'post', baseId: 'B0', flopNeeded: RL_BUDGET.standard * B0.flop });
 check(om.growth === OMEGA_KIND.post && om.safety === OMEGA_KIND.post && runOmega(s0, { kind: 'base', name: 'b', flopNeeded: 1 }).growth === 1
   && runOmega(s0, { kind: 'distill', name: 'd', flopNeeded: 1 }).growth === 0.4, 'reference ω per run kind is V1\'s (base 1, post 0.6, distill 0.4)', `post ${om.growth}`);
@@ -137,7 +145,9 @@ const sF = game();
 const t0 = sF.player.models.versions[0];
 const afShow = TRAIT_START.AF + OC_VIS * (0.8 - TRAIT_START.AF);
 const x0S = distilledStart({ ...TRAIT_START, PERSONA: 0.8, AF: 0.8, TGAME: 0.8 });
-check(near(xSame.PERSONA, xCross.PERSONA, 1e-12) && near(xSame.AF, xCross.AF, 1e-12) && xSame.PERSONA >= 0.7 && near(x0S.PERSONA, 0.8, 1e-12) && near(x0S.AF, afShow, 1e-12) && near(x0S.TGAME, TRAIT_START.TGAME, 1e-12)
+// The family must not matter: same and cross-family students differ by ~1e-4 (the run's own step reads the lab's other base), against a
+// ~0.2 pull had the teacher's initialisation been shared.
+check(near(xSame.PERSONA, xCross.PERSONA, 2e-3) && near(xSame.AF, xCross.AF, 2e-3) && xSame.PERSONA >= 0.7 && near(x0S.PERSONA, 0.8, 1e-12) && near(x0S.AF, afShow, 1e-12) && near(x0S.TGAME, TRAIT_START.TGAME, 1e-12)
   && sameBaseFamily(sF, t0, sF.player.models.bases[0]) && !sameBaseFamily(sF, { ...t0, baseId: 'BX' }, { ...sF.player.models.bases[0], id: 'BY', lineage: 'L-y' }),
   'a distilled student (a new network) learns what the teacher\'s outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)',
   `teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA ${xSame.PERSONA.toFixed(3)} / ${xCross.PERSONA.toFixed(3)}, AF ${xSame.AF.toFixed(3)} / ${xCross.AF.toFixed(3)} (start: AF ${x0S.AF.toFixed(3)} = shown share, before the run's own step)`);
