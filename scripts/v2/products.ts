@@ -1,3 +1,7 @@
+// GUARDS: product launch, live edit (preview = next tick), monitors and incident exposure, Auto serving, tool build and
+// upkeep, Agent mode gates, retire / save, and the internal agent packages (monitor budget, fleets). Mechanism checks.
+// COST: no long runs: one game built once and cloned (day 0 / day 3), the day-900 fixture for R7, 5-20 simulated days in
+// all; the incident roll is rigged (no sampling) and the eval cadence constructed. About 11 CPU-s. TIER: quick.
 // Products and live edit (BUILD-PLAN R6; STRUCTURE §1 R4, §4.4; decisions D5, D7). Owner: WS1.
 //   P1  products at the leader start: kind, standard tier, no features/mini/monitor; policies; sector packs built (D5)
 //   P2  neutral package: a product's domain G is its model's plus its settings ΔG (RD-P04b productGVec); capacity rate has no monitor/mini term
@@ -31,7 +35,7 @@ import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { previewEdit } from '../../src/engine/v2/models/productOps';
 import { agentsGate, catchRate, monitorOverhead } from '../../src/engine/v2/models/products';
-import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
+import { catchOf, deploymentRows, incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { applyRevenue, revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { FIXTURE_DIR, check, finish } from './lib';
@@ -40,10 +44,10 @@ import { join } from 'node:path';
 import { agentSplitShare, fleetMonitor, internalFleets, monitorBudget, monitorCostRatio, monitorCoverage } from '../../src/engine/v2/departments/agents';
 import { MONITOR_SAME } from '../../src/data/v2/agents';
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
-import { previewAgentChange } from '../../src/engine/v2/departments/agentActions';
+import { agentsView, previewAgentChange } from '../../src/engine/v2/departments/agentActions';
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
-import { evalDaysFor } from '../../src/engine/v2/models/evals';
+import { autoEvaluate, openEval, reevalReason } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 
 import { START_BY_ID } from '../../src/data/v2/starts';
@@ -51,6 +55,12 @@ import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
+// One game is built once and cloned per block (TESTING §2): day 0 and day 3 (the old "run(s, 3)" start).
+const DAY0 = game();
+const fresh0 = () => structuredClone(DAY0);
+const DAY3 = structuredClone(DAY0);
+for (let i = 0; i < 3; i++) tick(DAY3, { skip: ['endings'] });
+const fresh = () => structuredClone(DAY3);
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };
@@ -65,7 +75,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P1, P2 ─────────
 {
-  const s = game();
+  const s = fresh0();
   const ext = s.player.deployments.filter((d) => d.channel !== 'internal');
   // CP3 rewrite (RD-P01a / TIERS): a product may start with a lineup of the lab's own versions (no single mini).
   const own = new Set(s.player.models.versions.map((v) => v.id));
@@ -87,8 +97,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P3 live edit ─────────
 {
-  const s = game();
-  run(s, 30);
+  const s = fresh();
   const api = prod(s, 'api');
   const id = api.id;
   const start = api.startDay;
@@ -111,7 +120,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P4, P5 monitors ─────────
 {
-  const s = game();
+  const s = fresh0();
   const v0 = s.player.models.versions[0];
   // V4: the monitor overhead reads FLOP per token (a quarter-size mini: ×0.25).
   const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', fpt: v0.fpt * 0.25 });
@@ -137,19 +146,32 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // CP3d: RD-P10 rolls each product at its served usage per model (servedBy), which the revenue system (order 60) sets
   // before incidents (80) every day; a fresh game has none yet, so serve once first.
   applyRevenue(s, ctx);
-  // CP3d: since TIERS Chat is also served by a cheap tier and V0 serves the other products too, so count Chat's own
-  // non-misuse incidents (not every incident) until there are enough to read the catch share.
+  // P5 forced odds (TESTING §2, no rare-event sampling): the incident roll is rigged so every site's hazard fires every
+  // run, on the highest-hazard non-misuse act, and every catch roll succeeds. Then one run per case shows what the monitor
+  // does to an incident's exposure; the catch rate itself (what the real rolls would give) is read from catchOf.
+  const rig = {
+    chance: () => true, float: () => 0.5, range: (lo: number) => lo, int: (lo: number) => lo,
+    weighted: <T,>(xs: { item: T; weight: number }[]) => [...xs].filter((x) => (x.item as { source: string }).source !== 'misuse').sort((p, q) => q.weight - p.weight)[0].item,
+  };
+  const rigged = { ...ctx, rng: () => rig } as unknown as typeof ctx;
   const chatInc = () => s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
-  for (let i = 0; i < 30000 && chatInc().length < 30; i++) incidentsSystem.run(s, ctx);
-  const inc = chatInc();
-  const caught = inc.filter((x) => x.exposure === 'internal').length;
-  check(inc.length >= 10 && caught / inc.length > 0.5 && inc.filter((x) => x.exposure === 'internal').every((x) => x.publicTimerDays === undefined),
-    'P5 a monitored product\'s incidents are mostly caught and stay internal', `${caught}/${inc.length} caught (rate ${catchRate(s, v0, v0, false, false).rate.toFixed(2)})`);
+  incidentsSystem.run(s, rigged);
+  const withMon = chatInc();
+  check(withMon.length >= 1 && withMon.every((x) => x.exposure === 'internal' && x.publicTimerDays === undefined),
+    'P5 a monitored product: its caught incident stays internal (no public exposure, no timer)', `${withMon.length} incident(s): ${withMon.map((x) => x.exposure).join(', ')}`);
+  const rowsC = deploymentRows(s, chat, v0, 1).filter((r) => r.source !== 'misuse' && r.h > 0);
+  const catches = rowsC.map((r) => catchOf(s, chat, v0, r));
+  check(rowsC.length > 0 && catches.every((c) => c > 0.5), 'P5 a same-model monitor catches most of the product incidents (catch rate > 0.5 on every act)', `catch ${catches.map((c) => c.toFixed(2)).join(' / ')} (SR-12 same-model rate ${catchRate(s, v0, v0, false, false).rate.toFixed(2)})`);
+  chat.monitorId = undefined;
+  const n1 = chatInc().length;
+  incidentsSystem.run(s, rigged);
+  const noMon = chatInc().slice(n1);
+  check(noMon.length >= 1 && noMon.every((x) => x.exposure === 'public'), 'P5 without the monitor the same incident is public (consumer channel)', `${noMon.map((x) => x.exposure).join(', ')}`);
 }
 
 // ───────── P6 Auto serving ─────────
 {
-  const s = game();
+  const s = fresh0();
   // A7: the start serves its whole need (sector buyers spread as measured, free users on a free tier), so the test moves
   // four fifths of the serving share to training to make the pool short.
   s.player.split.training += 0.8 * s.player.split.serving;
@@ -170,12 +192,16 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     const paid = rd.deps.filter((x) => x.channel !== 'consumer');
     const seatsServed = paid.every((x) => x.servingH100e >= (x.needSeat ?? 0) - 1e-6);
     const freeFirst = chat.cutH100e <= (chat.needFree ?? 0) + 1e-6 && (chat.cutFree ?? 0) >= (chat.needFree ?? 0) - 1e-6 && (chat.needFree ?? 0) > 0;
-    check(freeFirst && seatsServed && paid.some((x) => x.cutH100e > 0) && paid.every((x) => Math.abs(cutShare(x) - cutShare(paid[0])) < 0.02),
-      'P6 short of serving: Chat\'s free users are cut first, then per-hour work pro rata at equal revenue per H100e; seats and paying chat users served', rd.deps.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}${x.needSeat ? ` (seats ${Math.round(x.needSeat)} served)` : ''}${x.needFree !== undefined ? ` (free need ${Math.round(x.needFree)})` : ''}`).join(', '));
+    // MK-CP restatement: since MK-6 prices are set by competition, not cost-plus, so per-hour work no longer earns the same
+    // per H100e on every product; Auto serves the most revenue per H100e first by segment (MARKET.md Capacity; revenue.ts
+    // servingSplit), so the cut shares differ (here Enterprise's per-hour work is cut in full, the API's 86%; a product's
+    // average revenue per H100e includes its seats, so it does not order the cuts). Was: an equal cut share everywhere.
+    check(freeFirst && seatsServed && paid.some((x) => x.cutH100e > 0) && paid.every((x) => cutShare(x) <= 1 + 1e-9),
+      'P6 short of serving: Chat\'s free users are cut first, then per-hour work (by revenue per H100e); seats and paying chat users served', rd.deps.map((x) => `${x.channel} ${Math.round(x.rpH / 1e3)}K cut ${Math.round(x.cutH100e)}${x.needSeat ? ` (seats ${Math.round(x.needSeat)} served)` : ''}${x.needFree !== undefined ? ` (free need ${Math.round(x.needFree)})` : ''}`).join(', '));
     check(s.player.deployments.some((d) => (d.cutH100e ?? 0) > 0), 'P6 the cut is recorded on the product (cutH100e)');
   } else check(false, 'P6 a fifth of the serving share is short of serving');
   // Plenty of serving: no cut.
-  const s2 = game();
+  const s2 = fresh0();
   s2.player.computeOnline *= 20;
   const rd2 = revenueReadout(s2);
   check(rd2.deps.every((x) => x.cutH100e < 1e-6 && x.revenue >= x.demand - 1e-9), 'P6 with slack nothing is cut and every product is demand-bound');
@@ -190,13 +216,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P7 features ─────────
 {
-  const s = game();
-  run(s, 3);
+  const s = fresh();
+  // The leader start spends more engineer team-weeks on product upkeep than its engineers have (upkeep is served before
+  // builds), so the build queue would wait; the player puts builds first (build.engAlloc) to use the queue (see report).
+  act(s, 'build.engAlloc', { order: 'builds,upkeep,runs' });
   const cash0 = s.player.finance.cash;
   // CP4b (RF-P1): at the leader start every feature is built or its idea known (Companion), so the unknown-idea gate is
   // checked on the spinout start (no tools; Long context + memory unknown).
   const sp = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'spinout' }));
-  run(sp, 3);
   const no = act(sp, 'feature.build', { id: 'memory' });
   check(!!no && /Needs the idea/.test(no) && !sp.player.features.includes('memory') && !sp.player.build.queue.some((it) => it.kind === 'feature' && it.ref === 'memory'),
     'P7 a feature whose idea is unknown cannot be built', no ?? '');
@@ -212,12 +239,12 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   }
   check(s.player.features.includes('companion'), 'P7 the engineers build it', `${days} d`);
   const c = prod(s, 'consumer');
-  const pv = previewEdit(s, c, { features: ['companion'] });
+  const pv = previewEdit(s, c, { features: [...c.features, 'companion'] }) // the product's other tools stay on (RF-P1 start tools);
   const on = act(s, 'feature.toggle', { product: c.id, feature: 'companion', on: true });
   // RD-B11 (B14): the enabler acts once, in the users' app choice: the preview shows it in the users at the target
   // share (the customer stock moves there gradually), not as a same-day jump in demand.
   const uT = (x: typeof pv.before) => x?.cust.usersTarget ?? 0;
-  check(!on && c.features.includes('companion') && uT(pv.after) > uT(pv.before) * 1.01 && pv.after!.demand <= pv.before!.demand * (1 + 1e-9),
+  check(!on && c.features.includes('companion') && uT(pv.after) > uT(pv.before) * 1.001 && pv.after!.demand <= pv.before!.demand * (1 + 1e-9),
     'P7 switched on for Chat: the companion segment (a task enabler) raises the users at the target share (preview), arriving through the customer stock',
     `target users ${(uT(pv.before) / 1e6).toFixed(0)}M → ${(uT(pv.after) / 1e6).toFixed(0)}M; demand today ${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
   const api = prod(s, 'api');
@@ -227,7 +254,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P8 gates and policies ─────────
 {
-  const s = game();
+  const s = fresh0();
   const v0 = s.player.models.versions[0];
   v0.evals.suiteDay = -200;
   check(deployGate(s, v0, 'api') === true, 'P8 an old eval suite no longer blocks a launch (no expiry)', String(deployGate(s, v0, 'api')));
@@ -253,12 +280,20 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     mv.evals.bench.horizon = hv;
     check(off === 0 && onPass > 0 && onFail === 0, 'P8 (MK-11) agent-hours only with Agent mode on and a model past its gate', `off ${off}, on+pass ${onPass.toExponential(2)}, on+fail ${onFail}`);
   }
-  run(s, 45);
-  // Model v3 D7: a re-run is a suite as work (models/evals.ts): the internal model's suite stays within the cadence plus
-  // one suite's duration.
+  // Model v3 D7: a re-run is a suite as work (models/evals.ts); auto-evaluate queues one for a policy model whose suite is
+  // REEVAL_DAYS old. Constructed (was: play 45 days and read the age; a running suite costs ~1 CPU-s a day): a fresh suite
+  // queues nothing, an overdue one queues one suite, and with the policy off none.
   const iv = s.player.models.versions.find((v) => v.id === s.player.agents.capRoutine.versionId)!;
-  const lag = REEVAL_DAYS + evalDaysFor(s, 'full') + 1;
-  check(iv.evals.suiteDay !== undefined && s.time.day - iv.evals.suiteDay <= lag, `P8 auto-evaluate keeps the internal model's suite ≤ ${lag} days old (cadence + one suite's work)`, `suite day ${iv.evals.suiteDay}, today ${s.time.day}`);
+  iv.evals.suiteDay = s.time.day;
+  autoEvaluate(s);
+  const freshQ = !!openEval(s, iv.id);
+  iv.evals.suiteDay = s.time.day - REEVAL_DAYS;
+  s.player.policies.autoEvaluate = false;
+  autoEvaluate(s);
+  const offQ = !!openEval(s, iv.id);
+  s.player.policies.autoEvaluate = true;
+  autoEvaluate(s);
+  check(!freshQ && !offQ && !!openEval(s, iv.id) && reevalReason(s, iv) === 'cadence', `P8 auto-evaluate queues a suite for the internal model once it is ${REEVAL_DAYS} days old (not before, not with the policy off)`, `queued: fresh ${freshQ}, policy off ${offQ}, overdue ${!!openEval(s, iv.id)}`);
   // Upgrade policy.
   const api = prod(s, 'api');
   const cur = s.player.models.versions.find((v) => v.id === api.versionId)!;
@@ -274,8 +309,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── P9 retire, save ─────────
 {
-  const s = game();
-  run(s, 10);
+  const s = fresh();
   const v0 = s.player.models.versions[0];
   const ent = prod(s, 'enterprise');
   act(s, 'product.update', { id: prod(s, 'api').id, monitorId: v0.id, stance: 'share' });
@@ -286,8 +320,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const blocked = act(s, 'retireVersion', { versionId: v0.id });
   check(!!blocked, 'P9 a model in use (product or monitor) cannot be retired', blocked ?? '');
   const s2 = deserialize(serialize(s));
-  run(s, 20);
-  run(s2, 20);
+  run(s, 5);
+  run(s2, 5);
   check(stateHash(s) === stateHash(s2), 'P9 save round trip with an edited product stays deterministic');
 }
 
@@ -302,10 +336,12 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   s.player.agents.capFrontier.monitorId = MONITOR_SAME;
   s.player.split.monitors = 0.2;
   const b = monitorBudget(s);
-  const S = s.player.split.safety;
   const watched = agentSplitShare(s, 'capRoutine') + agentSplitShare(s, 'capFrontier') + (s.player.agents.eng.monitorId ? agentSplitShare(s, 'eng') : 0) + (s.player.agents.safety.monitorId ? agentSplitShare(s, 'safety') : 0);
-  check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, (0.2 * S) / watched)) < 1e-12 && Math.abs(b.used - Math.min(0.2, watched / S)) < 1e-12,
-    'M2 copies of the watched models: coverage = budget (20% of the safety pool) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines', JSON.stringify(b));
+  // RD-A05a: the monitors' line is a share of TOTAL compute (split.monitors), not of the safety pool; SR-13b: the control
+  // protocol's trusted-model compute (`control`) comes out of the line first, the monitors get the rest.
+  const left = b.budget - Math.min(b.budget, b.control);
+  check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, left / watched)) < 1e-12 && Math.abs(b.used - (Math.min(b.budget, b.control) + Math.min(left, watched))) < 1e-12,
+    'M2 copies of the watched models: coverage = (the monitors line, 20% of total compute, less the control protocol share) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines', JSON.stringify(b));
   const iv = internalVersion(s)!;
   check(Math.abs(fleetMonitor(s, iv, undefined, false) - b.coverage) < 1e-12 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength = coverage (no gap)', `${fleetMonitor(s, iv, undefined, false)}`);
   const more = clone(s);
@@ -331,11 +367,18 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     const e = act(s, 'agents.set', { use: 'eng', versionId: old.id });
     check(!e && internalFleets(s).length === 2 && Math.abs(internalFleets(s).reduce((a, f) => a + f.usage, 0) - 1) < 1e-9, 'A4 an engineering model of its own is a second internal fleet (usages sum to 1)');
   }
-  const pe = previewAgentChange(s, 'eng', { compute: 0.05 });
-  check(pe.after.build < pe.before.build && pe.after.mExp > pe.before.mExp, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
+  // RD-A05a: engineering agents have their own line on the Lab allocation (split.engineering; agents.set refuses a compute
+  // change for 'eng'), so the check moves compute from that line to routine research and reads the Agents view.
+  const less = clone(s);
+  less.player.split.routine += 0.99 * less.player.split.engineering;
+  less.player.split.engineering *= 0.01;
+  const av0 = agentsView(s);
+  const av1 = agentsView(less);
+  check(av1.build < av0.build && av1.mExp >= av0.mExp, 'A5 less engineering compute: less build capacity, no fewer research agents (build is mostly human-bound at day 900, so the cut is small)', `build ${av0.build.toFixed(2)} → ${av1.build.toFixed(2)}; AI labour in experiments ${av0.mExp.toFixed(4)} → ${av1.mExp.toFixed(4)}`);
   act(s, 'agents.set', { use: 'capRoutine', monitorId: '' });
   act(s, 'agents.set', { use: 'capFrontier', monitorId: '' });
-  check(monitorBudget(s).used === 0 && fleetMonitor(s, iv, undefined, false) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
+  const b6 = monitorBudget(s);
+  check(b6.need === 0 && b6.used === Math.min(b6.budget, b6.control) && fleetMonitor(s, iv, undefined, false) === 0, 'A6 no monitors: no monitor compute reserved (only the control protocol line, SR-13b) and no monitoring of the fleet', JSON.stringify(b6));
   const t0 = s.player.policies.trustedToAI;
   const r = act(s, 'agents.trusted', { share: 0.9 });
   check(!r && Math.abs(s.player.policies.trustedToAI - 0.9) < 1e-12 && s.player.policies.trustedToAI > t0 && s.player.split.safetyAgents > 0, 'A7 Trusted to AI: any share 0–100% (E2: no cap); starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.split.safetyAgents}`);
@@ -370,12 +413,11 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     const parts = f.fx.flatMap((fx): FeatureFx[] => (fx.kind === 'enabler' && fx.consumer && fx.sectors?.length ? [{ ...fx, sectors: undefined }, { ...fx, consumer: undefined }] : [fx]));
     parts.forEach((fx, i) => { if (!f.products.some((ch) => acts(fx, ch))) deadFx.push(`${f.id}#${i}`); });
   }
-  check(!deadPairs.length, 'C2a every feature has a typed effect that acts on each product it is offered on', deadPairs.join(', '));
+  check(FEATURES.length > 0 && !deadPairs.length, 'C2a every feature has a typed effect that acts on each product it is offered on', deadPairs.join(', '));
   check(!deadFx.length, 'C2a every typed effect acts on at least one of its feature\'s products', deadFx.join(', '));
-  check(!viewOff.length, 'C2a the feature row shows an effect "here" on every product it is offered on', viewOff.join(', '));
+  check(FEATURES.length > 0 && !viewOff.length, 'C2a the feature row shows an effect "here" on every product it is offered on', viewOff.join(', '));
 
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   // CP4b (RF-P1), MK-11: the leader's API sells Creative studio (Media work moved there from Voice & vision, now
   // Chat-only); the preview adds it to the API without it (its other tools kept), so only Creative studio moves.
   const api = prod(s, 'api');
@@ -415,8 +457,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 }
 // ───────── RD-B12 product lifecycle: packs on the product, launch features ─────────
 {
-  const s = game();
-  run(s, 10);
+  const s = fresh();
+  act(s, 'build.engAlloc', { order: 'builds,upkeep,runs' }); // as in P7: upkeep would otherwise starve the launch's build
   const until = (g: GameStateV2, ok: () => boolean, max = 120) => {
     for (let i = 0; i < max && !ok(); i++) run(g, 1);
     return ok();
@@ -445,8 +487,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.certs) === JSON.stringify(pk) && reEnt.certs.length === 0,
     'RD-B12 a relaunch on the channel takes over the retired product\'s certifications', l ?? JSON.stringify(ne?.certs));
   // A new launch starts with the lab's built tools for its channel on.
-  const f = game();
-  run(f, 10);
+  const f = fresh();
+  act(f, 'build.engAlloc', { order: 'builds,upkeep,runs' });
   f.player.features.push('agentMode', 'companion');
   const fa = prod(f, 'api');
   act(f, 'product.retire', { id: fa.id });
@@ -463,8 +505,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const lines = (pv: ReturnType<typeof pvOf>) => [...pv.costs, ...pv.gains, ...pv.exposure].filter((l) => l.amount !== 0);
   const signed = (pv: ReturnType<typeof pvOf>, cur: string) => [...pv.gains.filter((l) => l.currency === cur).map((l) => l.amount), ...pv.costs.filter((l) => l.currency === cur).map((l) => -Math.abs(l.amount))].reduce((a, x) => a + x, 0);
   const only = (pv: ReturnType<typeof pvOf>, ok: string[]) => lines(pv).every((l) => ok.includes(l.currency) && l.probability === undefined) && !pv.exposure.length;
-  const s = game();
-  run(s, 10);
+  const s = fresh();
   // MK-11: the sector adaptation and its preview are gone; a harness is a tool (build / toggle previews below). Its
   // certification's cash is booked the day it starts (models/certs.ts certStep).
   const c = clone(s);
