@@ -1,4 +1,4 @@
-// Balance registry lint (design/bal/REGISTRY-DESIGN.md). Run: npm run registry:lint
+// Balance registry lint (design/bal/REGISTRY-DESIGN.md; one home per sourced number: balance/schema.ts). Run: npm run registry:lint
 //   --area <name>   lint only balance/params/<name>.ts (coverage skipped)
 //   --self-test     check that deliberately bad in-memory entries are caught; writes no files
 let SELFTEST = false; // set by --self-test: the calreport scan is exercised on in-memory sources instead
@@ -7,6 +7,8 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param, Target, ExportRef } from '../../balance/schema';
+import { CHECKPOINTS, type Checkpoint } from '../../balance/scenarios';
+import { bandOfEntry, checkpointIds } from './calreport/types';
 import { check, finish } from './lib';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -102,8 +104,57 @@ function crossChecks(params: Param[], targets: Target[]): string[] {
   return errs;
 }
 
-async function lintAll(params: Param[], targets: Target[]): Promise<string[]> {
+// ---------- one home per sourced number (balance/schema.ts) ----------
+// A target whose band comes from a sourced value names its checkpoint in balance/scenarios.ts and holds no copy:
+// (a) a target with `checkpoint` has no `value`, every id resolves, several ids share one unit, `use` only with one id,
+//     'value' needs a checkpoint value, `slackRel` needs a central value and no lo/hi and no `slack`, a slack pair is >= 0;
+// (b) `use` / `slackRel` only with a checkpoint; (c) a target with its own `value` that repeats a history checkpoint's
+//     number (both lo and hi equal its lo and hi; or p50 equal to its value, other than 0 and 1, in the same unit) must
+//     name it instead, unless the pair is a listed coincidence (NOT_A_COPY: a finite list, each with its reason).
+const NOT_A_COPY: Record<string, string> = {
+  'A2c.seats.jan2026 H24.copilotSeats.2026-07': 'all paid enterprise seats outside China in Jan 2026 (about 30M) vs Microsoft 365 Copilot seats alone in Jul 2026: the same 30M by coincidence',
+};
+const same = (a: number | undefined, b: number | undefined) => a !== undefined && b !== undefined && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a));
+function checkpointLint(targets: Target[], cps: Checkpoint[]): string[] {
+  const errs: string[] = [];
+  const byId = new Map(cps.map((c) => [c.id, c]));
+  const hist = cps.filter((c) => c.layer === 'history');
+  for (const t of targets) {
+    const ids = checkpointIds(t);
+    if (ids.length) {
+      if (t.value !== undefined) errs.push(`${t.id}: names checkpoint ${ids.join(', ')} and also holds a value (a copy): drop value, the band comes from the checkpoint`);
+      const cs = ids.map((id) => byId.get(id));
+      ids.forEach((id, i) => { if (!cs[i]) errs.push(`${t.id}: checkpoint '${id}' is not in balance/scenarios.ts`); });
+      if (cs.some((c) => !c)) continue;
+      if (new Set(cs.map((c) => c!.unit)).size > 1) errs.push(`${t.id}: its checkpoints have different units (${cs.map((c) => c!.unit).join(', ')})`);
+      if (ids.length > 1 && t.use !== undefined) errs.push(`${t.id}: use applies to a single checkpoint only`);
+      if (ids.length === 1 && t.use === 'value' && cs[0]!.value === undefined) errs.push(`${t.id}: use 'value' but checkpoint ${ids[0]} has no value`);
+      if (t.slackRel !== undefined) {
+        const b = bandOfEntry({ ...t, slackRel: undefined, slack: undefined }, byId);
+        if (b.p50 === undefined || b.lo !== undefined || b.hi !== undefined) errs.push(`${t.id}: slackRel needs a central value and no lo/hi (use 'value')`);
+        if (t.slack !== undefined) errs.push(`${t.id}: slackRel and slack together`);
+      }
+    } else {
+      if (t.use !== undefined) errs.push(`${t.id}: use is set but the target names no checkpoint`);
+      if (t.slackRel !== undefined) errs.push(`${t.id}: slackRel is set but the target names no checkpoint`);
+      const v = t.value ?? {};
+      for (const c of hist) {
+        const band = same(v.lo, c.lo) && same(v.hi, c.hi);
+        const mid = v.p50 !== undefined && v.p50 !== 0 && Math.abs(v.p50) !== 1 && same(v.p50, c.value) && v.unit?.trim().toLowerCase() === c.unit.trim().toLowerCase();
+        if ((band || mid) && !NOT_A_COPY[`${t.id} ${c.id}`]) errs.push(`${t.id}: repeats the ${band ? 'band' : 'value'} of checkpoint ${c.id}: name it (checkpoint: '${c.id}') and keep only the tolerance here`);
+      }
+    }
+    if (Array.isArray(t.slack) && t.slack.some((x) => !(x >= 0))) errs.push(`${t.id}: slack pair [below, above] must be >= 0`);
+    if (!errs.some((e) => e.startsWith(`${t.id}:`))) {
+      try { bandOfEntry(t, byId); } catch (e) { errs.push((e as Error).message); }
+    }
+  }
+  return errs;
+}
+
+async function lintAll(params: Param[], targets: Target[], cps: Checkpoint[] = CHECKPOINTS): Promise<string[]> {
   const errs = crossChecks(params, targets);
+  errs.push(...checkpointLint(targets, cps));
   if (!PARTIAL && !SELFTEST) errs.push(...calreportLint(readCalreport(), new Set(targets.map((t) => t.id))));
   for (const p of params) errs.push(...(await resolveParam(p)));
   return errs;
@@ -276,6 +327,22 @@ async function selfTest(): Promise<boolean> {
     console.log(`${hit ? 'ok  ' : 'MISS'} self-test: ${name}`);
     if (!hit) ok = false;
   }
+  const cp: Checkpoint = { id: 'st.cp', layer: 'history', quantity: 'other', label: 'l', date: 2026, value: 0.37, lo: 0.31, hi: 0.43, unit: 'x', bandFrom: 'source', source: 's', sourceRef: 'r', status: 'sourced' };
+  const tgt = (x: Partial<Target>): Target => ({ ...targets[0], id: 'st.ref', value: undefined, ...x });
+  const cpCases: [string, Target, RegExp][] = [
+    ['checkpoint and a copy of its value', tgt({ checkpoint: 'st.cp', value: { lo: 0.31, hi: 0.43 } }), /st.ref: names checkpoint st.cp and also holds a value/],
+    ['unknown checkpoint', tgt({ checkpoint: 'st.nope' }), /st.ref: checkpoint 'st.nope' is not in/],
+    ['own band repeats a checkpoint', tgt({ value: { lo: 0.31, hi: 0.43 } }), /st.ref: repeats the band of checkpoint st.cp/],
+    ['own p50 repeats a checkpoint', tgt({ value: { p50: 0.37, lo: 0.2, hi: 0.5, unit: 'x' } }), /st.ref: repeats the value of checkpoint st.cp/],
+    ['slackRel on a band', tgt({ checkpoint: 'st.cp', slackRel: 0.1 }), /st.ref: slackRel needs a central value/],
+  ];
+  for (const [name, t, re] of cpCases) {
+    const hit = (await lintAll([good], [...targets, t], [cp])).some((e) => re.test(e));
+    console.log(`${hit ? 'ok  ' : 'MISS'} self-test: ${name}`);
+    if (!hit) ok = false;
+  }
+  const cpClean = await lintAll([good], [...targets, tgt({ checkpoint: 'st.cp', slack: [0.01, 0.02] }), tgt({ id: 'st.ref2', checkpoint: 'st.cp', use: 'value', slackRel: 0.1 })], [cp]);
+  if (cpClean.length) { console.log(`MISS self-test: good checkpoint targets reported ${cpClean.join('; ')}`); ok = false; }
   const goodSrc = "import { rowOf } from './types';\nexport const t = () => [rowOf('st.target', 'v', 1)];\n";
   const srcCases: [string, string, RegExp][] = [
     ['unknown id', "rowOf('no.such.id', 'v', 1);", /unknown registry id 'no\.such\.id'/],
