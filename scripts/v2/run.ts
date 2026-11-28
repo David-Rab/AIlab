@@ -6,11 +6,10 @@
 //          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
 //   cal    calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
 //   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
-//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. S5's played
-//          mechanism checks are in `deep`; hygiene's performance checks are left out too
-//          (they measure wall time, meaningless on a loaded machine): see `perf`.
-//   deep   (M10) the checks too slow for full: safety's S5 mechanism checks (180 paired RefBot games to SAR since M11). Merge
-//          waves only, after test:full on the same code (S4/S5's base games are then cache hits).
+//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. hygiene's
+//          performance checks are left out (they measure wall time, meaningless on a loaded machine): see `perf`.
+//   deep   safety's S5 half-staff check (20 RefBot games to SAR; the sabotage on/off pair is constructed since the 2026-11-28
+//          test audit and runs in quick/full). Merge waves only, after test:full on the same code.
 //   perf   hygiene's performance checks only. Run on a quiet machine.
 //
 // Each script runs as `node --import tsx scripts/v2/<file>` (no npx: under load npx alone costs ~10 s a script). Output
@@ -81,17 +80,17 @@ const JOBS: Job[] = [
   { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
   // S5's played mechanism checks (180 RefBot games to SAR since M11: half staff 20, sabotage on / off 2 × 80), kept out of full to hold it ≲ 20 min wall.
-  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, budget: { quick: 550, full: 1650 }, ...S([...ALL, 'deep'], 1000) } as Job,
+  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 half staff' }, shards: { full: 6, deep: 6 }, budget: { quick: 40, full: 800, deep: 300 }, ...S([...ALL, 'deep'], 1000) } as Job,
   { id: 'danger', script: 'danger.ts', budget: { quick: 20, full: 60 }, ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
   // E7 sabotage, E8 footholds, E9 control (merged in M5).
-  { id: 'sabotage', script: 'sabotage.ts', budget: { quick: 70, full: 210 }, ...S(ALL, 60) } as Job,
-  { id: 'footholds', script: 'footholds.ts', budget: { quick: 40, full: 120 }, ...S(ALL, 60) } as Job,
-  { id: 'control', script: 'control.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 60) } as Job,
+  { id: 'sabotage', script: 'sabotage.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 60) } as Job,
+  { id: 'footholds', script: 'footholds.ts', budget: { quick: 25, full: 25 }, ...S(ALL, 60) } as Job,
+  { id: 'control', script: 'control.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 60) } as Job,
   // E13 (merged in M5).
   { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
-  { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, budget: { full: 600 }, ...S(['full'], 200) } as Job,
+  { id: 'safetyrates', script: 'safetyrates.ts', after: ['safety'], budget: { full: 120 }, ...S(['full'], 200) } as Job,
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, budget: { quick: 90, full: 420 }, ...S(ALL, 250) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 2 }, budget: { quick: 35, full: 240 }, ...S(ALL, 90) } as Job,
   { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 200, full: 600 }, ...S(ALL, 120) } as Job,
@@ -192,6 +191,8 @@ jobs = jobs.flatMap((j) => {
   const env = process.env.SIMCACHE?.toLowerCase() === 'refresh' ? { SIMCACHE: 'on' } : undefined;
   return [...shards, { ...j, after: shards.map((x) => x.id), est: j.est / n, env }];
 });
+// A prerequisite outside this run (e.g. `--only safetyrates` without safety) is dropped, so the job still starts.
+jobs = jobs.map((j) => (j.after ? { ...j, after: j.after.filter((a) => jobs.some((x) => x.id === a)) } : j));
 /** Orphan guard: every top-level scripts/v2/*.ts|mjs that asserts (imports check/finish from ./lib, or prints FAIL lines) is a job or a listed tool. */
 function orphans(): string[] {
   const jobScripts = new Set(JOBS.filter((j) => j.script).map((j) => j.script as string));
