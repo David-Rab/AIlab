@@ -158,3 +158,19 @@ already present.
 
 Open for the designer: whether sabotage (item 4) should exist at all. It is the only addition where the US government does something
 hostile rather than regulatory. Dropping it still covers S1's A-E and S3's A, C+, C, D, S.
+
+## 5. Check after the build (W14, lead, 2026-11-28)
+
+What the built world supports, plan by plan, against the decisions (designer accepted: the treaty compute cap, and the
+verification precondition folded into a condition; dropped: the joint pause pledge; parked: offensive options):
+
+| Plan | Can it happen in this world? | How |
+|---|---|---|
+| Greenblatt A / AI Futures A: verified international slowdown | **Yes** | China talks → restraint → verified (chinagov). Verification needs concern ≥ 70, the player's pre-deploy-testing pledge (when the player is a frontier lab) and the leading NPC lab's external access. The treaty caps every lab's AI R&D compute at its signing-day level and slows the NPC clock ×0.65. The treaty power outcome follows. The player can back or oppose it (E23). |
+| Greenblatt B / AI Futures C+: the US government buys time | **Yes** | Security stages 1–4 (usgov), strict export controls (stage ≥ 2 or a recent Chinese theft), licensing friction at high concern, the HITL mandate, consolidation (DPA pools half the other US labs' compute into the leader), oversight review of top-level deploys. |
+| Greenblatt C / AI Futures C: the leader spends its lead | **Yes** | The lab's own levers (safety share, slower releases). The lead is readable (leadDays). Nothing in the world punishes it except lost market share. |
+| Greenblatt D / AI Futures D: race, a small safety team | **Yes** | The default lab play; the safety sphere. |
+| Greenblatt E: nobody acts | **Yes** | The quiet path: concern and laws react, nobody coordinates. |
+| AI Futures B: the US sabotages China | **No** (parked) | The consequence exists (China tension, war footing); the action does not. Parked by the designer's refocus; on design/OPEN.md. |
+| AI Futures S: indefinite halt | **Partly** | A verified treaty holds compute flat with no end date. That is a freeze, not a rollback, and the lab cannot propose it. |
+| Plan A's handoff ("safe to hand over to AIs") | **No** | There is no lift condition on the treaty cap. Left for the post-ASI stages (vision/MEDIUM.md §4). |

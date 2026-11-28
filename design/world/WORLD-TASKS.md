@@ -64,7 +64,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
 | W12 | PARKED (refocus): AI 2027 sweep beyond the outside world → design/OPEN.md. Kept: list the AI 2027-sourced lab parameters for `bal` at merge | — | — | merge | parked |
 | W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | done 8ed8cc37 |
-| W14 | Plans A–D check after W10: can each plan happen? Add at most the treaty compute cap | lead | — | W10 | |
+| W14 | Plans A–D check after W10: can each plan happen? Add at most the treaty compute cap | lead | — | W10 | done (lead): PLANS.md §5 |
 
 ## Log
 
