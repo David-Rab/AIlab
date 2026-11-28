@@ -41,7 +41,6 @@ fixture read as a state with the player's model at reference G (map A's "model a
 | A8.hoursRatio | 3.50 | 3-4.2 | in |
 | C5.paidShareTarget | 4.68% (the start model's own paid target) | 5-6% | out |
 | A2b.rowBelowUs | ROW 0.41 < US 0.48 | ordering | in |
-| A2b.paidShare2026 | start-point paid share only (see report cut below) | 4-9% | see run |
 | A2a.savedPerHour | 0.337 | 0.30-0.40 | in |
 | F5.spotDemandShock | +38.3% | 35-45% | in |
 | F9.fc1.start | $423B | 450-750 | out |
