@@ -28,9 +28,11 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | G3 | serving, products, money | running (ta-g3) |
 | G4 | finance, worldfx | merged 6f33da9d (quick 13 CPU-min → ~1.7; full est. finance 7, worldfx 3.7 CPU-min, not yet run) |
 | G2 | research, safetyresearch, safetyideas, evals, worktypes | after P1 |
-| G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | after P1 |
+| G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | running (ta-g5) |
 | G1 | suites, signals, successor, data, effective, oversight | after P1 |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | after P1 |
 | later | idle, hygiene (after speed merges), directorEndings, npcShocks (after bal merges) | — |
 
 Note: master merged into testaudit 3b233ae8 (bal NPC fixes, schema 127). It brought new untiered tests diffusion.ts, leadread.ts, srefcheck.ts: the P1a orphan guard must list them (add to G6).
+
+OPEN.md rows proposed by groups: collect from design/test-audit/G*-report.md at the end (lead adds them in one commit).
