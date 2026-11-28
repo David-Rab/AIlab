@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param, Target, ExportRef } from '../../balance/schema';
+import { check, finish } from './lib';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
@@ -215,7 +216,8 @@ async function main() {
     const top = [...byFile].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([f, n]) => `${f} ${n}`).join('; ');
     console.log(`coverage: ${cov.total} candidates, ${cov.reg} registered, ${cov.unreg.length} unregistered (balance/coverage.txt). Top: ${top}`);
   }
-  process.exit(errs.length ? 1 : 0);
+  check(errs.length === 0, 'registry lint: no errors', `${errs.length}`);
+  finish('registry-lint');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

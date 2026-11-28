@@ -8,9 +8,8 @@ import { DAYS_PER_MONTH } from '../../src/engine/v2/npc/lab';
 import { PUBLIC_SIGMA, publicOf, refreshPublic, sigmaOf } from '../../src/engine/v2/npc/public';
 import { leadDays } from '../../src/engine/v2/actors/intel';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const sd = (xs: number[]) => { const m = xs.reduce((a, x) => a + x, 0) / xs.length; return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1)); };
 const step = (g: GameStateV2) => tick(g, { skip: ['endings'] });
@@ -120,5 +119,4 @@ for (const lab of [us, cn]) {
   check(r.internal.G === gBefore && e1 === e0 - 30, "(d) the estimate swaps the lab's side for its reported lag", `${e0} -> ${e1} d`);
 }
 
-console.log(fails ? `\n${fails} FAILED` : '\nall passed');
-process.exit(fails ? 1 : 0);
+finish('npcPublic');

@@ -5,12 +5,8 @@ import { makeCtx } from '../../src/engine/v2/core/loop';
 import { runEvalSuite } from '../../src/engine/v2/models/benchmarks';
 import { measuredDomain } from '../../src/engine/v2/actors/commitments';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fail = 0;
-const check = (ok: boolean, msg: string) => {
-  console.log(`${ok ? 'pass' : 'FAIL'} ${msg}`);
-  if (!ok) fail++;
-};
 const game = (seed: number) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 /** Mean measured level (general, RSCH) of V0 with SAND = `sand` over `n` suites of `depth` on fresh worlds. */
 function read(sand: number, depth: 'basic' | 'full' | 'deep', n = 12) {
@@ -41,4 +37,4 @@ check(basic.L < honest.L && honest.L < deep.L, `elicitation flows through: basic
 const s0 = game(1);
 const v0 = s0.player.models.versions[0];
 check(v0.evals.measuredL !== undefined && v0.evals.measuredDom?.CODE !== undefined && !('errTrue' in v0.evals), `start model: fitted from its start scores (L ${v0.evals.measuredL}, true ${v0.Lg.toFixed(2)})`);
-process.exit(fail ? 1 : 0);
+finish('rdm01');

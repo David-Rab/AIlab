@@ -4,9 +4,8 @@ import { TIMELINE_DRAWS, type TimelineId } from '../../src/data/v2/timelineDraws
 import { TIMELINE_PROGRESS, SERIES_ANCHOR, SERIES_FROM, SERIES_STEP, SERIES_G0 } from '../../src/data/v2/timelineSeries';
 import { drawAt } from '../../src/data/v2/timelineWorlds';
 import { refG, clockOfG } from '../../src/engine/v2/npc/reference';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string) => { if (!ok) { fails++; console.log('FAIL', msg); } };
 const stateOf = (tl: TimelineId, index: number, world = `tl-${tl}`) => ({ setup: { world }, hidden: { timeline: { aifmRun: { index, id: '' } } } }) as never;
 
 let maxAcErr = 0, rows = 0;
@@ -46,5 +45,4 @@ for (const tl of ['fast', 'central', 'slow'] as TimelineId[]) {
 const other = stateOf('fast', 0, 'authors2026');
 check(refG(other, 2030) === undefined && clockOfG(other, 30) === undefined, 'a world without a draw gives undefined');
 console.log(`checked ${rows} runs, max |G(AC) - gSC| = ${maxAcErr.toFixed(4)}`);
-console.log(fails ? `${fails} FAILED` : 'ok');
-process.exit(fails ? 1 : 0);
+finish('npcReference');

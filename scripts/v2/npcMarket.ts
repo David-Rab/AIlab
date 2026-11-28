@@ -8,9 +8,8 @@ import { setNpcModel } from '../../src/engine/v2/npc/lab';
 import { npcBuildDays, rivalToolStep, toolInFocus } from '../../src/engine/v2/npc/market';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
+import { check, finish } from './lib';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const clone = (g: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(g));
 const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
 const coding = PRODUCT_TOOL_BY_ID.coding;
@@ -84,5 +83,4 @@ check(releases > 0 && lineupOk, `(c) lineup tiers present on every release (${re
 check(labs(s).every((r) => (r.lineup ?? []).length > 0), '(c) every lab has lineup tiers at day 900', labs(s).map((r) => `${r.core.name} ${(r.lineup ?? []).length}`).join(', '));
 console.log('     tool arrivals: ' + (toolDays.join('; ') || 'none'));
 for (const d of [180, 540]) console.log(`     revenue share day ${d}: ${(shares[d] ?? []).join(' | ')}`);
-console.log(fails ? `${fails} FAILED` : 'ok');
-process.exit(fails ? 1 : 0);
+finish('npcMarket');
