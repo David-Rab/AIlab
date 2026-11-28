@@ -51,11 +51,11 @@ const fails = [];
 // Documented deviations (as scripts/v2/lib.ts KNOWN): a failing check listed here prints WARN with its design/OPEN.md item
 // and does not fail the run. "day *" stands for day 1 / 400 / 900.
 const KNOWN = {
-  'B2 day *: Agent mode shows what it does (a type chip and an effect line)': 'OPEN.md § Broken tests: Products tools editor: the Agent mode row has no type chip and no effect line (its fx list is empty; the 2 h horizon gate is only in its tooltip)',
+  'B2 day *: Agent mode shows what it does (a type chip and an effect line)': "OPEN.md § Market and revenue: Agent mode's row in Products › Add a tool shows no type and no effect (its fx list is empty; the 2 h horizon gate is only in its tooltip)",
 };
 const KNOWN_LIMITS = {
-  'research.rePerProject': 'OPEN.md § Broken tests: limit research.rePerProject has no data-limit readout on Research › Projects (the number shows on Lab › Work as "Base need each")',
-  'response.hardenFloor': 'OPEN.md § Broken tests: limit response.hardenFloor has no readout on Safety › Cases (hardenLevel() in safety/responses.ts is unused by the UI)',
+  'research.rePerProject': 'OPEN.md § UI: Two registry limits have no readout where they bind: research.rePerProject has no data-limit readout on Research › Projects (the number shows on Lab › Work as "Base need each")',
+  'response.hardenFloor': 'OPEN.md § UI: Two registry limits have no readout where they bind: response.hardenFloor has no readout on Safety › Cases (hardenLevel() in safety/responses.ts is unused by the UI)',
 };
 let warn = 0;
 const gaps = [];

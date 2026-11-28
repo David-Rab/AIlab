@@ -108,7 +108,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
 // The agendas.ts contract says the first result arrives after T₁ at reference inputs; stepTest adds the science and the
 // experiment rate (each 1/30 of T₁ months a day at reference), so the first result comes at about T₁/2 (design/bal/
 // SAFETY-UNIFY.md line 37 noted it). Whether the contract or the stepper is right is the designer's call.
-KNOWN['E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line'] = 'OPEN.md § Bugs: safety line pacing T₁/2 vs the documented T₁ (stepTest sums the science and experiment rates)';
+KNOWN['E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line'] = 'OPEN.md § Safety: Safety line pacing: the first result at reference inputs comes at ≈ T₁/2, not the documented T₁ (stepTest sums the science and experiment rates)';
 {
   const rows: string[] = [];
   let worst = 0;

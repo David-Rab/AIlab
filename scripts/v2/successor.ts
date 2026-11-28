@@ -176,7 +176,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 
 // BUG, parked (design/OPEN.md § Balance: "Successor-pull checks fail on master (pull grows with automation; steering act)"): the start
 // pull is ω 0.006 (not ≈ 0.07) and day 400 (0.003) is below the start; not re-diagnosed here.
-KNOWN["reference: the pull grows with the lab's automation (start ≈ 0.07; RefBot fixtures day 400 and 900)"] = 'OPEN.md § Balance: Successor-pull checks fail on master (no owner)';
+KNOWN["reference: the pull grows with the lab's automation (start ≈ 0.07; RefBot fixtures day 400 and 900)"] = 'OPEN.md § Balance and calibration: Successor-pull checks fail on master (pull grows with automation; steering act), no owner';
 // ---------- reference numbers (start, ai2027 RefBot fixtures day 400 and 900) ----------
 {
   const s0 = proto;

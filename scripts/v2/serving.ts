@@ -76,7 +76,7 @@ import { FIXTURE_DIR, KNOWN, SMOKE, check, finish } from './lib';
 import { cheapestAt } from './cheapest';
 
 // Known failures (design/test-audit/G3-report.md):
-KNOWN["B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat's serving cost)"] = "OPEN.md: BUG seat price readout is the last sector cell's, not the average (worldfx/revenue.ts:575 a.seatPrice = o.seat; MARKET-CP (b) 1)";
+KNOWN["B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat's serving cost)"] = "OPEN.md § Market and revenue: Seat price readout is the last sector × region cell's, not the average (worldfx/revenue.ts:575 a.seatPrice = o.seat)";
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 // One game is built once and cloned per section (TESTING §2): day 0, day 3 (the old "run(s, 3)" start) and, lazily, day 20.

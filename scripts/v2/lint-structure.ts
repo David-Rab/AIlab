@@ -25,7 +25,7 @@ const ok = (name: string, cond: boolean, detail = '') => {
 };
 /** Known findings (a real rule hit in src data, owned by OPEN.md): printed WARN, listed by action id; any other hit fails. */
 const KNOWN_LONG: Record<string, string> = {
-  'research.safReAlloc': 'OPEN.md § Bugs: title "Safety research engineers by need" is 5 words (src/data, UI wording)',
+  'research.safReAlloc': 'OPEN.md § UI: Action title over 4 words: research.safReAlloc "Safety research engineers by need" (src/data, UI wording)',
 };
 
 const badSys = SYSTEMS.filter((s) => !SYSTEM_IDS.includes(s.system as StructureSystem)).map((s) => s.id);
