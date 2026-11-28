@@ -4,9 +4,9 @@
 //   npx tsx scripts/v2/ref-trace.ts [--ref path] [--tol key=value,…] [--only stub:tl-central,…]
 //                                                          diff the current code against the recorded trace
 //
-// Traces: RefBot's model policy on the four T1 presets with the reference-compute stub (as calib.ts T1: infinite cash,
+// Traces: RefBot's model policy on the four T1 presets with the reference-compute stub (as calreport/milestones.ts T1: infinite cash,
 // endings skipped, stop at the last golden milestone), and the full RefBot (real finance, revenue and events) on
-// tl-central (as calib.ts "T1 integrated": endings skipped, stop at ASI, insolvency or 16 years). Each trace records run
+// tl-central (as calreport/milestones.ts "T1 integrated": endings skipped, stop at ASI, insolvency or 16 years). Each trace records run
 // start/finish days, paradigm adoption days, milestone days, monthly M, h, k, c, sdAI (and pa, L), quarterly revenue
 // per channel, cash and U. The diff prints the worst deviation per category and exits 1 if any exceeds its tolerance.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -105,7 +105,7 @@ function stubTrace(preset: WorldPresetId): Trace {
   const rec = recorder(`stub:${preset}`, preset, 'stub', s);
   rec.observe();
   const stop = lastIdx(preset);
-  // runRef one day at a time so the observer sees every day (same play and tick order as calib.ts T1).
+  // runRef one day at a time so the observer sees every day (same play and tick order as calreport/milestones.ts T1).
   while (s.time.day < MAX_DAYS && !s.ending && s.player.milestoneDays[stop] === undefined) {
     runRef(s, s.time.day + 1);
     rec.observe();

@@ -5,7 +5,7 @@
 // T1 binds on the median over CAL_SEEDS (calseeds.ts), so the per-preset values (V3_CAL G_SC, Δ_bm, sd_SC in
 // src/data/v2/workTypes.ts) are fitted here, on the same seeds: every grid point
 // (the product of the lists; unset lists keep the committed value) is played on every seed — RefBot on the reference
-// compute stub (t1), as calib.ts does — and the table prints, per point, the
+// compute stub (t1), as calreport/milestones.ts does — and the table prints, per point, the
 // median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y; lib.ts calTol; the timeline worlds have no golden days yet), p10 / p90, the seeds within tolerance,
 // the worst |median|/tolerance (≤ 1 passes) and seed 2027 alone. Take a value in the middle of the passing window, not a
 // knife edge. Runs go through the simulation cache in N worker processes (default 6).

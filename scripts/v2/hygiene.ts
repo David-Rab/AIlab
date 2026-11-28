@@ -66,7 +66,7 @@ function readPurityRec(seed: number): { firstDiff: number | null } {
 // Section 3b (c): the game played at shifted calibration values; `--history-child` plays it in a fresh process.
 const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'tl-central', alignment: 'medium', tutorial: false });
 const HIST_DAYS = 30;
-/** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
+/** Shift every harness-mutable calibration table (as calscan.ts / calreport/milestones.ts do between games); returns the restore. */
 function shiftCalibration(): () => void {
   const saved = { v3: JSON.stringify(V3_CAL), asi: ASI_EXTRA.gaps };
   for (const c of Object.values(V3_CAL)) Object.assign(c, { gSC: c.gSC - 0.4, dBM: c.dBM + 0.3, sdSC: c.sdSC + 0.5 });
