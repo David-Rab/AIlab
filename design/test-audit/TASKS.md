@@ -15,7 +15,20 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | id | phase | what | model | state |
 |---|---|---|---|---|
 | P1a | 1 | runner: tsc fix, rivals job, per-job CPU budgets + WARN, orphan guard, add the untiered tests, lib output format, package.json aliases | Sonnet high | todo |
-| P1b | 1 | scratch: remove tracked `scripts/v2/_*` dirs (keep _mk6, _w1b until re-pointed), re-point evidence strings, .gitignore | Sonnet medium | todo |
+| P1b | 1 | scratch: remove tracked `scripts/v2/_*` dirs (keep _mk6, _w1b until re-pointed), re-point evidence strings, .gitignore | Sonnet medium | merged 4f7a55ca |
 | P1c | 1 | junk inside scripts: removal greps, currency/domainref → effective, rdt10, naming migration, calib T1 guard + INFO loops | Sonnet high | todo |
 | P2/3 groups | 2+3 | per script group: classify every failing check (stale pin → re-derive/delete; calibration target → mark + OPEN.md; bug → OPEN.md + KNOWN), then cut cost to budget | Sonnet high | after P1 |
 | — | end | one test:full + test:ui (ask the designer first), merge to master | lead | — |
+
+## Phase 2+3 groups (one agent per group does both: classify failing checks, then cut cost)
+
+| id | scripts | state |
+|---|---|---|
+| G7 | uitest.mjs (19 failures; sleeps → waits; day repeats; build skip). Designer: up to 3 whole-uitest runs allowed | running |
+| G3 | serving, products, money | after P1 |
+| G4 | finance, worldfx | after P1 |
+| G2 | research, safetyresearch, safetyideas, evals, worktypes | after P1 |
+| G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | after P1 |
+| G1 | suites, signals, successor, data, effective, oversight | after P1 |
+| G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | after P1 |
+| later | idle, hygiene (after speed merges), directorEndings, npcShocks (after bal merges) | — |
