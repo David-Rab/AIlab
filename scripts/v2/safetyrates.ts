@@ -1,4 +1,5 @@
 // Model v3 E10: safety rates vs research/20 F (design/MODEL-V3.md §11.8). Owner: WS2.
+// Cost: 12 RefBot games to ASI (seeds 500-511, ~17 CPU-s each cold) shared with safety.ts S4 through refGame (safety-emu.ts, one cached game per seed: zero extra when safety ran first) + 40 probe worlds (~10 s). Tier: full (sharded).
 //
 // Reads, from reference runs and from model-organism probes on the start model, the simulated observable behind each
 // research/20 F rate and prints the table: observable | source (citation, uncertainty) | simulated (median and spread
@@ -14,7 +15,7 @@
 //   trained against (S9 = 0.3).
 //   Reference runs: RefBot (ai2027, medium, endings skipped, to the player's ASI), seeds 500…, every new version's
 //   hack rates, traits and persistence through its safety training; P_mis at ASI (the S4 quantity on fewer seeds).
-// `--seeds N` (default 12; 40 = safety.ts's S4 seeds, the same games), `--worlds N` (default 40); `--prefill k/n` fills
+// `--seeds N` (default 12: the first 12 of safety.ts's S4 RefBot seeds, the same cached games), `--worlds N` (default 40); `--prefill k/n` fills
 // the cache in shards. Each banded row is a check; rows rate constants cannot bring into band print WARN with the
 // mechanism they need; rows with no source band print INFO.
 import { EXPLOIT_START, START_EXPLOIT_MULT } from '../../src/data/v2/suites';
