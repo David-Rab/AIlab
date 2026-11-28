@@ -4,6 +4,7 @@
 // as funded × CRF(r, n) a year for n years. It adds a long fixed obligation (in the rating's commitments term) and a
 // residual-value guarantee: 50% of the unamortised balance if you walk away, a contingent liability.
 import { CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS, SITE_UPFRONT } from '../../../data/v2/deals';
+import { divisionBlock } from './parent';
 import type { Commitment$, Day, GameStateV2, Money, Site } from '../types';
 
 /** Capital-recovery factor: the annual payment that repays 1 over `years` at rate `r`. */
@@ -20,11 +21,12 @@ export function leaseGuarantor(s: GameStateV2): string | undefined {
  *  guarantee). FIN4b: a running hyperscaler or chip-vendor partner's guarantee opens leases below B at the B rate plus
  *  a premium (3 points [D]). */
 export function leaseRate(s: GameStateV2): number | undefined {
+  if (divisionBlock(s)) return undefined;
   const r = CAPEX_LEASE.rate[s.player.finance.rating];
   if (r !== undefined) return r;
   return leaseGuarantor(s) ? (CAPEX_LEASE.rate.B ?? 0.12) + CAPEX_LEASE.guaranteePremium : undefined;
 }
-export const leaseAvailable = (s: GameStateV2): true | string => (leaseRate(s) !== undefined ? true : `No lessor funds you at rating ${s.player.finance.rating} (needs B or better, or a hyperscaler or chip-vendor partner's guarantee)`);
+export const leaseAvailable = (s: GameStateV2): true | string => (divisionBlock(s) ?? (leaseRate(s) !== undefined ? true : `No lessor funds you at rating ${s.player.finance.rating} (needs B or better, or a hyperscaler or chip-vendor partner's guarantee)`));
 
 /** Remaining (unamortised) balance of a financing lease on `day`: the present value of the payments left at its rate. */
 export function leaseBalance(c: Commitment$, day: Day): Money {

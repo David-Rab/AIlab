@@ -38,7 +38,7 @@ export interface AutopilotOpts {
   guard: boolean;
   /** Accept a strategic rescue in distress. */
   rescue: boolean;
-  /** Start the recapitalisation (legacy preset) when E02 would fire (Q4 2025). */
+  /** Start the recapitalisation when it comes up (Q4 2025). */
   recap: boolean;
   /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 1 (FIN1). */
   guardQ?: number;
@@ -336,7 +336,7 @@ export function pickThesis(s: GameStateV2, o: AutopilotOpts): { type: MilestoneT
 /** A down round in the last 180 days (one per distress spell). */
 const recentDownRound = (s: GameStateV2) => s.player.finance.rounds.some((r) => r.down && r.day > s.time.day - 180);
 
-/** A rescue tops the partner up to PARTNER_TERMS.rescue.stake plus the cash stake; keep the largest strategic holder at
+/** A rescue gives the partner a stake at half the valuation (up to 15% of it); keep the largest strategic holder at
  *  or below 45% so the company is not sold by accident. */
 function rescueKeepsControl(s: GameStateV2): boolean {
   const strat = s.player.finance.ownership.strat;

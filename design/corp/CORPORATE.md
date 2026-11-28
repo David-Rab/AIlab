@@ -370,41 +370,14 @@ fills Custom, so nothing stale is left over (fixes the setup bug). You can't sta
    F8 re-judged.
 8. **Cleanup** (§9).
 
-## 9. Cleanup (the last task)
+## 9. Cleanup (C10, done)
 
-Delete:
-- GovernancePresetId and the preset strings; GOV_FACTOR as a preset table; RIVAL_GOV preset ids (rivals get a label);
-- `OUSTER.legacyMult`; `noOuster`; `isDivision` reading the start; `founderControl` as a preset check;
-- `syncFinancialSeats`; the "Listing independent" literal;
-- `endingProgress.soldControl`, and the 'acquired' and 'nationalized' ending ids (folded into "another lab in control");
-- the never-produced 'ipo' tranche condition; citations of the non-existent events E02 and E26;
-- `issueWarrants`' copy of `issue()`;
-- the `leaderLab` field and the stale `setup.leaderLab` comment;
-- BOARD_LABEL, PRESET and the charter header table (one label source);
-- the dead "trust notified" log;
-- Corvid, the sovereign kind and its terms, `anchors`, the anchoring round path, and "served first" as a partner benefit.
+Deleted over C2 to C10 (verified by grep across src and scripts/v2; nothing of the old model is left):
+- GovernancePresetId and the preset strings, GOV_FACTOR, RIVAL_GOV preset ids; OUSTER.legacyMult, noOuster, isDivision, founderControl; syncFinancialSeats and "Listing independent"; soldControl and the 'acquired' and 'nationalized' ending ids; the 'ipo' tranche condition (C10); the E02 and E26 citations (C10); `issueWarrants` (C10: now `issue()`); `leaderLab` (C10: last comment and a test variable); BOARD_LABEL, PRESET and the charter header table (one label source, control.ts); the "trust notified" log; Corvid, the sovereign kind, `anchors`, the anchoring round, "served first" as a partner benefit.
+- Fixed in C10: the hubView $B display (values were divided by 1e9 again), and financing leases are blocked for owner-funded companies (`leaseRate` and `leaseAvailable` give DIVISION_REASON, so the pay-option preview shows it).
+- Registered in balance/params: the distribution reach and fee, `spentAt`, `slackQ`, rescue `priceMult`, `ipFullLeadMonths`, DISTRIBUTION.channels, LEGACY_NORTHWIND.until, and the state-control confidence (now the named constant STATE_CONTROL_CONFIDENCE).
+- Kept: every board seat kind is reachable (founder, mission, financial, strategic, independent, gov), so no stance, mood weight or icon row was removed.
 
-Also:
-- Fix the hubView $B ÷ 1e9 display.
-- Block financing leases for owner-funded companies.
+## 10. Built (note)
 
-## 10. Inventory facts that shape the plan (a read-only survey, 2026-11-28, re-checked after the rebase)
-
-- **The only structure change today** is the recap, which rewrites `preset` in place.
-- **Bugs:**
-  - A refused recap leaves an unmeetable 'recapitalisation' condition on every later large round.
-  - Picking Big tech and then Leader in setup leaves `governance: 'parent'` on a leader game.
-  - "Division" has two sources of truth (`isDivision` reads the start, `noOuster` reads the preset).
-  - Partner tranches and anchor rounds can cross 50% with no vote.
-- **E32 stock buyers** are booked as investors, so the 'acquired' ending names the wrong buyer.
-- **Since the outside-world merge:**
-  - nationalization is `usgov.consolidated`;
-  - the soft path is E22 with `dpaAccepted`, and the epilogue reads "DPA + low trust at ASI" as government power;
-  - scrutiny, the safety-index grade (GOV_SCORE) and the sovereign's politics no longer exist.
-- **Tests that pin today's behaviour, all expected to change:**
-  - scripts/v2/finance.ts FIN2–FIN5c;
-  - hygiene.ts 162–200;
-  - ws4.ts 205–212;
-  - uitest.mjs (setup, board, partners, division);
-  - the fixtures (start-challenger-day400 seats);
-  - golden/ref-trace.json.
+The structure is now derived from the cap table, share classes, charter and holders (control.ts), not stored as a preset. Recap, partner stakes, nationalization and the parent's budget all act through it. What the old survey found (preset rewritten in place, a refused recap leaving an unmeetable condition, two sources of truth for "division", stakes crossing 50% with no vote, E32 buyers booked as investors) no longer exists.

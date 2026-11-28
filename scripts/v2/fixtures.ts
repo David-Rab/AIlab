@@ -68,10 +68,10 @@ for (const start of ['safety', 'breakaway'] as const) {
     }
     const back = deserialize(serialize(t));
     const v = internalVersion(t);
-    return { json: serialize(t), errs: validateJson(t), start: t.setup.labKind, leaderLab: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
+    return { json: serialize(t), errs: validateJson(t), start: t.setup.labKind, hasRivals: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
   });
   const errs = r.errs;
-  check(errs.length === 0 && r.start === start && r.leaderLab, `fixture ${start} day 400 is plain JSON with the leader lab`, errs.slice(0, 3).join('; '));
+  check(errs.length === 0 && r.start === start && r.hasRivals, `fixture ${start} day 400 is plain JSON with the leader lab`, errs.slice(0, 3).join('; '));
   check(r.roundTrip, `fixture ${start} day 400 round-trips`);
   const file = join(FIXTURE_DIR, `start-${start}-day400.json`);
   emit(file, r.json, `fixture ${start} day 400`);

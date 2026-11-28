@@ -142,13 +142,12 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
 /** What has been paid to `partner` on the ledger since its tally stood at `base` ($B). */
 export const spentSince = (s: GameStateV2, partner: string, base: Money): Money => paidTo(s, partner) - base;
 
-/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'ipo', and a partner's 'spent:<partner>:<$B>': that much has
+/** Tranche conditions: 'recapitalisation', 'revenue:<R>', and a partner's 'spent:<partner>:<$B>': that much has
  *  been paid to the partner on the ledger since the deal was signed (`tranche.spentBase` is what it had been paid by
  *  then; without a tranche, since the start). */
 export function trancheConditionMet(s: GameStateV2, cond: string, tranche?: Pick<Tranche, 'spentBase'>): boolean {
   const f = s.player.finance;
   if (cond === 'recapitalisation') return f.ws3.recap.doneDay !== undefined;
-  if (cond === 'ipo') return f.ownership.public > 0;
   const [k, v, w] = cond.split(':');
   if (k === 'revenue') return f.revenueRun >= Number(v);
   if (k === 'spent') return spentSince(s, v, tranche?.spentBase ?? 0) >= Number(w) - 1e-9;

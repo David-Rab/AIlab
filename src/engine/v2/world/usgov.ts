@@ -199,6 +199,9 @@ function nationalProjectLab(s: GameStateV2): LabId | undefined {
   return usLabs(s).map((r) => r.core.id).sort((a, b) => leadDays(s, a).est - leadDays(s, b).est)[0];
 }
 
+/** Board confidence the board starts at once the government takes control: on probation [D, CORPORATE.md §4.3]. */
+export const STATE_CONTROL_CONFIDENCE = 40;
+
 /** The hard path (CORPORATE.md §4.3). While the player leads, the government takes the state-control class (⅔ of the
  *  votes) and becomes the controller; confidence starts at 40, on probation, and the game goes on. When the player is
  *  behind, its lab is folded into the national project under the leading lab (the 'absorbed' ending, endings.ts). */
@@ -209,8 +212,8 @@ export function nationalize(s: GameStateV2, ctx: SystemCtx) {
   if (frontier(s).lab === PLAYER_ID) {
     s.player.charter.stateControl = true;
     s.player.charter.goldenShare = false; // the state-control class has its own seats; the golden share is the soft path's
-    ctx.bump('board.confidence', 40 - s.player.board.confidence, 'the government takes control', 'on probation');
-    ctx.log('gov', 'The government takes control of your lab: it holds two thirds of the votes, funds the company and sets its goals. Board confidence starts at 40.', 5);
+    ctx.bump('board.confidence', STATE_CONTROL_CONFIDENCE - s.player.board.confidence, 'the government takes control', 'on probation');
+    ctx.log('gov', `The government takes control of your lab: it holds two thirds of the votes, funds the company and sets its goals. Board confidence starts at ${STATE_CONTROL_CONFIDENCE}.`, 5);
     ctx.headline('usgovStateControl', 'The government takes control of the lab');
   } else {
     const lab = nationalProjectLab(s);

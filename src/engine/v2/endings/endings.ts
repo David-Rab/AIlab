@@ -89,7 +89,7 @@ export const endingsSystem: EngineSystem = {
     // world endings (catastrophe, rogue, a misaligned lab's takeover) still do.
     const observer = s.flags['harness:observer'] === true;
     // 1. Insolvent. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the revolver
-    //    exhausted (the E26 distress menu is WS3's too).
+    //    exhausted (the distress menu is WS3's too).
     if (!observer && s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
     // 2. Ousted: WS3's quarterly board ouster vote (finance/board.ts) stamps the day. Under a controller whose own lab
     //    leads you, it folds your lab into its own instead (absorbed, the lab named).

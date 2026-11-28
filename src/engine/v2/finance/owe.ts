@@ -77,9 +77,6 @@ function trancheOf(s: GameStateV2, t: GameStateV2['player']['finance']['tranches
     const r = f.ws3.recap;
     label = r.doneDay !== undefined ? 'recapitalisation complete' : r.startDay !== undefined ? 'recapitalisation under review' : r.refused ? 'recapitalisation refused' : 'recapitalisation not started';
     progress = r.doneDay !== undefined ? 1 : r.startDay !== undefined ? Math.min(0.95, (s.time.day - r.startDay) / 360) : 0;
-  } else if (cond === 'ipo') {
-    label = f.ownership.public > 0 ? 'listed' : 'an IPO';
-    progress = f.ownership.public > 0 ? 1 : 0;
   }
   return { source: t.source, amount: t.amount, condition: cond, label, progress: Math.min(1, progress), met, dueDay: t.dueDay, ...(t.deadline !== undefined ? { deadline: t.deadline, daysLeft: Math.max(0, t.deadline - s.time.day) } : {}), ...(t.shares ? { cancels: true } : {}) };
 }

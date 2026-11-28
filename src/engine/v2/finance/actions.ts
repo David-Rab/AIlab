@@ -265,7 +265,6 @@ export function conditionWords(cond: string, supply?: PartnerSupply): string {
     return `you've spent $${Number(w).toFixed(Number(w) < 10 ? 1 : 0)}B on ${v}'s ${what}`;
   }
   if (k === 'revenue') return `$${Number(v).toFixed(0)}B/yr revenue run-rate`;
-  if (cond === 'ipo') return 'an IPO';
   if (cond === 'recapitalisation') return 'the recapitalisation';
   return cond;
 }
@@ -482,7 +481,7 @@ const recap: ActionDef = {
     const f = s.player.finance;
     if (!s.player.charter.profitCap) return 'Only under a profit cap';
     if (f.ws3?.recap.startDay !== undefined || f.ws3?.recap.refused) return 'Already decided';
-    if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025 (E02)';
+    if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025';
     return true;
   },
   preview(s) {
@@ -763,7 +762,7 @@ const community: ActionDef = {
   },
 };
 
-// ───────────────────────────── Distress menu (E26) ─────────────────────────────
+// ───────────────────────────── Distress menu ─────────────────────────────
 
 const renegotiate: ActionDef = {
   id: 'fin.renegotiate', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Renegotiate',
@@ -794,16 +793,10 @@ const renegotiate: ActionDef = {
     ensureWs3(s);
     const ds = deferFirm(s, RENEGOTIATE.defer, RENEGOTIATE.quarters, true);
     f.ws3.lastRenegotiationDay = s.time.day;
-    issueWarrants(s, RENEGOTIATE.warrants);
+    issue(f.ownership, RENEGOTIATE.warrants, { kind: 'fin' });
     ctx.log('finance', `Suppliers accept a ${Math.round(RENEGOTIATE.defer * 100)}% deferral of the next ${RENEGOTIATE.quarters} quarters' firm payments ($${ds.reduce((a, d) => a + d.deferred, 0).toFixed(1)}B, paid back at each contract's end) for warrants.`);
   },
 };
-function issueWarrants(s: GameStateV2, frac: number) {
-  const o = s.player.finance.ownership;
-  const k = 1 - frac;
-  o.founder *= k; o.mission *= k; o.public *= k; o.fin = o.fin * k + frac;
-  for (const n of Object.keys(o.strat)) o.strat[n] *= k;
-}
 
 /** Resale/sublease value of chips: ~1.5 years of spot rental [D]. */
 const chipSaleValue = (s: GameStateV2, h: number) => (h * s.market.rental * 8760 * 1.5) / 1e9;
