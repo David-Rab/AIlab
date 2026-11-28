@@ -4,7 +4,7 @@
 //   2. AI share of income = AI-lab revenue / US GDP.
 //   3. Unemployment is not computed here: sectors.ts owns it (the displacement engine); this system only records the
 //      13-month US history for the 12-month-change readout.
-// λ fit (RefBot tl-central, scripts/v2/_w1b/before.txt vs after.txt): the old model's AI-driven growth (g − 0.018) was
+// λ fit (RefBot tl-central, scripts/v2/_w1b/before.txt vs after.txt @ fe28d849): the old model's AI-driven growth (g − 0.018) was
 //   0.0026 at day 400 and 0.0072 at day 900. One λ = 0.6 gives 0.0015 (day 400, 42% low: the annual change of the share
 //   is still small then) and 0.0074 (day 900, within 3%). The day-900 fit is used.
 import { REGIONS } from '../../../data/v2/sectors';

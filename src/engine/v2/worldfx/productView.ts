@@ -442,7 +442,7 @@ export function marketBase(s: GameStateV2): MarketBase {
 /** Before → after of replacing product `id` with `next` (or adding it, for a launch). */
 /** The market is recomputed on a copy of the state with the edited products by the revenue system's own path (worldMix →
  *  revenueReadout: buyer choice, prices, serving split, rationing and spillover), so the preview is what the next tick
- *  computes (MK-12, scripts/v2/_mk12/check.ts). `base`: today's readouts, if already computed. */
+ *  computes (MK-12, scripts/v2/_mk12/check.ts @ cd352aaa). `base`: today's readouts, if already computed. */
 export function previewDeployments(s: GameStateV2, deps: Deployment[], id: string, over: Parameters<typeof hypothetical>[2] = {}, base: MarketBase = marketBase(s)): EditPreview {
   const s2 = hypothetical(s, deps, over);
   const mix1 = worldMix(s2);
