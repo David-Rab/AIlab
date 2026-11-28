@@ -3,8 +3,7 @@ import { useRef } from 'react';
 import { AUTOSAVE_KEY, ownerFunded, SLOT_KEYS, startControl, structureLabel, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
-import { KIND_ORDER, LAB_KIND_BY_ID, POSITION_BY_ID, kindOf, parentBudgetYear, type Difficulty, type PositionDef } from '../../../data/v2/starts';
-import { TEAM_SIZE } from '../../../data/v2/teams';
+import { KIND_ORDER, LAB_KIND_BY_ID, POSITION_BY_ID, kindOf, parentBudgetYear } from '../../../data/v2/starts';
 import type { LabKindId } from '../../../engine/v2';
 
 /** AUDIT §2.4: the company may not take a rival's name (two "Meridian" nodes, rows and end lines): the cast's names. */
@@ -17,7 +16,9 @@ export function nameClash(name: string): string | undefined {
   return hit ? `${hit} is a rival lab: pick another name` : undefined;
 }
 import { useV2 } from '../store';
-import { Soon, Tip, TipCard } from '../ui';
+import { Soon, Term, Tip, TipCard } from '../ui';
+import { CUSTOM_DEFAULT, CustomEditor, DIFF_TONE } from './CustomKind';
+import { positionNumbers } from './kindFacts';
 import { RivalsSection } from './Rivals';
 
 const CAMPAIGNS = [
@@ -88,12 +89,10 @@ function Picker<K extends keyof SetupV2>({ label, k, opts }: { label: string; k:
   );
 }
 
-const DIFF_TONE: Record<Difficulty, string> = { Easy: 'good', Medium: 'warn', Hard: 'bad', Impossible: 'bad' };
-const kH = (h: number) => (h >= 1e6 ? `${(h / 1e6).toFixed(1)}M` : `${Math.round(h / 1e3)}K`);
-const staffOfStart = (d: PositionDef) => d.teams.eng * TEAM_SIZE.eng + (d.teams['re.cap'] + d.teams['re.saf']) * TEAM_SIZE.re + (d.teams['sci.cap'] + d.teams['sci.saf']) * TEAM_SIZE.sci;
+const NPC_NAME = (kind?: string) => REALISTIC_CAST.find((e) => e.kind === kind)?.name;
 
-/** Lab kind picker (CORPORATE.md §6.2): name, analogues, the position's difficulty label, one line of character, and the
- *  structure label; the start values in the tooltip. */
+/** Lab kind picker (CORPORATE.md §6.2): six kinds and Custom. Each card: name, the position's difficulty label, one line
+ *  of character, the structure label and the NPC lab it replaces; the start values and the analogues in the tooltip. */
 function StartPicker() {
   const st = useV2();
   const cur = st.draftSetup.labKind ?? 'leader';
@@ -101,33 +100,47 @@ function StartPicker() {
     st.draftSetup = { ...st.draftSetup, labKind: id };
     st.notify();
   };
+  const pickCustom = () => {
+    st.draftSetup = { ...st.draftSetup, labKind: 'custom', custom: st.draftSetup.custom ?? CUSTOM_DEFAULT };
+    st.notify();
+  };
   return (
     <div data-picker="start">
-      <div className="picker-label">Start as</div>
+      <div className="picker-label"><Term id="labKind">Start as</Term></div>
       <div className="start-opts">
         {KIND_ORDER.map((id) => {
           const k = LAB_KIND_BY_ID[id];
           const d = POSITION_BY_ID[k.position];
-          const money = ownerFunded(startControl(k)) ? `${d.cash}B + ${parentBudgetYear(0)}B/yr from the parent` : id === 'leader' ? '$40B (cash + committed round)' : `${d.cash}B`;
+          const label = structureLabel(startControl(k));
+          const money = ownerFunded(startControl(k)) ? `$${d.cash}B + $${parentBudgetYear(0)}B/yr from the parent` : id === 'leader' ? '$40B (cash + committed round)' : `$${d.cash}B`;
+          const takes = NPC_NAME(k.replacesNpc);
           return (
             <Tip key={id} content={() => (
               <TipCard title={`${k.name} · ${d.difficulty}`}>
-                {`${k.character} Like ${k.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; structure ${structureLabel(startControl(k))}.${k.replacesNpc === 'leader' ? '' : ` The frontier leader (${LEADER_NAME}) races you.`}${k.replacesNpc && k.replacesNpc !== 'leader' ? ` You take the place of ${REALISTIC_CAST.find((e) => e.kind === k.replacesNpc)?.name ?? 'a rival'}.` : ''} Scoring is the same for every start.`}
+                {`${k.character} Like ${k.analogues}. ${positionNumbers(d, money)} Structure: ${label}.${k.replacesNpc === 'leader' ? '' : ` The frontier leader (${LEADER_NAME}) races you.`} Scoring is the same for every start.`}
               </TipCard>
             )}>
               <button className={`start-opt ${cur === id ? 'active' : ''}`} data-opt={id} onClick={() => pick(id)}>
                 <span className="start-opt-head"><b>{k.name}</b><span className={`tag2 ${DIFF_TONE[d.difficulty]}`} data-difficulty={d.difficulty}>{d.difficulty}</span></span>
                 <span className="start-opt-desc">{k.character}</span>
-                <span className="small dim" data-test="start-opt-structure">{k.analogues} · {structureLabel(startControl(k))}</span>
+                <span className="small dim" data-test="start-opt-structure"><Term id="structureLabel">{label}</Term></span>
+                {takes && <span className="small dim" data-test="start-opt-takes">Takes the place of {takes}</span>}
               </button>
             </Tip>
           );
         })}
+        <Tip content={() => <TipCard title="Custom lab">Choose your own position, charter and owners from the pickers below. It takes the place of no rival lab, so all six rivals race you.</TipCard>}>
+          <button className={`start-opt ${cur === 'custom' ? 'active' : ''}`} data-opt="custom" onClick={pickCustom}>
+            <span className="start-opt-head"><b>Custom</b><span className="tag2 neutral">Your own</span></span>
+            <span className="start-opt-desc">Pick a position, a charter and who owns the company.</span>
+            <span className="small dim" data-test="start-opt-structure"><Term id="structureLabel">{structureLabel(startControl(kindOf({ setup: { labKind: 'custom', custom: st.draftSetup.custom ?? CUSTOM_DEFAULT } })))}</Term></span>
+          </button>
+        </Tip>
       </div>
+      {cur === 'custom' && <CustomEditor />}
     </div>
   );
 }
-
 
 export function SetupScreen() {
   const st = useV2();
@@ -148,7 +161,6 @@ export function SetupScreen() {
             { v: 'tl-slow', label: 'Slow', desc: 'The forecast’s slow track: superhuman AI coders around 2035.' },
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
-          <div data-test="start-board"><div className="picker-label">Structure</div><div className="small dim">{structureLabel(startControl(kindOf({ setup: d })))} (set by the start)</div></div>
         </div>
         <div className="setup-col">
           <RivalsSection />

@@ -260,12 +260,18 @@ export function castOf(setup: Pick<SetupV2, 'cast' | 'labKind' | 'custom'>): Cas
     const nth = (seen[c.kind] = (seen[c.kind] ?? 0) + 1);
     const m = Math.max(0, Math.min(36, c.lagMonths));
     const sfx = nth > 1 ? ' ' + (ROMAN[nth] ?? String(nth)) : '';
+    // `backers` present: the item sets its own ties (an absent owner means none); absent: the kind's (the cast entry's).
+    const owner = c.backers ? c.owner : c.owner ?? base.owner;
+    const backers = c.backers ?? base.backers;
     const e: NpcCastEntry = {
       ...base, id: nth > 1 ? base.id + nth : base.id, name: base.name + sfx, family: base.family + sfx,
       start: { ...base.start, ...(base.start.publicLagMonths === null ? { publicLagBandMonths: m } : { publicLagMonths: m }) },
-      ...(c.owner ?? base.owner ? { owner: c.owner ?? base.owner } : {}), ...(c.backers ?? base.backers ? { backers: c.backers ?? base.backers } : {}),
+      owner, backers: backers && Object.keys(backers).length ? { ...backers } : undefined,
     };
-    out.push({ e, ...(c.personality ? { p: { ...KINDS[c.kind], ...c.personality } } : {}) });
+    // An owner pays the bills (funding follows it); a lab with its own ties and no owner raises its own money.
+    const funding = owner ? 'parent' : c.backers ? 'private' : KINDS[c.kind].funding;
+    const p = c.personality || funding !== KINDS[c.kind].funding ? { ...KINDS[c.kind], ...c.personality, funding } : undefined;
+    out.push({ e, ...(p ? { p } : {}) });
   }
   return out;
 }

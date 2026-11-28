@@ -107,14 +107,39 @@ ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (a
 // R9: start picker (six lab kinds with difficulty labels); each start shows its structure (C2: no governance picker).
 ok('Setup: six lab kinds with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 6);
 await check('Setup start=breakaway', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="breakaway"]'), 30);
-ok('Setup: breakaway shows its structure', /Founder-led/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
+ok('Setup: breakaway card shows its structure and the lab it replaces', /Founder-led/.test(await page.innerText('[data-picker=start] [data-opt="breakaway"] [data-test=start-opt-structure]')) && /Takes the place of/.test(await page.innerText('[data-picker=start] [data-opt="breakaway"] [data-test=start-opt-takes]')));
 await check('Setup start=bigtech', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
 await page.hover('[data-picker=start] [data-opt="bigtech"]');
 await wait(300);
 ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
 await clearTips();
 await check('Setup start=leader', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
-ok('Setup: no Governance picker; the leader start is mission-controlled', !(await page.$('[data-picker=governance]')) && /Mission-controlled/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
+ok('Setup: no Governance picker; the leader start is mission-controlled', !(await page.$('[data-picker=governance]')) && /Mission-controlled/.test(await page.innerText('[data-picker=start] [data-opt="leader"] [data-test=start-opt-structure]')));
+// C6: six kind cards plus Custom; Custom shows three pickers and a live preview; wholly owned and the frontier start exclude each other.
+ok('Setup: six kind cards plus Custom', (await page.$$('[data-picker=start] .start-opt')).length === 7 && !!(await page.$('[data-picker=start] [data-opt=custom]')) && !(await page.$('[data-test=custom-kind]')));
+await check('Setup start=custom', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt=custom]'), 30);
+ok('Setup: Custom shows position, charter and owners pickers and the preview line', !!(await page.$('[data-picker=custom-position]')) && !!(await page.$('[data-picker=custom-charter]')) && !!(await page.$('[data-picker=custom-owners]')) && (await page.$$('[data-picker=custom-position] [data-opt]')).length === 5 && (await page.$$('[data-picker=custom-position] [data-test=tradeoff]')).length === 2 && /CEO/.test(await page.innerText('[data-test=custom-preview]')));
+await page.click('[data-picker=custom-position] [data-opt=contender]');
+await page.click('[data-picker=custom-charter] [data-opt=mission]');
+await wait(30);
+ok('Setup: Custom preview follows the picks (contender + mission body: Mission-controlled, mission seats, two thirds of the votes)', /Mission-controlled/.test(await page.innerText('[data-test=custom-preview]')) && /mission/.test(await page.innerText('[data-test=custom-preview]')) && /holds/.test(await page.innerText('[data-test=custom-preview]')));
+await page.click('[data-picker=custom-owners] [data-opt=wholly]');
+await wait(30);
+ok('Setup: wholly owned disables the charter picker and shows a division', (await page.$$eval('[data-picker=custom-charter] [data-opt]', (bs) => bs.filter((b) => b.dataset.opt !== 'none').every((b) => b.disabled))) && /Division of Azimuth/.test(await page.innerText('[data-test=custom-preview]')));
+ok('Setup: wholly owned + frontier is not offered', await page.$eval('[data-picker=custom-position] [data-opt=frontier]', (b) => b.disabled));
+await page.click('[data-picker=custom-owners] [data-opt=founderMajority]');
+await page.click('[data-picker=custom-position] [data-opt=frontier]');
+await wait(30);
+ok('Setup: with the frontier start, wholly owned is disabled', await page.$eval('[data-picker=custom-owners] [data-opt=wholly]', (b) => b.disabled));
+await check('Setup start=leader again', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
+// C6: Create rivals: the owner picker sets owner (and parent funding).
+await page.click('[data-test=create-rivals]');
+await wait(30);
+await page.click('[data-picker=lab-owner-0] [data-opt="Lattice"]');
+await wait(30);
+ok('Setup: the Rivals owner picker sets owner', (await get('store.draftSetup.cast[0].owner')) === '"Lattice"');
+await page.click('[data-picker=cast] [data-opt=realistic]');
+await wait(30);
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
