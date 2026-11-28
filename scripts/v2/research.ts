@@ -331,11 +331,10 @@ if (process.argv.includes('--rd-a03')) {
   const same = (x: typeof a, y: typeof a) => [...x.entries()].every(([k, v]) => y.get(k)?.p === v.p);
   check(same(a, b) && same(a, c) && [...a.values()].every((v) => v.why.length > 0), 'assignment: deterministic (same result twice and whatever the roster order), with a reason for every team');
 
-  // Brute force on small cases: ≤ 5 teams, ≤ 4 projects, random specialties/qualities/teams wanted.
+  // Brute force on small cases: ≤ 5 teams, ≤ 4 projects, random specialties/teams wanted.
   let worst = 1;
   let cases = 0;
   const cols = ['pretraining', 'posttraining', 'systems'] as const;
-  const quals = ['solid', 'strong', 'elite'] as const;
   const pool = ['L.scale', 'L.data', 'L.rlalg', 'L.env', 'L.infer', 'P07', 'elastic'];
   let rnd = 12345;
   const r = () => ((rnd = (rnd * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -345,7 +344,7 @@ if (process.argv.includes('--rd-a03')) {
     const nP = 1 + Math.floor(r() * 4);
     const others = t.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
     const teams: Team[] = [];
-    for (let i = 0; i < nT; i++) teams.push({ id: `S${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: quals[Math.floor(r() * 3)], specialty: cols[Math.floor(r() * 3)] });
+    for (let i = 0; i < nT; i++) teams.push({ id: `S${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, specialty: cols[Math.floor(r() * 3)] });
     t.player.teams = [...others, ...teams];
     const projs = [...pool].sort(() => r() - 0.5).slice(0, nP);
     t.player.research.queue = projs;

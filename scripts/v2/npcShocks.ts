@@ -5,7 +5,7 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { RECIPE_LEAK_SHARE, TACIT_FIRM_SHARE } from '../../src/engine/v2/production/diffusion';
 import { PARTNER_TERMS } from '../../src/data/v2/deals';
-import { npcG, refGAt } from '../../src/engine/v2/npc/lab';
+import { refGAt } from '../../src/engine/v2/npc/lab';
 import * as sh from '../../src/engine/v2/npc/shocks';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { act } from '../../src/engine/v2/core/loop';

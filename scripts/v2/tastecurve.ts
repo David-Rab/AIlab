@@ -19,7 +19,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { QUALITY_TASTE_SD } from '../../src/data/v2/workTypes';
 import { flowStats, lineRate, linePool, stagesOf } from '../../src/engine/v2/models/research';
 import { TREE } from '../../src/data/v2/tree';
 import { resetWorkContext, teamTaste, tasteLimitOf, workContext } from '../../src/engine/v2/departments/workfit';
@@ -107,7 +106,7 @@ function gameCurve(world: 'tl-central' | 'tl-fast', gs: number[], computeScale: 
   s.player.computeOnline *= computeScale;
   const m2b = s.hidden.timeline.prod.m2b;
   const tl = tasteLimitOf(s.hidden.timeline);
-  const z = QUALITY_TASTE_SD.strong; // 1 = a Strong team without AI
+  const z = 0; // 0 SD = the lab's average human (the old Strong team; team quality tiers were removed in L8)
   return gs.map((g) => {
     v.G = g;
     resetWorkContext(s);

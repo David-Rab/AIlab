@@ -62,7 +62,7 @@ check(p3 >= p2 && p3 <= 1 - Math.pow(1 - q, 4), 'war: fewer rungs left never low
 const th = copy(states[2]!);
 th.chinagov.tension = 0;
 check(riskSources(th).find((r) => r.id === 'theft')!.estimate === 0, 'theft: no attempts below the theft rung');
-th.chinagov.tension = CHINAGOV.theftRung;
+th.chinagov.tension = CHINAGOV.theftRung as typeof th.chinagov.tension;
 const ths = riskSources(th, { leadDays: 400 }).find((r) => r.id === 'theft')!;
 const thsMore = riskSources(th, { leadDays: 400, wsl: 1 }).find((r) => r.id === 'theft')!;
 check(thsMore.estimate <= ths.estimate, 'theft: one more weight security level never raises it');
