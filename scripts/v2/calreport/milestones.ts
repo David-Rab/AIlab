@@ -19,7 +19,7 @@ import { bestPlayerVersion } from '../../../src/engine/v2/models/labs';
 import { labSpeedRel } from '../../../src/engine/v2/production/production';
 import { speedOfCopy, workContext } from '../../../src/engine/v2/departments/workfit';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
-import { START_DATE, dayOfDate, decimalYearOf } from '../../../src/engine/v2/core/time';
+import { START_DATE, dateOfDay, dayOfDate, decimalYearOf } from '../../../src/engine/v2/core/time';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../../src/engine/v2/types';
 import { refBot } from '../../../src/engine/v2/bots/ref';
 import { resolve, tick } from '../../../src/engine/v2/core/loop';
@@ -31,6 +31,7 @@ import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from '../calseeds';
 import { multiplierRef } from '../../../src/engine/v2/world/calibration';
 import { REF_TPP } from '../../../src/data/v2/runDesign';
 import { fOver } from '../../../src/engine/v2/models/effective';
+import { CHECKPOINTS } from '../../../balance/scenarios';
 import { rowOf, type Target } from './types';
 
 export const area = 'milestones';
@@ -49,9 +50,20 @@ type MsDays = Partial<Record<MilestoneIdx, number>>;
 
 /** research/12 §0.2 frontier anchors (best public model, G = log₁₀ effective compute), fitted for a reference base at 50
  *  tokens per parameter; since A6b the reference trains at REF_TPP (400, inference-aware), so the anchors move by the
- *  overtraining factor between the two (log₁₀ f_over(400) − log₁₀ f_over(50) = −0.31 OOM), the lead's decision (no new term). */
+ *  overtraining factor between the two (log₁₀ f_over(400) − log₁₀ f_over(50) = −0.31 OOM), the lead's decision (no new term).
+ *  The anchors live in balance/scenarios.ts (H5.gpath.*, the one home of the values), each at its own date. */
 const OVER_DG = Math.log10(fOver(REF_TPP) / fOver(50));
-const G_ANCHORS: [string, number][] = ([['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]] as [string, number][]).map(([d, g]) => [d, g + OVER_DG]);
+/** The game day whose decimal year (core/time.ts decimalYearOf) is nearest `y`. */
+function dayOfYear(y: number): number {
+  const d0 = Math.round((y - decimalYearOf(START_DATE, 0)) * 365.25);
+  let best = d0;
+  for (let d = d0 - 3; d <= d0 + 3; d++) if (Math.abs(decimalYearOf(START_DATE, d) - y) < Math.abs(decimalYearOf(START_DATE, best) - y)) best = d;
+  return best;
+}
+const G_ANCHORS: [string, number][] = CHECKPOINTS
+  .filter((c) => c.id.startsWith('H5.gpath.') && c.unit === 'G' && c.value !== undefined && c.date !== undefined)
+  .map((c) => [dateOfDay(START_DATE, dayOfYear(c.date!)).toISOString().slice(0, 10), c.value! + OVER_DG]);
+if (G_ANCHORS.length === 0) throw new Error('calreport/milestones: no H5.gpath.* anchors in balance/scenarios.ts');
 const G_PATH_FROM = dayOfDate(START_DATE, '2025-08-01');
 const G_PATH_TO = dayOfDate(START_DATE, '2026-11-30');
 
