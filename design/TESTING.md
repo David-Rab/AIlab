@@ -21,6 +21,18 @@ with its source and band, one home per target. It does not live in a test.
 
 A sanity bound must be loose enough that tuning can't break it, and tight enough that a real bug does.
 
+**One home per target.** Every sourced band is written once, in `balance/targets.ts` (the target registry, the balance
+session's file; `npm run registry:lint` checks it). The calibration report, the back-of-envelope estimates and the
+dashboards refer to a target by its id and read band, unit and source from there. No band literal anywhere else. A
+missing target is added to the registry with its source (paper, dataset or official figure), band, unit and
+tolerance.
+
+**Back-of-envelope estimates.** These are pure calculations: the engine's own functions and parameters evaluated on
+sourced reference inputs (the reference curves, the start tables), compared to the registry target. **No games, no
+bots, no ticks**, milliseconds in total. They call engine functions and never re-implement their maths; each chain is
+2–4 calls, written in a comment. Out of band is a WARN for the balance session (calibration); only NaN, a wrong unit or
+an absurd miss (×10) fails. They are the fast "is it roughly balanced" signal between balance checkpoints.
+
 ## 1. Cost follows importance
 
 - Every job in `scripts/v2/run.ts` declares a CPU budget. run.ts warns when a job goes over it. A job that grows over
