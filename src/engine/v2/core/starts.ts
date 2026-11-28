@@ -21,31 +21,34 @@ const SITE_MAX_MW = 1000;
 
 export interface StartCompute { sites: Site[]; cloud: CloudContract[]; ledger: Commitment$[] }
 
-/** Owned compute in live sites, rented compute as one cloud contract, and their ledger payments. A division's
- *  campuses are the parent's (capex paid, no rent); a challenger's owned racks sit in a rented hall. */
+/** Owned compute in live sites, rented compute as one cloud contract, and their ledger payments. A position with
+ *  built campuses (capital-heavy: a division's, or a founder's like Colossus) has them paid, no rent; the others' owned
+ *  racks sit in a rented hall. */
 export function startCompute(def: PositionDef, kind: LabKindDef, startDate: string): StartCompute {
   const sites: Site[] = [];
   const ledger: Commitment$[] = [];
   const base = { crash: false, communityPackage: false, spvFunded: 0, stage: 'live' as const, stageEndDay: 0 };
   if (def.owned > 0) {
-    const parent = ownerFunded(startControl(kind));
-    const campuses = parent ? 2 : 1;
+    // Built and paid campuses (whoever owns the company) or racks in a rented hall; the campus's name says whose it is.
+    const built = def.ownedCampusesPaid === true;
+    const owner = ownerFunded(startControl(kind));
+    const campuses = built ? 2 : 1;
     const startDay = -500;
     for (let i = 0; i < campuses; i++) {
       const h = def.owned / campuses;
       const mw = Math.ceil((h * KW_PER_H * SITE_HEADROOM) / 1000 / 10) * 10;
-      const parts = parent ? Math.ceil(mw / SITE_MAX_MW) : 1;
+      const parts = built ? Math.ceil(mw / SITE_MAX_MW) : 1;
       for (let j = 0; j < parts; j++) {
         const partMW = Math.ceil(mw / parts / 10) * 10;
-        const capex = parent ? (partMW / 1000) * GRID_CAPEX_PER_GW : 0;
+        const capex = built ? (partMW / 1000) * GRID_CAPEX_PER_GW : 0;
         const id = `S${sites.length + 1}`;
-        const campus = parent ? ['Parent campus West', 'Parent campus East'][i] : 'Rented hall North';
+        const campus = built ? [`${owner ? 'Parent campus' : 'Campus'} West`, `${owner ? 'Parent campus' : 'Campus'} East`][i] : 'Rented hall North';
         sites.push({
           ...base, id, name: parts > 1 ? `${campus} ${j + 1}` : campus, region: 'US',
-          path: parent ? 'grid' : 'rent', mw: partMW, capex, capexPaid: capex, installed: h / parts,
-          ws3: { rolled: true, delayedQ: 0, buildQ: parent ? 8 : 0, powerQ: parent ? 0 : 1, startDay, liveDay: startDay },
+          path: built ? 'grid' : 'rent', mw: partMW, capex, capexPaid: capex, installed: h / parts,
+          ws3: { rolled: true, delayedQ: 0, buildQ: built ? 8 : 0, powerQ: built ? 0 : 1, startDay, liveDay: startDay },
         });
-        if (!parent) ledger.push({ id: `L-rent-${id}`, payee: 'Data-centre rent', kind: 'lease', perQuarter: ((partMW / 1000) * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 });
+        if (!built) ledger.push({ id: `L-rent-${id}`, payee: 'Data-centre rent', kind: 'lease', perQuarter: ((partMW / 1000) * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 });
       }
     }
   }

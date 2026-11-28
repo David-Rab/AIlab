@@ -243,6 +243,9 @@ export interface NpcSetupLab {
   kind: import('../../data/v2/npcLabs').NpcKindId;
   lagMonths: number;
   personality?: Partial<import('../../data/v2/npcLabs').Personality>;
+  /** Its owner company and backers (CORPORATE.md §5.8); absent: the kind's (the cast entry's). */
+  owner?: import('../../data/v2/deals').CompanyId;
+  backers?: Partial<Record<import('../../data/v2/deals').CompanyId, number>>;
 }
 
 /** What a lab starts with (CORPORATE.md §6.1): staff, model, compute, cash and products; no holders, no partners. */
@@ -2185,6 +2188,9 @@ export interface NpcLabState {
   goalposts?: number;
   /** The player's adjusted seven values (setup.cast); absent: the kind's. */
   pers?: import('../../data/v2/npcLabs').Personality;
+  /** The company that owns this lab, and the companies that back it with their share (cast data, CORPORATE.md §5.8). */
+  owner?: import('../../data/v2/deals').CompanyId;
+  backers?: Partial<Record<import('../../data/v2/deals').CompanyId, number>>;
   /** Model family (invented, data/v2/npcLabs.ts). */
   family: string;
   /** Lag behind the reference frontier (days) and its normal value d0. */

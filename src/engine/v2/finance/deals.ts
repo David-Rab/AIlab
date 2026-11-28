@@ -12,7 +12,7 @@
 // rival lab close ~10% a year of your capability lead (npc/shocks.ts ipAccess, a line in the rivals' day), its money
 // scaling with that lead, behind the PBC + trust's transfer vote for a capability-threshold model.
 // Owner: WS3.
-import { AFFILIATE_KIND, firmDiscount, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
+import { firmDiscount, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
 import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, RivalLab, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
@@ -55,11 +55,10 @@ const ST = PARTNER_TERMS.strings;
  *  before the start do not count. At most PARTNER_TERMS.strings.maxPartners (3). */
 export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => !d.legacy).map((d) => d.partner))];
 
-/** A partner's affiliated lab now (data/v2/deals.ts AFFILIATE_KIND): the active big-tech NPC lab, for a partner marked
- *  `inHouse`; none otherwise. */
+/** A partner's affiliated lab now (CORPORATE.md §5.8): the active NPC lab whose cast owner is that company, or none (a
+ *  chip vendor owns no lab; when the player's kind replaced the partner's lab, the lab is the player's: none). */
 export function affiliatedLab(s: GameStateV2, partner: string): RivalLab | undefined {
-  if (!partnerDef(partner)?.inHouse) return undefined;
-  return s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === AFFILIATE_KIND);
+  return s.rivals.find((r) => r.core.status === 'active' && r.npc.owner === partner);
 }
 const labName = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab;
 

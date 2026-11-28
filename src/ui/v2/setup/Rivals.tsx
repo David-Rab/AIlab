@@ -1,6 +1,7 @@
 // Setup: the Rivals section (design/npc/NPC-LABS.md §10). Realistic (default): the July 2025 cast, one line each.
 // Create rivals (advanced): how many US labs (0-6), per lab a kind, a start lag and, optionally, its seven values.
 import { useState, type ReactNode } from 'react';
+import { tiesLabel } from '../../../data/v2/deals';
 import { KINDS, REALISTIC_CAST, type FocusChannel, type NpcKindId, type OpennessRule, type Personality } from '../../../data/v2/npcLabs';
 import type { NpcSetupLab, SetupV2 } from '../../../engine/v2';
 import { kindOf } from '../../../data/v2/starts';
@@ -39,6 +40,7 @@ function CastList({ replaced }: { replaced?: NpcKindId }) {
         return (
           <div className="cast-row" key={e.id} data-cast={e.id}>
             <b className="cast-name">{e.name}</b>
+            {(e.owner || e.backers) && <Tip content={() => <TipCard title={<Term id={e.owner ? 'ownedBy' : 'backedBy'}>Company ties</Term>}>{e.owner ? `${e.owner} owns this lab: it is its in-house lab.` : 'A company holds a stake in this lab and values you less while its money is on a competitor.'}</TipCard>}><span className="cast-ties dim small">{tiesLabel(e.owner, e.backers)}</span></Tip>}
             <span className="cast-kind">{k ? <Term id={k.term}>{k.label}</Term> : 'State lab'}</span>
             <Tip content={() => <TipCard title={<Term id="npcStartLag">Months behind</Term>}>{e.start.publicLagMonths === null ? 'No public model yet; its level is a guess.' : `Its best public model matches the leading lab's from ${fmtLag(lag).replace(' behind', '')} earlier.`}</TipCard>}>
               <span className="cast-lag mono">{e.start.publicLagMonths === null ? `~${lag} mo, no model` : fmtLag(lag)}</span>

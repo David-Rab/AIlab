@@ -6,6 +6,9 @@ import { LAB_KIND_BY_ID, POSITION_BY_ID, parentBudgetYear } from '../../src/data
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import type { Charter, GameStateV2, LabKindId, Ownership } from '../../src/engine/v2/types';
+import { COMPANY_IDS, PARTNER_DEFS } from '../../src/data/v2/deals';
+import { KINDS as NPC_KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';
+import { affiliatedLab } from '../../src/engine/v2/finance/deals';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol = 1e-3) => Math.abs(a - b) <= tol;
@@ -109,4 +112,13 @@ check(near(ci.player.finance.ownership.founder, 0.35) && near(ci.player.finance.
 const cfr = cu('founderMajority', {}, 'frontier');
 check(cfr.player.finance.cash === POSITION_BY_ID.frontier.cash && cfr.player.finance.ownership.founder === 0.6 && !cfr.player.finance.deals.length, 'custom frontier: the frontier row\'s cash with the custom cap table and no Northwind stake');
 
+// C5b: the companies cast and who owns or backs each lab.
+const castOwners = REALISTIC_CAST.filter((e) => e.owner);
+check(REALISTIC_CAST.every((e) => (!e.owner || COMPANY_IDS.includes(e.owner)) && Object.keys(e.backers ?? {}).every((c) => COMPANY_IDS.includes(c as never))), 'C5b every cast owner and backer is a company in COMPANIES');
+check(REALISTIC_CAST.every((e) => (NPC_KINDS[e.kind].funding === 'parent') === !!e.owner), 'C5b funding parent <=> owner set', castOwners.map((e) => e.kind + ':' + e.owner).join(' '));
+check(REALISTIC_CAST.find((e) => e.kind === 'bigtech')?.owner === 'Azimuth' && REALISTIC_CAST.find((e) => e.kind === 'openweights')?.owner === 'Lattice' && REALISTIC_CAST.find((e) => e.kind === 'leader')?.backers?.['Northwind Cloud'] === 0.27 && REALISTIC_CAST.find((e) => e.kind === 'safety')?.backers?.Azimuth === 0.14 && !REALISTIC_CAST.some((e) => ['racer', 'upstart', 'china'].includes(e.kind) && (e.owner || e.backers)), 'C5b cast ties: bigtech Azimuth, open-weights Lattice, leader backed by Northwind 27%, safety by Azimuth 14%, racer, upstart and China none');
+check(affiliatedLab(games.leader, 'Azimuth')?.npc.kind === 'bigtech' && !affiliatedLab(games.bigtech, 'Azimuth') && !affiliatedLab(games.leader, 'Northwind Cloud') && !affiliatedLab(games.leader, 'Silica Systems'), 'C5b affiliatedLab: Azimuth -> the big-tech lab on the leader kind, none on the bigtech kind; Northwind and Silica none');
+check(!PARTNER_DEFS.some((x) => x.id === 'Lattice') && affiliatedLab(games.leader, 'Lattice')?.npc.kind === 'openweights', 'C5b Lattice is not a partner (no terms), and owns the open-weights lab');
+const rs = games.racer.player.sites;
+check(rs.length > 0 && rs.every((x) => x.path === 'grid' && x.capexPaid === x.capex && x.capex > 0) && !games.racer.player.finance.ledger?.some((c) => c.kind === 'lease'), 'C5b racer: sites are owned grid campuses, capex paid, no rent', rs.map((x) => x.name + ' ' + x.mw + ' MW').join(', '));
 finish('corp');
