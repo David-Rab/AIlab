@@ -2,6 +2,8 @@
 
 **Open items ("for later"): [OPEN.md](OPEN.md)** — the one list; add new ones there.
 
+**Writing or changing a test: [TESTING.md](TESTING.md)** — cost follows importance, constructed cases, no heavy runs without asking. Audit 2026-11-28: [test-audit/TEST-AUDIT.md](test-audit/TEST-AUDIT.md).
+
 ## Live specs (what the game is)
 
 | Area | Spec |
