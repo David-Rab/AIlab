@@ -19,7 +19,7 @@
 // Product-feature nodes wait for live products (R6).
 import { AG17_MIN_L, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { posteriorBand } from '../safety/agendas';
-import { START_BY_ID } from '../../../data/v2/starts';
+import { positionOf } from '../../../data/v2/starts';
 import {
   CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, isLineNode, lineNodeId,
   type OptionSlot, type TreeNodeDef,
@@ -46,10 +46,10 @@ const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 /** Department whose science teams work a node. */
 export const nodeDept = (n: Pick<TreeNodeDef, 'column'>): TeamDept => COLUMN_DEPT[n.column];
 
-/** Start state: ★ nodes known by every company, plus the start type's known nodes (data/v2/starts.ts; R9). */
-export function initialTree(setup: Pick<SetupV2, 'start'>): Record<string, TreeNodeState> {
+/** Start state: ★ nodes known by every company, plus the start position's known nodes (data/v2/starts.ts; R9). */
+export function initialTree(setup: Pick<SetupV2, 'labKind' | 'custom'>): Record<string, TreeNodeState> {
   const out: Record<string, TreeNodeState> = {};
-  const extra = new Set(START_BY_ID[setup.start ?? 'leader'].known);
+  const extra = new Set(positionOf({ setup }).known);
   for (const n of TREE) if (n.star || extra.has(n.id)) out[n.id] = { status: 'known', progress: 1, day: 0 };
   return out;
 }

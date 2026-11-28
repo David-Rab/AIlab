@@ -223,8 +223,18 @@ export interface SetupV2 {
   tutorial: boolean;
   seed: number;
   companyName: string;
-  /** Start type (STRUCTURE §4.8, BUILD-PLAN R9; data/v2/starts.ts). */
-  start: StartType;
+  /** The lab kind the player starts as (design/corp/CORPORATE.md §6.2; data/v2/starts.ts LAB_KINDS), or 'custom'. */
+  labKind: LabKindId | 'custom';
+  /** The 'custom' kind's choices: a position, a charter and a cap-table preset (engine support; the setup screen is C6). */
+  custom?: CustomKind;
+}
+
+/** The custom lab kind's choices (CORPORATE.md §6.2): any position, a charter, and one of three cap-table presets
+ *  ('wholly' = owned outright by Azimuth, with voting shares). */
+export interface CustomKind {
+  position: PositionId;
+  charter: { missionBody?: boolean; profitCap?: boolean };
+  capTable: 'founderMajority' | 'investorHeavy' | 'wholly';
 }
 
 /** One custom US NPC lab (setup.cast): its kind, its start lag behind the frontier (months), and optional overrides of
@@ -235,8 +245,10 @@ export interface NpcSetupLab {
   personality?: Partial<import('../../data/v2/npcLabs').Personality>;
 }
 
-/** The four starts (BUILD-PLAN R9): a spinout, a challenger, a big-tech lab, or the frontier leader. */
-export type StartType = 'spinout' | 'challenger' | 'bigtech' | 'leader';
+/** What a lab starts with (CORPORATE.md §6.1): staff, model, compute, cash and products; no holders, no partners. */
+export type PositionId = 'frontier' | 'contender' | 'talent' | 'capital' | 'scratch';
+/** The six lab kinds (CORPORATE.md §6.2): a position + charter + cap table + starting partners + the NPC lab replaced. */
+export type LabKindId = 'leader' | 'safety' | 'racer' | 'bigtech' | 'breakaway' | 'newcomer';
 
 export interface TimeState {
   day: Day;

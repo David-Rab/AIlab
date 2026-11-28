@@ -14,7 +14,7 @@ import { endingView } from '../../src/engine/v2/endings/view';
 let fails = 0;
 const check = (ok: boolean, msg: string, d = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${d ? `  (${d})` : ''}`); if (!ok) fails++; };
 
-const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
 const r = s.rivals.find((x) => x.npc)!;
 const id = r.core.id;
 const th = lossThreshold(s);

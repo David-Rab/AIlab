@@ -16,7 +16,7 @@ const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const labs = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab];
 
-const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
 const y0 = decimalYear(s);
 
 /** A copy where lab `id` sits at G `base`, the lab `other` (if any) at G `og`, and everything else (labs and the player's

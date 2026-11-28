@@ -11,7 +11,7 @@ import { readFileSync, readdirSync } from 'fs';
 let fails = 0;
 const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e * Math.max(1, Math.abs(b));
-const mk = () => newGame(defaultSetupV2({ world: 'tl-central', seed: 11, tutorial: false, start: 'challenger' }));
+const mk = () => newGame(defaultSetupV2({ world: 'tl-central', seed: 11, tutorial: false, labKind: 'safety' }));
 const pending = (s: ReturnType<typeof mk>, id: string) => s.market.ws3.labOrders.filter((o) => o.lab === id).reduce((t, o) => t + o.qty - o.delivered, 0);
 
 // 1. The plan: start compute x 2.25 a year for every lab, the same rate.

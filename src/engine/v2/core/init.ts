@@ -7,7 +7,7 @@ import { deriveNames } from '../models/naming';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { DISTILL_TPP, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibration';
-import { START_BY_ID, startLagG } from '../../../data/v2/starts';
+import { kindOf, positionOf, startLagG } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { Rng, clamp } from '../../rng';
@@ -71,7 +71,7 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
     ...over,
-    start: over.start ?? 'leader',
+    labKind: over.labKind ?? 'leader',
   };
 }
 
@@ -136,12 +136,13 @@ function startModels(w: TimelineWorld, G0: number, uniqueT: number) {
 function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDate: string): PlayerLab {
   const { setup, hidden } = s;
   const w = hidden.timeline;
-  const start = setup.start ?? 'leader';
-  const def = START_BY_ID[start];
-  const leader = start === 'leader';
+  const def = positionOf(s);
+  const kind = kindOf(s);
+  // The frontier position keeps the owners' initialisers (finance, sites, orders, cloud), which read its row.
+  const leader = def.id === 'frontier';
   // §3.1.4 initial state: B0 finished day −120, V0 day −20 (data/v2/calibration.ts START_STATE, RD-U06).
   // A follower's start lag in OOM of G: its months behind at the stated pre-game pace (RD-L03).
-  const lagG = leader ? 0 : startLagG(start);
+  const lagG = leader ? 0 : startLagG(def);
   const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
   // Model v3 D5: the start suites' expert data (one asset per start RL family) replaces D1's empty expert placeholder.
   dataPortfolio.assets = [...dataPortfolio.assets.filter((a) => a.kind !== 'expert'), ...startExpertAssets()];
@@ -153,7 +154,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const k = sm.lag;
   const G0 = lagG ? gWant : sm.G;
   const build = sm.build;
-  const roster = startTeams(start);
+  const roster = startTeams(def);
   const staff = staffOf(roster.teams);
   const Lg = levelOfG(w, G0);
   const domains = domainsOf(w, G0, build);
@@ -214,7 +215,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     const t = leader ? undefined : safety.techniques[id];
     if (t && !t.unlocked) Object.assign(t, { unlocked: true, active: TECHNIQUE_BY_ID[id]?.role !== 'fix' });
   }
-  const compute = leader ? undefined : startCompute(def, startDate);
+  const compute = leader ? undefined : startCompute(def, kind, startDate);
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
     computeOnline: def.owned + def.rented,
@@ -238,9 +239,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     security: initialSecurity(staff, def.securityLevel),
     actionDay: {},
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
-    finance: compute ? startFinance(def, compute) : initialFinance(startDate),
+    finance: compute ? startFinance(def, kind, compute) : initialFinance(startDate, kind),
     board: { confidence: 70, extraSeats: [] },
-    charter: startCharter(def),
+    charter: startCharter(kind),
     sites: compute ? compute.sites : initialSites(startDate),
     orders: compute ? [] : initialOrders(),
     cloud: compute ? compute.cloud : initialCloud(startDate),
@@ -258,7 +259,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     tooling: [...def.tooling],
     morale: { overall: 70, safety: 65 },
     dataPortfolio,
-    suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)
+    suites: startSuites(def), // model v3 D5: the frontier, contender and capital positions hardened; the cheap ones (talent, scratch) not (data/v2/starts.ts exploitMult)
     policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, autoSplit: { on: false, to: ['experiments'] }, servingAuto: true, upgradeToNewest: false, autoEvaluate: true, autoCheapTier: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
   };
@@ -300,10 +301,8 @@ export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, player: Pi
 }
 
 export function newGame(setupIn: SetupV2): GameStateV2 {
-  // R1 setup fields: callers built before them (older UI drafts, scripts) get today's start.
-  // R9: the start type sets the leader lab (D1) unless the caller sets it, and the cap table and charter.
-  const start = setupIn.start ?? 'leader';
-  const setup: SetupV2 = { ...setupIn, start };
+  // Callers built before the lab kind (older UI drafts, scripts) get today's start, the frontier leader.
+  const setup: SetupV2 = { ...setupIn, labKind: setupIn.labKind ?? 'leader' };
   const startDate = START_DATE;
   const rngState = seedStreams(setup.seed);
   const worldRng = new Rng(rngState.world);
@@ -315,8 +314,8 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // player's own start model is.
   const g0 = gV0(w);
   // N2b-1 (design/npc/NPC-LABS.md §10): the US NPC labs and China's lab are the Realistic cast (data/v2/npcLabs.ts),
-  // placed on the reference frontier at their measured lags; the leader-kind lab is absent when the player starts as
-  // the frontier leader. N10: the cast is setup.cast ('realistic', or the player's custom list; npc/lab.ts castOf). Their
+  // placed on the reference frontier at their measured lags; the NPC lab of the player's kind (replacesNpc) is absent:
+  // the player takes its place. N10: the cast is setup.cast ('realistic', or the player's custom list; npc/lab.ts castOf). Their
   // postures come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
   const cast = castOf(setup);
   const nNpc = cast.length + 1;

@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { misalignment } from '../../src/engine/v2/safety/traits';
-import type { AlignDiffId, EndingId, EndingV2, GameStateV2, StartType, TraitId, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, EndingId, EndingV2, GameStateV2, LabKindId, TraitId, WorldPresetId } from '../../src/engine/v2/types';
 import { ALL, newBotGame, playBot } from './botgame';
 
 // The game loop (playBot), the bot table and the game setup live in botgame.ts, shared with balrun.ts.
@@ -24,7 +24,7 @@ const arg = (k: string, d: string) => {
 };
 const SEEDS = Number(arg('seeds', '200'));
 const BOTS = arg('bots', 'race,safe,mixed,capex2x,ref').split(',').filter((b) => ALL[b]);
-const START = arg('start', 'leader') as StartType;
+const START = arg('start', 'leader') as LabKindId;
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
   { world: 'tl-central', alignment: 'medium' }, { world: 'tl-central', alignment: 'sampled' },
   { world: 'tl-fast', alignment: 'medium' }, { world: 'tl-fast', alignment: 'sampled' },

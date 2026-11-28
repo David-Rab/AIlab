@@ -4,18 +4,18 @@
 //
 // research/18 §0.2 targets (STRUCTURE §4.8 "the engine should reproduce these for the matching start types"), with a
 // competent bot policy (the mixed bot; the race bot as the capability-first alternative):
-//   spinout     first own model (first version on its own base) 9–12 months behind the leader, 12–17 months in;
+//   breakaway    first own model (first version on its own base) 9–12 months behind the leader, 12–17 months in;
 //   big tech    6 months behind at the start → 3–5 months within months 9–15;
-//   challenger  parity (≤ 0.5 month) possible (in at least one game) within months 12–18.
+//   safety-first contender  parity (≤ 0.5 month) possible (in at least one game) within months 12–18.
 // "Months behind" = how long ago the simulated leader lab's internal model stood where the player's best model stands
 // (before day 0: extrapolated at the leader's start rate). Also reports each start's ending mix: non-leader starts
 // should be hard but winnable (some wins; "overtaken" a common loss, not the only outcome).
-import { START_BY_ID } from '../../src/data/v2/starts';
+import { LAB_KIND_BY_ID, POSITION_BY_ID } from '../../src/data/v2/starts';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { raceBot } from '../../src/engine/v2/bots/race';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import type { BotPolicy, GameStateV2, StartType } from '../../src/engine/v2/types';
+import type { BotPolicy, GameStateV2, LabKindId } from '../../src/engine/v2/types';
 import { engine } from '../../src/engine/v2';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
@@ -30,11 +30,11 @@ const BOTS: Record<string, BotPolicy> = { mixed: mixedBot, race: raceBot };
 const BOT_NAMES = arg('bots', 'mixed,race').split(',').filter((b) => BOTS[b]);
 const MO = 365 / 12;
 
-interface Game { start: StartType; bot: string; seed: number; ending: string; verdict: string; day: number; lagByMonth: number[]; firstOwn?: { month: number; lag: number } }
+interface Game { start: LabKindId; bot: string; seed: number; ending: string; verdict: string; day: number; lagByMonth: number[]; firstOwn?: { month: number; lag: number } }
 
-function play(start: StartType, botName: string, seed: number): Game {
+function play(start: LabKindId, botName: string, seed: number): Game {
   const bot = BOTS[botName];
-  const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'tl-fast' : 'tl-central', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
+  const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'tl-fast' : 'tl-central', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, labKind: start }));
   const L = s.rivals.find((r) => r.npc.kind === 'leader')!;
   const lPm: number[] = [L.internal.G];
   const rate0 = PRE_GAME_G_PER_YEAR; // G a year: the stated pre-game pace (RD-L03)
@@ -59,7 +59,7 @@ function play(start: StartType, botName: string, seed: number): Game {
     if (!out.firstOwn) {
       const own = ownBase(s);
       const v = s.player.models.versions.find((x) => own.has(x.baseId) && x.variant === 'full' && x.day > 0);
-      if (v && start === 'spinout') out.firstOwn = { month: d / MO, lag: lagAt(v.G, d) };
+      if (v && start === 'breakaway') out.firstOwn = { month: d / MO, lag: lagAt(v.G, d) };
     }
     if (d % 30 === 0) {
       const b = best(s);
@@ -71,7 +71,7 @@ function play(start: StartType, botName: string, seed: number): Game {
 
 const games: Game[] = [];
 const t0 = performance.now();
-for (const start of ['challenger', 'bigtech', 'spinout'] as StartType[]) {
+for (const start of ['safety', 'racer', 'bigtech', 'breakaway', 'newcomer'] as LabKindId[]) {
   for (const b of BOT_NAMES) for (let i = 0; i < SEEDS; i++) games.push(play(start, b, 30_000 + i));
   process.stderr.write(`  ${start}: ${((performance.now() - t0) / 1000).toFixed(0)} s\n`);
 }
@@ -81,7 +81,7 @@ const med = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.fl
 const window = (g: Game, a: number, b: number) => g.lagByMonth.slice(a, b + 1);
 
 console.log('\nMonths behind the leader lab (median over games; months 0 / 6 / 12 / 18 / 24):');
-for (const start of ['challenger', 'bigtech', 'spinout'] as StartType[]) {
+for (const start of ['safety', 'racer', 'bigtech', 'breakaway', 'newcomer'] as LabKindId[]) {
   for (const b of BOT_NAMES) {
     const gs = games.filter((g) => g.start === start && g.bot === b);
     const at = (m: number) => f1(med(gs.map((g) => g.lagByMonth[m]).filter((x) => x !== undefined)));
@@ -90,26 +90,26 @@ for (const start of ['challenger', 'bigtech', 'spinout'] as StartType[]) {
 }
 
 // Spinout: first own model 9–12 months behind, 12–17 months in (median over games that shipped one).
-const sp = games.filter((g) => g.start === 'spinout' && g.firstOwn);
+const sp = games.filter((g) => g.start === 'breakaway' && g.firstOwn);
 const spMonth = med(sp.map((g) => g.firstOwn!.month));
 const spLag = med(sp.map((g) => g.firstOwn!.lag));
-check(sp.length > 0 && spMonth >= 12 && spMonth <= 17 && spLag >= 9 && spLag <= 12, 'spinout: first own model 9–12 months behind, 12–17 months in', `${sp.length}/${games.filter((g) => g.start === 'spinout').length} shipped one; median month ${f1(spMonth)}, lag ${f1(spLag)} mo`);
+check(sp.length > 0 && spMonth >= 12 && spMonth <= 17 && spLag >= 9 && spLag <= 12, 'breakaway: first own model 9–12 months behind, 12–17 months in', `${sp.length}/${games.filter((g) => g.start === 'breakaway').length} shipped one; median month ${f1(spMonth)}, lag ${f1(spLag)} mo`);
 // Big tech: 6 → 3–5 months within months 9–15 (the median game's best lag in that window).
 const bt = games.filter((g) => g.start === 'bigtech').map((g) => Math.min(...window(g, 9, 15)));
 check(med(bt) >= 3 && med(bt) <= 5, 'big tech: 6 → 3–5 months behind within months 9–15', `median best lag in months 9–15 ${f1(med(bt))} mo (games: ${bt.map(f1).join(', ')})`);
 // Challenger: parity (≤ 0.5 mo) possible within months 12–18.
-const ch = games.filter((g) => g.start === 'challenger').map((g) => Math.min(...window(g, 12, 18)));
-check(ch.some((x) => x <= 0.5), 'challenger: parity possible within months 12–18', `best lag in months 12–18 per game: ${ch.map(f1).join(', ')}`);
+const ch = games.filter((g) => g.start === 'safety').map((g) => Math.min(...window(g, 12, 18)));
+check(ch.some((x) => x <= 0.5), 'safety-first contender: parity possible within months 12–18', `best lag in months 12–18 per game: ${ch.map(f1).join(', ')}`);
 
 console.log('\nEndings by start (bots ' + BOT_NAMES.join(', ') + '):');
-for (const start of ['challenger', 'bigtech', 'spinout'] as StartType[]) {
+for (const start of ['safety', 'racer', 'bigtech', 'breakaway', 'newcomer'] as LabKindId[]) {
   const gs = games.filter((g) => g.start === start);
   const n = gs.length;
   const wins = gs.filter((g) => g.verdict === 'win').length;
   const mix = new Map<string, number>();
   for (const g of gs) mix.set(g.ending, (mix.get(g.ending) ?? 0) + 1);
   const top = [...mix.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
-  console.log(`  ${start.padEnd(10)} [${START_BY_ID[start].difficulty}] win ${wins}/${n} · ${top}`);
+  console.log(`  ${start.padEnd(10)} [${POSITION_BY_ID[LAB_KIND_BY_ID[start].position].difficulty}] win ${wins}/${n} · ${top}`);
   const over = gs.filter((g) => g.ending === 'overtaken').length;
   check(wins > 0 && over < n, `${start}: hard but winnable (some wins; overtaken not the only outcome)`, `${wins} wins, ${over} overtaken of ${n}`);
 }

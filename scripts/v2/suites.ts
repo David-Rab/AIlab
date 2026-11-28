@@ -9,8 +9,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
-import { EXPERT_START_T, EXPLOIT_START, START_EXPLOIT_MULT, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
-const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * START_EXPLOIT_MULT.spinout])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
+import { EXPERT_START_T, EXPLOIT_START, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { POSITION_BY_ID } from '../../src/data/v2/starts';
+const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * POSITION_BY_ID.talent.exploitMult])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
 
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -26,11 +27,11 @@ import {
   S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, tasksOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
-import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
+import type { GameStateV2, LabKindId, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (labKind: LabKindId = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind, tutorial: false }));
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 const expert = (s: GameStateV2, f: RLFamily) => s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.id === expertAssetId(f));
 const F0 = 3e26;
@@ -61,10 +62,10 @@ check(Object.values(vb.rlFid ?? {}).every((x) => x === 1) && vb.dgRL === v0NoFid
 // ---------- reference S2 (exploitability at the start = V1's hardened graders) ----------
 const s2 = (s: GameStateV2, o: Partial<PostDesign> = {}) => postSignals(s, post(o)).S2;
 check(near(s2(s0), 0.36, 1e-9), 'start suites reproduce V1\'s reference S2 (standard, broad, hardened graders: 0.6 × 0.6 = 0.36)', s2(s0).toFixed(4));
-const starts = { challenger: game('challenger'), bigtech: game('bigtech'), spinout: game('spinout') };
-check(near(s2(starts.challenger), 0.36, 1e-9) && near(s2(starts.bigtech), 0.36, 1e-9) && near(s2(starts.spinout), 0.9, 1e-9),
-  'follower starts by their start tables: challenger and big tech hardened (0.36), the spinout cheap (0.9 = V1\'s cheap graders)',
-  `${s2(starts.challenger).toFixed(3)} / ${s2(starts.bigtech).toFixed(3)} / ${s2(starts.spinout).toFixed(3)}`);
+const starts = { safety: game('safety'), bigtech: game('bigtech'), breakaway: game('breakaway') };
+check(near(s2(starts.safety), 0.36, 1e-9) && near(s2(starts.bigtech), 0.36, 1e-9) && near(s2(starts.breakaway), 0.9, 1e-9),
+  'follower starts by their start tables: the safety-first contender and big tech hardened (0.36), the breakaway cheap (0.9 = V1\'s cheap graders)',
+  `${s2(starts.safety).toFixed(3)} / ${s2(starts.bigtech).toFixed(3)} / ${s2(starts.breakaway).toFixed(3)}`);
 check(near(s2(s0, { rlBudget: 'light' }), 0.18, 0.002) && near(s2(s0, { rlBudget: 'heavy' }), 0.468, 0.002), 'the RL budget\'s optimisation pressure (model v3 E3: Gao\'s log form in ρ) keeps V1\'s light ×0.5, heavy ×1.3 within 1%',
   `${s2(s0, { rlBudget: 'light' }).toFixed(3)} / ${s2(s0, { rlBudget: 'heavy' }).toFixed(3)}`);
 const wSwe = rlWeights(['swe'], START_FAMS);

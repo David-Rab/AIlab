@@ -6,7 +6,7 @@
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
 import { CAMPUS, PARTNERS, SITE_MIN_MW, SITE_TIERS, type CampusBuildings } from '../../../data/v2/deals';
-import { START_BY_ID } from '../../../data/v2/starts';
+import { POSITION_BY_ID, positionOf } from '../../../data/v2/starts';
 import { ownerFunded } from './control';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
@@ -50,12 +50,12 @@ export interface AutopilotOpts {
   scale?: number;
 }
 
-/** Follower starts (R9: spinout, challenger, big-tech division): start from their own compute, aim to close on the
+/** Follower starts (R9: every position but the frontier): start from their own compute, aim to close on the
  *  reference path over FOLLOWER_RAMP_D days, and keep two more quarters of runway than the leader-start policy (a
  *  smaller company cannot carry the leader's commitments). The leader start's options are unchanged. */
 export const FOLLOWER_RAMP_D = 730;
 export function followerOpts(s: GameStateV2, o: AutopilotOpts): AutopilotOpts {
-  if ((s.setup.start ?? 'leader') === 'leader') return o;
+  if (!positionOf(s).follower) return o;
   const r0 = refTotalAt(s, 0);
   const own0 = Number(s.flags['plan:own0'] ?? (s.flags['plan:own0'] = s.player.computeOnline));
   const phi0 = Math.min(1, own0 / Math.max(1, r0));
@@ -350,5 +350,5 @@ function isQuarterStart(s: GameStateV2) {
 /** Reference revenue run-rate ($B/yr) at a day: R11 #14 / AI27 table — $12B (Jul 2025), $45B (2026), ~$157B (2027),
  *  i.e. 12 × 3.5^years. Used by tests and bots until WS5's revenue model is live. */
 export function refRevenueRun(s: GameStateV2, day = s.time.day): number {
-  return START_BY_ID.leader.revenueRun * Math.pow(3.5, Math.min(day, 913) / 365) * Math.pow(1.8, Math.max(0, day - 913) / 365);
+  return POSITION_BY_ID.frontier.revenueRun * Math.pow(3.5, Math.min(day, 913) / 365) * Math.pow(1.8, Math.max(0, day - 913) / 365);
 }

@@ -47,9 +47,9 @@ check(Math.abs(sweAfter - sweRef - 0.3) < 1e-9, 'built Coding harness: SWE fit +
 check(act(tool, 'tooling.build', { id: 'codingHarness' }) !== undefined, 'a built tool cannot be queued again');
 
 // 3. Starts own the tools equivalent to their built features (CP4: the rev-56 migration check is gone with the UB-3 save break).
-const ch = newGame({ ...JSON.parse(serialize(base)).setup, start: 'challenger' } as never);
+const ch = newGame({ ...JSON.parse(serialize(base)).setup, labKind: 'safety' } as never);
 check(JSON.stringify(ch.player.tooling) === '["codingHarness"]', 'challenger start (Coding agent built) owns the Coding harness', JSON.stringify(ch.player.tooling));
-const ld = newGame({ ...JSON.parse(serialize(base)).setup, start: 'leader' } as never);
+const ld = newGame({ ...JSON.parse(serialize(base)).setup, labKind: 'leader' } as never);
 check(ld.player.tooling.length === 0, 'leader start: no internal tools (sector packs only), as before');
 
 // 4. Explicit model and per-package control.

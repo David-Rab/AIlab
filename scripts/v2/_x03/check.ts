@@ -27,7 +27,7 @@ const rm = readFileSync(join(SRC, 'engine', 'v2', 'actors', 'rivalModel.ts'), 'u
 check(clHits.length === 0 && !/refRlGain|rlOnBase|gPreOf\(/.test(rm), 'no clG in src; rivalModel.ts has no refRlGain / rlOnBase / direct gPreOf', clHits.join(', '));
 
 // 2. Run until each lab has made at least one new version, then recompute its release's G from the reference inputs.
-const s: GameStateV2 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start: 'leader', tutorial: false }));
+const s: GameStateV2 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind: 'leader', tutorial: false }));
 const labs = () => [...s.rivals, s.china.lab] as RivalLab[];
 const id0 = new Map(labs().map((r) => [r.core.id, r.internal.id]));
 const fams = rlFamiliesAvailable(() => false);

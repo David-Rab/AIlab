@@ -17,13 +17,13 @@ import {
   TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { LABOUR_KINDS } from '../../../data/v2/labourMarket';
-import { START_BY_ID } from '../../../data/v2/starts';
+import type { PositionDef } from '../../../data/v2/starts';
 import { ENG_UNIT_HEADS } from '../../../data/v2/workTypes';
 import { Phi } from '../production/ces';
 import { marketWeek, offerOf, weeksToNextTeam } from './market';
 import { measuredLabour, sdAIOf, workContext } from './workfit';
 import type {
-  Column, EngineSystem, GameStateV2, PlayerLab, StaffByRole, StartType, SystemCtx, Team, TeamDept,
+  Column, EngineSystem, GameStateV2, PlayerLab, StaffByRole, SystemCtx, Team, TeamDept,
   TeamHiring, TeamKey, TeamRole,
 } from '../types';
 
@@ -50,10 +50,9 @@ export function nextSpecialty(teams: readonly Team[], dept: TeamDept): Column {
 }
 
 /** Start roster (STRUCTURE §4.1): all Strong, full. */
-export function startTeams(start: StartType = 'leader'): { teams: Team[]; hiring: TeamHiring } {
-  // The leader start keeps today's roster (its row in data/v2/starts.ts teams, with START_SPECIALTIES); the other starts follow their rows (R9).
-  const def = START_BY_ID[start];
-  const leader = start === 'leader';
+export function startTeams(def: PositionDef): { teams: Team[]; hiring: TeamHiring } {
+  // The frontier position keeps today's roster (its row in data/v2/starts.ts teams, with START_SPECIALTIES); the others follow their rows (R9).
+  const leader = def.id === 'frontier';
   const counts = def.teams;
   const specs = leader ? START_SPECIALTIES : def.specialties;
   const hiring: TeamHiring = { targets: { ...counts }, progress: { eng: { key: 'eng', heads: 0 }, re: { key: 're.cap', heads: 0 }, sci: { key: 'sci.cap', heads: 0 } }, nextId: 1, premium: { eng: 0, re: 0, sci: 0 } };

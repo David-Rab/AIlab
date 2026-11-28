@@ -20,7 +20,7 @@ import { crf, payOptions, siteLeaseId } from '../../src/engine/v2/finance/capex'
 import { yearStats } from '../../src/engine/v2/finance/ledger';
 import { cashFlows } from '../../src/engine/v2/finance/runway';
 import { payOptionsPV } from '../../src/engine/v2/finance/pv';
-import type { GameStateV2, Site, StartType } from '../../src/engine/v2/types';
+import type { GameStateV2, Site, LabKindId } from '../../src/engine/v2/types';
 import { SMOKE, check, finish } from './lib';
 
 const near = (got: number, want: number, what: string, tol = 1e-9) =>
@@ -351,7 +351,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
 
 // ── DC-5: Start sites and start ledgers on rent / grid / gas ([D-10], [D-12]); no building above 1 GW ──
 {
-  for (const start of ['leader', 'challenger', 'bigtech', 'spinout'] as StartType[]) {
+  for (const start of ['leader', 'safety', 'bigtech', 'breakaway'] as LabKindId[]) {
     const s = game({ seed: 1, start });
     const t0 = s.time.startDate;
     console.log(`-- ${start}`);

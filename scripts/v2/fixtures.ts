@@ -55,10 +55,10 @@ for (const sn of main.snaps) {
   console.log(`      ${WRITE ? 'wrote' : 'built'} ${file} (${(sn.json.length / 1024).toFixed(0)} KB, internal ${sn.version}, measured L ${sn.measuredL}, M ${sn.M?.toFixed(2)})`);
 }
 
-// R9: day-400 fixtures for the challenger and spinout starts (RefBot with real finance and compute; endings skipped so
-// the fixture exists whatever the run's fate). Written as start-<type>-day400.json.
-for (const start of ['challenger', 'spinout'] as const) {
-  const setup = defaultSetupV2({ ...FIXTURE_SETUP, start });
+// R9: day-400 fixtures for the safety-first contender and talent breakaway lab kinds (RefBot with real finance and compute; endings skipped so
+// the fixture exists whatever the run's fate). Written as start-<kind>-day400.json.
+for (const start of ['safety', 'breakaway'] as const) {
+  const setup = defaultSetupV2({ ...FIXTURE_SETUP, labKind: start });
   const r = cached('fixtures-start', { setup, days: 400 }, [ME], () => {
     const t = newGame(setup);
     while (t.time.day < 400) {
@@ -68,7 +68,7 @@ for (const start of ['challenger', 'spinout'] as const) {
     }
     const back = deserialize(serialize(t));
     const v = internalVersion(t);
-    return { json: serialize(t), errs: validateJson(t), start: t.setup.start, leaderLab: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
+    return { json: serialize(t), errs: validateJson(t), start: t.setup.labKind, leaderLab: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
   });
   const errs = r.errs;
   check(errs.length === 0 && r.start === start && r.leaderLab, `fixture ${start} day 400 is plain JSON with the leader lab`, errs.slice(0, 3).join('; '));

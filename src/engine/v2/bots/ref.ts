@@ -26,6 +26,7 @@ import { flopPerToken, workFit } from '../departments/workfit';
 import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
 import { MONITOR_SAME } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
+import { positionOf } from '../../../data/v2/starts';
 import { PRODUCT_TOOL_BY_ID } from '../../../data/v2/tools';
 import { agentsGate } from '../models/products';
 import { deployGate } from '../models/deployments';
@@ -316,7 +317,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (p.status !== 'active') return;
   const c = o.settings ?? DEFAULT_REF;
   const day = s.time.day;
-  const follower = (s.setup.start ?? 'leader') !== 'leader';
+  const follower = positionOf(s).follower;
   const yr = decimalYear(s);
   const m = p.models;
 

@@ -9,17 +9,17 @@ import { buildSystem } from '../../../src/engine/v2/departments/build';
 import {
   START_SUITE_FAMILIES, completeSuiteWork, decaySuites, fidelityOf, suiteExploitMap, suiteFidelity, suiteOf, suiteRlWeights, suiteS2, suitesView, suiteExpertT,
 } from '../../../src/engine/v2/models/suites';
-import type { StartType } from '../../../src/engine/v2/types';
+import type { LabKindId } from '../../../src/engine/v2/types';
 import { check, finish } from '../lib';
 
-const game = (start: StartType = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (labKind: LabKindId = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind, tutorial: false }));
 const near = (a: number, b: number, e = 1e-9) => Math.abs(a - b) <= e;
 // Pre-RD-T07 start values: cheap 0.15 / 0.45 / 0.025 / 0.3 × 0.4 (leader); spinout × 2.5.
 const OLD_START = { math: 0.06, swe: 0.18, mlResearch: 0.12, longHorizon: 0.01, cyber: 0.01, bio: 0.01 } as const;
 
-for (const st of ['leader', 'spinout'] as StartType[]) {
+for (const st of ['leader', 'breakaway'] as LabKindId[]) {
   const s = game(st);
-  const m = st === 'spinout' ? 2.5 : 1;
+  const m = st === 'breakaway' ? 2.5 : 1;
   const fids = START_SUITE_FAMILIES.map((f) => suiteFidelity(s, f));
   const xs = START_SUITE_FAMILIES.map((f) => suiteOf(s, f)!.exploit);
   check(fids.every((x) => near(x, 1, 1e-9)) && START_SUITE_FAMILIES.every((f, i) => near(xs[i], OLD_START[f as keyof typeof OLD_START] * m, 1e-12)) && START_SUITE_FAMILIES.every((f) => near(suiteOf(s, f)!.tasks, START_TASKS, 1e-6)),

@@ -11,7 +11,7 @@ import { productOffer } from '../../../src/engine/v2/worldfx/serving';
 import { TOOL_LAG_DAYS } from '../../../src/data/v2/features';
 import { toolsAtStart, type LabArchetype } from '../../../src/data/v2/tools';
 const DAY0_TOOLS = (a: string) => toolsAtStart(a as LabArchetype); // MK-11: the rivals' start tools
-import { START_BY_ID } from '../../../src/data/v2/starts';
+import { POSITION_BY_ID } from '../../../src/data/v2/starts';
 import { toolNewInGame } from '../../../src/engine/v2/actors/rivalModel';
 import type { Deployment, GameStateV2, SectorId } from '../../../src/engine/v2/types';
 
@@ -27,7 +27,7 @@ const target = (s: GameStateV2, sid: SectorId) => {
 
 // 0. Day-0 tools from history.
 const b = game();
-check(START_BY_ID.leader.features.every((f) => b.player.features.includes(f)) && api(b).features.includes('computerUse'), 'the leader start has its historical tools on (Computer use on the API)', api(b).features.join(','));
+check(POSITION_BY_ID.frontier.features.every((f) => b.player.features.includes(f)) && api(b).features.includes('computerUse'), 'the leader start has its historical tools on (Computer use on the API)', api(b).features.join(','));
 check(b.rivals.every((r) => JSON.stringify(r.tools ?? []) === JSON.stringify(DAY0_TOOLS(r.archetype))) && (b.china.lab.tools ?? []).length === 0,
   'every rival starts with its archetype\'s DAY0_TOOLS; China with none', b.rivals.map((r) => `${r.archetype}:${(r.tools ?? []).join('+')}`).join(' '));
 

@@ -7,7 +7,7 @@
 // credibility and board confidence, never cash. Credibility (0–100, a four-rung ladder) multiplies the valuation mark
 // (interim until FIN5 moves it into the valuation share).
 import { dayOfQuarter, quarterIndex } from '../core/time';
-import type { Day, FinancePromise, GameStateV2, MilestoneType, Pitch, StartType, SystemCtx, Thesis } from '../types';
+import type { Day, FinancePromise, GameStateV2, MilestoneType, Pitch, SystemCtx, Thesis } from '../types';
 import { moodWeight } from './mood';
 import { computeFirm, computeOnline, computeSecured, publicLevel, revenueRun } from './observe';
 
@@ -34,9 +34,6 @@ export const CRED_RUNGS = [
  *  promise results (FIN3a, by seat kind: financial ×1.5, independent ×1, mission ×0.5). */
 export const PROMISE_RESULT = { metCred: 30, missCred: -30, metBoard: 30, missBoard: -30, band: 0.2 } as const;
 
-/** Start credibility by start type [D, spec §2.4]: leader Credible 60, challenger Credible 50, spinout Unproven 40. A
- *  division raises no equity (50, never read). */
-export const START_CREDIBILITY: Record<StartType, number> = { leader: 60, challenger: 50, spinout: 40, bigtech: 50 };
 
 /** Trend floors and caps per year [D]: a flat or falling trend still asks for some progress (+0.2 levels, +10%); a
  *  runaway one is capped (+4 levels, ×8). */

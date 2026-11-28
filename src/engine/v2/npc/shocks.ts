@@ -8,7 +8,7 @@ import { DISTILL_S } from '../../../data/v2/calibration';
 import { PARTNER_TERMS } from '../../../data/v2/deals';
 import { RELEASE_CADENCE_DAYS } from '../../../data/v2/npcLabs';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
-import { startLagG } from '../../../data/v2/starts';
+import { positionOf, startLagG } from '../../../data/v2/starts';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
 import { distillFit, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
 import { licensedModel } from '../finance/observe';
@@ -71,7 +71,7 @@ function softwareAt(s: GameStateV2, y: number): number {
   return y <= SERIES_ANCHOR ? -(SERIES_ANCHOR - y) * PRE_GAME_G_PER_YEAR : (refS(s, y) ?? 0);
 }
 /** The know-how scale's offset R0 + lagG (above). */
-const knowhowOffset = (s: GameStateV2) => startRecipeG(s) + startLagG(s.setup.start ?? 'leader');
+const knowhowOffset = (s: GameStateV2) => startRecipeG(s) + startLagG(positionOf(s));
 /** Know-how (recipe G at RECIPE_F, the player's recipe scale) of a lab on the reference path at clock year `y`. */
 export const knowhowAt = (s: GameStateV2, y: number) => knowhowOffset(s) + softwareAt(s, y);
 /** An NPC lab's know-how: the reference's at its position, its lag d plus (unless `internal`) its release lag behind the

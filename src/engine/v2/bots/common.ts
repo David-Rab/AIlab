@@ -6,6 +6,7 @@
 import { ACTION_BY_ID, EVENT_BY_ID } from '../core/registry';
 import type { AgendaId, EngineApi, GameStateV2, PendingDecision, Team } from '../types';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { positionOf } from '../../../data/v2/starts';
 import { PROJECT_BY_ID, isLineNode, lineNodeId } from '../../../data/v2/tree';
 import { nextLineProject, nodeKnown, projectReady } from '../models/tree';
 import { acquireTerms, acquireVotes, type PayWith } from '../finance/acquire';
@@ -148,6 +149,6 @@ const LEADER_CAP_STAFF = 1930;
 /** A bot's safety-team target sized to the company (R9): a follower start smaller than the leader's scales its plan by
  *  its capabilities staff (at least one team); the leader start (and a larger big-tech division) keep it. */
 export function sizedTarget(s: GameStateV2, n: number): number {
-  if ((s.setup.start ?? 'leader') === 'leader') return n;
+  if (!positionOf(s).follower) return n;
   return Math.max(1, Math.round(n * Math.min(1, s.player.staff.cap / LEADER_CAP_STAFF)));
 }

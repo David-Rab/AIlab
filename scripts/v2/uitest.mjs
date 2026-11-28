@@ -104,16 +104,16 @@ for (const [k, v] of [['world', 'tl-fast'], ['alignment', 'hard'], ['tutorial', 
 await page.fill('[data-test=company]', 'Marenth');
 await wait(30);
 ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
-// R9: start picker (four starts with difficulty labels); each start shows its structure (C2: no governance picker).
-ok('Setup: four starts with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 4);
-await check('Setup start=spinout', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="spinout"]'), 30);
-ok('Setup: spinout shows its structure', /Founder-led/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
-await check('Setup start=bigtech', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
+// R9: start picker (six lab kinds with difficulty labels); each start shows its structure (C2: no governance picker).
+ok('Setup: six lab kinds with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 6);
+await check('Setup start=breakaway', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="breakaway"]'), 30);
+ok('Setup: breakaway shows its structure', /Founder-led/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
+await check('Setup start=bigtech', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
 await page.hover('[data-picker=start] [data-opt="bigtech"]');
 await wait(300);
 ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
 await clearTips();
-await check('Setup start=leader', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
+await check('Setup start=leader', 'store.draftSetup.labKind', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
 ok('Setup: no Governance picker; the leader start is mission-controlled', !(await page.$('[data-picker=governance]')) && /Mission-controlled/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
@@ -2403,11 +2403,11 @@ await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 // ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
 const ia9 = iaIssues.length;
 await closeModals();
-await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech' }); });
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', labKind: 'bigtech' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(5));
 await closeModals();
-ok('Big tech: a division', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.finance.ownership.strat.Azimuth')) === '1' && (await get('s.player.finance.stratVoting.Azimuth')) === 'true');
+ok('Big tech: a division', (await get('s.setup.labKind')) === '"bigtech"' && (await get('s.player.finance.ownership.strat.Azimuth')) === '1' && (await get('s.player.finance.stratVoting.Azimuth')) === 'true');
 await nav('finance');
 ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
 ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));
@@ -2438,12 +2438,12 @@ await iaScan('finance:bigtech-owe');
 await tabTo('owners');
 ok('FIN5c big tech Board: links to parent confidence (one home), no ouster vote', !!(await page.$('[data-go="fin.go.parentConf"]')) && !(await page.$('[data-home=boardConf]')) && !(await page.$('[data-test=ouster-vote]')));
 await tabTo('cash');
-for (const start of ['spinout', 'challenger']) {
+for (const start of ['breakaway', 'safety']) {
   const fxs = readFileSync(`scripts/v2/fixtures/start-${start}-day400.json`, 'utf8');
   await page.evaluate((j) => window.ai27v2.importJson(j), fxs);
   await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
   await closeModals();
-  ok(`${start} fixture loads (day 400)`, (await get('s.setup.start')) === `"${start}"` && (await get('s.time.day')) === '400');
+  ok(`${start} fixture loads (day 400)`, (await get('s.setup.labKind')) === `"${start}"` && (await get('s.time.day')) === '400');
   for (const id of ['overview', 'lab', 'models', 'products', 'finance']) {
     await nav(id);
     await iaScan(`${id}:${start}`);

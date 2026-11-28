@@ -548,7 +548,7 @@ for (const a of FINANCE_ACTIONS) {
     const v1 = at(60);
     const v0 = at(10);
     const v2 = at(90);
-    const starts = (['leader', 'challenger', 'spinout'] as const).map((st) => newGame(defaultSetupV2({ seed: 1, start: st })).player.finance.credibility);
+    const starts = (['leader', 'safety', 'breakaway'] as const).map((st) => newGame(defaultSetupV2({ seed: 1, labKind: st })).player.finance.credibility);
     check(Math.abs(v0.w / v1.w - 0.7) < 1e-9 && Math.abs(v2.w / v1.w - 1.15) < 1e-9 && v0.V < v1.V && v1.V < v2.V && starts.join(',') === '60,50,40' && credRung(60).id === 'Credible' && credRung(40).id === 'Unproven', "FIN2/FIN5a credibility multiplies the lab's weight in the share (Doubted ×0.7, Proven ×1.15), so the valuation; start: leader 60, challenger 50, spinout 40", `V Doubted ${f1(v0.V)}B · Credible ${f1(v1.V)}B · Proven ${f1(v2.V)}B · starts ${starts.join('/')}`);
   }
   {
@@ -1244,7 +1244,7 @@ for (const a of FINANCE_ACTIONS) {
 // ───────────────────────────── FIN5c: big-tech division budget (FINANCE-V3 §13) ─────────────────────────────
 {
   const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
-  const bigtech = (seed = 5) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'bigtech' }));
+  const bigtech = (seed = 5) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false, labKind: 'bigtech' }));
   /** Tick (no bot) to a day; the endings system is skipped so the run always gets there. */
   const runTo = (s: GameStateV2, day: number) => { while (s.time.day < day) { for (const p of [...s.events.pending]) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0); tick(s, { skip: ['endings'] }); } };
   const causes = (s: GameStateV2, src: string) => (s.causes.byKey['board.confidence'] ?? []).filter((e) => e.source === src);
@@ -1640,7 +1640,7 @@ for (const a of FINANCE_ACTIONS) {
   {
     // Drivers: position against the best public model of any other lab, in 2-level units; a lab with no public model
     // sits at the best open-weight model; pre-revenue: momentum ×1 (log 0), economics at the field's (x = 0).
-    const sp = newGame(defaultSetupV2({ seed: 1, start: 'spinout' }));
+    const sp = newGame(defaultSetupV2({ seed: 1, labKind: 'breakaway' }));
     const st = storyNow(sp);
     const me = st.me!;
     const best = Math.max(...sp.rivals.filter((r) => r.core.status === 'active').map((r) => r.publicModel?.Lg ?? 0));
@@ -1648,9 +1648,9 @@ for (const a of FINANCE_ACTIONS) {
     check(me.floored && near(me.level, fl, 1e-9) && near(me.x.position, Math.max(-3, (fl - best) / STORY.posScale), 1e-9) && me.growth === 1 && me.margin === null && me.x.economics === 0 && growthOf(0, [0, 0, 0, 0]) === 1, 'FIN5a a lab without a public model sits at the best open-weight model; a pre-revenue lab has momentum ×1 and the field\'s economics', `level ${me.level.toFixed(2)} vs best ${best.toFixed(2)} → x ${me.x.position.toFixed(2)} · momentum x ${me.x.momentum.toFixed(2)} · capacity x ${me.x.capacity.toFixed(2)}`);
     // Start valuations from the split: a pre-revenue spinout is valued through position (SSI $32B, TML $12B), the
     // challenger near Anthropic's $61.5B, the leader near OpenAI's $300B (median of seeds 1–6).
-    const V = (start: 'leader' | 'challenger' | 'spinout') => median([1, 2, 3, 4, 5, 6].map((seed) => newGame(defaultSetupV2({ seed, start })).player.finance.valuation));
-    const v = { leader: V('leader'), challenger: V('challenger'), spinout: V('spinout') };
-    check(v.spinout >= 10 && v.spinout <= 80 && v.challenger >= 40 && v.challenger <= 200 && v.leader >= 200 && v.leader <= 500 && st.V > 0, 'FIN5a start valuations from the split: spinout (pre-revenue) $10–80B, challenger $40–200B, leader $0.2–0.5T (medians, seeds 1–6; 2025 marks: TML $12B, SSI $32B, Anthropic $61.5–183B, OpenAI $300–500B)', `spinout ${f1(v.spinout)}B · challenger ${f1(v.challenger)}B · leader ${f1(v.leader)}B`);
+    const V = (labKind: 'leader' | 'safety' | 'breakaway') => median([1, 2, 3, 4, 5, 6].map((seed) => newGame(defaultSetupV2({ seed, labKind })).player.finance.valuation));
+    const v = { leader: V('leader'), safety: V('safety'), breakaway: V('breakaway') };
+    check(v.breakaway >= 10 && v.breakaway <= 80 && v.safety >= 40 && v.safety <= 200 && v.leader >= 200 && v.leader <= 500 && st.V > 0, 'FIN5a start valuations from the split: spinout (pre-revenue) $10–80B, challenger $40–200B, leader $0.2–0.5T (medians, seeds 1–6; 2025 marks: TML $12B, SSI $32B, Anthropic $61.5–183B, OpenAI $300–500B)', `spinout ${f1(v.breakaway)}B · challenger ${f1(v.safety)}B · leader ${f1(v.leader)}B`);
   }
   {
     // The pool: π · S a year × the IPO bump, split by the mark's share; the player's unused part carries 50%.

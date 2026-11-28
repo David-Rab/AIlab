@@ -976,7 +976,7 @@ export const S8_REFERENCE_FTE = 562_328;
  *  graders at the world's median-expert level (G_SC − Δ_bm), no P11, no safety technique, no AI critic, S8 at the start value. */
 export function referenceSignalLab(h: HiddenWorld): SignalLab {
   const w = h.timeline;
-  const suites = startSuites('leader');
+  const suites = startSuites();
   const families = RL_FAMILY_IDS.filter((f) => suites[f]);
   const human = w.v3.gSC - w.v3.dBM - gV0(w);
   return {
