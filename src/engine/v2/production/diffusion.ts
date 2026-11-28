@@ -78,8 +78,7 @@ export function harvestTokens(d: Pick<Deployment, 'channel' | 'kyc' | 'servedTok
 }
 /** Access to a served teacher (research/RD-X04r §3B, D2): open weights 1. A served product (RD-P09): D2's
  *  1 − 0.25·log10(D_full / D) on the harvested tokens D (harvestTokens; DISTILL_FULL_TOKENS), in [0, 1]: no usage, no
- *  access; each tenfold cut of the harvest (one KYC level) −0.25. China reaches US APIs like anyone (its distillation-access
- *  meter, at its start value 60 → factor 1, went with the China actor, W1d). A rival's served teacher (`d` absent) has access 1 (rivals' usage is not tracked). */
+ *  access; each tenfold cut of the harvest (one KYC level) −0.25. China reaches US APIs like anyone (no access meter). A rival's served teacher (`d` absent) has access 1 (rivals' usage is not tracked). */
 export function teacherAccess(_s: GameStateV2, _student: LabId, open: boolean, d?: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
   if (open) return 1;
   if (!d) return 1;

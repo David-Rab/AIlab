@@ -73,7 +73,9 @@ const load = (i: number) => deserialize(fixtures[i]);
     const d = e.when(s);
     const t = e.text(s, d || { lab: 'r0', versionId: 'V0', theirL: 9, ourL: 8, severity: 3, lead: 90, cid: 'C1', mult: 1, site: 'S1', score: 60, trait: 'SCHEME', est: 40 });
     if (t.length > 220) bad.push(`${e.id} ${t.length} chars`);
-    if (/AI 2027|Agent-\d|OpenBrain'?s? (Agent)|20(25|26|27|28) (Jan|Feb|Mar|Apr)/.test(t)) bad.push(`${e.id}: canon in text`);
+    // The player's own model names (default theme "Agent-n", MODEL-NAMING) are state, not event wording: strip them first.
+    const own = s.player.models.versions.reduce((x, v) => x.split(v.name).join('a model'), t);
+    if (/AI 2027|Agent-\d|OpenBrain'?s? (Agent)|20(25|26|27|28) (Jan|Feb|Mar|Apr)/.test(own)) bad.push(`${e.id}: canon in text`);
   }
   check(bad.length === 0, 'E1 event texts ≤ 220 chars, no AI 2027 canon', bad.slice(0, 5).join('; '));
 }
@@ -135,6 +137,8 @@ const load = (i: number) => deserialize(fixtures[i]);
   // Add an internal-only version far ahead of every public deployment.
   const boost = 0.5 * PRE_GAME_G_PER_YEAR;
   const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', G: v.G + boost, Lg: levelOfG(s.hidden.timeline, v.G + boost) };
+  // The estimate reads the player's best MEASURED version (UB-2): the new internal version has been through the lab's own evals.
+  v2.evals.measuredL = Math.max(v.evals.measuredL ?? 0, levelOfG(s.hidden.timeline, v.G + boost));
   const truthBefore = leadBetween(s, 'player', r.core.id);
   const estBefore = leadDays(s, r.core.id).est;
   s.player.models.versions.push(v2);
@@ -284,11 +288,11 @@ const load = (i: number) => deserialize(fixtures[i]);
 }
 
 // ───────── T3: China lead ─────────
-// Same metric as WS1's calib T3 (leadBetween vs the player = WS1 trueLeadDays) on real RefBot play with no theft,
-// sampled daily over days 30–540: the mean is 150–200 d and the 10th–90th percentile range lies within 75–275 d (model
-// v3 F2: AI 2027's claim is a typical lag of about six months, not a bound on every day; between DeepCent's bases,
-// 9.6–14.4 months apart, the lead rises a day a day by construction, so the min and max are INFO; design/archive/V3-BUILD.md, F2 notes);
-// a theft then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
+// China's lab runs on the NPC compute rule (W6) and its lead is read from the public view (W2), so the old
+// "mean 150–200 d against the player" and "≈ 60 d behind after a theft" no longer describe it. The new rule's shape
+// (NPC-LABS §13), on real RefBot play with no theft, sampled daily over days 30–540: China's lab stays behind the US
+// frontier (the best of the player and the active rivals), by roughly its start lag (mean within the cast span, 90–270 d); a theft closes
+// the gap to the player (it never widens it) and leaves China behind the stolen model.
 {
   const T3_SEEDS = SMOKE ? 2 : 8;
   const { leads0, pre, post } = cached('ws4-t3', { seeds: T3_SEEDS, days: 540 }, ME, () => {
@@ -301,14 +305,16 @@ const load = (i: number) => deserialize(fixtures[i]);
     const s = newGame(defaultSetupV2({ seed, alignment: 'medium', tutorial: false }));
     tick(s, { skip: ['endings'] });
     leads0.push(leadBetween(s, 'player', 'china'));
+    const usFrontier = (): LabId => [...s.rivals.filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player' as LabId].reduce((a, b) => (bestG(s, b) > bestG(s, a) ? b : a));
     while (s.time.day < 540 && !s.ending) {
       refBot.act(s, engine);
       tick(s, { skip: ['endings'] });
-      if (s.time.day >= 30) pre.push(leadBetween(s, 'player', 'china'));
+      if (s.time.day >= 30) pre.push(leadBetween(s, usFrontier(), 'china'));
     }
+    const before = leadBetween(s, 'player', 'china');
     executeTheft(s, makeCtx(s), 'player');
     tick(s, { skip: ['endings'] });
-    post.push(leadBetween(s, 'player', 'china'));
+    post.push(leadBetween(s, 'player', 'china') - before);
   }
   CHINAGOV.theftRung = minRung;
   return { leads0, pre, post };
@@ -317,11 +323,12 @@ const load = (i: number) => deserialize(fixtures[i]);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
   const sorted = [...pre].sort((a, b) => a - b);
   const pct = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
-  smokeCheck(mean >= 150 && mean <= 200, `T3 China mean lead 150–200 d until a theft (RefBot, days 30–540 daily, ${T3_SEEDS} seeds)`, `mean ${mean.toFixed(0)} d`);
+  smokeCheck(mean >= 90 && mean <= 270, `T3 China's lab trails the US frontier by 90–270 d (the cast span, 3–9 months) on average until a theft (RefBot, days 30–540 daily, ${T3_SEEDS} seeds)`, `mean ${mean.toFixed(0)} d`);
+  smokeCheck(pre.filter((x) => x > 0).length / pre.length >= 0.95, "T3 China's lab stays behind the US frontier on ≥ 95% of days", `${(100 * pre.filter((x) => x > 0).length / pre.length).toFixed(1)}%`);
   // M5 (lead decision on F2): the mean is the test; the 10th–90th percentile of the daily lead is reported (INFO).
   console.log(`INFO  T3 China lead: 10th–90th percentile of the daily lead (window 75–275 d): p10 ${pct(0.1).toFixed(0)} d, p90 ${pct(0.9).toFixed(0)} d (p25 ${pct(0.25).toFixed(0)}, median ${pct(0.5).toFixed(0)}, p75 ${pct(0.75).toFixed(0)})`);
   console.log(`INFO  T3 China lead min–max (daily, days 30–540, ${T3_SEEDS} seeds): ${sorted[0].toFixed(0)}–${sorted[sorted.length - 1].toFixed(0)} d; share of days below 75 d ${(100 * pre.filter((x) => x < 75).length / pre.length).toFixed(1)}%, above 275 d ${(100 * pre.filter((x) => x > 275).length / pre.length).toFixed(1)}%`);
-  check(post.every((x) => x >= 40 && x <= 80), 'T3 after a theft China is ≈ 60 d behind', post.map((x) => x.toFixed(0)).join(', '));
+  check(post.every((x) => x <= 1), "T3 a theft never widens China's gap to the player (change in the lead, days)", post.map((x) => x.toFixed(0)).join(', '));
 }
 
 // ───────── T4: rival start gaps 3–9 months ─────────
@@ -330,7 +337,9 @@ const load = (i: number) => deserialize(fixtures[i]);
 {
   const fx = newGame(defaultSetupV2({ seed: 2027, alignment: 'medium' }));
   const fxMonths = fx.rivals.map((r) => leadBetween(fx, 'player', r.core.id) / 30.4);
-  check(fxMonths.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start are 3–9 months (fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
+  // The cast's measured start lags (npc/CAST-2025.md §1: 2.5–9.5 months behind the public frontier, 0 for the leader) are
+  // the new rule; the gap to the player is positive and inside the cast's span (NPC-LABS §13).
+  check(fxMonths.every((m) => m > 0 && m <= 10), 'T4 rival gaps at start are positive and within the cast span, ≤ 10 months (fixture seed)', fxMonths.map((m) => m.toFixed(1)).join(', '));
   const T4_SEEDS = SMOKE ? 20 : 200;
   const months: number[] = cached('ws4-t4', { seeds: T4_SEEDS }, ME, () => {
     const months: number[] = [];
@@ -343,6 +352,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   months.sort((x, y) => x - y);
   const inBand = months.filter((m) => m >= 3 && m <= 9).length / months.length;
   console.log(`      T4 over ${T4_SEEDS} seeds (classic): min ${months[0].toFixed(2)}, median ${months[months.length >> 1].toFixed(2)}, max ${months[months.length - 1].toFixed(2)} months; ${(100 * inBand).toFixed(0)}% in 3–9`);
+  check(months[0] > 0 && months[months.length - 1] <= 10, 'T4 every rival gap at start over the seeds is positive and ≤ 10 months', `${months[0].toFixed(2)}–${months[months.length - 1].toFixed(2)}`);
 }
 
 // ───────── C1 (R1 B1/B2): a commitment blocks only launches in its own scope, judged on the candidate ─────────

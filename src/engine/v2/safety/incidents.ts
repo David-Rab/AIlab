@@ -283,8 +283,7 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
   return productCatch(s, d, trait);
 }
 
-/** Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d. (Outsiders with access
- *  used to shorten it; they went with the relation stocks, W1c.) */
+/** Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d. */
 function publicTimer(s: GameStateV2, rng: RngLike): number {
   let t = Math.round(rng.range(14, 60));
   const law = lawsInForce(s);
@@ -351,7 +350,7 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
 }
 
 /** Discovery odds of a covered-up incident (§3.9.3): insiders only, 0.1 (0.05 with a whistleblower channel, which
- *  routes concerns inside). Outsiders with access used to add to it; they went with the relation stocks (W1c). */
+ *  routes concerns inside). */
 export function coverUpDiscovery(s: GameStateV2): number {
   return s.player.policies.whistleblowerChannel ? 0.05 : 0.1;
 }

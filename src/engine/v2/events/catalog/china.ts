@@ -37,7 +37,7 @@ export const CHINA_EVENTS: EventDefV2[] = [
   ev({
     id: 'E23', title: 'Treaty', icon: 'china', crisis: false, deadlineDays: 30, defaultChoice: 0,
     when: requestOnly,
-    text: () => 'Washington and Beijing have a restraint pact on frontier AI within reach, and officials want your lab behind it. Backed, it can become a verified treaty that caps every lab’s AI R&D compute at its level on the day it is signed.',
+    text: () => 'Washington and Beijing are close to a restraint pact on frontier AI and want your lab behind it. Backed, it can become a verified treaty capping every lab’s AI R&D compute at its signing-day level.',
     choices: [
       ch('Back it', ['comply', 'gov', 'safety'], P([], []), (s, ctx) => resolveTreaty(s, ctx, true)),
       ch('Oppose it', ['resist', 'decline'], P([], []), (s, ctx) => resolveTreaty(s, ctx, false)),

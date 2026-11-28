@@ -7,8 +7,7 @@
 //                     synTokensPerH100eDay, quality from the teacher's G, the asset inherits the teacher's traits);
 //                     days 0 stops the job. The rest of the pool keeps the default teacher (the internal research model)
 //   (no expert-data purchase: expert data is only a suite input, bought by "Build suite" in models/suites.ts, DD-07)
-//   data.usagePolicy  none / standard / broad: the share of eligible product output kept as usage data (its privacy
-//                     side, the Civil Liberties bloc's approval, went with the blocs, W1c)
+//   data.usagePolicy  none / standard / broad: the share of eligible product output kept as usage data
 // Every preview shows the Blueprint's data readouts before → after (dataDelta: U, the domain's share of the stock and
 // its specialisation, the latest base design's epochs).
 import { DOMAIN_IDS } from '../../../data/v2/calibration';

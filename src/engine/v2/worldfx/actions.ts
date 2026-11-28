@@ -47,8 +47,7 @@ const transitionFund: ActionDef = {
   },
 };
 
-/** Set the transition fund ($B/yr, 0–100). Used by wfx.transitionFund and events. (Its one-off public effects went with
- *  the public actor, W1d; W4 brings them back.) */
+/** Set the transition fund ($B/yr, 0–100). Used by wfx.transitionFund and events. (It has no public effect yet: OUTSIDE-WORLD §8.1.) */
 export function setTransitionFund(s: GameStateV2, ctx: SystemCtx, perYear: number): void {
   const amount = Math.max(0, Math.min(100, perYear));
   s.player.policies.transitionFund = amount;

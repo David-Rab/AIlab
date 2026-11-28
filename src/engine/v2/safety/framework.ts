@@ -41,8 +41,7 @@ export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety
 const isExternal = (ch: string) => ch !== 'internal';
 const liveInternal = (s: GameStateV2) => s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live');
 
-/** External evaluators have read this version (a suite run by them; the evaluator reports went with the research
- *  bodies, W1c). */
+/** External evaluators have read this version (a suite run by them). */
 export function externallyEvaluated(v: ModelVersion): boolean {
   return Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }

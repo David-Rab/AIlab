@@ -1,5 +1,5 @@
 // actorsDaily: the GDP start reference, the laws table by date (export policy, laws taking effect), cover-ups and
-// statutory floors. Owner: WS4. (The government and public actors it ran were deleted in W1d.)
+// statutory floors. Owner: WS4.
 import type { EngineSystem } from '../types';
 import { LAWS, lawsInForce } from '../../../data/v2/laws';
 import { dayOfDate } from '../core/time';

@@ -1,13 +1,12 @@
 // Cover-ups: quiet fixes outsiders may discover, and the overdue internal report (V2-SPEC §3.9.3 rule 1). Owner: WS4.
-// Moved out of the deleted relations module (W1c); called from actorsDaily at the same point, so the 'actors' draws
-// keep their order.
+// Called from actorsDaily, so the 'actors' draws keep their order.
 import type { GameStateV2, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { approvalPush, PUBLIC } from '../world/public';
 import { trustPush, USGOV } from '../world/usgov';
 
 /** The odds a quiet fix is found within its horizon: the discovery odds of the default start state (staff and press
- *  baseline 0.05 × 0.3 + 0.02, no outsiders with access), fixed since the research bodies were deleted (W1c). */
+ *  baseline 0.05 × 0.3 + 0.02, no outsiders with access). */
 export const COVERUP_DISCOVERY_ODDS = 0.035;
 
 /** Register a quiet fix that outsiders may discover over `horizon` days (`pTotal` = the odds over the horizon). */
