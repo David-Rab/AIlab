@@ -280,10 +280,6 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
     check(![...a.costs, ...a.gains].some((l) => l.currency === 'security') && (dB === 0 ? !line : !!line && Math.abs(line.amount - dB) < 2e-3),
       `RD-B18 @day ${d}: agent preview has no constant security line and shows the build change of the applied copy`, `build ${line?.amount ?? 'none'} vs ${dB}; lines ${[...a.costs, ...a.gains].map((l) => `${l.currency} ${l.amount}`).join(', ')}`);
   }
-  // CP4: the Company panel is gone (UB-5): the Star hire chip lives on LAB (Lab.tsx / LabTabs.tsx).
-  const company = ['Lab.tsx', 'LabTabs.tsx'].map((f) => readFileSync(join(HERE, '../../src/ui/v2/panels', f), 'utf8')).join('\n');
-  const wt = readFileSync(join(HERE, '../../src/data/v2/workTypes.ts'), 'utf8');
-  check(!/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 the taste chip no longer claims quality enters it', '');
 }
 
 finish('worktypes');

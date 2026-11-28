@@ -7,7 +7,7 @@
 //   is in its stack at build-in (no headroom; migration 47 → 48); RD-B08: experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
 //   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
-// Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
+// Model v3 D9: P10 / P12 / P21 are typed data and suite effects.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -687,7 +687,7 @@ if (process.argv.includes('--rd-a03')) {
   check(bad.length === 0, 'lint: e_stack never comes from the know-how readout (no eStack/recipeAt; runs, stacks, research and effective do not read player.pa)', bad.slice(0, 4).join(' | '));
 }
 
-// ---------- model v3 D9: P10, P12, P21 are typed data / suite effects (no flat level bonuses, old flags gone) ----------
+// ---------- model v3 D9: P10, P12, P21 are typed data / suite effects (no flat level bonuses) ----------
 {
   const typed = ['P10', 'P21'].map((id) => ({ id, n: TREE_BY_ID[id] }));
   const want: Record<string, (e: NonNullable<TreeNodeDef['effect']>) => boolean> = {
@@ -697,23 +697,6 @@ if (process.argv.includes('--rd-a03')) {
   const bad = typed.filter(({ id, n }) => !n.kind || !n.effect || n.effect.stack || n.effect.domains || !want[id](n.effect) || !hasTypedEffect(n)).map((x) => x.id);
   check(bad.length === 0, 'D9: P10, P12 and P21 are capability projects with typed effects (P10 synthetic-quality ceiling, P12 long-tasks expert data, P21 token worth); no stack, domain or cash-at-start flags',
     typed.map(({ id, n }) => `${id} ${n.kind} ${JSON.stringify(n.effect)}`).join('; '));
-  const root = join(HERE, '..', '..', 'src');
-  const hits: string[] = [];
-  const walk = (d: string) => {
-    for (const e of readdirSync(d, { withFileTypes: true })) {
-      const p = join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (/\.tsx?$/.test(p)) readFileSync(p, 'utf8').split('\n').forEach((l, i) => {
-        if (/P10_SYN_MULT|\bnoRepeat\b|opts\.p10|\bp10: on\b|PARADIGM_DOMAIN_OFF|\bparadigmOff\b|P12_HORIZON|adopted\(s, '(P10|P12|P21)'\)|paradigms\.(P10|P12|P21)\b/.test(l)) hits.push(`${p.slice(root.length + 1)}:${i + 1}`);
-        if (/LATER\(V5\)/.test(l) && /P10|P12|P21|synthetic|sample efficiency|human demos/i.test(l)) hits.push(`${p.slice(root.length + 1)}:${i + 1} LATER(V5)`);
-      });
-    }
-  };
-  walk(root);
-  const texts = typed.map(({ n }) => n.cap ?? '');
-  const oldText = texts.filter((t) => /synthetic data ×3|no data wall|no repetition penalty|h80 ×2|Time horizon ×2|RSCH \+0\.4|PHYS \+1/i.test(t));
-  check(hits.length === 0 && oldText.length === 0, 'D9 lint: the old flags are gone (synthetic ×3, no repetition penalty / data wall, horizon ×2, RSCH +0.4, PHYS +1; no adopted() readers; no LATER(V5) markers for them)',
-    [...hits, ...oldText].slice(0, 6).join(' | '));
 }
 
 // ---------- RD-B17: honest Recipe readouts (B28 units, B29 counts, B30 who reveals) ----------

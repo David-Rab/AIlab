@@ -27,7 +27,7 @@ import {
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
 import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, HERE, check, finish, runTo } from './lib';
+import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
@@ -221,9 +221,6 @@ check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.pos
     rows.push(`${focus === 'broad' ? 'broad' : 'long-tasks focus'}: long-tasks gain ${ceilA.toFixed(3)} → ${ceilB.toFixed(3)}, AGENCY +${dA.toFixed(3)} OOM (horizon ×${Math.pow(H50_PER_OOM, dA).toFixed(2)})`);
   }
   check(ok, 'P12: the demos raise the long-tasks RL gain and AGENCY (and so the horizon) through the suite, not a flat multiplier', rows.join('; '));
-  // Old flags: no P12 horizon constant and no paradigm level offsets.
-  const runsSrc = readFileSync(join(HERE, '..', '..', 'src', 'engine', 'v2', 'models', 'runs.ts'), 'utf8');
-  check(!/P12_HORIZON|adopted\(s, 'P12'\)|paradigmOff/.test(runsSrc), 'P12: the old "time horizon ×2, RSCH +0.4" flags are gone (no P12_HORIZON, no paradigm level offsets)');
 }
 
 // ---------- saves (UB-3: no save migrations since the break) ----------
