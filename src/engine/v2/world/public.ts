@@ -90,3 +90,33 @@ export const publicDailySystem: EngineSystem = {
   id: 'publicDaily', owner: 'WS4', cadence: 'daily', order: 121, system: 'relations',
   run(s, ctx) { stepPublic(s, ctx); },
 };
+
+/** The pieces of concern's target (the four terms of concernTarget), the target, today's concern, and where concern stands in 90 days if
+ *  nothing changes (it closes 1 - 0.5^(90/halfLife) of the gap). Pure; the parts sum to `target` before the 0..100 clamp. */
+export function concernParts(s: GameStateV2): { base: number; milestones: number; milestoneCount: number; jobs: number; jobsRisePts: number; incidents: number; incidentHeat: number; target: number; concern: number; in90Days: number; change90d: number } {
+  const milestoneCount = publicMilestoneCount(s);
+  const risePts = Math.max(0, unemploymentChange12m(s));
+  const heat = incidentHeat(s);
+  const milestones = PUBLIC.milestoneStep * milestoneCount;
+  const jobs = PUBLIC.jobsPerPt * risePts;
+  const incidents = PUBLIC.incidentK * heat;
+  const target = concernTarget(s);
+  const in90Days = clamp(s.public.concern + (target - s.public.concern) * (1 - Math.pow(0.5, 90 / PUBLIC.concernHalfLifeDays)), 0, 100);
+  return { base: PUBLIC.base, milestones, milestoneCount, jobs, jobsRisePts: risePts, incidents, incidentHeat: heat, target, concern: s.public.concern, in90Days, change90d: in90Days - s.public.concern };
+}
+
+/** Approval's baseline (what it drifts to) and the drift: the concern term (-concernToApproval per point of concern above 50), the
+ *  attention on the lab that scales it, the baseline, today's approval and its expected value in 90 days. */
+export function approvalParts(s: GameStateV2): { concernTerm: number; attention: number; baseline: number; approval: number; in90Days: number; drift90d: number } {
+  const att = attention(s, PLAYER_ID);
+  const concernTerm = -PUBLIC.concernToApproval * (s.public.concern - 50);
+  const baseline = concernTerm * att;
+  const in90Days = clamp(s.public.approval + (baseline - s.public.approval) * (1 - Math.pow(0.5, 90 / PUBLIC.approvalHalfLifeDays)), -100, 100);
+  return { concernTerm, attention: att, baseline, approval: s.public.approval, in90Days, drift90d: in90Days - s.public.approval };
+}
+
+/** The last `n` approval pushes (events, disclosures, pledges), newest first: day, amount and reason, from the cause ledger. The daily
+ *  drift to the baseline is not a push and is not listed. */
+export function approvalCauses(s: GameStateV2, n = 8): { day: number; delta: number; reason: string }[] {
+  return (s.causes.byKey['public.approval'] ?? []).slice(-n).reverse().map((c) => ({ day: c.day, delta: c.delta, reason: c.source }));
+}

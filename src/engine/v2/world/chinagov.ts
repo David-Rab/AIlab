@@ -15,6 +15,7 @@ import { USGOV, playerAttention } from './usgov';
 import { frontier, incidentHeat, publicMilestones, usLeadOverChinaMonths } from './observe';
 import { CHINA_ID, PLAYER_ID, otherLabs } from '../models/labs';
 import { publicOf } from '../npc/public';
+import { MILESTONES } from '../../../data/world';
 import type { RivalLab, ChinaGovState, ComputeSplit, EngineSystem, GameStateV2, SystemCtx } from '../types';
 
 /** The China government's constants. [D] designer stand-ins unless marked. Registered in balance/params/worldfx.ts. */
@@ -184,6 +185,22 @@ export function treatyWill(s: GameStateV2, ctx?: SystemCtx): boolean {
   return !npc || publicOf(s, npc).safetyPosture.externalAccess >= CHINAGOV.treatyTestAccess;
 }
 
+/** The inputs of the tension climb: the smoothed US lead over China (months; the mean of the last CHINAGOV.leadQuarters quarterly values,
+ *  else `lead`), whether it is long (above lead1 ÷ aggression), whether China is pushed (a long lead, strict export controls or a recent
+ *  provocation), and whether a US lab shows milestone i publicly. One place for the ladder and its readouts. */
+function climbInputs(s: GameStateV2, lead: number) {
+  const g = s.chinagov;
+  const hist = g.leadHist.slice(-CHINAGOV.leadQuarters);
+  const sLead = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : lead;
+  const board = publicMilestones(s);
+  const us = (i: number) => board[i] !== undefined && board[i]!.lab !== CHINA_ID;
+  const leadNeeded = CHINAGOV.lead1 / CHINAGOV.aggression;
+  const long = sLead > leadNeeded;
+  const strict = s.market.exportPolicy === 'strict';
+  const provoked = g.provokedDay !== undefined && s.time.day - g.provokedDay < CHINAGOV.provokeDays;
+  return { sLead, leadNeeded, long, strict, provoked, pushed: long || strict || provoked, us };
+}
+
 /** Daily (123): the lead history (quarterly), the tension ladder, the talks track and a verified treaty's clock. */
 export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
   const g = s.chinagov;
@@ -194,13 +211,7 @@ export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
     if (g.leadHist.length > CHINAGOV.leadQuarters) g.leadHist.shift();
   }
   // Tension reads the smoothed lead (the mean of the last quarters), never the noisy day's.
-  const hist = g.leadHist.slice(-CHINAGOV.leadQuarters);
-  const sLead = hist.length ? hist.reduce((a, b) => a + b, 0) / hist.length : lead;
-  const board = publicMilestones(s);
-  const us = (i: number) => board[i] !== undefined && board[i]!.lab !== CHINA_ID; // a US lab shows milestone i publicly
-  const T = (m: number) => m / CHINAGOV.aggression;
-  const long = sLead > T(CHINAGOV.lead1);
-  const pushed = long || s.market.exportPolicy === 'strict' || (g.provokedDay !== undefined && day - g.provokedDay < CHINAGOV.provokeDays);
+  const { long, pushed, us } = climbInputs(s, lead);
   const t = g.tension;
   // Climbing: the condition for the next rung, held CHINAGOV.holdDays.
   const climb = [
@@ -252,3 +263,113 @@ export function chinagovView(s: GameStateV2): { tension: number; tensionName: st
   };
 }
 
+
+/** One condition of a ladder or track step, in words, and whether it holds now. */
+export interface StepPart { text: string; met: boolean }
+/** Progress toward the next step of a ladder or track (UI readout; reads the same rules as the daily step). */
+export interface StepProgress {
+  /** Current step and its name. */
+  current: number;
+  currentName: string;
+  /** The next step (null at the top) and its name. */
+  next: number | null;
+  nextName: string | null;
+  /** The next step's condition in plain words, its parts, and whether it needs any part or all parts. */
+  needs: string;
+  mode: 'any' | 'all';
+  parts: StepPart[];
+  /** The whole condition holds now (and has held long enough, where it needs a hold). */
+  met: boolean;
+  /** Days the condition has held and days it must hold (0 / 0 when it needs no hold). */
+  heldDays: number;
+  needDays: number;
+  /** Tension rungs 1-2 only: days the rung's own condition has failed and the days that make it fall. */
+  easing?: { failedDays: number; needDays: number; text: string };
+}
+
+const msName = (i: number) => MILESTONES[i]?.name ?? `milestone ${i}`;
+
+/** The tension ladder's next rung: what it needs (the climb condition of stepChinagov), whether it holds, and the hold timer. */
+export function tensionProgress(s: GameStateV2): StepProgress {
+  const g = s.chinagov;
+  const t = g.tension;
+  const c = climbInputs(s, usLeadOverChinaMonths(s, frontier(s)) ?? 0);
+  const mo = (x: number) => `${x.toFixed(1)} months`;
+  const longPart: StepPart = { text: `The US lead over China is above ${mo(c.leadNeeded)} (now ${mo(c.sLead)}, a four-quarter average)`, met: c.long };
+  const rows: { needs: string; mode: 'any' | 'all'; parts: StepPart[] }[] = [
+    { needs: 'Any push on China: a long US lead, strict export controls, or a recent provocation', mode: 'any', parts: [longPart,
+      { text: 'Strict US chip export controls are in force', met: c.strict }, { text: 'A recent provocation (a detected theft)', met: c.provoked }] },
+    { needs: `A US lab shows ${msName(CHINAGOV.collectiveMilestone)} publicly and the US lead stays long`, mode: 'all', parts: [
+      { text: `A US lab has shown ${msName(CHINAGOV.collectiveMilestone)} publicly`, met: c.us(CHINAGOV.collectiveMilestone) }, longPart] },
+    { needs: `A US lab shows ${msName(CHINAGOV.coerceMilestone)} publicly, or Washington reaches stage ${CHINAGOV.coerceStage}`, mode: 'any', parts: [
+      { text: `A US lab has shown ${msName(CHINAGOV.coerceMilestone)} publicly`, met: c.us(CHINAGOV.coerceMilestone) },
+      { text: `Washington is at security stage ${CHINAGOV.coerceStage} or more`, met: s.usgov.stage >= CHINAGOV.coerceStage }] },
+    { needs: 'A rejected treaty and a long US lead', mode: 'all', parts: [{ text: 'A treaty was rejected', met: g.rejected }, longPart] },
+  ];
+  const row = rows[t];
+  const next = t < 4 ? t + 1 : null;
+  const parts = row?.parts ?? [];
+  const met = row ? (row.mode === 'any' ? parts.some((p) => p.met) : parts.every((p) => p.met)) : false;
+  const out: StepProgress = {
+    current: t, currentName: TENSION_NAMES[t], next, nextName: next === null ? null : TENSION_NAMES[next],
+    needs: row?.needs ?? 'The top rung: nothing climbs further', mode: row?.mode ?? 'all', parts, met,
+    heldDays: next === null ? 0 : g.holdDays.up ?? 0, needDays: next === null ? 0 : CHINAGOV.holdDays,
+  };
+  if (t === 1 || t === 2) out.easing = { failedDays: g.holdDays.down ?? 0, needDays: CHINAGOV.downDays, text: t === 1 ? 'Eases a rung when no push on China has held for this long' : 'Eases a rung when the US lead has stayed short for this long' };
+  return out;
+}
+
+/** The talks track's next step: what it needs (stepChinagov's talks rules and treatyWill), whether it holds, and the hold timer. */
+export function talksProgress(s: GameStateV2): StepProgress {
+  const g = s.chinagov;
+  const k = g.talks;
+  const b = CHINAGOV.bargaining;
+  const day = s.time.day;
+  const lead = usLeadOverChinaMonths(s, frontier(s)) ?? 0;
+  const quiet = s.usgov.thefts[s.usgov.thefts.length - 1] !== day && g.tension <= 2;
+  const leak = ws4r(s).misalignLeakDay;
+  const scare = (leak !== undefined && day - leak < CHINAGOV.scareDays) || incidentHeat(s) > USGOV.scareHeat;
+  let needs = 'Nothing further: the verified treaty is in force';
+  let parts: StepPart[] = [];
+  let held = 0;
+  let need = 0;
+  if (k === 0) {
+    needs = g.rejected ? 'Closed: the treaty was rejected' : 'Washington at the clearances stage, and a scare or a close race';
+    parts = [{ text: 'No treaty has been rejected', met: !g.rejected },
+      { text: `Washington is at security stage ${CHINAGOV.talksStage} or more`, met: s.usgov.stage >= CHINAGOV.talksStage },
+      { text: `A scare (a leaked misalignment memo or severe public incidents), or the US lead under ${(CHINAGOV.talksLead * b).toFixed(1)} months (now ${lead.toFixed(1)})`, met: scare || lead < CHINAGOV.talksLead * b }];
+  } else if (k === 1) {
+    needs = 'Quiet months, then you back or oppose the restraint pact';
+    parts = [{ text: 'No detected Chinese theft, and tension at most the national collective', met: quiet }];
+    held = g.holdDays.quiet ?? 0;
+    need = CHINAGOV.quietDays / b;
+  } else if (k === 2) {
+    needs = 'Quiet months, public concern high enough, and leading labs that accept outside testing';
+    const npc = treatyNpcLab(s);
+    parts = [{ text: 'Quiet, and Washington at the clearances stage or more', met: quiet && s.usgov.stage >= CHINAGOV.talksStage },
+      { text: `Public concern at ${CHINAGOV.treatyConcern + USGOV.concernShift} or more (now ${s.public.concern.toFixed(0)})`, met: s.public.concern >= CHINAGOV.treatyConcern + USGOV.concernShift },
+      { text: 'You hold a pre-deploy testing pledge (while Washington watches you)', met: playerAttention(s) < USGOV.attentionMin || hasCommitment(s, 'preDeployTesting') },
+      { text: 'The leading lab shows outside testing access', met: !npc || publicOf(s, npc).safetyPosture.externalAccess >= CHINAGOV.treatyTestAccess }];
+    held = g.holdDays.held ?? 0;
+    need = CHINAGOV.verifyDays / b;
+  }
+  const next = k < 3 ? k + 1 : null;
+  const met = parts.length > 0 && parts.every((p) => p.met) && held >= need;
+  return { current: k, currentName: TALKS_NAMES[k], next, nextName: next === null ? null : TALKS_NAMES[next], needs, mode: 'all', parts, met, heldDays: Math.min(held, need), needDays: need };
+}
+
+/** The chance of the war ending over the next year (endings.ts rolls CHINAGOV.warPerQuarter each quarter, only at war footing, tension 4).
+ *  At war footing: four real rolls. Below it: war footing is reached only from coercion (rung 3) after a rejected treaty with a long US
+ *  lead (the climb condition), each rung held CHINAGOV.holdDays at the least, so the chance is the rolls left once the remaining rungs
+ *  could have been climbed; without a rejected treaty and a long lead it is 0. */
+export function chinaWarOdds(s: GameStateV2): { p: number; drivers: { label: string; share: number }[] } {
+  const g = s.chinagov;
+  const q = CHINAGOV.warPerQuarter;
+  const year = (n: number) => 1 - Math.pow(1 - q, n);
+  if (g.tension >= 4) return { p: year(4), drivers: [{ label: 'War footing: a war roll every quarter', share: 1 }] };
+  const long = climbInputs(s, usLeadOverChinaMonths(s, frontier(s)) ?? 0).long;
+  if (!g.rejected || !long) return { p: 0, drivers: [{ label: g.rejected ? 'The US lead over China is short' : 'No treaty rejected', share: 1 }] };
+  const daysToWar = (4 - g.tension) * CHINAGOV.holdDays - (g.holdDays.up ?? 0);
+  const rolls = Math.max(0, Math.floor((365 - Math.max(0, daysToWar)) / (365 / 4)));
+  return { p: year(rolls), drivers: [{ label: 'Rungs left before war footing', share: 0.5 }, { label: 'A rejected treaty with a long US lead', share: 0.5 }] };
+}

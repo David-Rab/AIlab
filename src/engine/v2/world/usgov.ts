@@ -15,7 +15,9 @@ import { wslFloor } from '../security/security';
 import { unemploymentChange12m } from '../worldfx/readouts';
 import { worldMix } from '../worldfx/mix';
 import { COND_LAWS, lawIdsInForce } from '../../../data/v2/laws';
-import { attention, frontier, govMilestones, incidentHeat, type MilestoneBoard } from './observe';
+import { MILESTONES } from '../../../data/world';
+import { hasCommitment } from '../actors/commitments';
+import { attention, frontier, govMilestones, incidentHeat, OBSERVE, publicMilestones, type MilestoneBoard, type PublicMilestone } from './observe';
 import { provokeChina } from './chinagov';
 import type { ActionDef, CondLawId, EngineSystem, GameStateV2, ModelVersion, SystemCtx, UsGovState } from '../types';
 
@@ -104,11 +106,12 @@ export function initialUsgov(): UsGovState {
 }
 
 /** The first day the government saw milestone `i` or a later one (milestones are nested), or undefined. */
-function seenSince(b: MilestoneBoard, i: number): number | undefined {
-  let d: number | undefined;
-  for (const k of Object.keys(b)) if (Number(k) >= i && (d === undefined || b[Number(k)]!.day < d)) d = b[Number(k)]!.day;
+function firstSeen(b: MilestoneBoard, i: number): PublicMilestone | undefined {
+  let d: PublicMilestone | undefined;
+  for (const k of Object.keys(b)) if (Number(k) >= i && (d === undefined || b[Number(k)]!.day < d.day)) d = b[Number(k)]!;
   return d;
 }
+const seenSince = (b: MilestoneBoard, i: number): number | undefined => firstSeen(b, i)?.day;
 const earliest = (...xs: (number | undefined)[]) => xs.reduce<number | undefined>((a, x) => (x === undefined ? a : a === undefined ? x : Math.min(a, x)), undefined);
 
 /** The player's attention (0..1), or 0 when the player is out of the game. */
@@ -293,4 +296,85 @@ export function usgovView(s: GameStateV2): { stage: number; stageName: string; t
     stage: g.stage, stageName: STAGE_NAMES[g.stage], trust: g.trust, applies: playerAttention(s) >= USGOV.attentionMin,
     oversight: g.oversight, consolidated: g.consolidated, dpaAccepted: ws4r(s).dpaAccepted, laws: lawIdsInForce(s),
   };
+}
+
+/** The last `n` trust changes, newest first: day, amount and reason, from the cause ledger ('usgov.trust', recorded by trustPush). */
+export function trustCauses(s: GameStateV2, n = 8): { day: number; delta: number; reason: string }[] {
+  return (s.causes.byKey['usgov.trust'] ?? []).slice(-n).reverse().map((c) => ({ day: c.day, delta: c.delta, reason: c.source }));
+}
+
+/** Progress toward the next security stage (the rule of stepUsgov): the condition in plain words, whether it holds, who showed it and
+ *  when, and the hold timer (USGOV.lagDays; stage 4 also needs stage 3 held USGOV.consolidateAfterDays). */
+export interface StageProgress {
+  stage: number;
+  stageName: string;
+  next: number | null;
+  nextName: string | null;
+  /** What the next stage needs, in words. */
+  needs: string;
+  /** The condition holds now (since `since`), whatever the hold. */
+  met: boolean;
+  /** The day it first held, and the lab that showed the milestone (when a milestone), or null. */
+  since: number | null;
+  seenBy: string | null;
+  heldDays: number;
+  needDays: number;
+  /** Stage 4 only: days stage 3 has been held and the days it must be. */
+  priorHeld: { heldDays: number; needDays: number } | null;
+}
+
+export function stageProgress(s: GameStateV2): StageProgress {
+  const g = s.usgov;
+  const board = govMilestones(s);
+  const next = g.stage < 4 ? ((g.stage + 1) as 1 | 2 | 3 | 4) : null;
+  const base = { stage: g.stage, stageName: STAGE_NAMES[g.stage], next, nextName: next === null ? null : STAGE_NAMES[next] };
+  if (next === null) return { ...base, needs: 'The last stage: nothing further', met: true, since: g.stageDay[4] ?? null, seenBy: null, heldDays: 0, needDays: 0, priorHeld: null };
+  const since = stageSince(s, board)[next];
+  const ms = [0, 2, 3, 4, 5][next]!;
+  const first = firstSeen(board, ms);
+  const m = (i: number) => MILESTONES[i]?.name ?? `milestone ${i}`;
+  const needs = [
+    '',
+    `A lab shows ${m(2)}, or a Chinese theft of a US lab's weights is detected`,
+    `A lab shows ${m(3)}, or a second theft is detected`,
+    `A lab shows ${m(4)}`,
+    `A lab shows ${m(5)}, or public concern stays above ${USGOV.consolidateConcern}; and the oversight committee has stood ${USGOV.consolidateAfterDays} days`,
+  ][next]!;
+  const heldDays = since === undefined ? 0 : Math.max(0, s.time.day - since);
+  const prior = next === 4 ? { heldDays: Math.max(0, s.time.day - (g.stageDay[3] ?? s.time.day)), needDays: USGOV.consolidateAfterDays } : null;
+  return {
+    ...base, needs, met: since !== undefined && heldDays >= USGOV.lagDays && (prior === null || prior.heldDays >= prior.needDays),
+    since: since ?? null, seenBy: first && first.day === since ? first.lab : null, heldDays: Math.min(heldDays, USGOV.lagDays), needDays: USGOV.lagDays, priorHeld: prior,
+  };
+}
+
+/** What Washington sees at a briefing level (0 none, 1 partial, 2 full): the delay on your internal milestones, the newest milestone it is
+ *  not otherwise shown, the day it would see it, the head start over no briefing, and the trust per month (× the attention on you). */
+export interface BriefingEffect {
+  level: 0 | 1 | 2;
+  /** Days Washington's view of your internal milestones trails the day you reached them; null: it sees none of them. */
+  delayDays: number | null;
+  /** Your newest internal milestone that no lab has shown publicly: its index and name, the day you reached it and the day each level sees it. */
+  milestone: { idx: number; name: string; reachedDay: number; seenDay: number | null; earlierThanPartial: number | null } | null;
+  /** Trust per month at this level (full briefing earns it; × the attention on you), and the base value. */
+  trustPerMonth: number;
+  trustPerMonthBase: number;
+  /** A live pre-deploy testing pledge already gives Washington the full view whatever the level. */
+  forcedFull: boolean;
+}
+
+export function briefingEffect(s: GameStateV2, level: 0 | 1 | 2): BriefingEffect {
+  const pub = publicMilestones(s);
+  const forcedFull = hasCommitment(s, 'preDeployTesting');
+  const eff = forcedFull ? 2 : level;
+  const delayDays = eff === 0 ? null : eff === 1 ? OBSERVE.briefing1DelayDays : 0;
+  let idx = -1;
+  for (const k of Object.keys(s.player.milestoneDays)) if (Number(k) > idx && pub[Number(k)] === undefined) idx = Number(k);
+  const reached = idx >= 0 ? s.player.milestoneDays[idx as 0] : undefined;
+  const milestone = reached === undefined ? null : {
+    idx, name: MILESTONES[idx]?.name ?? `milestone ${idx}`, reachedDay: reached,
+    seenDay: delayDays === null ? null : reached + delayDays,
+    earlierThanPartial: delayDays === null ? null : OBSERVE.briefing1DelayDays - delayDays,
+  };
+  return { level, delayDays, milestone, trustPerMonth: eff >= 2 ? USGOV.briefingFull * playerAttention(s) : 0, trustPerMonthBase: eff >= 2 ? USGOV.briefingFull : 0, forcedFull };
 }

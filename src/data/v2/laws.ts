@@ -91,3 +91,22 @@ export function lawIdsInForce(s: Clock | GameStateV2): string[] {
 
 /** The display name of a law id. */
 export const lawName = (id: string) => LAWS.find((r) => r.id === id)?.name ?? COND_LAWS.find((r) => r.id === id)?.name ?? id;
+
+/** One row of the law grid: a dated or conditional law, whether it is in force, since when (a day), and its on and off rules in words. */
+export interface LawStatus { id: string; name: string; kind: 'dated' | 'conditional'; inForce: boolean; since: number | null; text: string; on: string; off: string }
+
+/** Every law (dated and conditional) with whether it is in force, since when, and its on and off rules in plain words. Strict chip
+ *  export controls are the `exportStrict` row; the dated export steps set the policy it overrides. */
+export function lawStatus(s: GameStateV2): LawStatus[] {
+  const l = lawsInForce(s);
+  const dated: LawStatus[] = LAWS.map((r) => ({
+    id: r.id, name: r.name, kind: 'dated', inForce: l[r.id], since: l[r.id] ? dayOfDate(s.time.startDate, r.from) : null, text: r.text,
+    on: `Takes effect on ${r.from}`, off: 'Never: a dated law stays',
+  }));
+  const cond: LawStatus[] = COND_LAWS.map((r) => {
+    const since = s.usgov?.laws[r.id];
+    const inForce = since !== undefined;
+    return { id: r.id, name: r.name, kind: 'conditional', inForce, since: since ?? null, text: r.name, on: `On when ${r.on}`, off: r.off.startsWith('never') ? 'Stays once passed' : `Off when ${r.off}` };
+  });
+  return [...dated, ...cond];
+}

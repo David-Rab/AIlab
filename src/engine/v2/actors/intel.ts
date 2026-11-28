@@ -10,7 +10,9 @@ import { ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
 import { publicOf, sigmaOf } from '../npc/public';
 import { DAYS_PER_MONTH } from '../npc/lab';
-import { theftIntent } from '../world/chinagov';
+import { chinaWarOdds } from '../world/chinagov';
+import { theftYearOdds } from '../security/theft';
+import { playerAttention } from '../world/usgov';
 
 /** The true lead over a lab (days; > 0 = the player ahead) on the recorded frontier-G histories, against the player's best
  *  MEASURED version (CP4: not one still in testing). Engine truth: it is never shown; leadDays swaps the lab's side for its
@@ -60,10 +62,6 @@ export interface RiskMods {
   stopAdd?: number;
   /** Weight-security levels added. */
   wsl?: number;
-  /** Added to China's theft intent (0–100). */
-  theftIntent?: number;
-  /** Rungs added to China's escalation ladder. */
-  rung?: number;
   /** Added to the world defence index (0–1). */
   defence?: number;
   /** Dangerous-capability flags (bio, cyber) of the internal model treated as cleared. */
@@ -124,15 +122,18 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   const chain = exposure > 0.6 ? 0.15 * exposure * (1 - defence) : 0.15 * exposure * 0.5 * (1 - defence);
   const misuseEst = clamp(0.005 + misuseLevel * chain, 0, 1);
   out.push({ id: 'misuse', label: 'Misuse', kind: 'misuse', estimate: misuseEst, band: [clamp(misuseEst / 2, 0, 1), clamp(0.01 + 2 * misuseLevel * Math.max(chain, 0.05), 0, 1)], drivers: [{ label: 'Dangerous capability flags', share: 0.6 }, { label: 'World tech exposure and defences', share: 0.4 }] });
-  // Theft: P(a weight theft) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4];
-  // the row used to show the theft probability itself as a catastrophe probability.
-  const pTheft = clamp(0.05 + (3.5 - (s.player.security.wsl + (m.wsl ?? 0))) * 0.15 + clamp(theftIntent(s) + (m.theftIntent ?? 0), 0, 100) / 300, 0, 1);
+  // Theft: P(a weight theft within a year) times what it adds to China's row (a stolen frontier puts DeepCent in the race) [D, M4].
+  // The probability follows security/theft.ts exactly (theftYearOdds: attempts only from tension CHINAGOV.theftRung, on a lab outsiders
+  // pay attention to, holding a model more than 90 days ahead of China, against the weight security level), seen with what the player believes.
+  const th = theftYearOdds(s, { lead: leadDays(s, 'china').est + (m.leadDays ?? 0), attention: playerAttention(s), wsl: m.wsl ?? 0 });
   const cnMid = s.china.lab.core.status === 'active' ? (publicBand(s.china.lab)[0] + publicBand(s.china.lab)[1]) / 2 : 0;
-  const theftEst = clamp(pTheft * 0.3 * curve(cnMid), 0, 1);
-  out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(Math.min(1, pTheft + 0.1) * 0.3 * curve(cnMid) + 0.01, 0, 1)], drivers: [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] });
+  const theftEst = clamp(th.p * 0.3 * curve(cnMid), 0, 1);
+  out.push({ id: 'theft', label: 'Theft', kind: 'theft', estimate: theftEst, band: [clamp(theftEst / 2, 0, 1), clamp(th.p * 0.3 * curve(cnMid) * 2 + 0.01, 0, 1)], drivers: th.p > 0 ? [{ label: 'Weight security', share: 0.6 }, { label: 'China intent', share: 0.4 }] : [{ label: th.blocker, share: 1 }] });
   out.push({ id: 'rogue', label: 'Rogue copies', kind: 'rogue', estimate: w.loose ? 0.5 : 0.01, band: w.loose ? [0.2, 0.8] : [0, 0.05], drivers: [{ label: w.loose ? 'A copy is loose' : 'No known escape', share: 1 }] });
-  const war = clamp(0.005 + 0.04 * Math.max(0, s.chinagov.tension + (m.rung ?? 0)), 0, 1); // China's tension 0-4 (world/chinagov.ts)
-  out.push({ id: 'war', label: 'War', kind: 'war', estimate: war, band: [war / 2, Math.min(1, war * 2)], drivers: [{ label: 'China tension', share: 0.7 }, { label: 'Taiwan tension', share: 0.3 }] });
+  // War: the game ends in war only at China's war footing (tension 4), CHINAGOV.warPerQuarter a quarter (endings.ts); rung 4 is reached
+  // only after a rejected treaty with a long US lead (chinagov.ts climb). chinaWarOdds reads exactly that rule.
+  const wr = chinaWarOdds(s);
+  out.push({ id: 'war', label: 'War', kind: 'war', estimate: wr.p, band: [wr.p / 2, Math.min(1, wr.p * 1.5)], drivers: wr.drivers });
   return out;
 }
 
@@ -147,17 +148,16 @@ export const RISK_LEVERS: Record<RiskSource['kind'], RiskLever[]> = {
     { id: 'stop', label: 'Stop rate +10 pts', how: 'monitors, a control protocol, human review, containment', mod: { stopAdd: 0.1 } },
   ],
   rival: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, a new base sooner', mod: { leadDays: 60 } }],
-  china: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, export controls', mod: { leadDays: 60 } }],
+  china: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, a new base sooner', mod: { leadDays: 60 } }],
   misuse: [
-    { id: 'defence', label: 'World defences +10 pts', how: 'transition fund, defensive deals, world technologies', mod: { defence: 0.1 } },
+    { id: 'defence', label: 'World defences +10 pts', how: 'transition fund, moonshot, world technologies', mod: { defence: 0.1 } },
     { id: 'flags', label: 'Bio and cyber flags cleared', how: 'a model without the dangerous capabilities, or classifier safeguards that hold', mod: { noFlags: true } },
   ],
   theft: [
-    { id: 'wsl', label: 'Weight security +1 level', how: 'security target, siloing, counter-intelligence', mod: { wsl: 1 } },
-    { id: 'intent', label: 'China theft intent −20', how: 'de-escalation, agreements', mod: { theftIntent: -20 } },
+    { id: 'wsl', label: 'Weight security +1 level', how: 'security level, siloing, counter-intelligence', mod: { wsl: 1 } },
   ],
   rogue: [],
-  war: [{ id: 'rung', label: 'One rung down the ladder', how: 'track-2 dialogue, loosened export controls', mod: { rung: -1 } }],
+  war: [], // only the treaty choice (when offered) moves it, and that is an event, not a what-if
 };
 
 /** Engine what-ifs per risk source (J2 RK1): for each lever of the source's kind, the change in its estimate. */

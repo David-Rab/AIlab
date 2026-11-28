@@ -137,8 +137,10 @@ export type { ChipFit, ForecastEvent, ForecastQ, SiteBars, SiteBuildingsView } f
 export { ownedOnline, rentedOnline, poolsOf, siteLiveMW } from './compute/power';
 export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
 export { liveCommitments, keptShare, blockingCommitments } from './actors/commitments';
-export { usgovView } from './world/usgov';
-export { chinagovView } from './world/chinagov';
+export { usgovView, trustCauses, stageProgress, briefingEffect, type StageProgress, type BriefingEffect } from './world/usgov';
+export { concernParts, approvalParts, approvalCauses } from './world/public';
+export { lawStatus, type LawStatus } from '../../data/v2/laws';
+export { chinagovView, tensionProgress, talksProgress, type StepProgress, type StepPart } from './world/chinagov';
 export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';
 export { techBlocker, techBlockerAtLevels, techGateLevels } from './worldfx/techtree';
