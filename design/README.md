@@ -11,7 +11,8 @@
 | Overall game (v2 base, sections updated by later work) | [V2-SPEC.md](V2-SPEC.md) |
 | Models, research, products, safety (v3) | [MODEL-V3.md](MODEL-V3.md) |
 | Model naming | [MODEL-NAMING.md](MODEL-NAMING.md) |
-| Finance | [FINANCE-V3.md](FINANCE-V3.md) |
+| Finance | [FINANCE-V3.md](FINANCE-V3.md) (governance, board, partners and starts superseded by corp) |
+| Corporate structure, partners, lab kinds | [corp/CORPORATE.md](corp/CORPORATE.md), audit [corp/DEALS-AUDIT.md](corp/DEALS-AUDIT.md), tasks [corp/CORP-TASKS.md](corp/CORP-TASKS.md) |
 | Market, customers, pricing | [MARKET.md](MARKET.md) |
 | Data centres | [DATACENTERS.md](DATACENTERS.md), calibration note [dc/CALIBRATION-NOTE.md](dc/CALIBRATION-NOTE.md) |
 | NPC labs | [npc/NPC-LABS.md](npc/NPC-LABS.md), sources [npc/CAST-2025.md](npc/CAST-2025.md), [npc/MISALIGNMENT.md](npc/MISALIGNMENT.md), [npc/TOOL-REQUIREMENTS.md](npc/TOOL-REQUIREMENTS.md) |
