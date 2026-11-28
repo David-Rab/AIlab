@@ -50,3 +50,12 @@ sanity.ts full-only; no played games in quick), then quick (ask) and full (ask),
 | CR-B | world (worldfx bands), finance (played-game targets), market (serving sourced start numbers) | running (ta-crb) |
 
 Guards to finish after the merges: lint-known (every KNOWN value names an existing OPEN.md section: "OPEN.md § <Section>: …"; several today say "§ Bugs", which does not exist) — lead, after CR-A/CR-B/G9.
+
+## One home per target (designer 2026-11-28: "we dont want lots of different numbers in different places")
+
+The home is balance/targets.ts (TARGETS, 92 targets; balance session's file). CR-A/CR-B copied bands into calreport/ as
+literals: undo that. CR-C (after CR-A): calreport rows reference a target id and read band/unit/source from TARGETS;
+checkLabels/metric re-pointed to the report; registry-lint checks every row's id exists and no band literal in
+calreport/; missing targets proposed to the balance session (asked 2026-11-28, also about targets.draft.ts).
+Then: back-of-envelope estimates (designer's idea): read-only feasibility map first (which targets are computable from
+engine functions on the reference path, no game); built on the same ids.
