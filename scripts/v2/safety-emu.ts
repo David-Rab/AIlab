@@ -19,7 +19,7 @@ import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/plan';
 import { engine } from '../../src/engine/v2/index';
-import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
+import { bestG, bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { misalignment, misalignmentEstimate, pMis } from '../../src/engine/v2/safety/traits';
 import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
 // SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
@@ -32,7 +32,7 @@ import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/eng
 import { validateJson } from './lib';
 import { fileURLToPath } from 'node:url';
 import { cached } from './simcache';
-import { dayOfDate, START_DATE } from '../../src/engine/v2/core/time';
+import { dayOfDate, decimalYear, START_DATE } from '../../src/engine/v2/core/time';
 import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
 import { expectedObservation, familyPenalty } from '../../src/engine/v2/safety/detection';
@@ -121,7 +121,7 @@ export function sarRead(s: GameStateV2): SarRead {
 
 /** Play a real game with `bot` (endings skipped) until the player's SAR or ASI (or day `maxDay`). `observe` sees the
  *  state at day 0 and after every tick. */
-export function play(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId = 'medium', inspect?: (s: GameStateV2) => void, observe?: (s: GameStateV2) => void, maxDay = 1600): Outcome {
+export function play(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId = 'medium', inspect?: (s: GameStateV2) => void, observe?: (s: GameStateV2) => void, maxDay = GAME_DAYS): Outcome {
   return playGame(bot, seed, stopAt, alignment, inspect, observe, maxDay);
 }
 
@@ -233,16 +233,58 @@ function ratesObserver(s0: GameStateV2) {
   };
 }
 
+/** What sanity.ts reads off the shared game (TESTING.md §0): milestones, JSON validity at a few snapshots, the player's
+ *  calendar-year revenue, the extremes of cash and valuation, and every NPC lab's G over the game. */
+export interface SanityRec {
+  milestoneDays: Record<number, number>;
+  /** validateJson(whole state) at day 1, 400, 1200 and the end: [day, errors (first 3), error count]. */
+  json: { day: number; n: number; first: string[] }[];
+  /** Player revenue by calendar year, $B (sum of the daily deployment revenue rates / 365). */
+  revenue: Record<number, number>;
+  minCash: number; minValuation: number; maxValuation: number;
+  /** Each rival's best G sampled every 180 days (NaN-safe: finite flags are checked by the reader), and its status at the end. */
+  rivalG: { id: string; active: boolean; g: number[] }[];
+  endDay: number;
+}
+function sanityObserver() {
+  const rec: SanityRec = { milestoneDays: {}, json: [], revenue: {}, minCash: Infinity, minValuation: Infinity, maxValuation: -Infinity, rivalG: [], endDay: 0 };
+  const g = new Map<string, number[]>();
+  const snap = (s: GameStateV2) => { const e = validateJson(s); rec.json.push({ day: s.time.day, n: e.length, first: e.slice(0, 3) }); };
+  return {
+    step(s: GameStateV2) {
+      const d = s.time.day;
+      if (d === 1 || d === 400 || d === 1200) snap(s);
+      const y = Math.floor(decimalYear(s));
+      rec.revenue[y] = (rec.revenue[y] ?? 0) + s.player.deployments.reduce((a, x) => a + (x.revenueRate ?? 0), 0) / 365;
+      const f = s.player.finance;
+      rec.minCash = Math.min(rec.minCash, f.cash);
+      rec.minValuation = Math.min(rec.minValuation, f.valuation);
+      rec.maxValuation = Math.max(rec.maxValuation, f.valuation);
+      if (d % 180 === 0) for (const r of s.rivals) (g.get(r.core.id) ?? g.set(r.core.id, []).get(r.core.id)!).push(bestG(s, r.core.id));
+    },
+    done(s: GameStateV2): SanityRec {
+      snap(s);
+      rec.milestoneDays = { ...s.player.milestoneDays } as Record<number, number>;
+      rec.endDay = s.time.day;
+      rec.rivalG = s.rivals.map((r) => ({ id: r.core.id, active: r.core.status === 'active', g: g.get(r.core.id) ?? [] }));
+      return rec;
+    },
+  };
+}
+
+/** The player's game horizon in days (16 years): tl-central reaches ASI around day 3300, so a shorter cut stops before SAR. */
+export const GAME_DAYS = 365 * 16;
 /** THE shared game: RefBot (tl-central, medium, endings skipped, tutorial off) seed N to the player's ASI. One cache
- *  entry serves safety.ts's S4 (outcome) and safetyrates.ts (rates); both import this and nothing else keys it, so the
- *  game is played once. `maxDay` below 1600 is for safety.ts's smoke only (a short game; its own cache key). */
-export interface RefGame { outcome: Outcome; rates: RefRec }
+ *  entry serves the calibration report's safety targets (outcome, rates) and sanity.ts (sanity); everything keys on the
+ *  seed and horizon only, so the game is played once. */
+export interface RefGame { outcome: Outcome; rates: RefRec; sanity: SanityRec }
 const EMU_FILE = fileURLToPath(import.meta.url);
-export function refGame(seed: number, maxDay = 1600): RefGame {
+export function refGame(seed: number, maxDay = GAME_DAYS): RefGame {
   return cached('refbot-asi-game', { seed, world: 'tl-central', alignment: 'medium', maxDay }, [EMU_FILE], () => {
     let obs: ReturnType<typeof ratesObserver> | undefined;
+    let san: ReturnType<typeof sanityObserver> | undefined;
     let last: GameStateV2 | undefined;
-    const outcome = play(refBot, seed, 'asi', 'medium', (s) => { last = s; }, (s) => { obs ??= ratesObserver(s); obs.step(s); }, maxDay);
-    return { outcome, rates: (obs as ReturnType<typeof ratesObserver>).done(last as GameStateV2) };
+    const outcome = play(refBot, seed, 'asi', 'medium', (s) => { last = s; }, (s) => { obs ??= ratesObserver(s); san ??= sanityObserver(); obs.step(s); san.step(s); }, maxDay);
+    return { outcome, rates: (obs as ReturnType<typeof ratesObserver>).done(last as GameStateV2), sanity: (san as ReturnType<typeof sanityObserver>).done(last as GameStateV2) };
   });
 }

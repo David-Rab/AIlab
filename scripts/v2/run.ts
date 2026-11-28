@@ -1,29 +1,26 @@
 // Test runner for the v2 scripts (T0): tiers, a worker pool and one summary table.
 //
-//   npx tsx scripts/v2/run.ts --tier quick|cal|full|deep|perf [--only a,b] [--workers N] [--no-ui] [--list]
+//   npx tsx scripts/v2/run.ts --tier quick|full|perf [--only a,b] [--workers N] [--no-ui] [--list]
 //
-//   quick  tsc (main + scripts), every unit-style and short-sim script, and the long multi-seed suites in SMOKE mode
-//          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
-//   cal    calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
-//   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
-//          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. hygiene's
-//          performance checks are left out (they measure wall time, meaningless on a loaded machine): see `perf`.
-//   deep   safety's S5 half-staff check (20 RefBot games to SAR; the sabotage on/off pair is constructed since the 2026-11-28
-//          test audit and runs in quick/full). Merge waves only, after test:full on the same code.
+//   Tiers (design/TESTING.md §0: tests check that things work; calibration is not a test and lives in calreport.ts):
+//   quick  tsc (main + scripts), lints and mechanism tests on constructed cases. No played games. Every task.
+//   full   quick's checks in their full form, test:ui (build + headless browser; started first, it is mostly browser wait)
+//          and sanity.ts (one played game against wide "nothing is absurd" bounds). The merge gate. hygiene's
+//          performance checks are left out (wall time is meaningless on a loaded machine): see `perf`.
 //   perf   hygiene's performance checks only. Run on a quiet machine.
 //
 // Each script runs as `node --import tsx scripts/v2/<file>` (no npx: under load npx alone costs ~10 s a script). Output
 // goes to .simcache/logs/<id>.log; the summary prints script, mode, PASS/FAIL/WARN counts, cache hits and time; a JSON
 // timing log is written to .simcache/last-run.json (and used to start the longest jobs first next time). Exit code 1
-// on any failure. SIMCACHE=off|refresh is passed through (see simcache.ts). Long suites (safety, calib, finance) are
-// split into --prefill k/n shards that fill the cache in parallel; the script itself then runs on cache hits.
+// on any failure. SIMCACHE=off|refresh is passed through (see simcache.ts). A job with `shards` is split into --prefill
+// k/n shards that fill the cache in parallel; the script itself then runs on cache hits (none needs it today).
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { join } from 'node:path';
 import { CACHE_DIR, ROOT, pruneCache } from './simcache';
 
-type Tier = 'quick' | 'cal' | 'full' | 'deep' | 'perf';
+type Tier = 'quick' | 'full' | 'perf';
 interface Job {
   id: string;
   /** Command: a script under scripts/v2 (run with node --import tsx) or a raw argv. */
@@ -70,16 +67,13 @@ const JOBS: Job[] = [
   { id: 'evals', script: 'evals.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 30 }, ...S(ALL, 30) } as Job,
   { id: 'safetyresearch', script: 'safetyresearch.ts', budget: { quick: 20, full: 20 }, ...S(ALL, 25) } as Job,
   { id: 'worktypes', script: 'worktypes.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 70 }, ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 3, cal: 3 }, budget: { quick: 30, full: 300 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 5, full: 5 }, ...S(ALL, 120) } as Job,
   { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf'], full: ['--no-perf', '--deep'], perf: ['--perf-only'] }, mode: { quick: 'no perf', full: 'no perf, deep sweeps', perf: 'perf only' }, budget: { quick: 45, full: 100 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-ux', script: 'lint-ux.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 10) } as Job,
   { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 10) } as Job,
-  // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
-  // S5's played mechanism checks (180 RefBot games to SAR since M11: half staff 20, sabotage on / off 2 × 80), kept out of full to hold it ≲ 20 min wall.
-  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 half staff' }, shards: { full: 6, deep: 6 }, budget: { quick: 40, full: 800, deep: 300 }, ...S([...ALL, 'deep'], 1000) } as Job,
+  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 40, full: 40 }, ...S(ALL, 40) } as Job,
   { id: 'danger', script: 'danger.ts', budget: { quick: 20, full: 60 }, ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
   // E7 sabotage, E8 footholds, E9 control (merged in M5).
@@ -88,12 +82,12 @@ const JOBS: Job[] = [
   { id: 'control', script: 'control.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 60) } as Job,
   // E13 (merged in M5).
   { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 30) } as Job,
-  // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
-  { id: 'safetyrates', script: 'safetyrates.ts', after: ['safety'], budget: { full: 120 }, ...S(['full'], 200) } as Job,
+  // E10: safety rates vs research/20 F on probe worlds (no game; its RefBot-game rates moved to calreport/safety.ts).
+  { id: 'safetyrates', script: 'safetyrates.ts', budget: { full: 30 }, ...S(['full'], 20) } as Job,
   // Constructed mechanism checks only (no played game since the CRB move); full adds a year of ticks and the 6-year site wait.
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 70, full: 140 }, ...S(ALL, 140) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', budget: { quick: 20, full: 20 }, ...S(ALL, 20) } as Job,
-  { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 20, full: 150 }, ...S(ALL, 120) } as Job,
+  { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 20, full: 60 }, ...S(ALL, 120) } as Job,
   { id: 'products', script: 'products.ts', budget: { quick: 20, full: 30 }, ...S(ALL, 30) } as Job,
   { id: 'serving', script: 'serving.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 90 }, ...S(ALL, 60) } as Job,
   { id: 'money', script: 'money.ts', budget: { quick: 25, full: 30 }, ...S(ALL, 60) } as Job,
@@ -139,6 +133,8 @@ const JOBS: Job[] = [
   { id: 'leadread', script: 'leadread.ts', budget: { full: 60 }, ...S(['full'], 30) } as Job,
   // Model naming: start names, one RefBot game, theme change (full only: the game).
   { id: 'naming', script: 'naming.ts', budget: { full: 60 }, ...S(['full'], 30) } as Job,
+  // One played RefBot game (tl-central) against wide "nothing is absurd" bounds (TESTING.md §0). Full only.
+  { id: 'sanity', script: 'sanity.ts', budget: { full: 300 }, ...S(['full'], 300) } as Job,
   { id: 'ui', argv: ['npm', 'run', 'test:ui'], budget: { full: 60 }, ...S(['full'], 300, { first: true }) } as Job,
 ];
 
@@ -161,16 +157,13 @@ const opt = (name: string) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const tier = (opt('tier') ?? 'quick') as Tier;
-if (!['quick', 'cal', 'full', 'deep', 'perf'].includes(tier)) {
-  console.error(`unknown tier ${tier} (quick | cal | full | deep | perf)`);
+if (!['quick', 'full', 'perf'].includes(tier)) {
+  console.error(`unknown tier ${tier} (quick | full | perf)`);
   process.exit(2);
 }
 const only = opt('only')?.split(',').map((x) => x.trim()).filter(Boolean);
-// Default workers: perf 1 (timings); cal 10 on a machine with ≥ 12 logical cores (M9, lead decision: since F4 the cal
-// tier plays 108 games, 80 of them T1 over the 20 CAL_SEEDS, ≈ 7 min cold on 6 workers; its jobs are CPU-bound games
-// with no shared state, so more workers cut the cold wall time), else 6. calib's cal-tier prefill shards are 10 to match
-// (with 6 shards the extra workers idle: M9 measured 5.9 min cold at 10 workers / 6 shards).
-const defaultWorkers = tier === 'perf' ? 1 : tier === 'cal' && os.cpus().length >= 12 ? 10 : 6;
+// Default workers: perf 1 (timings), else 4: the machine is shared by parallel sessions (TESTING.md §7); pass --workers to change.
+const defaultWorkers = tier === 'perf' ? 1 : 4;
 const workers = Math.max(1, Number(opt('workers') ?? defaultWorkers));
 const noUi = argv.includes('--no-ui');
 let jobs = JOBS.filter((j) => j.tiers.includes(tier));
@@ -212,7 +205,7 @@ if (argv.includes('--list')) {
   console.log(`tools  ${TOOLS.join(', ')}`);
   const o = orphans();
   if (o.length) console.log(`ORPHANS (assert but in no tier): ${o.join(', ')}`);
-  for (const t of ['quick', 'cal', 'full', 'deep', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
+  for (const t of ['quick', 'full', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
   process.exit(0);
 }
 

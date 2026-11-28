@@ -13,7 +13,7 @@ import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const FIXTURE_DIR = join(HERE, 'fixtures');
 
-/** The T1 / T1L calibration targets (calib.ts, calscan.ts): the golden milestone days per world. The golden days belonged to the
+/** The T1 / T1L calibration targets (calreport/milestones.ts, calscan.ts): the golden milestone days per world. The golden days belonged to the
  *  removed old presets (the v1 integrator's output and slow SC's 2034–2035 range); the three timeline worlds have no golden days yet, so
  *  every world's `days` is empty and the checks that read them skip. */
 export function calGolden(): { presets: Record<string, { days: Record<string, number> }> } {
