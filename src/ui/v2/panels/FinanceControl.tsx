@@ -77,14 +77,14 @@ export function ControlRow({ s }: { s: GameStateV2 }) {
       <span className="dim small"><Term id="votes">Who controls you</Term></span>
       <div className="vbar">
         {hs.map((h) => (
-          <Tip key={h.id} content={() => (
+          <Tip key={h.id} className="vtip" style={{ flex: `0 0 ${h.votes * 100}%` }} content={() => (
             <TipCard title={holderTitle(h)} value={`${share(h.votes)} of the votes`} rows={[
               { label: <Term id="shareClass">Share class</Term>, value: classRule(h) },
               { label: 'Board seats', value: `${seatsOf(h)}${h.kind === 'founders' ? ' (including yours)' : ''}` },
               ...(c?.id === h.id ? [{ label: <Term id="controller">Controller</Term>, value: 'more than half of the votes' }] : []),
             ]}>{"Seats follow votes: the CEO plus six elected by the holders' votes. The share of the company each holds is in Who owns you."}</TipCard>
           )}>
-            <div className={`vseg ${c?.id === h.id ? 'ctrl' : ''}`} data-holder={h.id} style={{ flex: `0 0 ${h.votes * 100}%`, background: HOLDER_COLOR[h.kind] }}>{h.votes >= 0.14 ? holderTitle(h) : ''}</div>
+            <div className={`vseg ${c?.id === h.id ? 'ctrl' : ''}`} data-holder={h.id} style={{ background: HOLDER_COLOR[h.kind] }}>{h.votes >= 0.14 ? holderTitle(h) : ''}</div>
           </Tip>
         ))}
         <i className="vline" /><span className="vline-lbl">50%</span>

@@ -6,7 +6,8 @@
 .ctl-head .power.held { border-color: var(--watch, #e9b44c); color: var(--watch, #e9b44c); }
 .ctl-who { margin: 4px 0 10px; }
 .vbar { position: relative; display: flex; height: 22px; border-radius: 5px; margin-top: 16px; }
-.vseg { min-width: 2px; height: 100%; border-right: 1.5px solid var(--panel, #151c26); display: flex; align-items: center; padding: 0 5px; overflow: hidden; font-size: 11px; color: #0d131a; font-weight: 600; white-space: nowrap; }
+.vtip { display: flex; min-width: 2px; }
+.vseg { flex: 1; min-width: 0; height: 100%; border-right: 1.5px solid var(--panel, #151c26); display: flex; align-items: center; padding: 0 5px; overflow: hidden; font-size: 11px; color: #0d131a; font-weight: 600; white-space: nowrap; }
 .vseg.ctrl { outline: 1.5px solid #fff; outline-offset: -1.5px; }
 .vline { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 0; border-left: 1.5px dashed #fff; pointer-events: none; }
 .vline-lbl { position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font-size: 10.5px; color: var(--text-2); }

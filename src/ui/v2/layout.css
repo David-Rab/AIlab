@@ -18,6 +18,8 @@
 .setup-col { display: flex; flex-direction: column; gap: 16px; }
 .setup-note { font-size: 12px; }
 .start-opts { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 10px; max-width: 1200px; }
+.start-opts > [data-tip] { display: flex; }
+.start-opts > [data-tip] > .start-opt { flex: 1; }
 .start-opt { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; color: var(--text); font: inherit; }
 .start-opt:hover { border-color: var(--accent); }
 .start-opt.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
