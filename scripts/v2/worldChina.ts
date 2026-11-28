@@ -33,7 +33,7 @@ const load = (n: string): GameStateV2 => {
  *  made half an OOM better: the player's public model leads the NPC labs and China (lead reads on public models, F7). */
 const loadLeading = (): GameStateV2 => {
   const s = load('day900.json');
-  for (const v of new Set(s.player.deployments.map((d) => versionById(s, d.versionId)!))) { v.G += 0.5; v.build.gPre += 0.5; }
+  for (const v of new Set(s.player.deployments.map((d) => versionById(s, d.versionId)!))) { v.G += 0.5; if (v.build) v.build.gPre += 0.5; }
   return s;
 };
 /** Set the US lead over China (months) by China's public report. */

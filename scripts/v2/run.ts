@@ -55,7 +55,7 @@ const SMOKE = ['--smoke'];
 const S = (tiers: Tier[], est: number, extra: Partial<Job> = {}): Partial<Job> => ({ tiers, est, ...extra });
 const ALL: Tier[] = ['quick', 'full'];
 const DEFAULT_BUDGET = 20; // CPU-s per job when a job declares none
-const TIER_BUDGET_MIN: Partial<Record<Tier, number>> = { quick: 15 }; // CPU-min for the tier in total (TESTING.md §1)
+const TIER_BUDGET_MIN: Partial<Record<Tier, number>> = { quick: 10, full: 15 }; // CPU-min for the tier in total (TESTING.md §0)
 /** Every job. `full` lists exactly the old test:v2 chain (+ test:ui); quick adds the main tsc and SMOKE modes. */
 const JOBS: Job[] = [
   { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
@@ -349,14 +349,26 @@ for (const r of results) {
 }
 const baseJob = (id: string) => JOBS.find((j) => j.id === id.split('#')[0]);
 const budgetOf = (id: string) => baseJob(id)?.budget?.[tier] ?? DEFAULT_BUDGET;
-for (const r of results) if (r.cpu > budgetOf(r.id)) console.log(`WARN over budget: ${r.id} used ${r.cpu.toFixed(1)} cpu s, budget ${budgetOf(r.id)}`);
-const failed = results.filter((r) => r.status !== 0 || r.fail > 0);
+// TESTING.md §1: a job's cpu (its prefill shards included) over its budget warns; over twice its budget fails the run, so a
+// test that grows must be made cheaper or re-budgeted with a reason in the same change.
+const jobCpu = new Map<string, number>();
+for (const r of results) jobCpu.set(r.id.split('#')[0], (jobCpu.get(r.id.split('#')[0]) ?? 0) + r.cpu);
+const overBudget: string[] = [];
+for (const [id, cpu] of jobCpu) {
+  const b = budgetOf(id);
+  if (cpu > 2 * b) overBudget.push(id);
+  if (cpu > b) console.log(`${cpu > 2 * b ? 'FAIL' : 'WARN'} over budget: ${id} used ${cpu.toFixed(1)} cpu s, budget ${b}${cpu > 2 * b ? ' (over twice its budget)' : ''}`);
+}
+const failed = results.filter((r) => r.status !== 0 || r.fail > 0 || overBudget.includes(r.id));
 const tot = results.reduce((a, r) => ({ pass: a.pass + r.pass, fail: a.fail + r.fail, cpu: a.cpu + r.cpu }), { pass: 0, fail: 0, cpu: 0 });
 const scripts = results.filter((r) => !r.id.includes('#'));
 const shardNote = scripts.length < results.length ? ` (+ ${results.length - scripts.length} prefill shards)` : '';
 console.log(`\n${tier}: ${scripts.length - failed.filter((r) => !r.id.includes('#')).length}/${scripts.length} scripts ok${shardNote}, ${tot.pass} checks passed, ${tot.fail} failed; wall ${(wall / 60).toFixed(1)} min, cpu ${(tot.cpu / 60).toFixed(1)} min, machine load ${(load * 100).toFixed(0)}% (${os.cpus().length} cores, ${workers} workers)`);
 const tierBudget = TIER_BUDGET_MIN[tier];
-if (tierBudget !== undefined) console.log(`${tot.cpu / 60 > tierBudget ? 'WARN over budget: ' : ''}total cpu ${(tot.cpu / 60).toFixed(1)} min vs the ${tier} tier budget of ${tierBudget} cpu-min`);
+// The whole tier over its budget fails too (not with --only, which runs a part of it).
+const tierOver = tierBudget !== undefined && !only && tot.cpu / 60 > tierBudget;
+if (tierBudget !== undefined) console.log(`${tierOver ? 'FAIL over budget: ' : ''}total cpu ${(tot.cpu / 60).toFixed(1)} min vs the ${tier} tier budget of ${tierBudget} cpu-min`);
+if (tierOver) failed.push({ id: `${tier} tier budget` } as Result);
 if (tier === 'quick') console.log('quick is a smoke gate: SMOKE lines are informational; run the full tier (npm run test:full) before a merge.');
 if (failed.length) console.log(`FAILED: ${failed.map((r) => r.id).join(', ')} (logs in ${LOG_DIR})`);
 
