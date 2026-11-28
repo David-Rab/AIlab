@@ -25,6 +25,7 @@ Owner: the balance session. Its live list is [bal/RECAP-2026-11-27.md](bal/RECAP
 | Item | Kind | Detail |
 |---|---|---|
 | RefBot revenue collapses from ≈ $15B (Oct 2025) to ≈ $7B (Jan 2026) and the leader falls into distress (seed 1, refPlay + REF_AUTOPILOT; the same on master 5f3fb8cb and on corp, so not from the corporate redesign). It fails finance.ts F7/F8/F9/F11 and FIN3a (board confidence median 6). Designer takes it in a new session after the corp merge | Bug | probe C:/tmp/corp-probe/rev.mts; corp/CORP-TASKS.md notes |
+| The big-tech division starts with $20B of its own cash plus the parent's $16B budget: the capital-heavy position's cash (sized for the market-funded founder racer) also goes to the division (was $4B). Decide per kind or per controller | Later (calibration) | data/v2/starts.ts POSITIONS capital; corp/CORPORATE.md §6 |
 | The reference bot builds 3 sites in its first five quarters after the corp redesign (5 on master): less cash from Northwind's legacy 20% revenue share and 4× partner commitments. sites.ts now prints it as INFO (calibration, not a test); judge it in the calibration report with the revenue fix | Later (calibration) | scripts/v2/sites.ts ~471; corp/CORP-TASKS.md notes |
 | M4: the 36 M3 games on the full tree, read against M3 | Later (next) | RECAP §3.1; bal/LABOUR-ROUND.md §11 |
 | Fit within source ranges what M4 leaves off (P24 strength; SC threshold only for a constant offset) | Later | RECAP §3.2 |
