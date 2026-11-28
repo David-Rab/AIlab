@@ -1,7 +1,7 @@
 // Watch rules (IA.md L1, PLAN U1.10): each rule reads visible selectors only and yields a cause chain
 // (root ▸ symptom), a consequence line and a Go target to the control that fixes it. UI-only; no engine state.
 import type { LucideIcon } from 'lucide-react';
-import { describeTarget, divisionView, engine, eventDef, idleChips, idleShares, idleStocks, idleTeams, internalVersion, revenueReadout, safReAllocView, safetyView, whatWeOwe } from '../../../engine/v2';
+import { blockingCommitments, describeTarget, divisionView, engine, eventDef, idleChips, idleShares, idleStocks, idleTeams, internalVersion, revenueReadout, safReAllocView, safetyView, whatWeOwe } from '../../../engine/v2';
 import type { GameStateV2, IdleStockId } from '../../../engine/v2';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
@@ -133,7 +133,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
 }
 
 // ───────── nav badges (moved from Nav.tsx so node scripts can read the alert channel) ─────────
-const EVENT_PANEL: Record<string, string> = { finance: 'finance', company: 'lab', model: 'safety', incident: 'safety', research: 'safety', alert: 'risk', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations', world: 'world', milestone: 'models', security: 'lab' };
+const EVENT_PANEL: Record<string, string> = { finance: 'finance', company: 'lab', model: 'safety', incident: 'safety', research: 'safety', alert: 'risk', gov: 'powers', china: 'powers', rival: 'powers', public: 'powers', world: 'world', milestone: 'models', security: 'lab' };
 
 /** Badge per nav id: number, '!' or undefined. */
 export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'warn' | 'info' | 'bad' }> {
@@ -143,6 +143,9 @@ export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'wa
   const dec: Record<string, number> = {};
   for (const p of s.events.pending) { const id = EVENT_PANEL[eventDef(p.id)?.icon ?? ''] ?? 'overview'; dec[id] = (dec[id] ?? 0) + 1; }
   for (const [id, n] of Object.entries(dec)) if (id !== 'overview') b[id] = { n: String(n), tone: 'warn' };
+  // Powers: a binding pledge waits for Honour, Amend or Break (the decision count above already holds its events).
+  const binding = blockingCommitments(s).length;
+  if (binding) b.powers = { n: String(Number(b.powers?.n ?? 0) + binding), tone: 'warn' };
   const fresh = s.player.safety.findings.filter((f) => s.time.day - f.day <= 30).length;
   if (fresh && !b.safety) b.safety = { n: String(fresh), tone: 'info' };
   const idleSci = idleTeams(s).length;
