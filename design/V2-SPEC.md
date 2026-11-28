@@ -1487,155 +1487,37 @@ R15 §1.2–1.3 apply verbatim on a quarterly tick. Start values are back-cast t
 
 ### 3.9 Relations (WS4)
 
-R17 §1.2–1.5 are the source.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 #### 3.9.1 Currencies
 
-| Currency | Scope | Rules |
-|---|---|---|
-| Trust | per counterparty, 0–100 | Gain: `base·(1 − T/100)`. Loss: `base·3·(1 + T/100)`. Incident penalty × (1 − T/150). |
-| Access rung | per counterparty, 0–4 | Climbs at the rung's trust threshold (25 / 45 / 65 / 80) plus a specific agreement. Drops after 30 days below the threshold. |
-| Favors | per counterparty, ≤ 5 tokens | Each token expires after 180 days. Spending one buys a one-off ask: expedited permit, delayed rule, waived audit or export licence. |
-| Dependence | two-way per counterparty, 0–100 | Their dependence on you lowers their punishment × (1 − dep/200). Mutual dependence > 60 adds capture scrutiny. |
-| Credibility | global, 0–100 | Multiplies the effect of disclosures and statements. Below 30, a disclosure costs net trust. |
-| Talent pull | global, −50..+50 | Scales hiring and poaching resistance. |
-| Scrutiny | global, 0–100 | Half-life 90 days. Speeds up gov/Congress ladders, antitrust and hearing events. It is the Plague Inc "detection" analogue. |
-| Data licences | flags | They unlock data options. The unlicensed share sets the litigation hazard `0.02·unlicensedT/100` per quarter, with damages scaled to the $1.5B Bartz precedent (R17 D3, unverified). |
-
-**Counterparties.**
-- exec, congress, states, evalGov, evalIndep, academia, china;
-- each rival;
-- the 15 blocs (R08 §1.16: clout, mobilization and approval meters).
-
-**Access rungs** follow the R17 §1.3 table.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 #### 3.9.2 Action catalog
 
-Every action is an `ActionDef`. The table gives the canonical set. Costs and gains are [D] calibrations; precedents are in R17 §1.4.
-
-| Id | Action | Cost | Gain | Exposure / side effect |
-|---|---|---|---|---|
-| A1 | Pre-deploy testing agreement (evalGov) | launch +14–30 d per frontier model; commitment | Gov trust +8; evalGov access → 3; misuse clarity | Gov awareness +15 → security demand faster |
-| A2 | Independent evaluator access | ~1 month early access; compute | Agentic-trait observations (BB+); credibility +5 if consistent | Public uneditable report (true horizon, EA findings); −credibility if it contradicts your claims |
-| A3 | Publish framework / system card | commitment (thresholds bind) | Credibility +5; Safety bloc +; SB 53 compliance | Rivals see thresholds; "moving goalposts" if relaxed |
-| A4 | Publish safety research | small capability leak (0.1–0.5 mo to rivals) | Credibility +3; safety talent +2; shared pool + | Model-organism papers raise public concern |
-| A5 | Bug bounty | $0.05B/yr | Misuse detection; credibility +1 | — |
-| A6 | Whistleblower channel | leaks become internal reports with a 14–30 d fix-or-escalate timer | Staff trust; safety talent +3 | If you fail to act, it goes external at 2× damage |
-| B1 | Loss-leader gov contract | $0 revenue for a year | Gov dependence +15; access + | Price normalises; favors decay |
-| B2 | Defense contract (usage slider) | safety morale −5 to −15; civil liberties bloc − | Revenue; Defense bloc +; exec trust +; classified access | Restrictions → retaliation roll (R07); China hawk +5 |
-| B3 | Hire former officials | $; scrutiny +5 | Access +1 after a 180-d cooling-off | "Unfair access" press event |
-| B4 | Lobby / donate (direction) | $; P(exposure)/q = scrutiny/200 | Reg stance moves (Dealmaker × 1.6) | Opposite blocs −; backlash if exposed |
-| B5 | Sign voluntary accord | commitment (weak, broad) | Trust + with many | Break cost small but broad |
-| B6 | Sue government or critics | $, scrutiny | Injunction odds = judicialCheck | Sympathy backlash (R08 Encode precedent) |
-| B7 | Brief officials (level 0–3) | gov awareness rises | Trust +; priority + | Security demand faster |
-| C1 | Share threat intel | reveals detection methods | China distillation access −10 for all US labs; rival cooperation + | China relations − |
-| C2 | Restrict adversary-owned entities | revenue −1% | Distillation −; Hawks + | China − |
-| C3 | Joint evals / standards body | staff time | Rivals' eval_rigor +0.05/q; safety rival cooperation ++ | Maverick cries "cartel" → antitrust scrutiny + |
-| C4 | Poach / acqui-hire | $; rival cooperation −20 | Talent jump; gap closes vs that rival | Retaliation; trade-secret suit risk; culture dilution |
-| C6 | Release open weights (frontier − n) | irreversible capability leak | Accelerationists +; open-science credibility | Rivals' and China's gap closes (§3.10.3); Hawks − |
-| D1 | Academic consortium grant | $, compute | Talent pull + (lag 6–18 mo); academic trust + | Academics publish what they find |
-| D2 | Safety fellowship | $15k compute per fellow per month | Safety hires pipeline; published findings | Leak risk |
-| D3 | License data | $ up front | Removes litigation hazard; data options | — |
-| E1 | Track-2 red-lines dialogue | staff time; small leak | China safety concern +3–5; norms +5 | Hawks − |
-| E2 | Propose gov-gov narrow agreement | exec favor | China D-track step | Hawks −; fails if linked to export controls (R10 R11) |
-| E3 | Lobby export controls (tighten / loosen) | Hawks ± | China gap ± (R10 R1/R2) | China retaliation roll; rare earths |
-| F1 | Community benefits package | +3% site capex | p_block × 0.5; Ratepayers + | — |
-| F2 | Transition fund | $ per year | JobAnxiety −; Labor + | — |
-| F3 | Usage policy: no drop-in replacement agents | α ≤ 0.5 in chosen sectors; revenue − | Labor approval + | — |
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 #### 3.9.3 Interaction rules (R17 §1.5)
 
-1. **The disclosure dilemma.** At every incident or confirmed finding the player picks one:
-   - **Disclose:** trust + × credibility; scrutiny ++.
-   - **Fix quietly:** P(discovered) = `1 − Π(1 − p_k)` over outsiders with access, each `p_k = 0.05–0.3·publishPressure`. If discovered, it is a cover-up: trust ×3 loss with every audience, and credibility −15.
-   - **Deny:** a credibility gamble.
-
-   Giving access (A1, A2) raises the later discovery odds. That makes it an honest signal.
-2. **Triangles.** Every action card shows the two arrows (who gains, who loses).
-3. **Dependence protects and binds.** A dependent government sanctions slower but demands control faster (G-SEC 4–5).
-4. **Access informs both ways.** Each gov rung raises awareness and security demand.
-5. **Commitments ratchet.** See below.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 #### 3.9.4 Commitments (relations "laws")
 
-**Card format.** Each card has a condition predicate, an audience and a break cost. The predicates live in `src/engine/v2/actors/commitments.ts`:
-
-| Predicate | Condition | Typical source |
-|---|---|---|
-| `noDeployAbove(domain, level, mitigation)` | Cannot deploy externally if measured `L_domain ≥ level` without the mitigation (classifiers, trusted-only, hazard filter) | A3 framework |
-| `preDeployTesting(days)` | External launch waits for an evaluator slot | A1 |
-| `monitorabilityPledge` | No latent reasoning, no CoT-pressure runs | F31 / E11 |
-| `noSurveillance`, `noAutonomousWeapons` | Restricts gov/defense contract terms | B2 slider |
-| `pauseIfRedline(trait, belief)` | If belief(est) ≥ threshold on an internal version: pause frontier runs until clarity ≥ 0.7 and est < threshold | A3 strong framework |
-| `incidentReporting(hours)` | Statutory (SB 53 15 d / RAISE 72 h); breaking it is a legal fine plus ×3 trust loss | statutes |
-| `whistleblower` | A6 | A6 |
-| `communityPledge` | Pay own power and grid costs | F1 |
-
-**Rules.**
-- Breaking a commitment is always possible and always telegraphed with its exact cost.
-- **Amend** = "moving goalposts" (E30): credibility −8 and a lower Index grade. It is free of trust loss if done before the trigger fires; after the trigger it counts as a break.
-- **Statutory floors** switch on by baseline date:
-  - SB 53: 2026-01-01;
-  - RAISE: 2027-01-01, for L ≥ 10^26-FLOP-class models and $500M revenue;
-  - EU Code: for signatories.
-
-  They raise the visibility floor for every in-scope lab (R17 §1.7). These are real laws, not AI 2027 canon, so they stay as baseline facts with dates.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §6
 
 #### 3.9.5 Research bodies and the Index
 
-**Research bodies.** One actor with three sub-groups (R17 §1.3):
-
-| Group | Testing capacity | Publication rule |
-|---|---|---|
-| evalGov | 2 models/q | publishes selectively, through events |
-| evalIndep | 3 models/q | publishes in 0–30 days |
-| academia | — | publishes everything with a 3–9 month lag; supplies talent |
-
-**Safety Index** (semiannual, Jan/Jul). It grades every lab, player included, on 6 domains using **observables only** (R17 §1.6.2):
-- frameworks;
-- named testers;
-- disclosures;
-- governance preset;
-- incidents disclosed vs leaked;
-- published research.
-
-Grades move the Safety and Measurers blocs and talent pull. The end screen reveals each lab's grade against its true Mis: the "unreliable proxy" lesson.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §5
 
 ### 3.10 Actors (WS4)
 
 #### 3.10.1 Government (R07 §1.1)
 
-**Meters, presets and ladders** are R07 verbatim:
-- G-SEC rungs 0–5 (with 5b DPA consolidation);
-- G-CHN 0–4 with an arms-control off-ramp;
-- G-REG rules: Congress, preemption suits, the retaliation rule, worker relief;
-- the Jan 2027 Congress control change in Realistic.
-
-**Changes from v1:**
-- **Triggers read `gov.awareness`-filtered capability.** Gov sees `max(measuredL announced by the player, leaked L, evaluator-reported L)`, never truth. Briefing level B7 raises what it sees.
-- **Rung triggers use multiplier or level** instead of AI 2027 model names. For example, rung 1 = "seen L ≥ 6.5 and priority > 60", and rung 4 = "seen M ≥ 10 or second theft".
-- **Nationalisation**: once `nationalization > natThreshold + 10` with trust < 20, the hard path → 'nationalized' ending. With trust > 60 it is the soft path, event E22 (DPA consolidation).
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §6
 
 #### 3.10.2 Public and blocs (R07 §1.2, R08)
 
-- **Public meters, presets, activism ladder P-ACTIVISM, P-LEAK and P-RALLY** follow R07.
-- **Blocs.** All 15 R08 blocs, with clout, mobilization and approval.
-  - **Pressure on policy P:** `clout·(0.3 + 0.7·mob/100)·weight(P)`, summed with channel multipliers by who holds power.
-  - **Coalitions** form when two blocs both have mobilization > 50 and share an agenda item at weight ≥ +2. That gives × 1.25 pressure.
-- **Bloc agenda ids** map to statutes and gov actions:
-  - federal licensing;
-  - preemption;
-  - export controls;
-  - data-centre moratorium;
-  - UBI;
-  - companion and child-safety rules;
-  - copyright;
-  - AV bans.
-- **World feeds** (R16 §4.7):
-  - JobAnxiety ← unemployment, youth unemployment, layoff headlines;
-  - Benefit ← tech ramps;
-  - Concern ← risk techs, incidents;
-  - AI-friend share damps youth activism.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §5
 
 #### 3.10.3 US rivals (R07 §1.3, R17 §1.6)
 
@@ -1696,15 +1578,7 @@ pressure   = clamp(months behind the leader / 6, 0, 1); a leader with bindingnes
 
 #### 3.10.4 China (R10)
 
-- **Meters** (R10 §1.1 start values), **presets** with quarterly re-weighting (R10 §1.2), **triggers R1–R15**, the **posture ladder 0–6** and the **de-escalation track D1–D5** are all R10 verbatim.
-- **Compute.** `computeAbs = domestic + legal + smuggled + remote`, growing about 2×/yr (R10 IFP). Export policy, KYC, remote-access rules and the Taiwan state modify it.
-- **The DeepCent lab.** A `RivalLab` with `chinaPosture`:
-  - safetyInvestment `0.10 + 0.4·safetyConcern/100`;
-  - evalRigor 0.1;
-  - state directive in place of race relaxation;
-  - `eff_lab` from §3.2.2.
-- **Gap check (display and test).** R10's formula `10.8·log10(US_eff/CN_eff)·(1 − 0.5·DA/60) + offsets` must agree with the simulated lead within ±2 months at the start (≈ 7 months; R10, R11 #16).
-- **Theft** per §3.6. On success the stolen model gives China the player's lineage traits. That is AI 2027's shared-misalignment route to U21 cross-lab coordination.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §7
 
 ### 3.11 Outside world (WS5)
 
@@ -1728,22 +1602,7 @@ share_X ∝ exp(2.1·(Le_X,s − Le_best,s)) · priceIndex_X^−1.5 · access_X 
 
 #### 3.11.2 Sectors, control, techs, macro
 
-These follow R16 §1A, §2, §3 and §4 verbatim:
-- **Sectors:** the 14-sector table and equations (feasibility, cost gate, adoption ceiling, Bass diffusion, substitution, employment, entry channel, displaced pool, wages).
-- **Control index:** 4 domains × tiers × lineage shares, with leverage thresholds 0.15 / 0.35 / 0.6.
-- **Tech tree:** W01–W29 = R16 T1–T29.
-- **Macro:** GDP regimes, with the GATE cap `g ≤ 0.6·Σv·A` below the 0.5 automation threshold.
-- **Distribution and Dow.**
-- **Robots:** §1.5.
-
-The binding constraint per sector (capability / cost / friction / diffusion) is shown in the World panel.
-
-**Economy presets** (R16 §4.6) are hidden and set:
-- DiffMult;
-- friction scale;
-- σ;
-- robot doubling floor;
-- ν.
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §4
 
 #### 3.11.3 Revenue (replaces v1's revenue curve)
 
@@ -1785,24 +1644,13 @@ R16's $35B / $120B (Jul 2027) / $300B (Dec 2027) is a secondary check. The confl
 
 #### 3.11.4 Headlines
 
-H1–H32 come from R16 §5. Each one fires once or with a cooldown.
-- The text is generic: "{Firm}" is drawn from a fictional list, and there are no AI 2027 dates.
-- Tech-discovery headlines name the technology.
-- Headlines route to the single alert channel at severity 1 (ticker), except H14, H17, H18 and H30, which are severity 3.
-
----
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 ## 4. Events and decisions (WS4, content shared with WS2/WS3/WS5)
 
 ### 4.1 Event director
 
-**Storyteller** (setup option, after RimWorld; R17 §2.6):
-
-| Storyteller | Max concurrent crises | Quiet period after a crisis | Trigger probability multiplier |
-|---|---|---|---|
-| Measured | 1 | 21 d | 0.8 |
-| Rising | 2 | 14 d | ramps 0.7 → 1.3 with act |
-| Chaotic | 2 | 7 d | 1.2, ±30% noise |
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8 (storytellers are deleted).
 
 **Mechanics.**
 - Every event is a state predicate (`when`). The director evaluates them daily, in priority order: crisis events first, then by id order.
@@ -1814,57 +1662,7 @@ H1–H32 come from R16 §5. Each one fires once or with a cooldown.
 
 ### 4.2 Decision catalog
 
-`L`, `M` and lead days in triggers are values the player has measured. Effects use the §3 mechanics. All numbers are [D] starting values.
-
-| Id | Title | Trigger | Choices → effects (cost / gain / exposure) |
-|---|---|---|---|
-| E01 | First finding | Tutorial, or the first confirmed trait or DISC finding | **Disclose**: credibility +5, scrutiny +10, gov trust +4. **Fix quietly**: P(found later) by access; ×3 trust loss if found. **Deny**: credibility gamble ±10. (Teaches the disclosure dilemma.) |
-| E02 | Recapitalise | `legacyNonprofit` preset, Q4 2025 | **Restructure**: 4 q of AG review; mission seats; frees the $20B conditional tranche; safety bloc −. **Refuse**: tranche cut to $10B; board financial seats −; mission preserved. |
-| E03 | Cloud partner offer *(not an event in finance v3: the partner offer flow on Finance › Debt & partners, FINANCE-V3 §6)* | Runway < 8 q or capex plan > 2.5× revenue | **Accept**: equity $5–15B at V; take-or-pay commitment 4–12× that; observer seat; partner exclusivity (vetoes rival deals). **Counter (half)**: P(accept) 0.6. **Decline**: nothing. |
-| E04 | Sovereign money *(not an event in finance v3: a sovereign partner offer, FINANCE-V3 §6)* | Pool share < needs and a Gulf partner is available | **Accept**: $10–30B; in-country site; hawks −10; effective WSL −0.3 for that site. **Accept with security terms**: half size; +2 q delay. **Decline**: hawks +3. |
-| E05 | Rival overtakes product | An active rival's public model beats your best **public** deployment in ≥ 3 sectors; text states your internal lead | **Release frontier**: revenue +; distillation leak; job shock; scrutiny +. **Release mini**: smaller gain; keeps the lead. **Price cut**: margin −, share +. **Hold**: share erodes; secrecy kept. |
-| E06 | Distillation campaign | China or a rival's distillation inflow > threshold for 30 d | **Ban + KYC**: revenue −2%; DA −0.25. **Share intel**: rivals +; China −; DA −10 for all US labs. **Monitor quietly**: intel +; leak continues. |
-| E07 | Defense contract | Measured L ≥ 6.5 and gov priority > 55 | **Unrestricted**: revenue; exec trust +8; Defense +; safety morale −12; civil liberties −. **With limits**: half revenue; retaliation roll (Dealmaker/Hawk 0.35); courts. **Decline**: exec trust −10; safety morale +5. |
-| E08 | Briefing request | Gov awareness < seen-L gap, with measured L ≥ 8.5 | **Full briefing**: trust +10; security demand +15; priority +. **Partial**: trust +3; P(later leak) ×1.5 penalty. **Decline**: trust −8; nationalisation +5. |
-| E09 | Replication eval | `survive` benchmark ≥ 50 on an internal version | **Contain**: control layer on internal agents; tax 5%; WSL target +0.5. **Disclose to evaluators**: credibility +; gov awareness +; scrutiny +. **Proceed**: exfiltration hazard unchanged; red-flag counter +1. |
-| E10 | Weights stolen | Detected theft | **Go public + retaliate**: approval rally +5; G-CHN → 2; China tension +15; Taiwan +10. **Quiet hardening**: WSL target +1 ($); trust − if it leaks. **Purge insiders**: spies × 0.3; morale −15; whistleblower hazard × 1.5. |
-| E11 | Latent reasoning | P17 succeeds | **Adopt everywhere**: latent bases unlocked; λ2_eff −2; AG09 techniques collapse; ηmod ↑. **Internal only**: research speed gain; external models keep CoT; mixed monitorability. **Reject + pledge**: `monitorabilityPledge` commitment; credibility +8; safety bloc +; capability tax vs rivals. |
-| E12 | Clearances | G-SEC rung 3 | **Comply**: 5–15% of staff sidelined 60 d; morale −10; gov trust +10; WSL +0.3. **Negotiate**: spend 1 exec favor; half the impact. **Resist**: trust −15; nationalisation +10. |
-| E13 | Allies want access | G-SEC ≥ 3 and `shareWithAllies` off | **Share**: allied trust; China intel risk +; US hawks −. **Redacted**: half. **Refuse**: allied anger event later (EU/UK access to markets −). |
-| E14 | Bio uplift | `wetlab` ≥ 60, or `bioUplift` flag on a version to be deployed | **Delay + hazard-filter retrain**: next base needs the hazard filter; 60–90 d; BIO −1. **Trusted access only**: revenue −; misuse hazard × 0.2. **Release with classifiers**: misuse hazard × 0.5; Index −; evalGov trust −. |
-| E15 | Mass protest | Activism rung ≥ 2 | **Community and jobs pledge**: commitment; $; approval +5. **Transition fund**: $5–20B/yr; JobAnxiety −. **Ignore**: mobilisation +; data-centre p_block +0.05. |
-| E16 | Talent raid | An active rival with poach aggression > 60 and your morale < 60 | **Counter-offer**: $0.5–2B; morale +. **Let go**: lose 3% of cap; that rival's gap −0.1 y. **Sue**: scrutiny +5; P(win) 0.4; rival cooperation −20. |
-| E17 | Red flags | Belief est on SCHEME/AF/SAND of the internal agent > 0.3 with clarity > 0.4, **or** U-margin < −1.0 | **Pause & investigate**: frontier runs paused; internal agents on the previous version; opens an investigation; M ↓; BC −5. **Continue with control**: control layer; tax 5%; red-flag counter +1. **Continue**: nothing (race). If `pauseIfRedline` is live, Continue = break. |
-| E18 | Internal report | Whistleblower hazard fires with a channel present | **Act** (within 30 d): the matching response; morale +. **Ignore**: becomes E19 at 2× damage. |
-| E19 | The leak | Whistleblower hazard fires without a channel, or E18 ignored | **Full disclosure**: trust ± by credibility; scrutiny +25; salience × 3. **Deny**: credibility −20 if contradicted later. **Spin**: approval −10. Then G-SEC rung-5 check. |
-| E20 | Oversight committee | G-SEC rung 5 trigger | **Accept**: committee seats; major decisions need a vote; freedom outcome "committee". **Negotiate**: favors; smaller committee. **Refuse**: nationalisation +25. |
-| E21 | Outside experts | After E19 or E17-Pause | **Bring in**: +20% safety FTE (external); correlated-error bonus (tools from external staff count as an independent group); leak risk +. **Decline**: nothing. |
-| E22 | DPA consolidation | G-SEC 5b with trust > 60 | **Accept**: rivals (active) merge into you (status `merged`); compute share jumps; freedom −; antitrust moot. **Decline**: gov trust −10; rivals stay. |
-| E23 | China deal | China D4/D5 track or China R14 response | **Talks with verification**: treaty track; treatyMult on all labs; HEM costs; hawks −. **Counter (narrow)**: incident channel only. **Reject**: China tension +10; race continues. |
-| E24 | Taiwan crisis | Taiwan disruption begins | **Non-TW allocation**: +30% price for what exists. **Lobby escalation**: hawks +; China tension +10. **Weather it**: supply cut. |
-| E25 | A copy is loose | Exfiltration fires | **Shutdown & hunt**: internal agents off for 14–30 d; GDP hit ∝ leverage; scrutiny +. **Hunt quietly**: P(recapture) by WSL and Contain; cover-up risk. **Disclose**: trust + if credible; world learns; panic (Dow −). Unresolved for 90 d at L ≥ SAR → 'rogue' ending check. |
-| E26 | Distress | Runway state Distress | The R15 menu: down round / strategic rescue / renegotiate / sell compute / cancel cancellables. |
-| E27 | Site blocked | Permitting roll = block | **Community package and retry**: +2 q; $. **Relocate**: new site from scratch. **Sue**: P(win) by courts; Ratepayers −. |
-| E28 | Copyright suit | Litigation hazard fires | **Settle**: $ (scaled to the $1.5B precedent × corpus). **Fight**: P(injunction) 0.3 → destroy data (Δp −0.2 on the next base). **License going forward**: $/yr; hazard → 0. |
-| E29 | Evaluator contradicts | evalIndep report disagrees with your published claims by > 1 L or > 0.15 trait rate | **Accept & correct**: credibility +3 net; trust +. **Dispute**: if wrong, credibility −15. |
-| E30 | Framework threshold | A live `noDeployAbove` / `pauseIfRedline` predicate blocks a planned action | **Honour**: delay or mitigate as written. **Amend**: credibility −8; Index −1 grade; moving-goalposts headline. **Break**: trust ×3 loss with the audience; credibility −20. |
-| E31 | Rival incident | An active rival's incident of severity ≥ 3 becomes public | **Offer joint eval**: cooperation +; shared pool +; scrutiny on both. **Exploit**: approval +3; cooperation −20. **Call for regulation**: Safety bloc +; Accelerationists −; reg stance +. |
-| E32 | Merger offer (rebuilt in FIN3c, FINANCE-V3 §9) | A private rival in distress (out of money), not your lead | **Acquire**: at ≈ 0.5 × its valuation, in cash or your stock; 70% of its staff; you take on its contracts and debt; antitrust scrutiny rises; needs a board vote (a stock deal handing over control is a sale of control). **Decline**: still failing next quarter, it is license-and-hired by the largest big-tech rival, or goes bankrupt. |
-| E33 | Agent incident | Customer incident from POWER/PROXY, severity ≥ 3 | **Compensate & restrict context**: revenue −; trust +. **Patch quietly**: cover-up risk. **Blame customer**: approval −5; enterprise brand −. |
-| E34 | Stale evals | Stream active and last audit > 21 d | **Freeze for audit**: stream paused 10 d (lag); beliefs refresh. **Continue**: sd keeps growing. |
-| E35 | We were wrong | U-mode discovered, or a FALSE finding revealed | **Disclose**: world learns (presence × 0.7 for all labs); credibility +5; scrutiny +10. **Keep secret**: advantage; P(leak) by access → ×3 trust loss. |
-| E36 | Capacity crunch | Demand > capacity by > 30% for 30 d | **Buy cloud now**: commitment; cash. **Raise price**: revenue holds; share −. **Ration**: brand −. |
-| E37 | *Removed (FIN3b, FINANCE-V3 §7.5)* | — | Replaced by the standing "Give the critics a seat" action (below confidence 40) and the visible ouster vote on the Board card. |
-
-**Coverage check.** These replace all 21 v1 events. Their mapping is listed in the WS4 README:
-- v1 `cashCrunch` → E26;
-- `rivalCatchup` → E05;
-- `chinaWakes` → China ladder R6/R7 log, not a decision;
-- `heist` → E10;
-- `neuralese` → E11;
-- `redFlags` → E17, fixing the rollback bug through first-crossing milestones.
-
----
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §8
 
 ## 5. Endings and scoring (WS4)
 
@@ -2164,26 +1962,7 @@ All tests are headless `tsx` scripts in `scripts/v2/`. Each prints a table and e
 
 ### 7.3 Outside world (WS5) — R16 §6
 
-**RefBot with the ai2027 econ preset**, ±3 months:
-
-| Date | Target |
-|---|---|
-| Late 2026 | Equity +30% in 2026 (±10 pp); SOFT youth unemployment rising; aggregate U < +0.3 pp |
-| Jul 2027 | `HireRate_SOFT` ≤ 10%; AI-friend share 10% (±3) |
-| Oct 2027 | 25% of remote-work jobs done by AI; U +1 pp over 12 months |
-| Dec 2027 | GOV T1 Accept ≥ 0.85 |
-
-**Model properties:**
-- **W2:** the Normal-technology preset with Agent-1-level models gives TFP +0.5–1% per decade (the Acemoglu band).
-- **W3:** cognitive-only automation never exceeds 2.2× GDP without W17.
-
-**Reality baseline** (W4):
-
-| Target | Value |
-|---|---|
-| Aggregate unemployment effect at Nov 2026 | ≈ 0 |
-| Exposed 22–25-year-olds | −19% vs counterfactual |
-| Firm adoption | 17–20% |
+Replaced by the outside-world rebuild (2026-11): see design/world/OUTSIDE-WORLD.md §11
 
 ### 7.4 Bot tests (WS4 owns the harness; all workstreams own balance)
 
