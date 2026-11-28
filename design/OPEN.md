@@ -142,3 +142,21 @@ From the R&D UI phase follow-ups (archive/RD-AUDIT/UI-BUILD.md) unless noted.
 | Leftover folders (not worktrees): AI27-npc (locked at removal), AI27-compute, AI27-rd, AI27-rf-s2, two `AI27-agent120-*.log` folders | Parked | — |
 | Balance docs still link to `../AI27-vision/...` and to docs now in archive/; fix when that session ends | Parked | BAL-TASKS.md; bal/HANDOFF-CALIBRATION.md |
 | Remove `lab-*`, `cal*` worktrees after the balance session; perf worktrees with the speed-up decision | Parked | scripts/tools/clean-worktrees.sh |
+
+## Broken tests (triage 2026-11-28)
+
+`node scripts/v2/uitest.mjs`: 711 passed, 19 failed (every failure is Products / Models / Safety / Finance, outside the outside-world scope; none fixed or deleted). `scripts/v2/hygiene.ts` hit the 590 s timeout on a shared machine with no FAIL line printed before it was cut off (re-run alone to confirm).
+
+| Item | Kind | Detail |
+|---|---|---|
+| uitest "Products: locked tools name their idea" fails; the same symptom repeats as "B2 day 1/400/900: every tools-editor row shows its type and typed effect (locked: the idea)" (row text shows `agentMode:` with no idea) | Bug | scripts/v2/uitest.mjs |
+| uitest "D8 day 1/400/900: policy row shows gate, auto-evaluate, re-run rule and the cost per suite" fails; the row now shows RE and engineer team-weeks, the check expects H100e-days | Check | scripts/v2/uitest.mjs |
+| uitest "D8: every evals term has a tooltip in Models › Evals" fails on `evalGate` | Bug | scripts/v2/uitest.mjs |
+| uitest "D6 day 1: finished expansion matches its preview" (99% vs 114% realism) and "finished hardening matches its preview" (18% vs 12% loopholes) | Bug | scripts/v2/uitest.mjs |
+| uitest "E12 day 400: every trait shows its best guess and range or Unknown": 17 rows, 15 read | Check | scripts/v2/uitest.mjs |
+| uitest "E11 day 400 / 900: Remove's preview matches its effect": preview says days 14 with no off-time, effect switches AI staff off for 3 compute days | Bug | scripts/v2/uitest.mjs |
+| uitest "FIN3c: paying in stock shows the dilution; both show the obligations taken on and the antitrust cost" | Check | scripts/v2/uitest.mjs |
+| uitest "E6: under the control protocol the Safeguards grid shows its cell and the AI staff slowdown" | Check | scripts/v2/uitest.mjs |
+| uitest "IA: one home per datum": `safetyHeader` and `frameworkHold` appear on five Safety screens | Check | scripts/v2/uitest.mjs |
+| uitest "F6c: Retire version previews the version it retires" and "F6e: Targeted training previews the share apply removes" (dPen 0, before equals after) | Check | scripts/v2/uitest.mjs |
+| uitest "R10 limits: every registry limit is shown where it binds": `research.rePerProject`, `response.hardenFloor` not shown | Check | scripts/v2/uitest.mjs |
