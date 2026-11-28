@@ -129,6 +129,21 @@ export function bestG(s: GameStateV2, id: LabId): number {
   return Math.max(r.internal.G, r.publicModel?.G ?? -Infinity);
 }
 
+/** F7: the G (OOM) of a lab's latest PUBLIC model, the one value a lead or a gap between labs is read on: the player's best
+ *  model in a live product (a main or lineup model of a deployment that is not internal, withdrawn or held), an NPC lab's
+ *  public model. Both step when a model is released; −∞ while the lab has none. */
+export function publicG(s: GameStateV2, id: LabId): number {
+  if (id === PLAYER_ID) {
+    let g = -Infinity;
+    for (const d of s.player.deployments) {
+      if (d.status === 'withdrawn' || d.channel === 'internal' || d.held) continue;
+      for (const vid of [d.versionId, ...(d.lineup ?? [])]) g = Math.max(g, versionById(s, vid)?.G ?? -Infinity);
+    }
+    return g;
+  }
+  return rivalLab(s, id)?.publicModel?.G ?? -Infinity;
+}
+
 /** TRUE best general level of a lab's internal frontier (hidden). */
 export function bestLg(s: GameStateV2, id: LabId): number {
   if (id === PLAYER_ID) return bestPlayerVersion(s)?.Lg ?? 0;

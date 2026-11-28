@@ -1,7 +1,7 @@
 // WS4 acceptance tests (V2-SPEC §8.3: E1–E5; §7.1 T3, T4). Owner: WS4.
 //   E1  catalog shape: the kept events, ≥ 2 choices each, titles, text length (preview truth is lint-tradeoffs.ts)
 //   E2  no event text references an inactive lab (fuzz 1,000 seeds)
-//   E3  rival comparisons use the player's INTERNAL frontier
+//   E3  rival comparisons use the PUBLIC models (player vs NPC, both stepped; F7)
 //   E4  storyteller limits hold
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
 //   T3  China lead 150–200 d until a theft (RefBot play; the mean; the 10th–90th percentile of the daily lead vs
@@ -28,7 +28,7 @@ import { EVENTS } from '../../src/engine/v2/core/registry';
 import { seedStreams } from '../../src/engine/v2/core/rng';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { STORYTELLERS } from '../../src/engine/v2/events/director';
-import { bestG, internalVersion } from '../../src/engine/v2/models/labs';
+import { bestG, internalVersion, publicG } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
 import { gOfLevel, lagDays, levelOfG } from '../../src/engine/v2/models/capability';
@@ -125,41 +125,38 @@ const load = (i: number) => deserialize(fixtures[i]);
   check(violations.length === 0, `E2 no event text references an inactive lab (${N} seeds, ${checkedTexts} texts)`, violations.slice(0, 3).join('; '));
 }
 
-// ───────── E3: comparisons use the player's INTERNAL frontier ─────────
+// ───────── E3: comparisons use the PUBLIC models (F7) ─────────
 {
   const s = load(1);
-  const r = s.rivals.find((x) => x.core.status === 'active')!;
+  const r = s.rivals.find((x) => x.core.status === 'active' && x.publicModel)!;
   const v = internalVersion(s)!;
-  // Add an internal-only version far ahead of every public deployment.
+  // Add an internal-only version far ahead of every public deployment: the lead does not move (nothing is released).
   const boost = 0.5 * PRE_GAME_G_PER_YEAR;
   const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', G: v.G + boost, Lg: levelOfG(s.hidden.timeline, v.G + boost) };
   const truthBefore = leadBetween(s, 'player', r.core.id);
   const estBefore = leadDays(s, r.core.id).est;
   s.player.models.versions.push(v2);
   const truthAfter = leadBetween(s, 'player', r.core.id);
-  const estAfter = leadDays(s, r.core.id).est;
-  check(bestG(s, 'player') === v2.G, 'E3 bestG(player) is the best INTERNAL version (not the deployed one)');
-  // [M2 test fix] The true lead is WS1's time-lag (how long ago the leader stood where the follower stands now, from
-  // the weekly history of internal frontiers): an instant jump of the LEADER does not move it (truthAfter =
-  // truthBefore here, by definition), so "> 50 d" was a check of the old gap/rate metric. What must hold is that the
-  // INTERNAL frontier decides the comparison: a rival that has stood 0.5 L above the player throughout leads; an
-  // internal-only player version above it (nothing deployed changes) turns the lead around.
+  check(bestG(s, 'player') === v2.G, 'E3 bestG(player) is the best INTERNAL version (hidden: the engine logic keeps it)');
+  check(truthAfter === truthBefore && leadDays(s, r.core.id).est === estBefore, 'E3 an unreleased version moves no lead readout', `${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d`);
+  // A rival whose public model has stood 0.3 yr of pace above the player's leads; releasing the player's far-ahead version
+  // (swap it into its product) turns the lead around.
   {
     const t = load(1);
     const rr = t.rivals.find((x) => x.core.id === r.core.id)!;
     const w = t.hidden.timeline;
-    const base = bestG(t, 'player');
-    t.series.L[rr.core.id] = t.series.L.player.map((x) => x + 0.5);
-    t.series.G[rr.core.id] = t.series.G.player.map((x) => x + 0.3 * PRE_GAME_G_PER_YEAR); // RD-L01: the lead clock reads series.G
-    rr.internal = { ...rr.internal, G: base + 0.3 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.3 * PRE_GAME_G_PER_YEAR) };
-    rr.publicModel = undefined;
+    const base = publicG(t, 'player');
+    t.series.GP = JSON.parse(JSON.stringify(t.series.G)); // a fixture saved before F7 has no public series
+    t.series.GP[rr.core.id] = t.series.GP.player.map((x) => x + 0.3 * PRE_GAME_G_PER_YEAR); // the lead clock reads series.GP
+    rr.publicModel = { ...rr.publicModel!, G: base + 0.3 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.3 * PRE_GAME_G_PER_YEAR) };
     const behind = leadBetween(t, 'player', rr.core.id);
-    const deployed = JSON.stringify(t.player.deployments);
-    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', G: base + 0.5 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.5 * PRE_GAME_G_PER_YEAR) });
+    const vy = { ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'deployed', G: base + 0.5 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.5 * PRE_GAME_G_PER_YEAR) };
+    t.player.models.versions.push(vy);
+    const d = t.player.deployments.find((x) => x.channel !== 'internal' && x.status !== 'withdrawn')!;
+    d.versionId = 'VY';
     const ahead = leadBetween(t, 'player', rr.core.id);
-    check(behind < -30 && ahead > 0 && JSON.stringify(t.player.deployments) === deployed, 'E3 true lead follows the internal frontier (an internal-only version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d; a leader's instant jump alone ${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d (time-lag metric)`);
+    check(behind < -30 && ahead > 0, 'E3 true lead follows the public models (releasing a version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d`);
   }
-  check(estAfter - estBefore > 0.5 * (truthAfter - truthBefore), 'E3 intel estimate tracks the internal frontier', `${estBefore} → ${estAfter} d (truth +${(truthAfter - truthBefore).toFixed(0)})`);
 }
 
 // ───────── E4: storyteller limits ─────────

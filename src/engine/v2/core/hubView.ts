@@ -167,14 +167,15 @@ export function hubVerdicts(s: GameStateV2): Record<HubId, HubBox> {
 export const LIKELY_Z = 1.64;
 export interface LeadLane {
   id: LabId; name: string; china: boolean;
-  /** Days their best internal model is ahead of yours (+) or behind (−): your best guess and its likely range. */
+  /** Days their newest public model is ahead of yours (+) or behind (−): your best guess and its likely range. */
   ahead: number; lo: number; hi: number; sd: number;
   /** Day of the last intel report on them; their newest public model. */
   reportDay?: number; publicModel?: string;
 }
 /** The lead lanes (B·intel): leadDays' estimate (positive = you lead) flipped to "days they are ahead of you". */
 export function leadLanes(s: GameStateV2): LeadLane[] {
-  const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
+  // A lab with no public model yet has no lane: there is nothing to compare (F7).
+  const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].filter((r) => r.publicModel);
   return labs.map((r) => {
     const l = leadDays(s, r.core.id);
     const ahead = -l.est;

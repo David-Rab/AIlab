@@ -2392,6 +2392,9 @@ export interface SeriesV2 {
   L: Record<LabId, number[]>; // best internal Lg per lab (truth for end screen; UI uses measured)
   /** Best internal frontier G per lab (OOM, weekly, aligned to day from the end): the lead clock lagDays reads it (RD-L01). */
   G: Record<LabId, number[]>;
+  /** Best PUBLIC (released) model G per lab (OOM, weekly, aligned to day from the end; F7): the player's best model in a live
+   *  product, an NPC lab's public model. Both are stepped; the lead clock lagDays reads it (the pace readers read G). */
+  GP: Record<LabId, number[]>;
   Lmeasured: number[]; U: number[]; M: number[]; cash: number[]; revenue: number[]; valuation: number[];
   compute: number[]; approval: number[]; trustGov: number[]; scrutiny: number[]; gdpG: number[]; unemp: number[];
   misTrue: number[]; misEst: number[];
