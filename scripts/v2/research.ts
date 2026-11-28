@@ -1,3 +1,7 @@
+// GUARDS: the capability research pipeline (lifecycle, risk policy, assignment, allocation, FLOP by need, recipe readouts,
+// previews = effect). Cost: one 220-day lifecycle game, ~40-day game clones, fixtures (day 0/400/900) for RD-B09/B16; no RefBot
+// game (was 3: 240/300/200 days), no 900-day unlock runs, no 600-day dud wait. About 25 CPU-s. Tier: quick.
+// The old --rd-* run-alone switches are gone: those blocks (R07, E03, R05, A03) now run every time.
 // Model v3 V2a research tests (design/archive/V3-BUILD.md V2.9; MODEL-V3 §5, §8). Owner: WS1.
 //   Lifecycle order (ideation → small experiments → scale test → result → adoption → known); only finished projects
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
@@ -21,7 +25,7 @@ import {
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, diffusedLift, playerRecipeG, raiseDiffused, STACK_KEYS, initialStacks, latestBaseFlop, researchG, stackAt, stacksGEquiv,
+  addIdea, playerRecipeG, raiseDiffused, STACK_KEYS, initialStacks, latestBaseFlop, researchG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
 import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
 import { projectEta } from '../../src/engine/v2/models/tree';
@@ -33,15 +37,21 @@ import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engine/v2/departments/build';
 import { runStall } from '../../src/engine/v2/models/runs';
 import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
+import { FIXTURE_DIR, HERE, check, finish } from './lib';
 import { hash32 } from '../../src/engine/v2/core/rng';
 
-const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
+// Build each seed once, clone per case (TESTING §2: newGame is ~120 ms).
+const BASE = new Map<number, GameStateV2>();
+const mk = (seed = 11): GameStateV2 => {
+  let b = BASE.get(seed);
+  if (!b) BASE.set(seed, (b = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }))));
+  return structuredClone(b);
+};
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
 
-// ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
-// ---------- RD-E03 no headroom, no routine tuning (run alone: `tsx scripts/v2/research.ts --rd-e03`) ----------
-if (process.argv.includes('--rd-e03')) {
+// ---------- RD-R07 four stages; one effort number per node ----------
+// ---------- RD-E03 no headroom, no routine tuning ----------
+{
   // An adopted idea's full true effect is in its stack at build-in (a scale-invariant line, so the effect is F-free).
   const s = mk(7);
   const ctx = makeCtx(s);
@@ -55,8 +65,8 @@ if (process.argv.includes('--rd-e03')) {
   const ad = s.player.research.adopted[s.player.research.adopted.length - 1];
   const dv = stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s)) - v0;
   const keys = [...new Set(STACK_KEYS.flatMap((k) => s.player.research.stacks[k].buckets.flatMap((b) => Object.keys(b))))].sort().join(',');
-  check(ad?.id === n.id && Math.abs(ad.eff) > 0 && Math.abs(dv - ad.eff) < 1e-4 && keys === 'a,s',
-    'RD-E03 an adopted idea adds its full true effect to its stack at build-in (no headroom part)', `effect ${ad?.eff} → stack +${dv.toFixed(5)}; bucket fields ${keys}`);
+  check(ad?.id === n.id && Math.abs(ad.eff) > 0 && Math.abs(dv - ad.eff) < 1e-4 && keys === 'a,s,t',
+    'RD-E03 an adopted idea adds its full true effect to its stack at build-in (no headroom field: a, s, t only)', `effect ${ad?.eff} → stack +${dv.toFixed(5)}; bucket fields ${keys}`);
   // No 'tune' need: research engineers serve run operations and the projects (L5 pooled rule: the engineers left after the base
   // needs speed up the projects in experiments, so they are idle only when no project is in experiments).
   for (let d = 0; d < 5; d++) tick(s, { skip: ['endings'] });
@@ -78,26 +88,28 @@ if (process.argv.includes('--rd-e03')) {
     && nProj > 0 && last?.idle === 0 && Math.abs(sum - al.total) < 0.01 && ae.perProject.size === 0 && ae.re.exp === 0 && ae.idle > 0 && Math.abs(ae.idle * ae.m + ae.re.ops - ae.total) < 1e-9,
     'RD-E03 / L7 no routine-tuning need; research engineers are idle only when no project is in experiments (the rest speed the projects up); an order naming tune is ignored',
     `needs ${Object.keys(al.demand).join(',')}; ${nProj} projects: idle ${last?.idle}, needs ${sum.toFixed(3)} of ${al.total.toFixed(3)} team-eq; with none: idle ${ae.idle.toFixed(2)} of ${ae.heads.toFixed(2)} people (run operations take the rest); order after a tune order ${order}`);
-  finish('research');
 }
 
-// ---------- RD-R05 unlock projects: one works / doesn't test (run alone: `tsx scripts/v2/research.ts --rd-r05`) ----------
-if (process.argv.includes('--rd-r05')) {
+// ---------- RD-R05 unlock projects: one works / doesn't test ----------
+{
   const unlocks = Object.values(TREE_BY_ID).filter((n) => isUnlockProject(n));
   check(unlocks.length > 0 && unlocks.every((n) => !hasTypedEffect(n) && n.kind !== 'line') && !isUnlockProject(TREE_BY_ID.elastic), 'RD-R05 unlock projects are the ideas / axes without a typed effect', `${unlocks.length}: ${unlocks.map((n) => n.id).slice(0, 12).join(', ')}…`);
   // Run the first unlock that starts on day 0, with three teams, to its works draw.
   const res: string[] = [];
   let ran = 0;
   for (const n of unlocks) {
-    if (ran >= 3) break;
+    if (ran >= 2) break; // two unlock projects (cost: each test is handed almost all its work, not run for up to 900 days)
     const s = mk(7);
     if (s.player.tree[n.id]?.cap || s.player.tree[n.id]?.status === 'known' || act(s, 'research.start', { id: n.id }) !== undefined) continue;
     act(s, 'research.want', { id: n.id, n: 3 });
+    tick(s, { skip: ['endings'] }); // the test starts
+    const tr0 = s.player.tree[n.id]?.cap?.trial;
+    if (tr0) tr0.work = Math.max(tr0.work, tr0.workNeed - 0.3);
     const seen: string[] = [];
     let bandOrCands = false;
     let workAtEnd = -1;
     let needAtEnd = -1;
-    for (let d = 0; d < 900; d++) {
+    for (let d = 0; d < 60; d++) {
       const before = s.player.tree[n.id]?.cap?.trial;
       const bw = before ? { w: before.work, n: before.workNeed } : undefined;
       tick(s, { skip: ['endings'] });
@@ -120,10 +132,9 @@ if (process.argv.includes('--rd-r05')) {
     ran++;
   }
   check(ran > 0, 'RD-R05 at least one unlock project ran', String(ran));
-  finish('research');
 }
 
-if (process.argv.includes('--rd-r07')) {
+{
   check(STAGES.join(',') === 'ideation,small,scale,adoption', 'RD-R07 the player sees four stages (no result step)', STAGES.join(', '));
   // Every capability idea / axis: the effort shown (effortOfNode) is stagesOf's work and the node's one effortTM.
   const bad: string[] = [];
@@ -139,28 +150,10 @@ if (process.argv.includes('--rd-r07')) {
   // deleted P13, the node this checked before).
   const p17 = stagesOf(TREE_BY_ID.P17);
   check(Math.abs(p17.idea - 0.25 * 65.97) < 1e-9 && Math.abs(p17.scale - 0.42 * 65.97) < 1e-9, 'RD-R07 stage work unchanged (P17)', `${p17.idea.toFixed(4)} · ${p17.scale.toFixed(4)}`);
-  // No 'result' stage reachable: a working project goes from the scale test straight to the engineers' build-in.
-  let seed = 1;
-  for (; seed < 40; seed++) {
-    const t = mk(seed);
-    if (candidateTruth(t, TREE_BY_ID.elastic, freshCap(), { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 0, sd: 1, muS: 0, sdS: 0 }).x > 0.01) break;
-  }
-  const s = mk(seed);
-  act(s, 'research.start', { id: 'elastic' });
-  act(s, 'research.want', { id: 'elastic', n: 3 });
-  const seen: string[] = [];
-  for (let d = 0; d < 400 && s.player.tree.elastic?.status !== 'known'; d++) {
-    tick(s, { skip: ['endings'] });
-    const st: string | undefined = s.player.tree.elastic?.cap?.stage;
-    const v: string = capProjectView(s, 'elastic')?.stage ?? '';
-    for (const x of [st ?? '', v]) if (x && seen[seen.length - 1] !== x) seen.push(x);
-  }
-  check(!seen.includes('result') && seen.includes('adopting') && s.player.tree.elastic?.status === 'known', 'RD-R07 no result stage reached (engine or view)', seen.join(' → '));
-  finish('research');
 }
 
-// ---------- RD-A03 science-team planner by value (run alone: `tsx scripts/v2/research.ts --rd-a03`) ----------
-if (process.argv.includes('--rd-a03')) {
+// ---------- RD-A03 science-team planner by value ----------
+{
   const s = mk(2);
   const others = s.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
   const teams: Team[] = [0, 1, 2, 3].map((i) => ({ id: `V${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, specialty: 'systems' }));
@@ -191,10 +184,9 @@ if (process.argv.includes('--rd-a03')) {
     `teams → ${where.join(', ')}; spare gains: elastic ${gE.toExponential(2)}, P16 ×0.8 ${gP.toExponential(2)} OOM/day`);
   const whys = [...spare.values()].map((v) => v.why);
   check(whys.every((w) => /adds ~(<1|\d+)% to this project's yearly gain|carries all of this project's yearly gain/.test(w)), 'RD-A03 "why here" states the value in player language', whys.join(' | '));
-  finish('research');
 }
 
-// ---------- RD-R06 drop and give-up rules (run alone: `tsx scripts/v2/research.ts --rd-r06`) ----------
+// ---------- RD-R06 drop and give-up rules ----------
 {
   // A candidate under the floor but better than the pool's best goes on; under the floor and under the pool's best, or
   // with an empty pool, or a score ≤ 0, it is dropped; above the floor it always goes on.
@@ -209,7 +201,6 @@ if (process.argv.includes('--rd-a03')) {
   s.player.tree.P09 = { status: 'failed', progress: 0, attempts: 1, cap: { ...freshCap(), drops: MAX_DROPS, stage: 'failed' } };
   reopenProject(s, 'P09');
   check(s.player.tree.P09.cap?.drops === 0, 'RD-R06 the drop count resets on reopen', String(s.player.tree.P09.cap?.drops));
-  if (process.argv.includes('--rd-r06')) finish('research');
 }
 
 // ---------- lifecycle order ----------
@@ -224,11 +215,16 @@ if (process.argv.includes('--rd-a03')) {
   act(s, 'research.start', { id: 'elastic' });
   act(s, 'research.want', { id: 'elastic', n: 3 });
   const seen: string[] = [];
+  const seenView: string[] = [];
   for (let d = 0; d < 400 && s.player.tree.elastic?.status !== 'known'; d++) {
     tick(s, { skip: ['endings'] });
     const st = s.player.tree.elastic?.cap?.stage;
     if (st && seen[seen.length - 1] !== st) seen.push(st);
+    const vs = capProjectView(s, 'elastic')?.stage;
+    if (vs && seenView[seenView.length - 1] !== vs) seenView.push(vs);
   }
+  // RD-R07: no 'result' stage is reachable, in the engine or the view: a working project goes from the scale test to build-in.
+  check(!seen.includes('result') && !seenView.includes('result') && seen.includes('adopting'), 'RD-R07 no result stage reached (engine or view)', `${seen.join(' → ')} | view ${seenView.join(' → ')}`);
   const order = ['ideation', 'small', 'scale', 'adopting'];
   const compact = seen.filter((x, i) => x !== 'ideation' || i === 0);
   const inOrder = order.every((x) => seen.includes(x)) && seen.indexOf('small') < seen.indexOf('scale') && seen.indexOf('scale') < seen.indexOf('adopting');
@@ -251,7 +247,7 @@ if (process.argv.includes('--rd-a03')) {
     act(s, 'research.risk', { risk });
     for (const id of ['L.scale', 'L.data', 'L.opt', 'L.rlalg', 'L.env']) act(s, 'research.queue', { id });
     const picks: string[] = [];
-    for (let d = 0; d < 120; d++) {
+    for (let d = 0; d < 40; d++) {
       tick(s, { skip: ['endings'] });
       for (const id of ['L.scale', 'L.data', 'L.opt', 'L.rlalg', 'L.env']) {
         const t = s.player.tree[id]?.cap?.test;
@@ -263,7 +259,7 @@ if (process.argv.includes('--rd-a03')) {
   const a = first('safe');
   const b = first('speculative');
   const diff = a.filter((x, i) => b[i] !== x).length;
-  check(diff > 0, 'risk policy: in the engine, safe and speculative pursue different candidates', `${diff} of ${a.length} picks differ`);
+  check(a.length > 0 && diff > 0, 'risk policy: in the engine, safe and speculative pursue different candidates', `${diff} of ${a.length} picks differ`);
 }
 
 // ---------- taste lowers belief error ----------
@@ -289,14 +285,19 @@ if (process.argv.includes('--rd-a03')) {
 // ---------- failure and speculative reopening ----------
 {
   // P05 does not work on its first attempt in the seed-2027 world (its hidden paradigm draw).
-  const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+  const s = mk(2027);
   check(s.hidden.paradigmSuccess.P05 === false, 'fixture: P05 is a dud in the seed-2027 world');
   act(s, 'research.start', { id: 'P05' });
   act(s, 'research.want', { id: 'P05', n: 3 });
-  for (let d = 0; d < 600 && s.player.tree.P05?.status !== 'failed'; d++) tick(s, { skip: ['endings'] });
+  // P05 is an unlock project (RD-R05): one test of its effort, then the hidden works draw. Constructed: tick once so the
+  // test exists, hand it all its work, and the draw (a dud here) fails the project and takes it off the queue.
+  tick(s, { skip: ['endings'] });
+  const tr = s.player.tree.P05?.cap?.trial;
+  if (tr) tr.work = tr.workNeed;
+  for (let d = 0; d < 3 && s.player.tree.P05?.status !== 'failed'; d++) tick(s, { skip: ['endings'] });
   tick(s, { skip: ['endings'] }); // the failed project leaves the queue on the next research day
   const st = s.player.tree.P05;
-  check(st?.status === 'failed' && (st.cap?.drops ?? 0) >= MAX_DROPS && !s.player.research.queue.includes('P05'), `failure: a dud direction fails after ${MAX_DROPS} dropped candidates and leaves the queue`, `${st?.status}, drops ${st?.cap?.drops}`);
+  check(!!tr && st?.status === 'failed' && !s.player.research.queue.includes('P05'), 'failure: a dud direction fails at its works draw once its test is done and leaves the queue (an unlock project has no dropped candidates)', `${st?.status}, test ${tr ? 'present' : 'missing'}`);
   const odds0 = attemptOdds(TREE_BY_ID.P05, 0);
   check(reopenProject(s, 'L.scale') !== undefined, 'reopen: lines cannot be reopened (they never fail)');
   act(s, 'research.reopen', { id: 'P05' });
@@ -527,21 +528,22 @@ if (process.argv.includes('--rd-a03')) {
   check(a.demand.ops > 0 && full.served === 1 && Math.abs(half.served - 0.5) < 1e-3 && Math.abs(ratio - 0.5) < 2e-3 && /slowed/.test(half.stall ?? '') && full.stall === undefined,
     'RD-B09: a run with half its run-operations need served trains at half speed (and says why)',
     `ops need ${a.demand.ops.toFixed(3)} team-eq; served ${full.served} → ${half.served}; FLOP/day ×${ratio.toFixed(4)}; "${half.stall}"`);
-  // RefBot keeps its runs operated (ops first in the default order): served in full on every day a run trains.
-  const r = mk(2027);
+  // RefBot keeps its runs operated (ops first in the default order): served in full on every day a run trains. Read off the
+  // day-400 RefBot fixture and 40 ticks (no 240-day RefBot game).
+  const r = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   let worst = 1;
   let days = 0;
-  runRef(r, 240, (g) => {
-    if (g.player.models.runs.some((y) => y.status === 'running' && y.readyDay !== undefined)) { days++; worst = Math.min(worst, g.player.research.last?.opsServed ?? 1); }
-    return false;
-  });
-  check(days > 30 && worst === 1, "RD-B09: RefBot's runs are fully operated (research engineers serve the ops need every day a run trains)", `${days} run-days to day 240, worst served ${worst}`);
+  for (let d = 0; d < 40; d++) {
+    tick(r, { skip: ['endings'] });
+    if (r.player.models.runs.some((y) => y.status === 'running' && y.readyDay !== undefined)) { days++; worst = Math.min(worst, r.player.research.last?.opsServed ?? 1); }
+  }
+  check(days > 10 && worst === 1, "RD-B09: RefBot's runs are fully operated (research engineers serve the ops need every day a run trains)", `${days} run-days in 40 days from day 400, worst served ${worst}`);
 }
 
 // ---------- RD-B16: one recipe currency; Software progress counts only the lab's own research ----------
 {
-  // A RefBot lab at day 300 (adopted ideas, scale-dependent pretraining buckets, more than one base).
-  const s = runRef(mk(2027), 300);
+  // A RefBot lab (day-400 fixture: adopted ideas, scale-dependent pretraining buckets, more than one base).
+  const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   const clone = (x: GameStateV2) => deserialize(serialize(x));
   const res = s.player.research;
   const bases = s.player.models.bases;
@@ -586,26 +588,6 @@ if (process.argv.includes('--rd-a03')) {
 
   // (The RD-B16 check that theft and leaks compare recipes in one unit went with the old China recipe state: an NPC lab's know-how is read from its lag, npc/shocks.ts npcKnowhow.)
 
-  // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
-  // change of the stacks' G at the latest base) reads far faster.
-  const ch = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
-  let pubMax = 0;
-  let pubSum = 0;
-  let pub0 = diffusedLift(ch);
-  let gl: number | undefined;
-  let old = ch.player.research.gRate ?? 0;
-  runRef(ch, 200, (g) => {
-    pubMax = Math.max(pubMax, g.player.research.pubRate ?? 0);
-    pubSum += diffusedLift(g) - pub0;
-    pub0 = diffusedLift(g);
-    const x = stacksGEquiv(g);
-    if (gl !== undefined) old += (Math.max(0, x - gl) - old) / 14;
-    gl = x;
-    return false;
-  });
-  // CP3: the "Software progress < half the old stack measure" check is deleted (RD-X04 / X04b: the daily distillation leak
-  // it was sized against is gone; diffusion is the τ = 4 months recipe rule, checked in X04's own check).
-  console.log(`      RD-B16 readout: public knowledge to day 200 +${pubSum.toFixed(3)} OOM (peak ${(365 * pubMax).toFixed(2)} OOM/yr); Software progress ${(365 * rate(ch)).toFixed(2)} OOM/yr, old measure ${(365 * old).toFixed(2)}`);
 }
 
 // ---------- a stage without FLOP waits ----------
@@ -622,7 +604,7 @@ if (process.argv.includes('--rd-a03')) {
   const stage0 = s.player.tree['L.scale']?.cap?.stage;
   s.player.split.routine += s.player.split.experiments;
   s.player.split.experiments = 0;
-  for (let d = 0; d < 200; d++) tick(s, { skip: ['endings'] });
+  for (let d = 0; d < 30; d++) tick(s, { skip: ['endings'] }); // waiting shows within a month
   const t1 = s.player.tree['L.scale']?.cap?.test;
   check(tested && !!t1 && t1.c.k === t0?.c.k && s.player.tree['L.scale']?.cap?.stage === stage0 && t1.work <= w0 + 1e-9,
     'a stage without experiment FLOP waits', `${stage0}: work ${w0.toFixed(2)} → ${t1?.work.toFixed(2)} of ${t1?.workNeed.toFixed(2)}`);
