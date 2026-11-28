@@ -26,7 +26,7 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 |---|---|---|
 | G7 | uitest.mjs (19 failures; sleeps → waits; day repeats; build skip). Designer: up to 3 whole-uitest runs allowed | running |
 | G3 | serving, products, money | running (ta-g3) |
-| G4 | finance, worldfx | running (ta-g4) |
+| G4 | finance, worldfx | merged 6f33da9d (quick 13 CPU-min → ~1.7; full est. finance 7, worldfx 3.7 CPU-min, not yet run) |
 | G2 | research, safetyresearch, safetyideas, evals, worktypes | after P1 |
 | G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | after P1 |
 | G1 | suites, signals, successor, data, effective, oversight | after P1 |
