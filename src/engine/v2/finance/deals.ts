@@ -25,6 +25,7 @@ import { ensureWs3 } from './ext';
 import { paidTo, qOf } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
+import { dealCutProjections, type CutProjection } from './distribution';
 
 export const SUPPLY_LABEL: Record<PartnerSupply, string> = { cloud: 'cloud capacity', asic: 'custom chips', chips: 'its chips' };
 
@@ -223,7 +224,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
     return {
       ...base, equityNow: E,
       tranches: t.spentAt.map((f, i) => ({ amount: E, condition: spentCond(partner, C * f), dueDay: at(2 + 2 * i), deadline: at(paidByQ(s, supply, C * f) + t.slackQ) })),
-      supply, strings: strings({ revenueShare: t.revenueShare }), stakeCap: t.stakeCap, years: t.years,
+      supply, strings: strings({ distribution: { ...t.distribution } }), stakeCap: t.stakeCap, years: t.years,
       options: {
         exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : total(true, ip) - total(false, ip) },
         ipAccess: { ...off(ipBlock), ...ipLab, on: ip, bump: ipBlock ? 0 : total(ex, true) - total(ex, false) },
@@ -359,19 +360,19 @@ export function partnerOffers(s: GameStateV2, choice: Partial<Record<string, Par
   });
 }
 
-/** What each of your partners costs you now (Partners card, FIN4b): the revenue share ($B a year at today's run-rate,
- *  while it runs), IP access (the lab and the days of lead it closes a year at your estimated lead), and the partners
+/** What each of your partners costs you now (Partners card, FIN4b): C7c: what its distribution's fee and its share of
+ *  all revenue (the legacy Northwind stake) cost now and over what is left of the deal at your growth, IP access (the lab and the days of lead it closes a year at your estimated lead), and the partners
  *  its exclusivity blocks. Take-or-pay payments live in Contracts. */
-export function partnerCosts(s: GameStateV2): { partner: string; revenueShare: number; ip?: { lab: LabId; labName: string; daysYr: number; leadEst: number; noThreshold: boolean }; blocks: string[] }[] {
+export function partnerCosts(s: GameStateV2): { partner: string; distribution?: CutProjection; share?: CutProjection; ip?: { lab: LabId; labName: string; daysYr: number; leadEst: number; noThreshold: boolean }; blocks: string[] }[] {
   const out: ReturnType<typeof partnerCosts> = [];
   for (const d of s.player.finance.deals) {
-    if (d.legacy) continue;
     const running = d.until > s.time.day;
+    if (d.legacy && !(running && d.strings.revenueShare)) continue;
     const ip = running ? d.strings.ipAccess : undefined;
     const lead = ip ? leadEstimate(s, ip.lab) : 0;
     out.push({
       partner: d.partner,
-      revenueShare: running ? (d.strings.revenueShare ?? 0) * s.player.finance.revenueRun : 0,
+      ...dealCutProjections(s, d),
       ...(ip ? { ip: { lab: ip.lab, labName: labName(s, ip.lab), daysYr: ST.ipCloseYr * Math.max(0, lead), leadEst: lead, noThreshold: missionPowers(s) && !ip.trust } } : {}),
       blocks: d.strings.exclusivity ? (partnerDef(d.partner)?.competitors ?? []) : [],
     });

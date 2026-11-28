@@ -9,7 +9,7 @@ import { partnerDef } from '../../../data/v2/deals';
 
 /** The partner stakes a lab kind holds from before the start: holders with no running terms and no board seat (hyperscaler
  *  stakes are non-voting and seatless [R21 B2]; a division's voting owner is no deal). */
-export const legacyDealsOf = (kind: LabKindDef): FinanceState['deals'] => (kind.legacyDeals ?? []).map((d) => ({ id: d.id, partner: d.partner, kind: partnerDef(d.partner)?.kind ?? 'hyperscaler', day: d.day, equityNow: 0, equityLater: 0, strings: {}, until: d.day, legacy: true }));
+export const legacyDealsOf = (kind: LabKindDef, startDate: string): FinanceState['deals'] => (kind.legacyDeals ?? []).map((d) => ({ id: d.id, partner: d.partner, kind: partnerDef(d.partner)?.kind ?? 'hyperscaler', day: d.day, equityNow: 0, equityLater: 0, strings: d.revenueShare ? { revenueShare: d.revenueShare } : {}, until: d.until ? dayOfDate(startDate, d.until) : d.day, legacy: true }));
 
 /** Player finance at Jul 2025 (§3.7.2): the frontier position's row (cash, revenue, credibility) with the lab kind's cap
  *  table, charter and partner stakes (data/v2/starts.ts). */
@@ -44,8 +44,9 @@ export function initialFinance(startDate: string, kind: LabKindDef): FinanceStat
     state: 'healthy',
     // The kind's legacy partner stakes (the leader's Northwind: Microsoft-like, ~27%, no exclusivity after the 2025
     // renegotiation [R15], no board seat (Microsoft gave up its observer seat in Jul 2024 [R21 B3]); its cloud contract is
-    // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a).
-    deals: legacyDealsOf(kind),
+    // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a). C7c: its running string is a
+    // share of all revenue to LEGACY_NORTHWIND.until (the leader kind's legacyDeals row, data/v2/starts.ts).
+    deals: legacyDealsOf(kind, startDate),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = 0.5e6 * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]

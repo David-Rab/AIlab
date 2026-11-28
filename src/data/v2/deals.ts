@@ -1,7 +1,7 @@
 // Strategic partners, debt instruments, data-centre sites and market constants (FINANCE-V3 §3–§6; DATACENTERS.md for
 // sites and power; V2-SPEC §3.8 and research/15 §1.2, §1.7 for the market and debt; research/21 §1 B). Owner: WS3.
 // Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
-import type { Debt, PartnerKind, PartnerSupply } from '../../engine/v2/types';
+import type { Channel, Debt, PartnerKind, PartnerSupply } from '../../engine/v2/types';
 
 export type { PartnerKind, PartnerSupply };
 
@@ -56,10 +56,14 @@ export const PARTNER_TERMS = {
   // over 5–10 y [R15]; Amazon–Anthropic ≈ 4×): one firm cloud contract a year of C/6, each sized at that year's expected
   // price, so the capacity it buys grows as prices fall; the partner takes 10% off for the commitment and the firm
   // discount is that of the 6-year term [D]. Tranche 2 lands when ⅓ of C has been paid to the partner since signing,
-  // tranche 3 at ⅔; each lapses `slackQ` quarters after the payment that would meet it falls due [D]. Revenue share 8%
-  // while it runs (all three cloud partnerships carry one [R21 B4]; size [D]; C7c replaces it). Exclusivity and IP
-  // access are optional (below).
-  hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08, spentAt: [1 / 3, 2 / 3], slackQ: 2 },
+  // tranche 3 at ⅔; each lapses `slackQ` quarters after the payment that would meet it falls due [D]. Distribution
+  // while it runs (C7c, CORPORATE.md §5.2): the partner resells your models to its cloud customers, +25% reach in the
+  // API and enterprise channels, and keeps a 30% marketplace fee on the revenue that extra reach brings, that channel
+  // only (the cloud partnerships give the provider a revenue share, incl. on the lab's first-party API [R21 B4]). Reach:
+  // cloud marketplaces carried 47% of Anthropic's FY2025 revenue and 44% of 9M 2026, across its clouds [P, research/22
+  // Anthropic]; one partner of two or three ≈ 20% of the channel's revenue, so +25% [D from P]. Fee 30% [D: no sourced
+  // marketplace take]. Exclusivity and IP access are optional (below).
+  hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, distribution: { reach: 0.25, fee: 0.3 }, spentAt: [1 / 3, 2 / 3], slackQ: 2 },
   // Custom chips (TPU, Trainium): the same dollar commitment C buys ASIC chips at 45% of the H100e list path over 8
   // quarters (perf/$ 2–5× an H100: TPU v6e 5.9, Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served
   // outside rationing); migration −15% research for ~2.5 quarters [R15 Design]. Equity is the same as for cloud.
@@ -81,6 +85,16 @@ export const PARTNER_TERMS = {
   // own model is competitive) [R21 B4]. Both bumps sit under the 15% stake cap.
   strings: { maxPartners: 3, exclusiveBump: 0.25, ipBump: 0.2, ipCloseYr: 0.1, ipFullLeadMonths: 6 },
 } as const;
+
+/** Distribution (C7c): the channels a hyperscaler partner resells, and the growth cap of the projections on the offer
+ *  and the deal row (the company's trailing 4-quarter revenue growth, at most 2× a year [D]). */
+export const DISTRIBUTION = { channels: ['api', 'enterprise'] as readonly Channel[], growthCap: 2 };
+
+/** The legacy Northwind stake's running terms (the leader start's 27%, Microsoft–OpenAI): a share of all revenue to the
+ *  deal's end. Microsoft keeps a revenue share until an expert panel verifies AGI [P, research/15 §1.7]; its size, ~20%,
+ *  is press-reported [U, press]; the end date [D]. The DL-northwind0 record takes `strings: { revenueShare }` and
+ *  `until: dayOfDate(startDate, until)` from here. */
+export const LEGACY_NORTHWIND = { revenueShare: 0.2, until: '2030-12-31' } as const;
 
 /** Debt instruments (R15 §1.7; FIN1 spec §3). `spreadBp` is the default; credit lines, chip loans and bonds are priced
  *  by rating (tables below). */

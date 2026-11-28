@@ -18,6 +18,7 @@ import { siteLeasePerYear } from '../compute/sites';
 import { crf } from './capex';
 import { interestPerYear, lineUndrawn } from './debt';
 import { revenueShareRate } from './ext';
+import { distributionCut } from './distribution';
 import { ledgerPaying, qOf } from './ledger';
 import { parentPaymentQ } from './parent';
 import { ownerFunded } from './control';
@@ -36,10 +37,10 @@ export const PROJECTION_Q = 8;
 export const RUNWAY_CAP = PROJECTION_Q;
 
 /** Non-ledger running costs $B/yr held flat in the projection: payroll, security spend, transition fund, power & O&M,
- *  interest, revenue share. (Spot rentals are projected to their end.) */
+ *  interest, revenue share, the partners' marketplace fee. (Spot rentals are projected to their end.) */
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
-  const share = revenueShareRate(s) * p.finance.revenueRun;
+  const share = revenueShareRate(s) * p.finance.revenueRun + distributionCut(s);
   return payrollOf(s) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 

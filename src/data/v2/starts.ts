@@ -12,6 +12,7 @@ import type { ToolId } from './features';
 import type { ProductToolId } from './tools';
 import type { NpcKindId } from './npcLabs';
 import { PRE_GAME_G_PER_YEAR } from './runDesign';
+import { LEGACY_NORTHWIND } from './deals';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Impossible';
 
@@ -22,7 +23,8 @@ export interface StartProduct { channel: Exclude<Channel, 'internal' | 'open'>; 
 export interface CapTable { founder: number; mission?: number; fin: number; strat?: Record<string, number>; stratVoting?: Record<string, true> }
 
 /** A partner holding from before the start: a deal with no running terms (the stake itself is in the cap table). */
-export interface LegacyDeal { id: string; partner: string; day: number }
+/** A partner stake from before the start. `revenueShare` and `until` (an ISO date) are its running string, if any (C7c: Northwind's share of all revenue). */
+export interface LegacyDeal { id: string; partner: string; day: number; revenueShare?: number; until?: string }
 
 export interface PositionDef {
   id: PositionId;
@@ -207,7 +209,7 @@ export const LAB_KINDS: LabKindDef[] = [
     position: 'frontier', charter: { missionBody: true, profitCap: true },
     // The nonprofit's stake and the legacy Northwind stake (Microsoft-like, ~27%, non-voting) [R15].
     ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 } },
-    legacyDeals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', day: -2000 }],
+    legacyDeals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', day: -2000, revenueShare: LEGACY_NORTHWIND.revenueShare, until: LEGACY_NORTHWIND.until }],
     replacesNpc: 'leader',
   },
   {

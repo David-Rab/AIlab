@@ -91,6 +91,7 @@ const JOBS: Job[] = [
   { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, ...S(['full'], 200) } as Job,
   { id: 'corp', script: 'corp.ts', ...S(ALL, 20) } as Job, // C1: control model (votes, controller, seats)
   { id: 'partners', script: 'partners.ts', ...S(ALL, 60) } as Job, // C7a: partner deal shape (commitment in dollars, tranches, strings, rescue)
+  { id: 'distribution', script: 'distribution.ts', ...S(ALL, 30) } as Job, // C7c: distribution replaces the revenue share; the legacy Northwind share
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, ...S(ALL, 90) } as Job,
   { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,

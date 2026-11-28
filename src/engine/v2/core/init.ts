@@ -239,7 +239,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     security: initialSecurity(staff, def.securityLevel),
     actionDay: {},
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
-    finance: compute ? startFinance(def, kind, compute) : initialFinance(startDate, kind),
+    finance: compute ? startFinance(def, kind, compute, startDate) : initialFinance(startDate, kind),
     board: { confidence: 70, extraSeats: [] },
     charter: startCharter(kind),
     sites: compute ? compute.sites : initialSites(startDate),

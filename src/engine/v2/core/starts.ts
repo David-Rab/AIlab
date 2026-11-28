@@ -66,7 +66,7 @@ export function startCompute(def: PositionDef, kind: LabKindDef, startDate: stri
 /** Finance at a non-leader start: cash, revenue, ownership, a credit line (none for a division: the parent's treasury
  *  borrows), the start compute's ledger. The valuation is marked from the story split once the rivals exist, and the
  *  line sized as banks size it, 3% of it, cap $15B (finance/story.ts startStory, FIN5a). */
-export function startFinance(def: PositionDef, kind: LabKindDef, c: StartCompute): FinanceState {
+export function startFinance(def: PositionDef, kind: LabKindDef, c: StartCompute, startDate: string): FinanceState {
   const division = ownerFunded(startControl(kind));
   // A division's first quarterly budget payment (Q3 2025) is in the starting cash (finance/parent.ts).
   const cash = def.cash + (division ? parentBudgetYear(0) / 4 : 0);
@@ -88,7 +88,7 @@ export function startFinance(def: PositionDef, kind: LabKindDef, c: StartCompute
     state: 'healthy',
     // The kind's legacy partner stakes (a hyperscaler's, from before the start): holders with no running terms and no board
     // seat. A division's voting owner is no deal.
-    deals: legacyDealsOf(kind),
+    deals: legacyDealsOf(kind, startDate),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;

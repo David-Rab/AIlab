@@ -49,7 +49,8 @@ export function yearStats(s: GameStateV2, day: Day = s.time.day): YearStats {
   return (ys[y] ??= emptyYear());
 }
 
-/** Share of revenue owed to partners now: the revenue-share strings of deals still running (FIN4a). */
+/** Share of all revenue owed to partners now: the revenue-share strings of deals still running (C7c: the legacy
+ *  Northwind stake; distribution's fee is on its own channel, finance/distribution.ts). */
 export function revenueShareRate(s: GameStateV2): number {
   return s.player.finance.deals.reduce((a, d) => a + (d.until > s.time.day ? d.strings.revenueShare ?? 0 : 0), 0);
 }
