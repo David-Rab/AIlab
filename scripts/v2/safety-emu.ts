@@ -32,6 +32,8 @@ import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/eng
 import { validateJson } from './lib';
 import { fileURLToPath } from 'node:url';
 import { cached } from './simcache';
+import { readSweep } from './readsweep';
+import { stateHash } from '../../src/engine/v2/core/save';
 import { dayOfDate, decimalYear, START_DATE } from '../../src/engine/v2/core/time';
 import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
@@ -245,15 +247,18 @@ export interface SanityRec {
   /** Each rival's best G sampled every 180 days (NaN-safe: finite flags are checked by the reader), and its status at the end. */
   rivalG: { id: string; active: boolean; g: number[] }[];
   endDay: number;
+  /** The light readout sweep on the live state at the days asked for: the state hash before and after must match. */
+  sweep: { day: number; calls: number; same: boolean }[];
 }
-function sanityObserver() {
-  const rec: SanityRec = { milestoneDays: {}, json: [], revenue: {}, minCash: Infinity, minValuation: Infinity, maxValuation: -Infinity, rivalG: [], endDay: 0 };
+function sanityObserver(sweepDays: number[]) {
+  const rec: SanityRec = { milestoneDays: {}, json: [], revenue: {}, minCash: Infinity, minValuation: Infinity, maxValuation: -Infinity, rivalG: [], endDay: 0, sweep: [] };
   const g = new Map<string, number[]>();
   const snap = (s: GameStateV2) => { const e = validateJson(s); rec.json.push({ day: s.time.day, n: e.length, first: e.slice(0, 3) }); };
   return {
     step(s: GameStateV2) {
       const d = s.time.day;
       if (d === 1 || d === 400 || d === 1200) snap(s);
+      if (sweepDays.includes(d)) { const h = stateHash(s); const calls = readSweep(s, true).calls; rec.sweep.push({ day: d, calls, same: stateHash(s) === h }); }
       const y = Math.floor(decimalYear(s));
       rec.revenue[y] = (rec.revenue[y] ?? 0) + s.player.deployments.reduce((a, x) => a + (x.revenueRate ?? 0), 0) / 365;
       const f = s.player.finance;
@@ -279,12 +284,12 @@ export const GAME_DAYS = 365 * 16;
  *  seed and horizon only, so the game is played once. */
 export interface RefGame { outcome: Outcome; rates: RefRec; sanity: SanityRec }
 const EMU_FILE = fileURLToPath(import.meta.url);
-export function refGame(seed: number, maxDay = GAME_DAYS): RefGame {
-  return cached('refbot-asi-game', { seed, world: 'tl-central', alignment: 'medium', maxDay }, [EMU_FILE], () => {
+export function refGame(seed: number, maxDay = GAME_DAYS, sweepDays: number[] = []): RefGame {
+  return cached('refbot-asi-game', { seed, world: 'tl-central', alignment: 'medium', maxDay, ...(sweepDays.length ? { sweepDays } : {}) }, [EMU_FILE], () => {
     let obs: ReturnType<typeof ratesObserver> | undefined;
     let san: ReturnType<typeof sanityObserver> | undefined;
     let last: GameStateV2 | undefined;
-    const outcome = play(refBot, seed, 'asi', 'medium', (s) => { last = s; }, (s) => { obs ??= ratesObserver(s); san ??= sanityObserver(); obs.step(s); san.step(s); }, maxDay);
+    const outcome = play(refBot, seed, 'asi', 'medium', (s) => { last = s; }, (s) => { obs ??= ratesObserver(s); san ??= sanityObserver(sweepDays); obs.step(s); san.step(s); }, maxDay);
     return { outcome, rates: (obs as ReturnType<typeof ratesObserver>).done(last as GameStateV2), sanity: (san as ReturnType<typeof sanityObserver>).done(last as GameStateV2) };
   });
 }
