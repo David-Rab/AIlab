@@ -28,7 +28,7 @@ import { EVENT_BY_ID } from '../../../src/engine/v2/core/registry';
 import { engine } from '../../../src/engine/v2/index';
 import type { GameStateV2 } from '../../../src/engine/v2/types';
 import { cached, pick } from '../simcache';
-import type { Target } from './types';
+import { rowOf, type Target } from './types';
 
 export const area = 'finance';
 
@@ -144,22 +144,22 @@ function shockRun0(baseMult: number, mult: number, atQ: number, nQ: number) {
 
 export function targets(): Target[] {
   const rows: Target[] = [];
-  /** One row: id, band text, source, ok, label, value. */
-  const t = (id: string, band: string, source: string, ok: boolean, label: string, value = '') => rows.push({ id: `finance.${id}`, label, band, value, ok, source });
+  /** One row per registry target: its band, unit and source come from balance/targets.ts (calreport/types.ts rowOf). */
+  const R = (id: string, value: string, measured: number | number[] | boolean) => rows.push(rowOf(id, value, measured));
 
   const ref = SEEDS().map((seed) => runBotC(seed, REF_AUTOPILOT, END_2027));
   const long = ref[0];
 
   // ───────────── F1–F3, F6: market under default demand (RefBot; seed 1 is the market reference run) ─────────────
   const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
-  t('f1.prod2026', '20–30M H100e', 'V2-SPEC §7.2 F1', prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
+  R('F1.production2026', `${f1(prod(2026) / 1e6)}M`, prod(2026));
   {
     const w = long.s.hidden.timeline;
     const ratios = long.q.map((r) => r.stock / globalCompute(w as never, WORLD_START.globalCompute, r.day / 365));
-    t('f3.stock', '80–120% of globalCompute(w,t)', 'V2-SPEC §7.2 F3', ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2027', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
-    const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin);
+    R('F3.installedStock', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`, ratios);
+    const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin); // band-lint: ok measured years
     const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;
-    t('f6.margin', 'mean 70–77%, min ≥ 65%', 'V2-SPEC §7.2 F6', meanM >= 0.7 && meanM <= 0.77 && Math.min(...m27) >= 0.65, 'F6 implied supplier margin 70–75% (mean Q4 2025–Q4 2027)', `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`);
+    { const v = `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`; R('F6.supplierMarginMean', v, meanM); R('F6.supplierMarginMin', v, Math.min(...m27)); };
   }
 
   // ───────────── F4, F5: demand shocks (passive player, same seed) ─────────────
@@ -169,22 +169,22 @@ export function targets(): Target[] {
     const b = shockRun(0.7, 1, tq, 13);
     const x = shockRun(0.7, 1.5, tq, 13);
     const diff = b.S.map((_, i) => (i === 0 ? 0 : x.S[i] / x.S[i - 1] - b.S[i] / b.S[i - 1]));
-    const early = diff.slice(0, tq + 4).every((d) => Math.abs(d) < 0.005);
-    const first = diff.findIndex((d) => d > 0.01) - tq;
+    const early = Math.max(...diff.slice(0, tq + 4).map((d) => Math.abs(d)));
+    const first = diff.findIndex((d) => d > 0.01) - tq; // band-lint: ok growth-difference threshold that defines "rises" (F4)
     const win = diff.slice(0, tq + 11); // main response window (later wiggles are wafer binding switches)
     const peak = win.indexOf(Math.max(...win)) - tq;
-    t('f4.shock', 'first t+4..t+6, peak t+6..t+9', 'V2-SPEC §7.2 F4 (C3)', early && first >= 4 && first <= 6 && peak >= 6 && peak <= 9, 'F4 +50% demand shock: supply growth rises from t+4, peaks t+6..t+8', `first t+${first}, peak t+${peak} (+${f1(Math.max(...win) * 100)} pp/q)`);
+    { const v = `first t+${first}, peak t+${peak} (+${f1(Math.max(...win) * 100)} pp/q)`; R('F4.shock.first', v, first); R('F4.shock.peak', v, peak); R('F4.shock.earlyResponse', v, early); };
   }
   {
     const rb = rentalBase(15, 0.7);
     const up = spotRental(rb, 1.5) / spotRental(rb, 1) - 1;
-    t('f5.spot', '+35% to +45%', 'V2-SPEC §7.2 F5 (C4)', up >= 0.35 && up <= 0.45, 'F5 spot rental under D/S = 1.5: +35–45% (C4)', `+${f1(up * 100)}%`);
+    R('F5.spotDemandShock', `+${f1(up * 100)}%`, up);
   }
   {
     const t0 = 2;
     const b = shockRun(1, 0.5, t0, 11);
     const fall = [6, 7, 8].map((k) => b.r[t0 + k] / b.r[t0 - 1] - 1);
-    t('f5.glut', '−60% to −80% at 6, 7, 8 quarters', 'V2-SPEC §7.2 F5 (C5)', fall.every((x) => x <= -0.6 && x >= -0.8), 'F5 spot rental in a glut: −60–80% over 6–8 quarters (C5)', fall.map((x) => `${f1(x * 100)}%`).join(', '));
+    R('F5.spotGlut', fall.map((x) => `${f1(x * 100)}%`).join(', '), fall);
   }
 
   // ───────────── F7, F8: RefBot, no-financing variant, capex2x ─────────────
@@ -192,7 +192,7 @@ export function targets(): Target[] {
     // F2 on the RefBot seeds (FINREF): C2's 45–60M (AI 2027 60M; Epoch's ×2.2 a year) is the world's expected 2027 output.
     const prodOf = (r: Run, y: number) => r.q.filter((x) => x.year === y).reduce((a, x) => a + x.shipped, 0);
     const p27 = ref.map((r) => prodOf(r, 2027));
-    t('f2.prod2027', '45–60M H100e', 'V2-SPEC §7.2 F2 (C2; AI 2027 60M; Epoch ×2.2/yr)', median(p27) >= 45e6 && median(p27) <= 60e6, 'F2 global production 2027 in 45–60M H100e (median of the RefBot seeds)', `median ${f1(median(p27) / 1e6)}M (range ${f1(Math.min(...p27) / 1e6)}–${f1(Math.max(...p27) / 1e6)}; seed 1's long run ${f1(prod(2027) / 1e6)}M)`);
+    R('F2.production2027', `median ${f1(median(p27) / 1e6)}M (range ${f1(Math.min(...p27) / 1e6)}–${f1(Math.max(...p27) / 1e6)}; seed 1's long run ${f1(prod(2027) / 1e6)}M)`, median(p27));
   }
   const y26 = ref.map((r) => r.s.player.finance.ws3.years['2026']);
   // FIN1: chips a lessor paid at delivery count as capex too. FIN4r: capex and compute costs are what the year incurred,
@@ -201,11 +201,11 @@ export function targets(): Target[] {
   const med = { rev: median(y26.map((y) => y.revenue)), capex: median(capex), compute: median(y26.map((y) => y.computeCosts + (y.deferredCompute ?? 0))), gw: median(ref.map((r) => r.gw2026)), v: median(ref.map((r) => r.v2026)) };
   // F7 revenue (FINREF): AI 2027's OpenBrain $45B is a plot point; the measured 2026 leader is Anthropic, CY2026 ≈ $53–56B
   // (S-1: 9M 2026 $33.2B, Q4 at the $81B Oct run-rate; research/22 §4 [P]). The band is both, ±20%: $36–67B.
-  t('f7.rev2026', '$36–67B', 'research/22 §4 [P]; AI 2027', med.rev >= 36 && med.rev <= 67, 'F7 RefBot 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%', `median $${f1(med.rev)}B`);
-  t('f7.capex2026', '$150–250B', 'V2-SPEC §7.2 F7', med.capex >= 150 && med.capex <= 250, 'F7 RefBot 2026 capex $200B (±25%)', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`);
-  t('f7.compute2026', '$25–60B', 'V2-SPEC §7.2 F7', med.compute >= 25 && med.compute <= 60, 'F7 RefBot 2026 compute costs ~$40B/yr (incurred: paid + deferred by a renegotiation)', `median $${f1(med.compute)}B (deferred median $${f1(median(y26.map((y) => y.deferredCompute ?? 0)))}B)`);
-  t('f7.gw2026', '4–9 GW', 'V2-SPEC §7.2 F7', med.gw >= 4 && med.gw <= 9, 'F7 RefBot end-2026 power ~6 GW (live sites + cloud)', `median ${f1(med.gw)} GW`);
-  t('f7.val2026', '$1–3T', 'V2-SPEC §7.2 F7', med.v >= 1000 && med.v <= 3000, 'F7 RefBot end-2026 valuation $1–3T', `median $${(med.v / 1000).toFixed(2)}T`);
+  R('F7.revenue2026', `median $${f1(med.rev)}B`, med.rev);
+  R('F7.capex2026', `median $${f1(med.capex)}B (range ${f1(Math.min(...capex))}–${f1(Math.max(...capex))})`, med.capex);
+  R('F7.compute2026', `median $${f1(med.compute)}B (deferred median $${f1(median(y26.map((y) => y.deferredCompute ?? 0)))}B)`, med.compute);
+  R('F7.power2026', `median ${f1(med.gw)} GW`, med.gw);
+  R('F7.valuation2026', `median $${(med.v / 1000).toFixed(2)}T`, med.v);
 
   const funded = ref.map((r) => {
     const y = r.s.player.finance.ws3.years['2026'];
@@ -213,16 +213,16 @@ export function targets(): Target[] {
     const deal = r.s.player.finance.deals.some((d) => !d.legacy && d.day >= 0 && d.day < END_2026);
     return { deal, fin: y.spvFinanced + y.leaseFinanced + y.cloudFinanced };
   });
-  const fundedShare = share(funded.map((x) => x.deal && x.fin >= 50));
-  t('f8.funded', '≥ 80% of seeds', 'V2-SPEC §7.2 F8', fundedShare >= 0.8, 'F8 RefBot takes ≥ 1 strategic deal and ≥ $50B lease/colocation/cloud financing in 2026 (≥ 80% of seeds)', `${fundedShare * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`);
+  const fundedShare = share(funded.map((x) => x.deal && x.fin >= 50)); // band-lint: ok the $50B financing floor of the F8 definition
+  R('F8.fundingMix', `${fundedShare * 100}% · median financing $${f1(median(funded.map((x) => x.fin)))}B`, fundedShare);
   const noDistress = share(ref.map((r) => r.firstDistress < 0 || r.firstDistress >= END_2026));
-  t('f8.noDistress', '≥ 75% of seeds', 'V2-SPEC §7.2 F8', noDistress >= 0.75, 'F8 RefBot stays out of distress through 2026 (≥ 75% of seeds)', `${f1(noDistress * 100)}%`);
+  R('F8.refNoDistress', `${f1(noDistress * 100)}%`, noDistress);
   const none = DISTRESS_SEEDS().map((seed) => runBotC(seed, bare, END_Q1_2027, true));
   const noneD = share(none.map((r) => r.firstDistress >= 0));
-  t('f8.bare', '≥ 80% of seeds', 'V2-SPEC §7.2 F8 (C7)', noneD >= 0.8, 'F8 the C7 path without a strategic deal or off-balance-sheet financing hits distress by Q1 2027 (≥ 80%)', `${f1(noneD * 100)}%`);
+  R('F8.noRescueDistress', `${f1(noneD * 100)}%`, noneD);
   const x2 = DISTRESS_SEEDS().map((seed) => runBotC(seed, CAPEX2X_AUTOPILOT, END_2027, true));
   const x2D = share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_2027));
-  t('f8.capex2x', '≥ 80% of seeds', 'V2-SPEC §7.2 F8', x2D >= 0.8, 'F8 capex2x bot (no rescue) reaches Distress by end-2027 (≥ 80%)', `${f1(x2D * 100)}% · ${x2.length} seeds (stopped at first distress)`);
+  R('F8.capex2xDistress', `${f1(x2D * 100)}% · ${x2.length} seeds (stopped at first distress)`, x2D);
 
   // ───────────── F9: valuation and rounds on the RefBot path ─────────────
   {
@@ -236,26 +236,26 @@ export function targets(): Target[] {
     const S0 = median(start.map((x) => x.sector.S));
     const lateOf = (k: 'sumV' | 'S') => median(ref.map((r) => { const a = r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01')); const b = r.q.find((x) => x.day >= dayOfDate(START, '2027-01-01')); return a && b ? (a[k] + b[k]) / 2 : NaN; }).filter(Number.isFinite));
     const late = lateOf('sumV');
-    t('f9.fc1', 'start $450–750B, late 2026 $2.2–3.3T', 'research/15 §2.9; R21 A8', s0 >= 450 && s0 <= 750 && late >= 2200 && late <= 3300, 'F9 (FC1) the private labs\' marks add up to ≈ $0.5–0.65T at the Jul 2025 start and ≈ $2.5–3T in late 2026 (mean of the Oct and Jan marks), RefBot path', `start median ${f1(s0)}B · late 2026 median ${f1(late)}B (sector value S: start ${f1(S0)}B, late 2026 ${f1(lateOf('S'))}B)`);
-    const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1));
-    const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R);
-    const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R);
-    t('f9.fc2', '20–37× run-rate', 'research/15 §2.9 (FC2)', median(hi) >= 20 && median(hi) <= 37, 'F9 (FC2) leader-style multiple 20–37× run-rate at high growth (RefBot marks with ×2.5+ a year, no bust, through 2027)', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`);
+    { const v = `start median ${f1(s0)}B · late 2026 median ${f1(late)}B (sector value S: start ${f1(S0)}B, late 2026 ${f1(lateOf('S'))}B)`; R('F9.fc1.start', v, s0); R('F9.fc1.late2026', v, late); };
+    const marks = ref.flatMap((r) => r.q.filter((x) => x.year <= 2027 && !x.bust && x.R >= 1)); // band-lint: ok measured years; x2.5 growth class of the F9 definition
+    const hi = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R); // band-lint: ok x2.5 growth class of the F9 definition
+    const lo = marks.filter((x) => x.g < 2.5).map((x) => x.V / x.R); // band-lint: ok x2.5 growth class of the F9 definition
+    R('F9.fc2.leaderMultiple', `median ${f1(median(hi))}× over ${hi.length} marks (slower growth: ${f1(median(lo))}× over ${lo.length})`, median(hi));
     // FC2's "trailing labs lower" (C11: ≈ 15–20× at ×2–3 a year). Compared within each year (years with ≥ 3 marks on both
     // sides): C11's growth gradient is a same-date claim; pooled over 2025–27 it read growth through the year's sector multiple.
-    const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r)));
+    const tr = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r))); // band-lint: ok measured years
     const tr27 = ref.flatMap((r) => r.q.filter((x) => x.year === 2027 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r)));
-    const byYear = [2025, 2026, 2027].map((y) => ({ y, h: marks.filter((x) => x.year === y && x.g >= 2.5).map((x) => x.V / x.R), l: marks.filter((x) => x.year === y && x.g < 2.5).map((x) => x.V / x.R) })).filter((z) => z.h.length >= 3 && z.l.length >= 3);
-    t('f9.fc2growth', 'slower growth → lower multiple, each year', 'research/15 §2.9 (C11)', byYear.length > 0 && byYear.every((z) => median(z.l) < median(z.h)), 'F9 (FC2) the leader-style lab is valued at a lower multiple when its growth is slower, in the same year (C11)', `${byYear.map((z) => `${z.y}: ×2.5+ ${f1(median(z.h))}× (${z.h.length}) · slower ${f1(median(z.l))}× (${z.l.length})`).join(' · ') || 'no year with both'} · pooled ${f1(median(hi))}× / ${f1(median(lo))}×`);
+    const byYear = [2025, 2026, 2027].map((y) => ({ y, h: marks.filter((x) => x.year === y && x.g >= 2.5).map((x) => x.V / x.R), l: marks.filter((x) => x.year === y && x.g < 2.5).map((x) => x.V / x.R) })).filter((z) => z.h.length >= 3 && z.l.length >= 3); // band-lint: ok x2.5 growth class and minimum marks per side
+    R('F9.fc2.slowerLowerMultiple', `${byYear.map((z) => `${z.y}: ×2.5+ ${f1(median(z.h))}× (${z.h.length}) · slower ${f1(median(z.l))}× (${z.l.length})`).join(' · ') || 'no year with both'} · pooled ${f1(median(hi))}× / ${f1(median(lo))}×`, byYear.length > 0 && byYear.every((z) => median(z.l) < median(z.h)));
     // At the same revenue scale. The sourced multiple falls with revenue: Anthropic's marks at growth ≥ ×8 a year throughout
     // (R15 §2.9 [P]; the IPO total [U]) ran 37× at $5B (Series F), 27× at $14B (G), 20.5× at $47B (H), ≈ 16–17× at $81B
     // (IPO): m_A(R) = 37 × (R ÷ $5B)^−0.28 within 3%. The check compares each mark with m_A at its own revenue.
     const mA = (R: number) => 37 * Math.pow(R / 5, -0.28);
-    const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r / mA(q.r))));
-    const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R));
-    t('f9.fc2trailing', 'trailing median < leader-style median (÷ m_A)', 'research/15 §2.9 [P]/[U] (Anthropic marks); R21 [U]', trA.length > 0 && median(trA) < median(hiA), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at the same revenue scale (each mark ÷ Anthropic\'s multiple at that revenue; their marks through 2026)', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`);
+    const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r / mA(q.r)))); // band-lint: ok measured years
+    const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R)); // band-lint: ok x2.5 growth class of the F9 definition
+    R('F9.fc2.trailingRivals', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`, trA.length > 0 ? median(trA) / median(hiA) : NaN);
     const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
-    t('f9.dilution', 'max ≤ 8%', 'V2-SPEC §7.2 F9 (C12)', dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
+    R('F9.dilution', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`, dil.length > 0 ? Math.max(...dil) : NaN);
   }
 
   // ───────────── FIN2: raises on the reference path ─────────────
@@ -266,7 +266,7 @@ export function targets(): Target[] {
     const byType = (ty: string) => judged.filter((p) => p.type === ty).length;
     const met = judged.filter((p) => p.result!.outcome === 'met').length;
     const cred = median(ref.map((r) => r.s.player.finance.credibility));
-    t('fin2.rounds', '1–4 rounds a year (median)', 'design/FINANCE-V3.md §2 (it raised at the ceiling every quarter before FIN2)', per(2026) >= 1 && per(2026) <= 4 && per(2027) >= 1 && per(2027) <= 4, 'FIN2 RefBot raises 1–4 rounds a year (median; it raised at the ceiling every quarter before FIN2)', `2026 ${per(2026)} · 2027 ${per(2027)} · promises judged ${judged.length} (met ${F1pct(met / Math.max(1, judged.length))}; scale ${byType('scale')}, adoption ${byType('adoption')}, capability ${byType('capability')}) · end-2027 credibility median ${f1(cred)}`);
+    R('FIN2.roundsPerYear', `2026 ${per(2026)} · 2027 ${per(2027)} · promises judged ${judged.length} (met ${F1pct(met / Math.max(1, judged.length))}; scale ${byType('scale')}, adoption ${byType('adoption')}, capability ${byType('capability')}) · end-2027 credibility median ${f1(cred)}`, [per(2026), per(2027)]);
   }
   // ───────────── FIN3a: board confidence on the reference path ─────────────
   {
@@ -274,7 +274,7 @@ export function targets(): Target[] {
     // small safety share and has more public incidents, which lowers the board: an emergent consequence, so only a collapse
     // (median < 40) is out of band. The 12-seed median sits in a gap between two clusters (29–48 and 53–67).
     const bc = median(ref.map((r) => r.s.player.board.confidence));
-    t('fin3a.board', 'median ≥ 40 (collapse guard; design target ≥ 55)', 'design/FINANCE-V3.md §7.3; lead decision after FINREF 2026-11-21', bc >= 40, 'FIN3a RefBot end-2027 board confidence median ≥ 40 (collapse guard)', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`);
+    R('FIN3a.boardConfidence', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`, bc);
   }
   // ───────────── FIN3b: the safety committee under the nonprofit PBC ─────────────
   {
@@ -284,7 +284,7 @@ export function targets(): Target[] {
     const games = pbc.filter((r) => r.held.length > 0).length;
     const versions = pbc.reduce((a, r) => a + r.held.length, 0);
     const sh = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
-    t('fin3b.committee', '≥ 1 game reaches the PBC; median share ≤ 50%', 'design/FINANCE-V3.md §7.5', pbc.length > 0 && sh <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`);
+    R('FIN3b.committeeShare', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`, pbc.length > 0 ? sh : NaN);
   }
   // ───────────── FIN4a / FIN4b: the reference bot's partner deal ─────────────
   {
@@ -292,11 +292,10 @@ export function targets(): Target[] {
     const by = deals.reduce((a, d) => ({ ...a, [d.partner]: (a[d.partner] ?? 0) + 1 }), {} as Record<string, number>);
     const tot = median(deals.map((d) => d.supply?.total ?? 0));
     const eq = median(deals.map((d) => d.equityNow + d.equityLater));
-    t('fin4a.deal', '≥ 80% of seeds, cloud, partner discount', 'design/FINANCE-V3.md §6', deals.length >= 0.8 * ref.length && deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0), 'FIN4a RefBot signs one hyperscaler cloud deal (≥ 80% of seeds), on the expected path with the partner discount', `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`);
+    { const v = `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`; R('FIN4a.dealShare', v, deals.length / Math.max(1, ref.length)); R('FIN4a.dealShape', v, deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0)); };
     const n = ref.map((r) => partnersNow(r.s).length);
     const ST = PARTNER_TERMS.strings;
-    t('fin4b.deal', '≥ 80% of seeds, exclusive, no IP access, ≤ max partners', 'design/FINANCE-V3.md §6.1', deals.length >= 0.8 * ref.length && deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
-      'FIN4b RefBot takes one hyperscaler deal with exclusivity and without IP access; never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
+    R('FIN4b.dealStrings', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`, deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners));
   }
   // ───────────── FIN5a: the story on the reference path ─────────────
   {
@@ -304,7 +303,7 @@ export function targets(): Target[] {
     const e25 = median(ref.map((r) => r.s.player.finance.ws3.years['2025']?.equity ?? 0));
     const e26 = median(ref.map((r) => r.s.player.finance.ws3.years['2026']?.equity ?? 0));
     const sh = median(ref.map((r) => r.q.find((x) => x.day >= dayOfDate(START, '2026-10-01'))?.share ?? NaN).filter(Number.isFinite));
-    t('fin5a.equity', 'H2 2025 $5–45B, 2026 $50–150B', 'OpenAI raised $40B in 2025, $122B in 2026', e25 >= 5 && e25 <= 45 && e26 >= 50 && e26 <= 150, 'FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)', `2025 H2 ${f1(e25)}B · 2026 ${f1(e26)}B · story share Oct 2026 ${F1pct(sh)}`);
+    { const v = `2025 H2 ${f1(e25)}B · 2026 ${f1(e26)}B · story share Oct 2026 ${F1pct(sh)}`; R('FIN5a.equity2025H2', v, e25); R('FIN5a.equity2026', v, e26); };
   }
   // ───────────── FIN5b: rivals' finance (FC6) ─────────────
   {
@@ -313,16 +312,16 @@ export function targets(): Target[] {
     const all = ref.flatMap((r) => r.private0);
     const alive = ref.flatMap((r) => r.rivals2026.filter((x) => x.status === 'active'));
     const show = (k: string) => { const xs = alive.filter((x) => x.arch === k); return xs.length ? `${k} ${xs.length}: V $${f1(median(xs.map((x) => x.V)))}B on $${f1(median(xs.map((x) => x.R)))}B (${f1(median(xs.map((x) => x.V / Math.max(0.1, x.R))))}×)` : `${k} 0`; };
-    t('fin5b.fc6', '≥ 75% of private rivals active at end-2026', 'research/15 §2.9; R21 (FC6)', all.length > 0 && alive.length / all.length >= 0.75, 'FIN5b (FC6) trailing private rivals stay funded through 2026 (≥ 75% of them still active at end-2026, RefBot path)', `${alive.length} of ${all.length} active · ${['safety', 'racer', 'upstart'].map(show).join(' · ')}`);
+    R('FIN5b.fc6', `${alive.length} of ${all.length} active · ${['safety', 'racer', 'upstart'].map(show).join(' · ')}`, all.length > 0 ? alive.length / all.length : NaN);
   }
   // ───────────── FIN6a: calibration on the reference path ─────────────
   {
     // FC2 by year: the leader-style multiple stays in 20–37× at high growth in 2027 too, and the 2026 marks sit near the
     // band's low end. FC4 printed: commitments ÷ revenue run-rate (a known miss, FIN6a notes).
-    const hi = (y: number) => ref.flatMap((r) => r.q.filter((x) => x.year === y && !x.bust && x.R >= 1 && x.g >= 2.5).map((x) => x.V / x.R));
+    const hi = (y: number) => ref.flatMap((r) => r.q.filter((x) => x.year === y && !x.bust && x.R >= 1 && x.g >= 2.5).map((x) => x.V / x.R)); // band-lint: ok x2.5 growth class of the F9 definition
     const m26 = median(hi(2026));
     const m27 = median(hi(2027));
-    t('fin6a.fc2', '2027 in 20–37×, 2026 ≥ 15×', 'research/15 §2.9 (FC2)', hi(2027).length > 0 && m27 >= 20 && m27 <= 37 && m26 >= 15, 'FIN6a (FC2) leader-style multiple at high growth by year: 2027 inside 20–37× (no runaway), 2026 at least 15×', `2026 ${f1(m26)}× (${hi(2026).length}) · 2027 ${f1(m27)}× (${hi(2027).length}) · end-2027 valuation median $${(median(ref.map((r) => r.s.player.finance.valuation)) / 1000).toFixed(2)}T`);
+    { const v = `2026 ${f1(m26)}× (${hi(2026).length}) · 2027 ${f1(m27)}× (${hi(2027).length}) · end-2027 valuation median $${(median(ref.map((r) => r.s.player.finance.valuation)) / 1000).toFixed(2)}T`; R('F9.fc2.2027', v, hi(2027).length > 0 ? m27 : NaN); R('F9.fc2.2026', v, m26); };
     const R27 = median(ref.map((r) => r.s.player.finance.revenueRun));
     console.log(`  INFO FIN6a (FC4) RefBot end-2027 commitments remaining $${f1(median(ref.map((r) => commitmentsRemaining(r.s))))}B on a $${f1(R27)}B run-rate; partner take-or-pay ÷ its equity ${f1(median(ref.flatMap((r) => r.s.player.finance.deals.filter((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0 && d.supply).map((d) => d.supply!.total / Math.max(1e-9, d.equityNow + d.equityLater)))))}×`);
   }
@@ -333,7 +332,7 @@ export function targets(): Target[] {
     const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
     const s = newGame(defaultSetupV2({ seed: 30000, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'bigtech' }));
     let distress = 0;
-    while (s.time.day < 550 && !s.ending) {
+    while (s.time.day < 550 && !s.ending) { // band-lint: ok game length
       for (const p of [...s.events.pending]) if (resolve(s, p.instance, mixedBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
       mixedBot.act(s, engine);
       tick(s);
@@ -341,7 +340,7 @@ export function targets(): Target[] {
     }
     const d = s.player.finance.ws3.division!;
     const rv = d.reviews[0];
-    t('fin5c.divisionBot', 'never tight or in distress; first review judges 3 goals', 'design/FINANCE-V3.md §13', distress === 0 && !!rv && rv.goals.met + rv.goals.near + rv.goals.missed === 3 && near(d.budget, d.plan * budgetFactor(d.confidence)), 'FIN5c mixed bot as a division head: never tight or in distress; the first review judges three goals and sets the budget by the rule', `year 0: spent $${f1(rv?.spent ?? 0)}B of $${f1(rv?.budget ?? 0)}B, over $${f1(rv?.over ?? 0)}B (${f1(rv?.overConf ?? 0)}), goals ${JSON.stringify(rv?.goals)} · year 1 budget $${f1(d.budget)}B at confidence ${f1(d.confidence)}`);
+    R('FIN5c.divisionBot', `year 0: spent $${f1(rv?.spent ?? 0)}B of $${f1(rv?.budget ?? 0)}B, over $${f1(rv?.over ?? 0)}B (${f1(rv?.overConf ?? 0)}), goals ${JSON.stringify(rv?.goals)} · year 1 budget $${f1(d.budget)}B at confidence ${f1(d.confidence)}`, distress === 0 && !!rv && rv.goals.met + rv.goals.near + rv.goals.missed === 3 && near(d.budget, d.plan * budgetFactor(d.confidence)));
   }
   return rows;
 }

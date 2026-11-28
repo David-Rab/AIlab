@@ -31,7 +31,7 @@ import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from '../calseeds';
 import { multiplierRef } from '../../../src/engine/v2/world/calibration';
 import { REF_TPP } from '../../../src/data/v2/runDesign';
 import { fOver } from '../../../src/engine/v2/models/effective';
-import type { Target } from './types';
+import { rowOf, type Target } from './types';
 
 export const area = 'milestones';
 
@@ -143,12 +143,11 @@ export function targets(): Target[] {
   for (const preset of presets) {
     const rec = t1Rec(preset);
     const { gPath, start, h0, h1, t2 } = rec;
-    const id = (k: string) => `milestones.${preset}.${k}`;
 
     // T1: the median over the seed set per milestone, against the golden day; skips while the world has none.
     if (!hasGolden(preset)) {
       const got = NAMES.flatMap((n, i) => (rec.md[i as MilestoneIdx] === undefined ? [] : [`${n} ${yearOf(rec.md[i as MilestoneIdx] as number).toFixed(2)}`])).join(' ');
-      out.push({ id: id('t1'), label: `T1 ${preset} RefBot milestone days vs the golden days (median over CAL_SEEDS)`, band: 'golden day ± 0.08 y (SC), ± 0.12 y after', value: `no golden days yet (calGolden); seed ${SEED}: ${got}`, ok: true, source: 'V2-SPEC §7.1 T1; model v3 F4 (median over CAL_SEEDS); lib.ts calGolden is empty for the timeline worlds' });
+      out.push(rowOf('T1.golden.milestones', `no golden days yet (calGolden is empty for this world); seed ${SEED}: ${got}`, true, preset));
     } else {
       const mds = seeds.map((x) => t1SeedRec(preset, x));
       const g = golden.presets[preset].days;
@@ -159,19 +158,19 @@ export function targets(): Target[] {
         const days = mds.map((md) => md[i as MilestoneIdx] ?? Infinity);
         const med = medianOf(days);
         const inTol = days.filter((d) => Math.abs(d - want) <= tol).length;
-        const spread = i >= 3 && mds.length > 1 ? `; p10 ${sgn((quantOf(days, 0.1) - want) / 365)}, p90 ${sgn((quantOf(days, 0.9) - want) / 365)} y` : '';
-        out.push({ id: id(`t1.${n}`), label: `T1 ${preset} ${n}: median milestone day over ${mds.length} seeds`, band: `${want} (${yearOf(want)}) ± ${Math.round(tol)} d`, value: `${Number.isFinite(med) ? `${med.toFixed(1)} (${yearOf(med)})` : '—'}; ${inTol}/${mds.length} seeds within${spread}`, ok: Math.abs(med - want) <= tol, source: 'V2-SPEC §7.1 T1; model v3 F4; golden days (lib.ts calGolden)' });
+        const spread = i >= 3 && mds.length > 1 ? `; p10 ${sgn((quantOf(days, 0.1) - want) / 365)}, p90 ${sgn((quantOf(days, 0.9) - want) / 365)} y` : ''; // band-lint: ok milestone index: only SC onward gets a spread
+        out.push(rowOf('T1.golden.milestones', `median over ${mds.length} seeds ${Number.isFinite(med) ? `${med.toFixed(1)} (${yearOf(med)})` : '—'} vs golden ${want} (${yearOf(want)}) ± ${Math.round(tol)} d; ${inTol}/${mds.length} seeds within${spread}`, Math.abs(med - want) <= tol, `${preset} ${n}`));
       });
       const r = intRec(preset);
-      out.push({ id: id('r5.integrated'), label: `R5 build queue never delays a RefBot run > 3 d (integrated ${preset})`, band: '≤ 3 d', value: `worst ${r.worstWait} d`, ok: r.worstWait <= 3, source: 'V2-SPEC R5' });
+      out.push(rowOf('R5.buildQueue.integrated', `worst ${r.worstWait} d`, r.worstWait, preset));
     }
 
     // R5 (stub game)
     const worstWait = Math.max(0, ...new Map(rec.waits).values());
-    out.push({ id: id('r5'), label: `R5 build queue never delays a RefBot run > 3 d (${preset})`, band: '≤ 3 d', value: `worst ${worstWait} d over ${rec.waits.length} runs`, ok: worstWait <= 3, source: 'V2-SPEC R5' });
+    out.push(rowOf('R5.buildQueue.stub', `worst ${worstWait} d over ${rec.waits.length} runs`, worstWait, preset));
 
     // MODEL-V3 §13 frontier G path (tl-central only).
-    if (preset === 'tl-central' && gPath.length > 30) {
+    if (preset === 'tl-central' && gPath.length > 30) { // band-lint: ok minimum samples for a line fit
       const n = gPath.length;
       const mx = gPath.reduce((a, r) => a + r.day, 0) / n;
       const my = gPath.reduce((a, r) => a + r.g, 0) / n;
@@ -179,17 +178,17 @@ export function targets(): Target[] {
       const fitAt = (d: number) => my + slope * (d - mx);
       const rows = G_ANCHORS.map(([date, g]) => ({ date, g, fit: fitAt(dayOfDate(START_DATE, date)) }));
       const worst = Math.max(...rows.map((r) => Math.abs(r.fit - r.g)));
-      out.push({ id: id('gPath'), label: "MODEL-V3 §13 frontier G path to 2026 (least-squares line through RefBot's best model)", band: '±0.2 G of the anchors', value: `worst ${worst.toFixed(2)} G, ${(slope * 365).toFixed(2)} G/yr (research/12: 1.1–1.3); ${rows.map((r) => `${r.date} ${r.fit.toFixed(2)} vs ${r.g.toFixed(2)}`).join(', ')}`, ok: worst <= 0.2, source: 'research/12 §0.2 frontier anchors (best public model); OPEN.md § Balance: frontier G path to 2026 (RefBot 0.75 G/yr vs research/12 1.1–1.3)' });
+      out.push(rowOf('GPATH.anchorDeviation', `worst ${worst.toFixed(2)} G, ${(slope * 365).toFixed(2)} G/yr; ${rows.map((r) => `${r.date} ${r.fit.toFixed(2)} vs ${r.g.toFixed(2)}`).join(', ')}`, worst, preset));
     }
     if (start && h0 && h1) {
       const months = (h1.day / 30.44) / Math.log2(h1.h / h0);
-      out.push({ id: id('mStart'), label: `V3.7 research speed readout M at the start (${preset})`, band: "the preset's source (AI 2027 integrator M(p0)) ± 0.1", value: `M ${start.M.toFixed(3)} vs ${start.src.toFixed(2)}; ×${start.rs.toFixed(2)} the leader's day-0 research speed after the auto mix`, ok: Math.abs(start.M - start.src) <= 0.1, source: 'CAL2-T (DECISIONS "Calibration decisions after CAL1 refits" item 3): src/data/world.ts multiplierAt at p0 (ai2027 1.25, authors2026 1.10, fast 1.15, slow 1.01)' });
-      if (preset === 'tl-central') out.push({ id: id('metr'), label: 'V3.7 METR h50 doubling for the reference frontier 2025–26', band: '4.2 ± 1 months', value: `${months.toFixed(1)} months (h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0)`, ok: months >= 3.2 && months <= 5.2, source: 'METR time-horizon doubling ≈ 4.2 months (as calib.ts V3.7); OPEN.md § Balance: METR h50 doubling 2025–26 (RefBot ≈ 9 months vs 4.2 ± 1)' });
+      out.push(rowOf('M.startReadout', `M ${start.M.toFixed(3)} vs ${start.src.toFixed(2)}; ×${start.rs.toFixed(2)} the leader's day-0 research speed after the auto mix`, Math.abs(start.M - start.src), preset));
+      if (preset === 'tl-central') out.push(rowOf('METR.h50.doubling', `${months.toFixed(1)} months (h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0)`, months, preset));
     }
     // T2: AI labour at the superhuman coder (research/13 §1.9: ≈ 200k Agent-3 copies at ≈ 30×, ≈ 5M median-FTE on ≈ 0.5M H100e).
     out.push(t2
-      ? { id: id('t2'), label: `T2 AI research labour at SC (${preset})`, band: '0.5M–50M FTE (AI 2027 ≈ 5M within ×10)', value: `${Math.round(t2.copies / 1000)}k copies at ${t2.speed.toFixed(1)}× on ${Math.round(t2.h100e / 1000)}k H100e = ${(t2.fte / 1e6).toFixed(2)}M FTE (day ${t2.day})`, ok: t2.fte >= 5e5 && t2.fte <= 5e7, source: 'research/13 §1.9: AI 2027 Agent-3 ≈ 200k copies at 30×, ≈ 5M median-FTE on ≈ 0.5M H100e' }
-      : { id: id('t2'), label: `T2 AI research labour at SC (${preset})`, band: '0.5M–50M FTE', value: `RefBot reaches no SC within ${MAX_DAYS} days (calib skipped this check)`, ok: true, source: 'research/13 §1.9' });
+      ? rowOf('T2.labour.SCband', `${Math.round(t2.copies / 1000)}k copies at ${t2.speed.toFixed(1)}× on ${Math.round(t2.h100e / 1000)}k H100e = ${(t2.fte / 1e6).toFixed(2)}M FTE (day ${t2.day})`, t2.fte, preset)
+      : rowOf('T2.labour.SCband', `RefBot reaches no SC within ${MAX_DAYS} days (check skipped)`, true, preset));
   }
   return out;
 }
