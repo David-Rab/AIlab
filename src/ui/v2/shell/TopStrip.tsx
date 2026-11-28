@@ -128,7 +128,7 @@ function DivisionCashChip({ s }: { s: GameStateV2 }) {
           { label: st.tone === 'good' ? 'Within budget' : 'Over budget', value: st.short, tone: st.tone === 'good' ? 'pos' : 'neg' },
         ]}
         body="A division of the parent: cash is what is left of the budget. Below zero the parent pays the bills (a division cannot go broke) and its later payments repay it first; at each yearly review it minds any overspend it is still covering (parent confidence, which sets the next budget)."
-        levers={<GoBtn to={{ panel: 'finance', anchor: 'parent' }} label="Budget" testId="cash.parent" />}
+        levers={<GoBtn to={{ panel: 'finance', tab: 'owners', anchor: 'board' }} label="Budget" testId="cash.parent" />}
       />
     )}>
       <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>

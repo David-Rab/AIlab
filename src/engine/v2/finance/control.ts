@@ -89,6 +89,43 @@ export function newHolderVotes(s: ControlView, stake: number): number {
   return votesOf({ player: { finance: { ownership, dualClass: f.dualClass, stratVoting: { ...(f.stratVoting ?? {}), [B]: true } }, charter: s.player.charter } }, B);
 }
 
+/** A copy of what the control rules read, for a preview to change. */
+const cloneView = (v: ControlView): ControlView => {
+  const f = v.player.finance;
+  return { player: { finance: { ownership: { ...f.ownership, strat: { ...f.ownership.strat } }, dualClass: f.dualClass, ...(f.stratVoting ? { stratVoting: { ...f.stratVoting } } : {}) }, charter: { ...v.player.charter } } };
+};
+
+/** What a holder is called in a lowercase clause ("After: founders 46% of votes"). */
+const clauseName = (h: Pick<Holding, 'id' | 'kind'>): string =>
+  h.kind === 'founders' ? 'founders' : h.kind === 'mission' ? 'the mission body' : h.kind === 'government' ? 'the government' : h.kind === 'public' ? 'public holders' : h.kind === 'investors' ? 'investors' : h.id;
+
+export interface ControlChange { line: string; before?: Holding; after?: Holding }
+
+/** The board and controller after a change to the cap table (a raise, a partner deal, a rescue, a follow-on, a merger paid
+ *  in stock, an IPO): `mutate` edits a copy (the caller issues the shares), and the result is one line, or undefined when
+ *  nothing about control changes (same controller, no holder crossing half of the votes). Every preview reads this. */
+export function controlAfter(s: ControlView, mutate: (v: ControlView) => void): ControlChange | undefined {
+  const v = cloneView(s);
+  mutate(v);
+  const b = holdingsOf(s), a = holdingsOf(v);
+  const c0 = controllerOf(s), c1 = controllerOf(v);
+  const at = (hs: Holding[], id: string) => hs.find((h) => h.id === id)?.votes ?? 0;
+  const crossed = [...a, ...b].find((h) => (at(a, h.id) > 0.5) !== (at(b, h.id) > 0.5));
+  if (c0?.id === c1?.id && !crossed) return undefined;
+  const pct = (h: Holding) => `${Math.round(h.votes * 100)}% of votes`;
+  let focal: Holding | undefined;
+  let why = '';
+  if (c1 && c1.id !== c0?.id) {
+    focal = c1;
+    why = c1.kind === 'partner' ? 'it becomes your parent' : c1.kind === 'founders' ? 'founder control returns' : 'it controls you';
+  } else if (c0 && !c1) {
+    focal = a.find((h) => h.id === c0.id) ?? { ...c0, votes: 0 };
+    why = c0.kind === 'founders' ? 'founder control ends' : 'its control ends';
+  } else focal = a.find((h) => h.id === crossed?.id);
+  if (!focal) return undefined;
+  return { line: `After: ${clauseName(focal)} ${pct(focal)}${why ? `, ${why}` : ''}`, ...(c0 ? { before: c0 } : {}), ...(c1 ? { after: c1 } : {}) };
+}
+
 /** A holder's name in a sentence ("Azimuth now controls …"). */
 export const holderName = (h: Pick<Holding, 'id' | 'kind'>): string =>
   h.kind === 'founders' ? 'Your founders' : h.kind === 'mission' ? 'The mission body' : h.kind === 'government' ? 'The government' : h.id;

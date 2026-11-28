@@ -1,7 +1,7 @@
 // C1: the control model (design/corp/CORPORATE.md §2–§3): votes by share class, the emergent controller, seats, label and
 // powers, on constructed cap tables. Run alone: `node --import tsx scripts/v2/corp.ts`.
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { boardSeats, controllerOf, holdingsOf, investorAppeal, missionPowers, overrideAvailable, ownerFunded, PARENT_STANCE, seatsOf, securityPowers, startControl, structureLabel } from '../../src/engine/v2/finance/control';
+import { boardSeats, controlAfter, controllerOf, holdingsOf, investorAppeal, missionPowers, overrideAvailable, ownerFunded, PARENT_STANCE, seatsOf, securityPowers, startControl, structureLabel } from '../../src/engine/v2/finance/control';
 import { LAB_KIND_BY_ID, POSITION_BY_ID, parentBudgetYear } from '../../src/data/v2/starts';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
@@ -9,7 +9,8 @@ import type { Charter, GameStateV2, LabKindId, NpcSetupLab, Ownership } from '..
 import { COMPANY_IDS, PARTNER_DEFS, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { KINDS as NPC_KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';
 import { persOf } from '../../src/engine/v2/npc/lab';
-import { affiliatedLab, dealVotes, partnerBlocker, partnerTerms, partnerVotesAll, signPartner } from '../../src/engine/v2/finance/deals';
+import { issue } from '../../src/engine/v2/finance/equity';
+import { affiliatedLab, dealControlAfter, dealVotes, partnerBlocker, partnerTerms, partnerVotesAll, signPartner } from '../../src/engine/v2/finance/deals';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { leadDays } from '../../src/engine/v2/actors/intel';
 import { boardQSystem, ousterVote } from '../../src/engine/v2/finance/board';
@@ -312,4 +313,17 @@ const rOwned = c6r.rivals.find((r) => r.npc.kind === 'racer')!, rFree = c6r.riva
 check(rOwned.npc.owner === 'Lattice' && persOf(rOwned.npc).funding === 'parent', 'C6 Create rivals: a lab with owner Lattice is parent-funded and owned by Lattice');
 check(!rFree.npc.owner && persOf(rFree.npc).funding === 'private' && near(rFree.npc.backers?.['Silica Systems'] ?? 0, 0.1), 'C6 Create rivals: owner None on a big-tech lab makes it privately funded; backer Silica 10% is written');
 check(rDefault.npc.backers?.Azimuth === 0.14 && persOf(rDefault.npc).funding === 'private', 'C6 Create rivals: a lab with no ties set keeps its own kind ties (safety backed by Azimuth 14%)');
+// C8: controlAfter, the one line every preview reads: control changes, or nothing.
+const ca1 = mk({}, { founder: 0.55, fin: 0.45 });
+const r1 = controlAfter(ca1, (v) => issue(v.player.finance.ownership, 0.2, { kind: 'fin' }));
+check(r1?.line === 'After: founders 44% of votes, founder control ends' && r1.before?.kind === 'founders' && !r1.after, 'C8 controlAfter: a raise that takes founders to 44% ends the override', r1?.line);
+const ca2 = mk({}, { founder: 0.4, fin: 0.6 });
+ca2.player.finance.valuation = 40;
+const r2 = dealControlAfter(ca2, { partner: 'Azimuth', equityNow: 60, tranches: [], rescue: true, priceMult: 1 } as unknown as Parameters<typeof dealControlAfter>[1]);
+check(r2?.line === 'After: Azimuth 60% of votes, it becomes your parent' && r2.after?.kind === 'partner', 'C8 controlAfter: a rescue past 50% makes the partner the controller (it becomes your parent)', r2?.line);
+const r2n = dealControlAfter(ca2, { partner: 'Azimuth', equityNow: 60, tranches: [], priceMult: 1 } as unknown as Parameters<typeof dealControlAfter>[1]);
+check(r2n === undefined, 'C8 controlAfter: the same stake without a vote (non-voting) changes nothing: no line', r2n?.line);
+const ca3 = mk({}, { founder: 0.75, fin: 0.25 });
+check(controlAfter(ca3, (v) => issue(v.player.finance.ownership, 0.05, { kind: 'fin' })) === undefined, 'C8 controlAfter: a raise that leaves founders at 71% shows no line');
+check(votes(ca1, 'founders') === 1 * 0.55 / 1 && controllerOf(ca1)?.kind === 'founders', 'C8 controlAfter leaves the real state untouched');
 finish('corp');

@@ -11,9 +11,9 @@ import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShi
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { dealVote as firstVote, dealVotes, dealWith, partnerBlocker, followOnBlocker, followOnTerms, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signFollowOn, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { dealControlAfter, dealVote as firstVote, dealVotes, dealWith, partnerBlocker, followOnBlocker, followOnTerms, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signFollowOn, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
-import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
+import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, issueControlAfter, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
@@ -21,7 +21,7 @@ import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 import { distributionProjection } from './distribution';
 import { supplierTerms } from './story';
-import { CHARTER_APPEAL, missionPowers, overrideAvailable, seatsOf, type ControlView } from './control';
+import { CHARTER_APPEAL, missionPowers, seatsOf, type ControlChange, type ControlView } from './control';
 import { issue } from './equity';
 
 type P = Record<string, number | string | boolean>;
@@ -83,7 +83,7 @@ const raise: ActionDef = {
     const { type, pitch, ask, r } = raiseOf(s, p);
     const th = makeThesis(s, type, pitch);
     const exposure: CostLine[] = [];
-    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }];
+    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }, ...controlLine(issueControlAfter(s, r.dilution, 'fin'))];
     if (r.down) costs.push({ currency: 'boardConf', amount: downRoundHit(s), target: 'down round: priced below the last round' }, ...voteCost(raiseVote(s, p), bool(p, 'force')));
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
     if (typeof th !== 'string') {
@@ -135,7 +135,7 @@ const ipo: ActionDef = {
     const own = { ...f0.ownership, strat: { ...f0.ownership.strat } };
     issue(own, r.dilution, { kind: 'public' });
     const after: ControlView = { player: { finance: { ownership: own, stratVoting: f0.stratVoting, dualClass: dual || f0.dualClass }, charter: s.player.charter } };
-    if (overrideAvailable(s) && !overrideAvailable(after)) costs.push({ currency: 'freedom', amount: -1, target: 'the override ends: your founders no longer hold most of the votes' });
+    costs.push(...controlLine(issueControlAfter(s, r.dilution, 'public', dual || f0.dualClass)));
     const pub = seatsOf(after).filter((x) => x.kind === 'independent').length;
     if (pub > 0) costs.push({ currency: 'freedom', amount: -pub, target: `public holders elect ${pub} independent director${pub > 1 ? 's' : ''}` });
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
@@ -211,7 +211,7 @@ const downRound: ActionDef = {
       exposure.push({ currency: 'dilution', amount: Math.round(anti * 1000) / 10, target: `anti-dilution shares to prior investors, up to (priced below the last round's $${last.toFixed(0)}B post-money)` });
     }
     return {
-      costs: [{ currency: 'dilution', amount: dil(DOWN_PRICE.lo), target: `priced at ${Math.round(DOWN_PRICE.lo * 100)}–${Math.round(DOWN_PRICE.hi * 100)}% of the valuation ($${(V * DOWN_PRICE.lo).toFixed(0)}–${(V * DOWN_PRICE.hi).toFixed(0)}B pre-money): ${dil(DOWN_PRICE.hi)}–${dil(DOWN_PRICE.lo)}% dilution` }, { currency: 'boardConf', amount: downRoundHit(s), target: 'down round' }, ...voteCost(downRoundVote(s, ''), bool(p, 'force'))],
+      costs: [...controlLine(issueControlAfter(s, amt / (V * DOWN_PRICE.lo + amt), 'fin')), { currency: 'dilution', amount: dil(DOWN_PRICE.lo), target: `priced at ${Math.round(DOWN_PRICE.lo * 100)}–${Math.round(DOWN_PRICE.hi * 100)}% of the valuation ($${(V * DOWN_PRICE.lo).toFixed(0)}–${(V * DOWN_PRICE.hi).toFixed(0)}B pre-money): ${dil(DOWN_PRICE.hi)}–${dil(DOWN_PRICE.lo)}% dilution` }, { currency: 'boardConf', amount: downRoundHit(s), target: 'down round' }, ...voteCost(downRoundVote(s, ''), bool(p, 'force'))],
       gains: [{ currency: 'cash', amount: amt, target: 'now, in full (no tranche)' }],
       exposure,
     };
@@ -225,6 +225,9 @@ const downRound: ActionDef = {
   },
 };
 /** The distress down round's price: the valuation × 0.5–0.7, drawn at the close [R15]. */
+/** The one preview line of what a change does to control (control.ts controlAfter): none when nothing changes. */
+export const controlLine = (c: ControlChange | undefined): CostLine[] => (c ? [{ currency: 'freedom', amount: -1, target: c.line }] : []);
+
 export const DOWN_PRICE = { lo: 0.5, hi: 0.7 } as const;
 function downRoundSize(s: GameStateV2) {
   return Math.max(10, Math.min(0.15 * s.player.finance.valuation * 0.6, 3 * Math.max(0, runwayOf(s).burnQ)));
@@ -317,6 +320,7 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const below = missionPowers(s) && !ip.trust ? "; capability-threshold models stay out without the mission body's yes" : '';
     costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y: its lab ends about ${months < 1 ? 'a month' : `${Math.round(months)} months`} closer over the deal (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
+  costs.push(...controlLine(dealControlAfter(s, t)));
   if (t.rescue) costs.push({ currency: 'freedom', amount: -1, target: `${t.partner}'s stake votes: ${Math.round(partnerVotesAll(s, t) * 100)}% of all votes, and its seats follow them; and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };

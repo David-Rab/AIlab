@@ -126,6 +126,9 @@ export function partnerInterest(s: GameStateV2, partner: string): Interest {
   return { value: Math.min(K.max, Math.max(K.min, raw)), parts };
 }
 
+/** The interest as one short word (the Partners row): the same lines `interestWords` uses. */
+export const interestWord = (value: number): 'high' | 'neutral' | 'low' => (value >= 1.2 ? 'high' : value >= 0.9 ? 'neutral' : 'low');
+
 /** The interest in words for the offer card: "Azimuth values you highly: you spend 40% of ...; its own lab is ...". */
 export function interestWords(s: GameStateV2, partner: string): string {
   const { value, parts } = partnerInterest(s, partner);
