@@ -9,7 +9,7 @@ Maps: MAP-A.md, MAP-B.md. Rules: design/TESTING.md §0; skill good-tests.
 |---|---|---|
 | skeleton | scripts/v2/estimates.ts, estimates/types.ts (estOf), bandOf() in calreport/types.ts, quick/full job | done on boe |
 | E1a | capability + start estimates (MAP-A first five minus safetyrates) | merged (23 rows, 15 in band; reference G slope 1.50 vs RefBot 0.75 ⇒ RefBot dynamics; M.startReadout definition question) |
-| E1b | money + market estimates incl. the revenue-at-reference-capability diagnostic | running (boe-e1b) |
+| E1b | money + market estimates incl. the revenue-at-reference-capability diagnostic | merged (18 rows; revenue at reference capability $36.6B lead / $63.4B all, in band ⇒ collapse is dynamics; capex convention question; hire rate 1.2 y late) |
 | H | homes: targets reference scenario checkpoints; overlaps; deletions; safetyrates' 17 entries; lints | running (boe-h, Opus) |
 | E2 | extractions (MAP-A a–f, MAP-B list) + the two copied formulas (safety-emu persistence, danger κ) | after E1/H |
 | E3 | safetyrates → estimates module, reading its new registry entries | after E2 (needs postRunEnv) |
