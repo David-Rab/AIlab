@@ -37,3 +37,14 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 Note: master merged into testaudit 3b233ae8 (bal NPC fixes, schema 127). It brought new untiered tests diffusion.ts, leadread.ts, srefcheck.ts: the P1a orphan guard must list them (add to G6).
 
 OPEN.md rows proposed by groups: collect from design/test-audit/G*-report.md at the end (lead adds them in one commit).
+
+## Calibration out of the tests (designer 2026-11-28: "tests check things work, not calibration"; no game in quick)
+
+Rule: design/TESTING.md §0. Report: scripts/v2/calreport.ts (balance tool; skeleton committed). Balance session told.
+Full run of 12:03 stopped (moot). After CR-A/CR-B/G9: lead edits run.ts (drop cal/deep tiers, calib job, shards;
+sanity.ts full-only; no played games in quick), then quick (ask) and full (ask), then merge to master (ask).
+
+| id | what | state |
+|---|---|---|
+| CR-A | milestones (calib.ts → calreport, delete calib.ts), rivals (one band per quantity), safety S4/S5 + safetyrates games; paired safety direction check; new sanity.ts (full) | running (ta-cra) |
+| CR-B | world (worldfx bands), finance (played-game targets), market (serving sourced start numbers) | running (ta-crb) |
