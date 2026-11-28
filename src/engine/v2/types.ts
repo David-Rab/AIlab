@@ -759,6 +759,8 @@ export interface Deployment {
   status: 'live' | 'withdrawn';
   // derived each day
   revenueRate?: Money; // $B/yr
+  /** C7c: the part of revenueRate sold through a hyperscaler partner's distribution ($B/yr; api and enterprise only). */
+  partnerRate?: Money;
   demandBound?: 'capacity' | 'demand' | 'price' | 'quality';
   /** Serving H100e it needs (incl. monitor), gets, and what Auto cut (R6; derived each day). */
   needH100e?: number;
@@ -1663,8 +1665,12 @@ export interface DealStrings {
    *  `until`) and closes ~10% a year of your capability lead. `trust`: under a mission body, its seats voted yes at signing
    *  on licensing a capability-threshold model; without it, such models stay out of the licence. */
   ipAccess?: { lab: LabId; trust?: boolean };
-  /** Share of revenue paid to the partner while the deal runs (to `until`). */
+  /** Share of all revenue paid to the partner while the deal runs (to `until`): the legacy Northwind stake's string
+   *  (C7c, data/v2/deals.ts LEGACY_NORTHWIND). */
   revenueShare?: number;
+  /** Distribution (C7c): while the deal runs (to `until`) the partner resells your models to its cloud customers, `reach`
+   *  more reach in the API and enterprise channels, and keeps `fee` of the revenue that extra reach brings. */
+  distribution?: { reach: number; fee: number };
   /** Votes of the board seat the partner holds (a rescue only: hyperscalers get no seat, spec §6.1). */
   boardVotes?: number;
 }
@@ -1706,8 +1712,8 @@ export interface StrategicDeal {
   /** Day the deal's running terms end (supply, revenue share, rationing priority). */
   until: Day;
   rescue?: boolean;
-  /** A stake from before the start (the legacy Northwind stake, the challenger's strategic investor): a holder, no
-   *  running terms. */
+  /** A stake from before the start (the legacy Northwind stake, the challenger's strategic investor): a holder whose
+   *  only running term is its revenue share, if any (C7c). */
   legacy?: boolean;
 }
 

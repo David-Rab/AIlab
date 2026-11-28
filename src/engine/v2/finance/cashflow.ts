@@ -14,6 +14,7 @@ import { ownerFunded } from './control';
 import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
 import { ensureWs3, revenueShareRate, yearStats } from './ext';
+import { distributionCut } from './distribution';
 import { bookCash, ledgerPaying, notePaid } from './ledger';
 import { deploymentRevenue } from './observe';
 import { runwayOf } from './runway';
@@ -70,7 +71,7 @@ export const opexSystem: EngineSystem = {
 
 const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', acquired: 'acquired contracts' };
 
-/** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
+/** payroll (300, monthly): payroll, security spend, transition fund, revenue share, marketplace fee, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */
 export const payrollSystem: EngineSystem = {
   id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300, system: 'finance',
@@ -87,8 +88,12 @@ export const payrollSystem: EngineSystem = {
     if (security > 0) bookCash(s, ctx, -security, 'security', 'security spend', `WSL target ${p.security.target.toFixed(1)}`);
     if (fund > 0) bookCash(s, ctx, -fund, 'transitionFund', 'transition fund');
     const other = security + fund;
-    const share = (revenueShareRate(s) * f.revenueRun) / 12;
-    if (share > 0) bookCash(s, ctx, -share, 'opex', 'revenue share');
+    // C7c: the legacy share of all revenue, and the partners' fee on what their distribution sells.
+    const legacy = (revenueShareRate(s) * f.revenueRun) / 12;
+    const fee = distributionCut(s) / 12;
+    if (legacy > 0) bookCash(s, ctx, -legacy, 'opex', 'revenue share');
+    if (fee > 0) bookCash(s, ctx, -fee, 'opex', 'marketplace fee');
+    const share = legacy + fee;
     ys.otherOpex += other + share;
     let total = payroll + other + share;
     const byKind: Partial<Record<Commitment$['kind'], number>> = {};

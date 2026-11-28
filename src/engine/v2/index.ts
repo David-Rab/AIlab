@@ -128,6 +128,7 @@ export type { PayOption } from './finance/capex';
 export { conditionWords, dealPreview } from './finance/actions';
 export { affiliatedLab, dealWith, partnerBlocker, partnerCosts, partnerStakeAfter, partnerStakeAll, partnerOffers, partnersNow, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
 export type { PartnerChoice } from './finance/deals';
+export { dealCutProjections, distributionProjection, type CutProjection } from './finance/distribution';
 export { leadEstimate } from './finance/observe';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';

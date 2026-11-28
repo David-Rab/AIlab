@@ -4,7 +4,7 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState, type ReactNode } from 'react';
 import {
-  actionView, conditionWords, partnerStakeAfter, partnerStakeAll, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
+  actionView, conditionWords, dealCutProjections, distributionProjection, type CutProjection, partnerStakeAfter, partnerStakeAll, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   payrollOf, qOf, runwayOf, totalDebt, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
   BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
@@ -776,21 +776,28 @@ function SignedDeal({ s, d }: { s: GameStateV2; d: StrategicDeal }) {
       <div className="fin-row small"><Tip content={() => <TipCard title="Equity in" rows={[{ label: 'At signing', value: F.money(d.equityNow) }, { label: 'In tranches', value: F.money(d.equityLater) }, { label: 'Stake now', value: F.pct(s.player.finance.ownership.strat[d.partner] ?? 0) }]}>{d.legacy ? 'A holder from before the start.' : 'Tranches land on their conditions at that day\'s valuation.'}</TipCard>}><span>Equity <b className="num">{F.money(d.equityNow)}</b> now · <b className="num">{F.money(d.equityLater)}</b> in tranches</span></Tip>
         {live.length > 0 && <GoBtn to={{ panel: 'finance', tab: 'owe' }} label={`${live.length} tranche${live.length > 1 ? 's' : ''} pending`} testId="fin.go.partnerTranches" />}</div>
       {d.supply && <div className="fin-row small"><Tip content={() => <TipCard title={SUPPLY_SHORT[d.supply!.kind]} rows={[{ label: 'Take-or-pay', value: F.money(d.supply!.total) }, { label: 'Ends', value: fmtDate(dateOf(s, d.supply!.endDay ?? d.until)) }]}>Payments are in the Contracts tab.</TipCard>}><span>{SUPPLY_SHORT[d.supply.kind]} · <b className="num">{F.money(d.supply.total)}</b> take-or-pay to {fmtDate(dateOf(s, d.supply.endDay ?? d.until))}</span></Tip><GoBtn to={{ panel: 'finance', tab: 'contracts' }} label="Contracts" testId="fin.go.partnerContracts" /></div>}
-      <div className="pills"><Strings s={s} partner={d.partner} strings={d.strings} years={Math.max(0, Math.round((d.until - s.time.day) / 365))} ipName={partnerCosts(s).find((c) => c.partner === d.partner)?.ip?.labName} /></div>
+      <div className="pills"><Strings s={s} partner={d.partner} strings={d.strings} years={Math.max(0, Math.round((d.until - s.time.day) / 365))} deal={d} ipName={partnerCosts(s).find((c) => c.partner === d.partner)?.ip?.labName} /></div>
     </div>
   );
 }
 
+/** C7c: a projected cut in player words: its rate now and what it comes to over the deal at your growth. */
+const overWords = (p: CutProjection) => `≈${F.money(p.over)} over the ${p.years >= 1 ? `${Math.round(p.years)} years` : 'months'} left at your current growth (×${p.growth.toFixed(1)} a year, at most ×2)`;
+
 /** The strings of a deal as pills (each explains itself on hover). `ipName`: the affiliated lab an IP-access string
- *  licenses to (FIN4b). */
-function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; asic?: boolean; ipName?: string }) {
+ *  licenses to (FIN4b). `deal`: a signed deal (its projections from what it sells now; an offer's from today's revenue). */
+function Strings({ s, partner, strings, years, asic, ipName, deal }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; asic?: boolean; ipName?: string; deal?: StrategicDeal }) {
   const rivals = partnerDef(partner)?.competitors ?? [];
   const ip = strings.ipAccess;
+  const dist = strings.distribution;
+  const pj = deal ? dealCutProjections(s, deal) : {};
+  const dp = dist ? pj.distribution ?? distributionProjection(s, dist, years) : undefined;
   return (
     <>
       {strings.exclusivity && <Pill kind="bad" title={`No deals with ${rivals.join(', ') || 'its competitors'} while the deal runs (exclusivity).`}>exclusive</Pill>}
       {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) && !ip.trust ? ' Capability-threshold models stay out of the licence (the mission body did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
-      {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
+      {dist && dp && <Pill kind="cost" title={`${partner} resells your models to its cloud customers: about +${F.money(dp.base, { perYear: true })} of API and enterprise revenue now, of which it keeps ${F.pct(dist.fee)} (${overWords(dp)}). Your chat app is not part of it.`}>distribution +{F.pct(dist.reach)} reach · {F.pct(dist.fee)} fee · {years} y</Pill>}
+      {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of all your revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} now${pj.share ? `, ${overWords(pj.share)}` : ''}.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
       {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
     </>
@@ -871,7 +878,7 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
   );
 }
 
-/** What each partner costs you now (FIN4b): revenue share a year, the lead its IP access closes, the partners its
+/** What each partner costs you now (FIN4b): C7c: distribution's fee and the legacy revenue share a year (and over the deal), the lead its IP access closes, the partners its
  *  exclusivity blocks. Home of these running costs; take-or-pay payments live in Contracts. */
 function PartnerCosts({ s }: { s: GameStateV2 }) {
   const rows = partnerCosts(s);
@@ -881,10 +888,11 @@ function PartnerCosts({ s }: { s: GameStateV2 }) {
       {rows.map((r) => (
         <div key={r.partner} className="pt-cost small" data-partner-cost={r.partner}>
           <b>{r.partner}</b><span className="sp" />
-          {r.revenueShare > 0 && <Pill kind="cost" title={`The revenue share at today's run-rate, while the deal runs.`}>{F.money(r.revenueShare, { perYear: true })} revenue</Pill>}
+          {r.distribution && <Pill kind="cost" title={`Distribution: ${r.partner} sells about ${F.money(r.distribution.base, { perYear: true })} of your API and enterprise revenue to its cloud customers now and keeps ${F.pct(r.distribution.rate)} of it, ${overWords(r.distribution)}.`}>{F.money(r.distribution.rate * r.distribution.base, { perYear: true })} fee</Pill>}
+          {r.share && <Pill kind="cost" title={`Revenue share: ${F.pct(r.share.rate)} of all your revenue, about ${F.money(r.share.rate * r.share.base, { perYear: true })} now, ${overWords(r.share)}.`}>{F.money(r.share.rate * r.share.base, { perYear: true })} revenue share</Pill>}
           {r.ip && <Pill kind="bad" title={`IP access: ${r.ip.labName} licenses your models and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your lead a year: ≈${F.days(r.ip.daysYr)} a year at your estimated ${F.days(r.ip.leadEst)} lead.${r.ip.noThreshold ? ' Capability-threshold models stay out of the licence.' : ''}`}>{r.ip.labName} −{F.days(r.ip.daysYr)}/yr</Pill>}
           {r.blocks.length > 0 && <Pill kind="neu" title={`Exclusivity: no deals with ${r.blocks.join(', ')} while the deal runs.`}>blocks {r.blocks.join(', ')}</Pill>}
-          {r.revenueShare <= 0 && !r.ip && !r.blocks.length && <span className="dim">no running strings</span>}
+          {!r.distribution && !r.share && !r.ip && !r.blocks.length && <span className="dim">no running strings</span>}
         </div>
       ))}
     </div>

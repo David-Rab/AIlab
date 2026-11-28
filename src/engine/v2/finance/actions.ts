@@ -19,6 +19,7 @@ import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
+import { distributionProjection } from './distribution';
 import { supplierTerms } from './story';
 import { CHARTER_APPEAL, missionPowers, overrideAvailable, seatsOf, type ControlView } from './control';
 import { issue } from './equity';
@@ -291,7 +292,13 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     costs.push({ currency: 'cash', amount: -sp.perQ[sp.perQ.length - 1], lagDays: lag + (sp.quarters - 1) * 91, target: `last payment (expected path); $${sp.total.toFixed(1)}B in all` });
     if (sp.kind === 'asic') costs.push({ currency: 'progress', amount: -Math.round((1 - PARTNER_TERMS.asic.researchMult) * 100), unit: '%', lagDays: 0, target: `research speed for ~${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters while you migrate` });
   }
-  if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: `${Math.round(t.strings.revenueShare * 100)}% revenue share per year for ${t.years} y` });
+  // C7c: distribution: the channel it adds and the cut of that channel, projected over the deal at your growth.
+  const dist = t.strings.distribution;
+  if (dist) {
+    const pj = distributionProjection(s, dist, t.years);
+    gains.push({ currency: 'revenue', amount: pj.base, target: `${t.partner} resells your models to its cloud customers: about +$${pj.base.toFixed(1)}B a year of API and enterprise revenue now` });
+    costs.push({ currency: 'revenue', amount: -pj.rate * pj.base, target: `of which it keeps ${Math.round(pj.rate * 100)}% (≈$${pj.over.toFixed(1)}B over the deal at your current growth, ×${pj.growth.toFixed(1)} a year)` });
+  }
   if (t.strings.exclusivity) {
     const rivals = partnerDef(t.partner)?.competitors ?? [];
     // What it shuts out: the competitor's own offer today, in the money it would give.
