@@ -142,3 +142,9 @@ The lead's questions:
 > 1. treaties - i accept suggestion
 > 2. ok
 > 3. maybe have a lower factor for lower tension and not none?
+
+## 12. Treaty frequency after the W6c grid
+
+The lead's question: treaties come once concern passes 70 (13 of 24 runs). Keep that, or make them rarer?
+
+> the treat is ok for now.
