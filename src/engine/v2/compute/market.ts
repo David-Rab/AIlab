@@ -13,6 +13,7 @@ import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { crf } from '../finance/capex';
 import { debtHeadroom, drawDebt } from '../finance/debt';
+import { kWPerH100eAt } from './power';
 
 type Comp = keyof typeof COMPONENTS;
 const COMPS: Comp[] = ['pkg', 'hbm', 'wafer'];
@@ -93,7 +94,7 @@ export function expectedListPrice(m: ChipMarket, k: number): number {
 }
 /** Expected cloud price ($K per H100e-year) `k` quarters ahead: 1.6 × owned TCO at the expected list price and kW. */
 export function expectedCloudPrice(s: GameStateV2, k: number): number {
-  return tcoPerYear(expectedListPrice(s.market, k), s.power.kWPerH100e * Math.pow(0.944, k)) * MARKET.cloudMult;
+  return tcoPerYear(expectedListPrice(s.market, k), kWPerH100eAt(s.power.kWPerH100e, k)) * MARKET.cloudMult;
 }
 /** Cancellable cloud ($K per H100e-year): indexed to today's spot rental × 1.15, re-priced every quarter (kept). */
 export const cancellablePricePerYear = (s: GameStateV2) => (s.market.rental * 8760 * FIRM_TERMS.cancellableMult) / 1000;
@@ -248,7 +249,7 @@ export function orderWeight(s: GameStateV2, firm: boolean, prepayFrac: number): 
 }
 export const isFirmOrder = (o: Pick<ChipOrder, 'kind' | 'firm'>) => o.kind === 'lta' || !!o.firm;
 
-function supplyNow(m: ChipMarket): { S: number; nonTW: number } {
+export function supplyNow(m: ChipMarket): { S: number; nonTW: number } {
   const raw = Math.min(m.Kpkg, m.Khbm * (1 - m.disruptKR * 0.9), m.Kwafer);
   const S = raw * (1 - m.geoTW * m.disruptTW);
   return { S, nonTW: raw * (1 - m.geoTW) };
@@ -279,7 +280,7 @@ function stepPipelines(s: GameStateV2, B: number, ctx: SystemCtx) {
   }
 }
 
-function arrive(m: ChipMarket) {
+export function arrive(m: ChipMarket) {
   const take = (arr: number[]) => {
     const v = arr.shift() ?? 0;
     arr.push(0);
