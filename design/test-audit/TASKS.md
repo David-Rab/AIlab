@@ -5,7 +5,7 @@ lead merges back. Designer go-ahead for phases 1–3 on 2026-11-28. Rules: desig
 CPU-min, run.ts with > 1 worker, test:full/ui/cal/deep) without asking the designer.** At most 3 agents at a time;
 agents run one test process at a time.
 
-Not ours: `idle.ts`, `hygiene.ts` (branch `speed` has rewritten them, and also drops the `rivals` job); `directorEndings.ts`,
+Not ours (until bal merged): `directorEndings.ts`,
 `npcShocks.ts` (branch `bal` edits them: only trivial edits there, merged last). Calibration targets belong to the
 balance session; mechanism fixes are parked (designer 11-27): real bugs go to OPEN.md, not fixed.
 
@@ -32,7 +32,7 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | G1 | suites, signals, successor, data, effective, oversight | merged 9a684123 (14 fail → 0 + 1 KNOWN; each ≤ 12 s) |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | merged 47f5412a (all green or KNOWN; calib full = 3 games ≈ 4–5 CPU-min, central: budget 300) |
 | G8 | directorEndings, npcShocks | merged ac9dc9ce (dE quick 197 → ~13 s, full ~67 s; npcShocks quick ~14 s) |
-| later | idle, hygiene (after speed merges) | OPEN.md § Tests |
+| G9 | idle (constructed cases, no bot games), hygiene (cheap contract checks) | running (ta-g9) |
 
 Note: master merged into testaudit 3b233ae8 (bal NPC fixes, schema 127). It brought new untiered tests diffusion.ts, leadread.ts, srefcheck.ts: the P1a orphan guard must list them (add to G6).
 

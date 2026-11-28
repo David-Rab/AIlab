@@ -156,7 +156,6 @@ tests: [TESTING.md](TESTING.md).
 
 | Item | Kind | Detail |
 |---|---|---|
-| `idle.ts` and `hygiene.ts` not audited: branch `speed` has rewritten both (cached games, prefill shards, read-purity hashing); audit them after that merge (hygiene timed out at 590 s in quick on a loaded machine) | Later | test-audit/TASKS.md |
 | The day-400 fixture has no safety scientist staffed on a line (safetyideas F44 had to staff one) | Check | test-audit/G2-report.md |
 | One `cloneGame(setup)` helper in lib.ts to replace the local build-once-and-clone copies in ~10 scripts | Parked (cleanup) | test-audit/G1, G3 reports |
 | The reference-path lint (worktypes: no player mechanism reads frontierFlop, hRef, shareRefAt …) and the other rule-guard greps belong in a lint-* script | Parked (cleanup) | test-audit/P1c, G2 reports |
