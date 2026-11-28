@@ -72,8 +72,7 @@ const JOBS: Job[] = [
   { id: 'worktypes', script: 'worktypes.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 70 }, ...S(ALL, 60) } as Job,
   { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 3, cal: 3 }, budget: { quick: 30, full: 300 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 5, full: 5 }, ...S(ALL, 120) } as Job,
-  // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
-  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, budget: { quick: 500, full: 1500 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
+  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf'], full: ['--no-perf', '--deep'], perf: ['--perf-only'] }, mode: { quick: 'no perf', full: 'no perf, deep sweeps', perf: 'perf only' }, budget: { quick: 45, full: 100 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-ux', script: 'lint-ux.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 10) } as Job,
@@ -97,7 +96,7 @@ const JOBS: Job[] = [
   { id: 'products', script: 'products.ts', budget: { quick: 20, full: 30 }, ...S(ALL, 30) } as Job,
   { id: 'serving', script: 'serving.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 90 }, ...S(ALL, 60) } as Job,
   { id: 'money', script: 'money.ts', budget: { quick: 25, full: 30 }, ...S(ALL, 60) } as Job,
-  { id: 'idle', script: 'idle.ts', args: { quick: ['--seeds', '1'] }, mode: { quick: 'SMOKE 1 seed' }, budget: { quick: 310, full: 930 }, ...S(ALL, 150) } as Job,
+  { id: 'idle', script: 'idle.ts', budget: { quick: 15, full: 15 }, ...S(ALL, 150) } as Job,
   // P1a: scripts that asserted but ran in no tier (TEST-AUDIT D-orphans Task A). Budgets are interim, set from one measured run.
   { id: 'npcData', script: 'npcData.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 2) } as Job,
   { id: 'npcReference', script: 'npcReference.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 5) } as Job,
