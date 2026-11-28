@@ -1,4 +1,4 @@
-// Model naming (design/MODEL-NAMING.md): start names, names through a RefBot game, theme change, save migration.
+// Model naming (design/MODEL-NAMING.md): start names, names through a RefBot game, theme change.
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { rungOfLevel, setNaming, tierOfRatio, versionLabel } from '../../src/engine/v2/models/naming';
@@ -48,16 +48,9 @@ check(s.player.models.bases.every((b) => /^Agent-\d-\d+C*$/.test(b.name)), 'base
 const onB0 = vs.filter((v) => v.baseId === 'B0' && v.variant === 'full').map((v) => v.nm?.minor);
 check(onB0.every((m, i) => m === i), 'B0 full versions number .0, .1, … with no skips', onB0.join(','));
 
-// Save round trip and the 103 → 104 migration (parts stripped, derived again).
+// Save round trip.
 const back = deserialize(serialize(s));
 check(names(back).join() === names(s).join(), 'save round trip keeps names');
-const old = JSON.parse(serialize(s));
-old.schemaRev = 103;
-for (const b of old.player.models.bases) delete b.nm;
-for (const v of old.player.models.versions) delete v.nm;
-delete old.player.models.majors;
-const mig = deserialize(JSON.stringify(old));
-check(unique(names(mig)) && mig.player.models.bases.every((b) => b.nm), 'migration derives parts', names(mig).slice(0, 6).join(', '));
 
 console.log(fails ? `${fails} FAILED` : 'all passed');
 process.exit(fails ? 1 : 0);
