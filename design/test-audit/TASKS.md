@@ -60,7 +60,7 @@ calreport/; missing targets proposed to the balance session (asked 2026-11-28, a
 Then: back-of-envelope estimates (designer's idea): read-only feasibility map first (which targets are computable from
 engine functions on the reference path, no game); built on the same ids.
 | tiers | run.ts quick/full/perf only (cal, deep gone), calib job gone, sanity in full, default 4 workers | done 29a43acc |
-| CR-C | calreport rows read bands from balance/targets.ts by id; new targets added; registry-lint checks ids + no literals; sanity: bounds from registry, day 2200, KNOWN, light read-purity | running (ta-crc) |
+| CR-C | calreport rows read bands from balance/targets.ts by id; new targets added; registry-lint checks ids + no literals; sanity: bounds from registry, day 2200, KNOWN, light read-purity | merged db2086da (49 new ids sent to balance; 5 duplicate-quantity pairs await its choice, then delete the losers) |
 | L1 | lint-known: every KNOWN value = "OPEN.md § <existing section>: <row phrase>"; fix existing texts | merged 313478f2 + 2 OPEN rows; lint-known in quick |
 | then | send CR-C's new target ids to the balance session; quick (ask), full (ask), merge to master (ask); back-of-envelope feasibility map | — |
 
