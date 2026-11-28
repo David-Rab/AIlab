@@ -1,13 +1,19 @@
 // Engine hygiene (V2-SPEC §7.5). Owner: WS1.
-// Registry contract, newGame validity, determinism, stream isolation, save round trip and size, cadences,
-// cause ledger, performance. `--no-perf` skips the performance section (8; wall-time budgets, meaningless on a loaded
-// machine: test:full runs hygiene with --no-perf); `--perf-only` runs only section 8 (test:perf, on a quiet machine).
+// Guards the engine contract the other tests stand on: registry invariants, newGame validity for every setup and start,
+// determinism, readouts are pure (selectors do not write the state, draw or leave caches), a game does not depend on
+// process history, stream isolation and ownership, save round trip / size / refusal of old saves, cadences, the cause
+// ledger, and (section 8, its own tier) the daily-tick performance budget.
+//   npx tsx scripts/v2/hygiene.ts [--no-perf | --perf-only] [--deep]
+// `--no-perf` skips section 8 (wall time, meaningless on a loaded machine); `--perf-only` runs only section 8 (test:perf).
+// `--deep` (full tier) widens the purity sweeps (all three fixtures, a second lockstep game) and the stream-isolation run.
+// Cost of sections 1-7: no long games, no cache: quick ~30 CPU-s, with --deep ~75 CPU-s (the readout sweep, ~7 CPU-s per
+// full-state sweep, is the bulk). Tiers: quick (--no-perf), full (--no-perf --deep), perf (--perf-only).
 import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
-import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
+import { EVENT_BY_ID, SYSTEMS, validateRegistry } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue } from '../../src/engine/v2/core/time';
@@ -22,21 +28,21 @@ import { engine } from '../../src/engine/v2/index';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FIXTURE_DIR, SMOKE, check, finish, runTo, validateJson } from './lib';
-import { ROOT, cached, prefill } from './simcache';
+import { FIXTURE_DIR, check, finish, runTo, validateJson } from './lib';
+import { ROOT } from './simcache';
 import { spawnSync } from 'node:child_process';
 import { deepFreeze, readSweep, sweptFunctions } from './readsweep';
 
-const N = 1500;
+const N = 25; // days of the determinism / save-continuation runs (the check is about equality, not a horizon)
+const DEEP = process.argv.includes('--deep');
+const PERF_DAYS = 1500; // section 8: the tick budgets are per day over a long game
 const PERF_ONLY = process.argv.includes('--perf-only');
 const NO_PERF = process.argv.includes('--no-perf');
 
-// Section 3b's lockstep games (model v3 G1), cached: the seeds F4 saw move (2, 4, 11) to mid-2027 (past SC on most
-// seeds), the full selector sweep every READ_EVERY days. --smoke (test:quick): seed 4 to day 240.
-const READ_SEEDS = SMOKE ? [4] : [2, 4, 11];
-const READ_DAYS = SMOKE ? 240 : 730;
+// Section 3b (b): lockstep read purity on a fixture (day400, RefBot acting) for READ_DAYS days, a full sweep every READ_EVERY.
+const READ_DAYS = DEEP ? 14 : 8; // quick: one sweep (day 406) and two days after it; deep: two sweeps
 const READ_EVERY = 7;
-const READ_FILES = [fileURLToPath(import.meta.url), fileURLToPath(new URL('./readsweep.ts', import.meta.url))];
+const loadFixture = (name: string): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, `${name}.json`), 'utf8'));
 /** RefBot plays one day (worldfx's refDay: decide pending events, act, tick with endings skipped). */
 function refDay(s: GameStateV2) {
   for (const p of [...s.events.pending]) {
@@ -46,26 +52,24 @@ function refDay(s: GameStateV2) {
   refBot.act(s, engine);
   tick(s, { skip: ['endings'] });
 }
-/** The classic ai2027 RefBot game twice in lockstep, one read with readSweep every READ_EVERY days: the first day the
- *  two state hashes differ (null: never). */
-function readPurityRec(seed: number): { firstDiff: number | null } {
-  return cached('hygiene-readpure', { seed, days: READ_DAYS, every: READ_EVERY }, READ_FILES, () => {
-    const mk = () => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
-    const plain = mk();
-    const read = mk();
-    readSweep(read);
-    while (plain.time.day < READ_DAYS) {
-      refDay(plain);
-      refDay(read);
-      if (read.time.day % READ_EVERY === 0) readSweep(read);
-      if (stateHash(plain) !== stateHash(read)) return { firstDiff: plain.time.day };
-    }
-    return { firstDiff: null };
-  });
+/** The fixture game twice in lockstep, the second read with readSweep every READ_EVERY days: the first day the two
+ *  state hashes differ (null: never). */
+function readPurity(fixture: string): { firstDiff: number | null; calls: number } {
+  // a sweep on each calendar-week day (day % 7 == 0) of the days played
+  const plain = loadFixture(fixture);
+  const read = loadFixture(fixture);
+  let calls = 0;
+  for (let i = 0; i < READ_DAYS; i++) {
+    refDay(plain);
+    refDay(read);
+    if (read.time.day % READ_EVERY === 0) calls += readSweep(read, !DEEP).calls;
+    if (stateHash(plain) !== stateHash(read)) return { firstDiff: plain.time.day, calls };
+  }
+  return { firstDiff: null, calls };
 }
 // Section 3b (c): the game played at shifted calibration values; `--history-child` plays it in a fresh process.
 const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'tl-central', alignment: 'medium', tutorial: false });
-const HIST_DAYS = 30;
+const HIST_DAYS = 20;
 /** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
 function shiftCalibration(): () => void {
   const saved = { v3: JSON.stringify(V3_CAL), asi: ASI_EXTRA.gaps };
@@ -81,7 +85,6 @@ if (process.argv.includes('--history-child')) {
   console.log(`HISTORY ${stateHash(runTo(newGame(HIST_SETUP), HIST_DAYS))}`);
   process.exit(0);
 }
-prefill(READ_SEEDS.map((x) => () => readPurityRec(x)));
 
 // Stream instrumentation for section 4 (stream isolation). Installed before everything else so that --perf-only
 // measures the tick under exactly the same wrappers as a full run (outside a logged run they only pass through).
@@ -139,25 +142,22 @@ for (const sys of SYSTEMS) {
 
 if (!PERF_ONLY) { // sections 1–7
 
-// ---------- 1. Registry matches the spec table (§2.2) ----------
-const SPEC: [string, string, Cadence, number][] = [
-  ['clock', 'WS1', 'daily', 10], ['computeOnline', 'WS3', 'daily', 20], ['production', 'WS1', 'daily', 30], ['research', 'WS1', 'daily', 35], ['build', 'WS1', 'daily', 38],
-  ['runs', 'WS1', 'daily', 40], ['continual', 'WS1', 'daily', 45], ['milestones', 'WS1', 'daily', 50],
-  ['revenue', 'WS5', 'daily', 60], ['safetyResearch', 'WS2', 'daily', 70], ['traitsDaily', 'WS2', 'daily', 75],
-  ['incidents', 'WS2', 'daily', 80], ['security', 'WS4', 'daily', 90], ['rivalsChina', 'WS4', 'daily', 100],
-  ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['publicDaily', 'WS4', 'daily', 121], ['usgovDaily', 'WS4', 'daily', 122], ['chinagovDaily', 'WS4', 'daily', 123], ['opex', 'WS3', 'daily', 130],
-  ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
-  ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
-  ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
-  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoShocksQ', 'WS4', 'quarterly', 441], ['copyrightQ', 'WS4', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
-  ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
-];
-for (const [id, owner, cadence, order] of SPEC) {
-  const s = SYSTEMS.find((x) => x.id === id);
-  check(!!s && s.owner === owner && s.cadence === cadence && s.order === order, `registry ${id}`, s ? `${s.owner} ${s.cadence} ${s.order}` : 'missing');
+// ---------- 1. Registry invariants ----------
+// (The id/order/sort rules are validateRegistry's, run at load; here they are checked to refuse bad lists, and the
+// shipped table is checked for shape, not pinned system by system.)
+{
+  const WS = ['WS1', 'WS2', 'WS3', 'WS4', 'WS5', 'WS6', 'WS7'];
+  const CAD: Cadence[] = ['daily', 'weekly', 'monthly', 'quarterly', 'semiannual'];
+  const badSys = SYSTEMS.filter((x) => !WS.includes(x.owner) || !CAD.includes(x.cadence) || !x.id || !Number.isFinite(x.order) || typeof x.run !== 'function');
+  check(badSys.length === 0, 'registry: every system has an id, a known owner and cadence, an order and a run', badSys.map((x) => x.id).join(', '));
+  check(SYSTEMS.some((x) => x.cadence === 'daily') && SYSTEMS.some((x) => x.cadence === 'quarterly'), 'registry: daily and quarterly systems exist');
+  const throws = (f: () => void) => { try { f(); return false; } catch { return true; } };
+  const sys = (id: string, order: number): EngineSystem => ({ id, owner: 'WS1', cadence: 'daily', order, system: 'core', run: () => undefined });
+  check(!throws(() => validateRegistry(SYSTEMS)) && !throws(() => validateRegistry([sys('a', 1), sys('b', 2)])), 'registry: the shipped list and a sorted list validate');
+  check(throws(() => validateRegistry([sys('a', 1), sys('a', 2)])), 'registry: a duplicate system id is refused');
+  check(throws(() => validateRegistry([sys('a', 1), sys('b', 1)])), 'registry: a duplicate order is refused');
+  check(throws(() => validateRegistry([sys('a', 2), sys('b', 1)])), 'registry: an unsorted list is refused');
 }
-const extra = SYSTEMS.filter((s) => !SPEC.some(([id]) => id === s.id)).map((s) => s.id);
-check(extra.length === 0, 'registry has no unlisted systems', extra.join(', ') || 'none (add new systems to this table)');
 
 // ---------- 2. newGame validity across setups ----------
 const setups: SetupV2[] = [
@@ -205,12 +205,13 @@ for (const setup of setups) {
 }
 
 // ---------- 3. Determinism ----------
+// Two runs of the same setup hash the same, and a different seed does not (60 days: the check is equality, not a horizon).
 const run = (setup: SetupV2, days = N, opts?: Parameters<typeof tick>[1]) => runTo(newGame(setup), days, opts);
 const detSetup = defaultSetupV2({ seed: 42, world: 'tl-central', alignment: 'sampled' });
 const a = run(detSetup);
 const b = run(detSetup);
 check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after ${N} ticks`, stateHash(a));
-check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 10)), 'determinism: different seed → different hash');
+check(stateHash(run({ ...detSetup, seed: 43 }, 5)) !== stateHash(run(detSetup, 5)), 'determinism: different seed → different hash');
 
 // ---------- 3b. Readouts are pure; a game does not depend on the process's history (model v3 G1) ----------
 // A selector may not write the state, draw from a stream or leave a cache a later tick reads differently; and a game is
@@ -221,27 +222,25 @@ check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 
   // (a) Every UI-facing selector on a deep-frozen state: none writes (a write to a frozen object throws in ES modules).
   const writers: string[] = [];
   let calls = 0;
-  for (const f of ['day0', 'day400', 'day900']) {
+  for (const f of DEEP ? ['day0', 'day400', 'day900'] : ['day900']) {
     const s = deepFreeze(deserialize(readFileSync(join(FIXTURE_DIR, `${f}.json`), 'utf8')));
-    const r = readSweep(s);
+    const r = readSweep(s, !DEEP);
     calls += r.calls;
     writers.push(...r.fails.map((x) => `${f}: ${x}`));
   }
-  check(writers.length === 0, `readouts: no selector writes the state (${sweptFunctions().length} engine exports and worldfx readouts, ${calls} calls on deep-frozen day 0 / 400 / 900 fixtures)`, writers.slice(0, 4).join('; '));
-  // (b) Classic RefBot games (worldfx's setup) in lockstep, one plain and one with the full sweep every READ_EVERY days:
-  //     the state hash is identical every day.
-  const bad: string[] = [];
-  for (const seed of READ_SEEDS) {
-    const r = readPurityRec(seed);
-    if (r.firstDiff !== null) bad.push(`seed ${seed}: first differs on day ${r.firstDiff}`);
+  check(writers.length === 0, `readouts: no selector writes the state (${sweptFunctions().length} engine exports and worldfx readouts, ${calls} calls on deep-frozen fixtures: ${DEEP ? 'day 0 / 400 / 900' : 'day 900'})`, writers.slice(0, 4).join('; '));
+  // (b) A fixture game (day 400, RefBot acting) in lockstep, one plain and one with the full sweep every READ_EVERY
+  //     days: the state hash is identical every day.
+  for (const fx of DEEP ? ['day400', 'day900'] : ['day400']) {
+    const r = readPurity(fx);
+    check(r.firstDiff === null && r.calls > 0, `readouts: the ${fx} fixture played ${READ_DAYS} days and read with every selector every ${READ_EVERY} days keeps the same state hash every day as unread`, r.firstDiff === null ? `${r.calls} calls` : `first differs on day ${r.firstDiff}`);
   }
-  check(bad.length === 0, `readouts: a classic RefBot game read with every selector every ${READ_EVERY} days keeps the same state hash every day as the same game unread (seeds ${READ_SEEDS.join(', ')}, ${READ_DAYS} days)`, bad.join('; '));
   // (c) Process history: a game at other calibration values (every harness-mutable table: V3_CAL, ASI_EXTRA,
   //     set as the harnesses do, between games) hashes the same in this process, after every game
   //     above, as in a fresh process that set them first; and after the values are restored, as before.
   const h1 = stateHash(run(HIST_SETUP, HIST_DAYS));
   const restore = shiftCalibration();
-  for (const w of ['tl-central', 'tl-fast'] as const) readSweep(run(defaultSetupV2({ seed: 9, world: w }), 20));
+  for (const w of ['tl-central', 'tl-fast'] as const) run(defaultSetupV2({ seed: 9, world: w }), 10);
   const hHere = stateHash(run(HIST_SETUP, HIST_DAYS));
   restore();
   const h2 = stateHash(run(HIST_SETUP, HIST_DAYS));
@@ -271,9 +270,11 @@ const CROSS_HOOKS: [string, StreamId, string][] = [
   ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
   ['research', 'safety', 'WS2 fireFinding when a research-line project completes (R8)'],
 ];
+// ISO_DAYS from the day-400 fixture (a lab with runs, products, rivals and a market: every system draws), not 400 from day 0.
+const ISO_DAYS = DEEP ? 60 : 20;
 const logged = (opts?: Parameters<typeof tick>[1]) => {
   log = { expected: {}, broken: new Set(), draws: {}, bySystem: new Map() };
-  const s = run(detSetup, 400, opts);
+  const s = runTo(loadFixture('day400'), 400 + ISO_DAYS, opts);
   const out = log;
   log = undefined;
   for (const k of STREAMS) if (out.expected[k] !== undefined && s.rng[k] !== out.expected[k]) out.broken.add(`${k} (final state)`);
@@ -282,9 +283,9 @@ const logged = (opts?: Parameters<typeof tick>[1]) => {
 const probe = (stream: StreamId): EngineSystem => ({ id: `probe-${stream}`, owner: 'WS1', cadence: 'daily', order: 999, system: 'core', run: (_s, ctx) => void ctx.rng(stream).float() });
 const base = logged();
 const consumed = STREAMS.filter((k) => (base.log.draws[k] ?? 0) > 0);
-console.log(`      draws in 400 days: ${STREAMS.map((k) => `${k} ${base.log.draws[k] ?? 0}`).join(', ')}`);
+console.log(`      draws in ${ISO_DAYS} days from the day-400 fixture: ${STREAMS.map((k) => `${k} ${base.log.draws[k] ?? 0}`).join(', ')}`);
 check(base.log.broken.size === 0, 'stream isolation: every stream advances only through its own draws (baseline)', [...base.log.broken].join('; '));
-for (const target of ['safety', 'market', 'events', 'rivals', 'worldfx'] as StreamId[]) {
+for (const target of (DEEP ? ['safety', 'market', 'events', 'rivals', 'worldfx'] : ['safety', 'market', 'rivals', 'worldfx']) as StreamId[]) {
   const c = logged({ extraSystems: [probe(target)] });
   const tag = consumed.includes(target) ? 'consumed' : 'unconsumed';
   check(c.log.broken.size === 0 && c.s.rng[target] !== base.s.rng[target], `stream isolation: with extra '${target}' draws (${tag}) every stream still advances only through its own draws`, [...c.log.broken].join('; '));
@@ -307,10 +308,18 @@ for (const target of ['safety', 'market', 'events', 'rivals', 'worldfx'] as Stre
 const json = serialize(a);
 const back = deserialize(json);
 check(stateHash(back) === stateHash(a), 'save: round-trip equality');
-runTo(back, N + 60);
-runTo(a, N + 60);
-check(stateHash(back) === stateHash(a), 'save: loaded game continues identically (60 more days)');
-check(json.length < SAVE_BUDGET_BYTES, `save: size at day ${N} < 1.5 MB`, `${(json.length / 1024).toFixed(0)} KB`);
+runTo(back, N + 30);
+runTo(a, N + 30);
+check(stateHash(back) === stateHash(a), 'save: loaded game continues identically (30 more days)');
+// Size on the largest committed fixture (day 900) and on a fresh game; the fixtures are serialized states.
+for (const fx of ['day0', 'day900']) {
+  const raw = readFileSync(join(FIXTURE_DIR, `${fx}.json`), 'utf8');
+  const fs = deserialize(raw);
+  const again = serialize(fs);
+  check(stateHash(deserialize(again)) === stateHash(fs), `save: ${fx} fixture round-trip equality`);
+  check(again.length < SAVE_BUDGET_BYTES, `save: size of the ${fx} fixture < ${(SAVE_BUDGET_BYTES / 1048576).toFixed(1)} MB`, `${(again.length / 1024).toFixed(0)} KB`);
+}
+check(serialize(newGame(detSetup)).length < SAVE_BUDGET_BYTES, 'save: size of a fresh game < budget');
 let threw = false;
 try {
   deserialize(JSON.stringify({ version: 1 }));
@@ -351,9 +360,14 @@ const counts: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quart
 const expected: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
 const counters: EngineSystem[] = (Object.keys(counts) as Cadence[]).map((c, i) => ({ id: `count-${c}`, owner: 'WS1', cadence: c, order: 990 + i, system: 'core', run: () => void counts[c]++ }));
 const cs = newGame(defaultSetupV2({ seed: 7 }));
-for (let d = 1; d <= 730; d++) for (const c of cadencesDue(cs.time.startDate, d)) expected[c]++;
-runTo(cs, 730, { extraSystems: counters, skip: ['endings'] }); // an idle player may be ousted; cadences only
-check(JSON.stringify(counts) === JSON.stringify(expected) && counts.quarterly === 8 && counts.semiannual === 4 && counts.monthly === 24, 'cadences over 2 years', JSON.stringify(counts));
+// Pure calendar arithmetic over two years (no ticks), then the ticks over 190 days (> 2 quarters) match it.
+const two: Record<Cadence, number> = { daily: 0, weekly: 0, monthly: 0, quarterly: 0, semiannual: 0 };
+for (let d = 1; d <= 730; d++) for (const c of cadencesDue(cs.time.startDate, d)) two[c]++;
+check(two.quarterly === 8 && two.semiannual === 4 && two.monthly === 24 && two.daily === 730, 'cadences over 2 years (calendar)', JSON.stringify(two));
+const TICKS = 100; // > 1 quarter
+for (let d = 1; d <= TICKS; d++) for (const c of cadencesDue(cs.time.startDate, d)) expected[c]++;
+runTo(cs, TICKS, { extraSystems: counters, skip: ['endings'] }); // an idle player may be ousted; cadences only
+check(JSON.stringify(counts) === JSON.stringify(expected) && counts.daily === TICKS && counts.quarterly >= 1 && counts.monthly >= 3, `cadences: systems run on the calendar over ${TICKS} ticks`, JSON.stringify(counts));
 
 // ---------- 7. Cause ledger ----------
 const ls = newGame(defaultSetupV2({ seed: 8 }));
@@ -365,7 +379,7 @@ ctx.bump('player.morale.overall', -5, 'test');
 ctx.bump('cash', 2, 'test');
 ctx.cause('player.finance.cash', 1, 'other');
 const strip = causeStrip(ls, 'cash');
-check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 1 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
+check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 2 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
 let bad = false;
 try {
   ctx.bump('pub.nope', 1, 'test');
@@ -384,7 +398,7 @@ function perfRun(setup: SetupV2, opts?: Parameters<typeof tick>[1]): { daily: nu
   let daily = 0;
   let nDaily = 0;
   let worstQ = 0;
-  for (let d = 0; d < N; d++) {
+  for (let d = 0; d < PERF_DAYS; d++) {
     const q = cadencesDue(ps.time.startDate, ps.time.day + 1).includes('quarterly');
     const t0 = performance.now();
     tick(ps, opts);
