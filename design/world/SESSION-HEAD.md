@@ -148,3 +148,21 @@ The lead's questions:
 The lead's question: treaties come once concern passes 70 (13 of 24 runs). Keep that, or make them rarer?
 
 > the treat is ok for now.
+
+## 13. UI proposal decisions
+
+> did you drop most technologies from world-tech, or just didnt show in the mockup?
+> is the risk subtab updated and wired to the new world we just built?
+>
+> decisions:
+> 1. yes
+> 2. yes
+> 3. badge only
+> 4. yes
+> 5. yes
+> 6. events only
+>
+> the mocups look good
+
+(1 rename Relations → Powers; 2 pledges on Powers; 3 nav badge only, nothing in the top bar; 4 providers → link to
+Finance › Story; 5 keep three adoption numbers; 6 treaty talks are events only.)
