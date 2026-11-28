@@ -1928,6 +1928,10 @@ await page.evaluate(() => { window.ai27v2.state.player.finance.revenueRun = wind
   await check('FIN2: the pitch changes the price', `document.querySelector('#ctl-raise-card .ask-head')?.textContent ?? ''`, () => page.click('[data-test=raise-pitch] [data-opt=conservative]'));
   // FIN4r (H3): a round of $20B or more shows cash at the close and the conditional tranche; a small one none.
   {
+    // Constructed state: a $20B+ round needs pool and dilution room. Without round anchoring (corp C7a) the dilution cap is 8%,
+    // so the fixture lab's valuation and the investor pool are raised for this check only, then restored.
+    await page.evaluate(() => { const s = window.ai27v2.state; const cw = s.capital.ws3; window.__fin4r = [s.player.finance.valuation, s.player.finance.state, cw?.playerPoolQ, cw?.playerTakenQ]; s.player.finance.valuation = 400; s.player.finance.state = 'healthy'; if (cw) { cw.playerPoolQ = 200; cw.playerTakenQ = 0; } window.ai27v2.notify(); });
+    await wait(120);
     const max = Number(await page.evaluate(() => document.querySelector('[data-test=raise-ask]')?.getAttribute('max') ?? '0'));
     if (max >= 25) {
       await setSlider(page.locator('[data-test=raise-ask]'), 24); await wait(80);
@@ -1938,6 +1942,8 @@ await page.evaluate(() => { window.ai27v2.state.player.finance.revenueRun = wind
       const small = await page.evaluate(() => !!document.querySelector('[data-test=raise-tranche]'));
       ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', /\$12[\d.]*B tranche if/.test(big[0]) && /cash at the close/.test(big[1]) && !small, `${big.join(' | ')} · small ${small}`);
     } else ok('FIN4r: a $20B+ round shows cash at the close and its tranche on the Raise card', false, `ask slider max ${max}`);
+    await page.evaluate(() => { const s = window.ai27v2.state; const cw = s.capital.ws3; const [v, st, pq, pt] = window.__fin4r; s.player.finance.valuation = v; s.player.finance.state = st; if (cw) { cw.playerPoolQ = pq; cw.playerTakenQ = pt; } window.ai27v2.notify(); });
+    await wait(80);
   }
   ok('FIN2: the IPO is its own action with the dual-class choice', !!(await page.$('[data-test=ipo-row] [data-act="fin.ipo"]')) || /listed/.test(await page.evaluate(() => document.querySelector('[data-test=ipo-row]')?.textContent ?? '')));
   const canRaise = await page.$('[data-act="fin.raise"]:not([disabled])');
@@ -2038,7 +2044,7 @@ await page.evaluate(() => { window.ai27v2.state.player.finance.revenueRun = wind
   await nav('finance');
   await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
   ok('C8: the Board card header names the structure, the controller and the powers (a mission body: safety committee, trust approval)', (await page.locator('[data-home=board] [data-test=structure]').innerText()).length > 4 && !!(await page.$('[data-home=board] [data-test=controller]')) && !!(await page.$('[data-home=board] [data-test=control-head] [data-right=safetyCommittee]')) && !!(await page.$('[data-home=board] [data-test=control-head] [data-right=trust]')));
-  ok('C8: Who controls you: a bar of votes with the 50% line, each holder\'s seats under it, and the rule for a company passing 50%', !!(await page.$('[data-home=board] [data-test=who-controls] .vline')) && (await page.$$('[data-home=board] [data-test=who-controls] [data-holder]')).length >= 2 && (await page.$$('[data-home=board] [data-test=who-controls] [data-seats]')).length >= 2 && /becomes your parent/.test(await page.locator('[data-test=control-rule]').innerText()));
+  ok('C8: Who controls you: a bar of votes with the 50% line, each holder\'s seats under it, and, under a mission body, why no holder can pass 50%', !!(await page.$('[data-home=board] [data-test=who-controls] .vline')) && (await page.$$('[data-home=board] [data-test=who-controls] [data-holder]')).length >= 2 && (await page.$$('[data-home=board] [data-test=who-controls] [data-seats]')).length >= 2 && /mission body's ⅔ is fixed: no holder can pass 50%/.test(await page.locator('[data-test=control-rule]').innerText()));
   await page.hover('[data-home=board] [data-test=who-controls] [data-holder]'); await wait(250);
   ok('C8: a holder\'s tooltip gives its share class rule and its seats', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Share class/.test(t) && /Board seats/.test(t); })()`)));
   await clearTips();
