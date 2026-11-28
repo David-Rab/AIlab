@@ -352,7 +352,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
 // ── DC-5: Start sites and start ledgers on rent / grid / gas ([D-10], [D-12]); no building above 1 GW ──
 {
   for (const start of ['leader', 'safety', 'bigtech', 'breakaway'] as LabKindId[]) {
-    const s = game({ seed: 1, start });
+    const s = game({ seed: 1, labKind: start });
     const t0 = s.time.startDate;
     console.log(`-- ${start}`);
     for (const x of s.player.sites) {

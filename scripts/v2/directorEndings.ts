@@ -55,7 +55,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
   // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts; W1d cut E12 Clearances, E20
   // Oversight committee, E22 DPA consolidation and E23 China deal; W5 rebuilt E12, E20 and E22 (events/catalog/gov.ts).
-  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E23', 'E25', 'E32'];
+  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E23', 'E25', 'E32', 'E33'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, `E1 catalog: exactly the ${want.length} kept events`, `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];

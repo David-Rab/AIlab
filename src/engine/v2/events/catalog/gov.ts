@@ -47,7 +47,7 @@ export const GOV_EVENTS: EventDefV2[] = [
   ev({
     id: 'E22', title: 'Consolidation (DPA)', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 1,
     when: requestOnly,
-    text: () => `The government offers to use the Defense Production Act to pool the American labs into your lab: ${Math.round(USGOV.dpaShare * 100)}% of each lab's chips and staff, with the government at the table: two government directors join your board, with approval over handing out threshold models.`,
+    text: () => `The government offers to use the Defense Production Act to pool the US labs into yours: ${Math.round(USGOV.dpaShare * 100)}% of each lab's compute and staff, and two government directors join your board, with security approval over threshold models.`,
     choices: [
       // Accepting is your choice, so the board votes on it (on the company after the deal), like a merger; no price is paid.
       ch('Accept', ['race', 'gov', 'comply'], (s) => ({

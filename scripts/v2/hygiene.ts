@@ -362,14 +362,14 @@ check(JSON.stringify(counts) === JSON.stringify(expected) && counts.quarterly ==
 // ---------- 7. Cause ledger ----------
 const ls = newGame(defaultSetupV2({ seed: 8 }));
 const ctx = makeCtx(ls);
-const before = ls.player.morale.overall;
+const before = ls.player.morale.overall; // 70 at the start: the clamped bump is one entry, the alias bump a second, both on the canonical key
 const applied = ctx.bump('morale', 500, 'test', 'clamp');
 check(ls.player.morale.overall === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
 ctx.bump('player.morale.overall', -5, 'test');
 ctx.bump('cash', 2, 'test');
 ctx.cause('player.finance.cash', 1, 'other');
 const strip = causeStrip(ls, 'cash');
-check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 1 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
+check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 2 && ls.causes.byKey.morale[1].delta === -5 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
 let bad = false;
 try {
   ctx.bump('pub.nope', 1, 'test');

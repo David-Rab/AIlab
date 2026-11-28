@@ -180,7 +180,7 @@ export function OwnerBudget({ s, v }: { s: GameStateV2; v: DivisionView }) {
       </div>
       {last && (
         <div className="small" data-test="last-review">
-          <span className="dim">last review {fmtMonth(dateOf(s, last.day))}:</span> budget {F.money(last.budget)}
+          <span className="dim">last review {fmtMonth(dateOf(s, last.day))}:</span> <Term id="ownerBudget">budget {F.money(last.budget)}</Term>
           {last.gov ? <> · {last.gov.map((g) => <span key={g.id} className={g.met ? 'tone-pos' : 'tone-neg'}> {g.met ? '✓' : '✗'} {g.id === 'security' ? 'security floor' : g.id === 'lead' ? 'lead over China' : 'no serious incident'}</span>)}</> : <> · goals {last.goals.met} met, {last.goals.missed} missed</>}
           {last.overConf < 0 && <span className="tone-neg"> · overspend {Math.round(last.overConf)} confidence</span>}
         </div>

@@ -193,8 +193,8 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
 {
   const rows: string[] = [];
   let ok = true;
-  for (const start of ['leader', 'challenger', 'bigtech', 'spinout'] as const) {
-    const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 3, tutorial: false, start }));
+  for (const start of ['leader', 'safety', 'bigtech', 'breakaway'] as const) {
+    const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 3, tutorial: false, labKind: start }));
     for (let d = 0; d < 7; d++) tick(s, { skip: ['endings'] });
     const cap = buildCapacity(s).capacity;
     const up = upkeepSplit(s).total;
