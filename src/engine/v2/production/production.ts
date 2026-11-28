@@ -13,13 +13,13 @@
 //
 // The other labs have no research here: an NPC lab's capability is its lag behind the reference frontier (npc/lab.ts).
 // v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
-import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { recipeDiffusionPerDay } from './diffusion';
+import { DIFFUSION_TAU_DAYS, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { publicKnowhow } from '../npc/shocks';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { decimalYear } from '../core/time';
 import { FORCING } from '../core/forcing';
 import { PLAYER_ID, labCore } from '../models/labs';
-import { addKnowledge, trainNow } from '../models/stacks';
+import { ownKnowhowG, raiseDiffused, trainNow } from '../models/stacks';
 import { lentTrainingH100e } from '../models/runs';
 import { poolsOf } from '../compute/power';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
@@ -269,20 +269,26 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   return r;
 }
 
-/** RD-X04 (DD-17): rule A for the player (limitsView's diffusion line reads it): production/diffusion.ts. */
-export function diffusionPerDay(s: GameStateV2): { dG: number; from?: string } {
-  return recipeDiffusionPerDay(s, PLAYER_ID);
+/** RD-X04 rule A for the player (F1, production/diffusion.ts): today's step of the diffused level D toward the public
+ *  know-how level P, dD = max(0, P − D) / τ (DIFFUSION_TAU_DAYS [P]), as the next D; `dG` = what it adds to the effective
+ *  recipe max(own, D) today (0 while own stays above D); `from` = the lab P comes from. limitsView's diffusion line reads it. */
+export function diffusionPerDay(s: GameStateV2, tauDays = DIFFUSION_TAU_DAYS): { D: number; dG: number; P: number; from?: string } {
+  const { P, from } = publicKnowhow(s);
+  const D0 = s.player.research.diffused;
+  const D = Number.isFinite(P) ? D0 + Math.max(0, P - D0) / tauDays : D0;
+  const own = ownKnowhowG(s);
+  return { D, dG: Math.max(own, D) - Math.max(own, D0), P, ...(from ? { from } : {}) };
 }
 
-/** production (30, daily): the player's readout and its recipe's take-in of public recipes above it (RD-X04 rule A).
+/** production (30, daily): the player's readout and rule A (F1: its diffused level D steps toward the public know-how).
  *  N2b-1: the NPC labs no longer take rule A (their lag relaxing to its target over τ_D is their diffusion, npc/lab.ts)
  *  and no longer research. */
 export const productionSystem: EngineSystem = {
   id: 'production', owner: 'WS1', cadence: 'daily', order: 30, system: 'research',
   run(s, ctx) {
-    const pd = recipeDiffusionPerDay(s, PLAYER_ID); // sized on yesterday's public recipes
+    const pd = diffusionPerDay(s); // sized on yesterday's NPC positions
     const r = advanceLab(s, PLAYER_ID);
-    if (pd.dG > 0 && !FORCING.noDiffusion) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
+    if (!FORCING.noDiffusion) raiseDiffused(s, ctx, pd.D, 'knowledge diffusion', pd.from);
     if (r) {
       ctx.memo.set('WS1:production:player', r);
       deliverData(s, ctx);

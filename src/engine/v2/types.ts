@@ -976,6 +976,11 @@ export interface ResearchState {
   safRe: Allocation<SafReNeed>;
   /** Recipe stacks. */
   stacks: Record<StackKey, StackState>;
+  /** F1 (design/bal/NPC-FIX.md): the DIFFUSED know-how level D (recipe G at RECIPE_F, OOM over the leader's day-0 recipe):
+   *  relaxes toward the public level P (the best NPC know-how, npc/shocks.ts publicKnowhow) over DIFFUSION_TAU_DAYS and is
+   *  raised by C4 tacit knowledge. The effective recipe is max(own, D) (models/stacks.ts diffusedLift). Starts at the
+   *  player's start recipe (nothing diffused). */
+  diffused: number;
   /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */
   domainG: Partial<Record<DomainId, number>>;
   /** Model v3 D9: adopted data-efficiency effects (MODEL-V3 §5.2): synQMax = raise of the synthetic-quality ceiling (q;
@@ -992,8 +997,8 @@ export interface ResearchState {
   gRate?: number;
   gLast?: number;
   gLastF?: number;
-  /** RD-B16: the stacks' public knowledge (Σ bases) at the last research day, and its daily inflow (OOM/day, 14-day
-   *  average: diffusion, C4 tacit knowledge, safety spillover). A readout only; absent in older saves (→ 0). */
+  /** RD-B16 / F1: know-how from outside in effect (the diffused level's lift over own, models/stacks.ts diffusedLift) at the
+   *  last research day, and its daily change (OOM/day, 14-day average; read floored at 0). A readout only. */
   pubLast?: number;
   pubRate?: number;
   /** Readout of the last day: research engineers per need and per project (L5: EFFECTIVE team-equivalents, m_EXP × heads), experiment FLOP per
@@ -2134,8 +2139,6 @@ export interface SimpleModel {
   /** RD-X02: domain effective-compute offsets (OOM) of a rival version post-trained after its lab adopted domain ideas
    *  (P09 / P11 / P22): added to G in that domain's level (setModelG). */
   domainDg?: Partial<Record<DomainId, number>>;
-  /** RD-X04: the lab's recipe G (RECIPE_F) when the version was post-trained: what releasing it reveals (diffusion.ts). */
-  recG?: number;
 }
 
 /** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
@@ -2176,12 +2179,11 @@ export interface NpcLabState {
   phase: number;
   /** Releases so far (its public model is family-rel; 0: none yet). */
   rel: number;
-  /** Readouts of the last daily step: target lag d*, compute shortfall (OOM), the reference slope (OOM a day), the
-   *  lab's recipe (OOM over the leader's day-0 recipe; actors/rivalModel.ts recipeOf reads it). */
+  /** Readouts of the last daily step: target lag d*, compute shortfall (OOM), the reference slope (OOM a day). (Its
+   *  know-how is read from its lag: npc/shocks.ts npcKnowhow, F1.) */
   dStar: number;
   short: number;
   slope: number;
-  rec: number;
   /** The internal model's G on each of the last release-lag + 1 days, oldest first (the public model reads it). */
   hist: number[];
   /** Hidden misalignment m of the internal model and race pressure p, recomputed daily (npc/risk.ts; 0 until its first day). */

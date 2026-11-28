@@ -40,11 +40,6 @@ export const SLOPE_WINDOW_YEARS = 0.1;
  *  H_REF_BASE, DAY0_REF) [D: one typical ratio, NPC-LABS Appendix A "staff from compute × one typical ratio"]. */
 export const STAFF_PER_H100E = 2050 / 1e6;
 
-/** The leader's start compute (H100e): the unit of the public recipe's compute advantage (§4). */
-export const LEADER_START_C = (() => {
-  const c = REALISTIC_CAST.find((x) => x.kind === 'leader')?.start.computeH100e;
-  return typeof c === 'number' ? c : 1e6;
-})();
 /** The reference start base's FLOP (B0) and the leader's day-0 run budget (1e6 H100e × the 2025 run share 0.4) it was
  *  sized on: an NPC model's training FLOP is B0's scaled by the lab's run budget today (the old rivals' start base sizing). */
 const B0_FLOP = flopOfDesign(REFERENCE_BASE);
@@ -107,10 +102,6 @@ export function npcPublicG(s: GameStateV2, r: RivalLab): number {
   const L = persOf(n).releaseLagDays;
   return n.hist.length > L ? n.hist[n.hist.length - 1 - L] : refGAt(s, refYear(s) - (n.d + L) / 365.25);
 }
-/** The lab's recipe as OOM over the leader's day-0 recipe (the unit of the player's recipe and the diffusion rules): its
- *  capability less G(V0) less its compute advantage log10(C ÷ the leader's start compute) (NPC-LABS §4 public recipe;
- *  G(V0) subtracted so it is in the recipe's unit). */
-export const npcRecipe = (w: TimelineWorld, G: number, C: number) => G - gV0(w) - Math.log10(Math.max(1, C) / LEADER_START_C);
 /** Training FLOP of a model the lab makes today: the reference base B0 scaled by its run budget (compute × the typical
  *  base-run share frontierRunShareAt) over the leader's day-0 run budget. Its size: baseParams (paramsForFlop). */
 export const npcRunFlop = (C: number, yr: number) => Math.max(1e24, B0_FLOP * (C * frontierRunShareAt(yr)) / LEADER_DAY0_RUN);
@@ -149,7 +140,6 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   setNpcModel(w, r.internal, npcG(s, r), C, yr);
   n.hist.push(r.internal.G);
   if (n.hist.length > persOf(n).releaseLagDays + 1) n.hist.shift();
-  n.rec = npcRecipe(w, r.internal.G, C);
   let out: { released: boolean; prev?: SimpleModel } = { released: false };
   if (isReleaseDay(n, day)) {
     const prev = r.publicModel;
@@ -159,7 +149,6 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
       isPublic: true, openWeights: opensRelease(s, n),
     };
     setNpcModel(w, pub, npcPublicG(s, r), C, yr);
-    pub.recG = npcRecipe(w, pub.G, C);
     r.publicModel = pub;
     r.internal = { ...r.internal, id: `${r.core.id}-v${n.rel + 1}i`, name: `${n.family}-${n.rel + 1}`, day };
     out = { released: true, prev };
@@ -200,7 +189,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const d0 = startLagDays(e);
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
-  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [], m: 0, p: 0 };
+  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), hist: [], m: 0, p: 0 };
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], isPublic, openWeights: false,
   });
@@ -212,10 +201,8 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
     publicModel = blank(`${id}-v1`, `${e.family}-1`, phase - RELEASE_CADENCE_DAYS, true);
     setNpcModel(w, publicModel, refGAt(s, yr0 - (d0 + k.releaseLagDays) / 365.25), C0, yr0);
     publicModel.openWeights = k.openness.mode === 'open' || k.openness.mode === 'chinaRung';
-    publicModel.recG = npcRecipe(w, publicModel.G, C0);
   } else npc.rel = 0;
   if (npc.rel === 0) Object.assign(internal, { id: `${id}-v1i`, name: `${e.family}-1` });
-  npc.rec = npcRecipe(w, internal.G, C0);
   // The internal model's history over the last release lag (the reference at its start lag before day 0).
   for (let j = k.releaseLagDays; j >= 0; j--) npc.hist.push(refGAt(s, yr0 - (d0 + j) / 365.25));
   const cap = Math.round(C0 * STAFF_PER_H100E);

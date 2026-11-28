@@ -7,12 +7,16 @@
 import { DISTILL_S } from '../../../data/v2/calibration';
 import { PARTNER_TERMS } from '../../../data/v2/deals';
 import { RELEASE_CADENCE_DAYS } from '../../../data/v2/npcLabs';
-import { distillFit, labRecipeG, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
+import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
+import { startLagG } from '../../../data/v2/starts';
+import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
+import { distillFit, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
 import { licensedModel } from '../finance/observe';
 import { CHINA_ID, PLAYER_ID, activeRivals, bestG, versionById } from '../models/labs';
-import { gV0 } from '../models/capability';
+import { playerRecipeG, startRecipeG } from '../models/stacks';
 import { decimalYear } from '../core/time';
-import { clockOfGAt } from './lab';
+import { clockOfGAt, persOf } from './lab';
+import { clockOfS, refS } from './reference';
 import type { GameStateV2, LabId, RivalLab } from '../types';
 
 // ───────────────────────────── parameters (N6; listed in design/archive/npc/N6-RESULT.md) ─────────────────────────────
@@ -47,19 +51,71 @@ export function pullDays(r: Pick<RivalLab, 'npc'>, pos: number | undefined, shar
   if (!r.npc || pos === undefined || !(share > 0)) return 0;
   return Math.max(0, share * (r.npc.d - pos));
 }
+// ───────────────────────────── the know-how scale (F1, design/bal/NPC-FIX.md "The one rule") ─────────────────────────────
+// Know-how is SOFTWARE, never compute: a lab on the reference path at clock year y has the reference software level S_ref(y)
+// (npc/reference.ts refS). It is put on the player's recipe scale (recipe G at RECIPE_F, OOM over the leader's day-0 recipe;
+// models/stacks.ts) by one alignment: a lab on the reference path at the player's START position has the player's START
+// recipe. The start position is the player's day-0 model's place on the reference clock: the leader's V0 is the reference
+// at the anchor (2025.445, G_ref = G(V0)); a follower sits its start lag (data/v2/starts.ts startLagG, months at
+// PRE_GAME_G_PER_YEAR) before it. Before the anchor the scale runs back at PRE_GAME_G_PER_YEAR, the pace the start lags are
+// written in (a start lag is all recipe: core/init.ts solves it as one, RD-U06). So
+//   knowhowAt(y) = R0 + lagG + S_ext(y),  S_ext(y) = S_ref(y) after the anchor, −(anchor − y) × PRE_GAME_G_PER_YEAR before,
+// with R0 the player's start recipe (stacks.ts startRecipeG) and lagG its start lag: at the start position S_ext = −lagG, so
+// knowhowAt = R0. A player whose own research tracks the reference software path from there keeps own = knowhowAt(its
+// position), so a lab on the reference path at that position gives it no inflow. A world without a draw has no software
+// path: S_ext is 0 after the anchor [D stand-in: no software growth to diffuse].
+
+/** The reference software level, extended before the anchor (S_ext above; OOM, 0 at the anchor). */
+function softwareAt(s: GameStateV2, y: number): number {
+  return y <= SERIES_ANCHOR ? -(SERIES_ANCHOR - y) * PRE_GAME_G_PER_YEAR : (refS(s, y) ?? 0);
+}
+/** The know-how scale's offset R0 + lagG (above). */
+const knowhowOffset = (s: GameStateV2) => startRecipeG(s) + startLagG(s.setup.start ?? 'leader');
+/** Know-how (recipe G at RECIPE_F, the player's recipe scale) of a lab on the reference path at clock year `y`. */
+export const knowhowAt = (s: GameStateV2, y: number) => knowhowOffset(s) + softwareAt(s, y);
+/** An NPC lab's know-how: the reference's at its position, its lag d plus (unless `internal`) its release lag behind the
+ *  reference clock. No compute term: doubling its compute leaves it unchanged. `internal`: what its staff know (its
+ *  internal model's position; the C4 tacit leak). */
+export function npcKnowhow(s: GameStateV2, r: Pick<RivalLab, 'npc'>, internal = false): number {
+  const n = r.npc;
+  return knowhowAt(s, refYear(s) - (n.d + (internal ? 0 : persOf(n).releaseLagDays)) / 365.25);
+}
+/** F1: the public know-how level P: the best know-how of the active NPC labs that have released a model (npcKnowhow at
+ *  the public position), and the lab it comes from; -Infinity without one. */
+export function publicKnowhow(s: GameStateV2): { P: number; from?: string } {
+  let P = -Infinity, from: string | undefined;
+  for (const r of labs(s)) {
+    if (!r.publicModel) continue;
+    const k = npcKnowhow(s, r);
+    if (k > P) { P = k; from = r.core.name; }
+  }
+  return { P, from };
+}
+/** F2: C4 tacit knowledge: what `moved` of lab `r`'s capabilities staff carry to the player, as the rise of its
+ *  effective recipe: the tacit share (tacitShare) of the gap from it to the lab's internal know-how (0 with no gap).
+ *  It raises the diffused level D, not own (models/stacks.ts raiseDiffused). */
+export function tacitKnowhowGain(s: GameStateV2, r: RivalLab, moved: number): number {
+  if (!r.npc) return 0;
+  return tacitShare(moved, r.core.staff.cap) * Math.max(0, npcKnowhow(s, r, true) - playerRecipeG(s));
+}
+
 /** KNOW-HOW → LAG (the one conversion the know-how shocks use: open weights, the secrets leak). A shock that
  *  transfers know-how closes a share of the receiver's know-how (software) gap, not of its whole capability gap: a leak
- *  carries no compute, and the player's capability position includes a compute lead that China's leak cannot close (read as
- *  a capability position it pulled China from 198 d to -462 d by 2028). `knowhowPos` is where a recipe of `recipeG` (OOM
- *  over the leader's day-0 recipe) sits on the reference clock: the lag of a lab on the reference path whose know-how is that
- *  recipe (NPC-LABS §4: a lab's recipe is its capability above G(V0) at the leader's start compute). `knowhowPull` moves the
+ *  carries no compute. `knowhowPos` is where know-how `K` (the scale above) sits: the lag of a lab on the reference path
+ *  whose know-how is K, i.e. the clock where knowhowAt reaches K (undefined past the run's reach). `knowhowPull` moves the
  *  receiver `share` of the way to a source at that position: on a smooth path closing share x of the know-how gap is closing
- *  share x of the lag gap (the lead accepts this for now). When F0's reference SOFTWARE path S_ref lands, `knowhowPos` reads
- *  S_ref instead of the reference G (the clock where S_ref reaches the recipe) and nothing else changes. */
-export const knowhowPos = (s: GameStateV2, recipeG: number) => posOf(s, gV0(s.hidden.timeline) + recipeG);
+ *  share x of the lag gap (the lead accepts this for now). */
+export function knowhowPos(s: GameStateV2, K: number): number | undefined {
+  if (!Number.isFinite(K)) return undefined;
+  const x = K - knowhowOffset(s);
+  const clock = x <= 0 ? SERIES_ANCHOR + x / PRE_GAME_G_PER_YEAR : clockOfS(s, x);
+  if (clock === undefined) return undefined;
+  const d = (refYear(s) - clock) * 365.25;
+  return Number.isFinite(d) ? d : undefined;
+}
 export const knowhowPull = pullDays;
-/** The player's know-how position: where its own recipe sits (production/diffusion.ts labRecipeG). */
-export const playerKnowhowPos = (s: GameStateV2) => knowhowPos(s, labRecipeG(s, PLAYER_ID));
+/** The player's know-how position: where its effective recipe sits (models/stacks.ts playerRecipeG, max(own, D)). */
+export const playerKnowhowPos = (s: GameStateV2) => knowhowPos(s, playerRecipeG(s));
 
 /** Apply a move of `days` (positive: the lag falls). */
 function move(r: Pick<RivalLab, 'npc'>, days: number): number {
@@ -90,7 +146,7 @@ export function theft(s: GameStateV2, stolenG: number): number {
 export const openWeightsMoves = (s: GameStateV2, releaser: LabId, G: number): Move[] => {
   const cn = s.china.lab;
   if (releaser === CHINA_ID || cn.core.status !== 'active' || !(G > s.knowledge.openWeightsG)) return [];
-  const pos = releaser === PLAYER_ID ? knowhowPos(s, labRecipeG(s, PLAYER_ID) - Math.max(0, bestG(s, PLAYER_ID) - G)) : posOf(s, G);
+  const pos = releaser === PLAYER_ID ? knowhowPos(s, playerRecipeG(s) - Math.max(0, bestG(s, PLAYER_ID) - G)) : posOf(s, G);
   const days = knowhowPull(cn, pos, RECIPE_LEAK_SHARE.openWeights);
   return days > 0 ? [{ lab: cn, days }] : [];
 };

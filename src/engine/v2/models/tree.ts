@@ -94,11 +94,11 @@ export function assignCapNow(s: GameStateV2) {
 /** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). The software-rate
  *  readout (gRate) starts unset and warms up over its 14-day average (RD-L03: no seed; no lead reader reads it, the
  *  pace readers use frontierGPerYear). */
-export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'safRe' | 'stacks' | 'adopted' | 'hist' | 'domainG'> {
+export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'safRe' | 'stacks' | 'diffused' | 'adopted' | 'hist' | 'domainG'> {
   return {
     want: {}, wantAuto: [], risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
     safRe: { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} },
-    stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
+    stacks: initialStacks(0), diffused: 0, adopted: [], hist: [], domainG: {},
   };
 }
 

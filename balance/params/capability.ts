@@ -530,7 +530,7 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'calibration.ts:5-9 "RD-X04 ... [P]: the recipe replication time constant ... the measured paradigm-replication time (o1 → R1 ≈ 4.3 months, C2 ...), not a fit: central 4 months"',
     source: 'research/RD-X04r-diffusion.md §3A (C1, C2)',
     range: { lo: 2 * 30.44, hi: 7 * 30.44, from: 'calibration.ts:8 "range 2–7" months' },
-    notes: 'Range given in days = months x 30.44.',
+    notes: 'Range given in days = months x 30.44. F1 (design/bal/NPC-FIX.md): the time constant of the player diffused know-how level D relaxing toward the public know-how P (production.ts diffusionPerDay; effective recipe = max(own, D)), and of the NPC lags (npc/lab.ts).',
   },
   {
     id: 'cap.DIFFUSION_TAU_RANGE_DAYS',
@@ -1422,6 +1422,7 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'runDesign.ts:12-13 "The frontier\'s pace before the game, in OOM of effective compute G a year (research/12 §0.2: frontier G +1.1–1.3 a year) [D]."',
     range: { lo: 1.1, hi: 1.3, from: 'runDesign.ts:12 "research/12 §0.2: frontier G +1.1-1.3 a year"' },
     source: 'research/12 §0.2',
+    notes: 'F1: also the pace of the know-how scale before the anchor 2025.445 (npc/shocks.ts knowhowAt), the pace the start lags are written in (data/v2/starts.ts startLagG).',
   },
   {
     id: 'cap.E_START',

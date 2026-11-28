@@ -8,6 +8,7 @@
 import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
 import type { ToolId } from './features';
 import type { ProductToolId } from './tools';
+import { PRE_GAME_G_PER_YEAR } from './runDesign';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Impossible';
 
@@ -157,6 +158,9 @@ export const STARTS: StartDef[] = [
 ];
 
 export const START_BY_ID = Object.fromEntries(STARTS.map((x) => [x.id, x])) as Record<StartType, StartDef>;
+/** A start's lag behind the leader's day-0 model in OOM of G: its months behind at the stated pre-game pace (RD-L03; 0 for the
+ *  leader). core/init.ts solves the start recipe lag from it; the know-how scale (npc/shocks.ts knowhowAt) places the start on the reference clock. */
+export const startLagG = (start: StartType): number => (START_BY_ID[start].lagMonths / 12) * PRE_GAME_G_PER_YEAR;
 /** Setup picker order: hardest first is confusing; the leader (today's game) first. */
 export const START_ORDER: StartType[] = ['leader', 'challenger', 'bigtech', 'spinout'];
 export const startOf = (s: { setup: { start?: StartType } }): StartDef => START_BY_ID[s.setup.start ?? 'leader'];

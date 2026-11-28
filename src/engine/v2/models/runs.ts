@@ -40,7 +40,7 @@ import { trainingHeld } from '../safety/framework';
 import { addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, gOfLevel, levelOfG, refreshLevels } from './capability';
 import { distillLift } from '../production/diffusion';
-import { ePreAt, playerRecipeG, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
+import { ePreAt, playerRecipeG, recipeG, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
@@ -366,15 +366,22 @@ function forecastRef(s: GameStateV2, ref?: ModelVersion): ModelVersion | undefin
  *  measured directly as chip throughput (facts) and keep the engine's values. */
 const BELIEVED_AREAS = ['pre', 'rlMid', 'rlCeil'] as const;
 type BelievedArea = (typeof BELIEVED_AREAS)[number];
-/** UB-2b: an area's believed value (OOM) after the results adopted up to `day` (today without one): start and public
- *  knowledge + Σ the estimates, less those adopted after `day` (UB-2 Waiting's rule; only the last 30 results are kept,
- *  so a long-ago day can read high). Scale-free: an estimate is taken at the lab's latest base when it came in. */
+/** UB-2b: an area's believed OWN value (OOM) after the results adopted up to `day` (today without one): the start + Σ the
+ *  estimates, less those adopted after `day` (UB-2 Waiting's rule; only the last 30 results are kept, so a long-ago day
+ *  can read high). Scale-free: an estimate is taken at the lab's latest base when it came in. No diffused know-how (F1:
+ *  believedLift). */
 export function believedAreaAt(s: GameStateV2, k: BelievedArea, day?: Day): number {
   const st = s.player.research.stacks[k];
   const est = st.est ?? 0;
   let since = 0;
   if (day !== undefined) for (const a of s.player.research.adopted) if (a.stack === k && a.day > day) since += a.est;
   return st.base + est - Math.max(0, Math.min(est, since));
+}
+/** F1: the believed own know-how (recipe G at RECIPE_F of the believed areas today) and what the diffused level D (a fact:
+ *  public know-how) adds over it, max(0, D − believed own): the believed effective recipe is max(own, D). */
+export function believedKnowhow(s: GameStateV2): { own: number; lift: number } {
+  const own = recipeG({ pre: believedAreaAt(s, 'pre'), mid: believedAreaAt(s, 'rlMid'), ceil: believedAreaAt(s, 'rlCeil') });
+  return { own, lift: Math.max(0, s.player.research.diffused - own) };
 }
 
 /** A version's RL part at the believed RL recipe its run took (its RL quantities are facts). A student took its
@@ -418,11 +425,13 @@ function believedView(s: GameStateV2): BelievedView {
   const m = s.player.models;
   const anchor = new Map<string, BaseAnchor | undefined>();
   const gPreB = new Map<string, number>();
+  // F1: an unmeasured base's believed pretraining recipe takes today's believed diffused lift (D's past values are not kept).
+  const lift = believedKnowhow(s).lift;
   const bases = m.bases.map((b) => {
     const a = baseAnchor(s, b);
     anchor.set(b.id, a);
     const phys = b.gPre - b.ePre; // FLOP, shape, tokens, data and design: facts (ePre is the recipe part)
-    const g = a ? a.gPre : phys + E_START + believedAreaAt(s, 'pre', b.startDay ?? b.day);
+    const g = a ? a.gPre : phys + E_START + believedAreaAt(s, 'pre', b.startDay ?? b.day) + lift;
     gPreB.set(b.id, g);
     return { ...b, gPre: g, ePre: g - phys };
   });

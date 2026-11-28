@@ -7,7 +7,7 @@ import { RECIPE_LEAK_SHARE, TACIT_FIRM_SHARE } from '../../src/engine/v2/product
 import { PARTNER_TERMS } from '../../src/data/v2/deals';
 import { npcCapabilityDay, npcG, refGAt } from '../../src/engine/v2/npc/lab';
 import { executeTheft } from '../../src/engine/v2/security/theft';
-import { labRecipeG } from '../../src/engine/v2/production/diffusion';
+import { playerRecipeG } from '../../src/engine/v2/models/stacks';
 import { bestG } from '../../src/engine/v2/models/labs';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { installForced } from './forcedInputs';
@@ -79,7 +79,7 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   check(sh.openWeightsMoves(s3, 'china', G).length === 0, "China's own release does not move China");
   const s4 = clone(base); s4.knowledge.openWeightsG = -Infinity; const Gp = bestG(s4, 'player') - 0.2;
   const m4 = sh.openWeightsMoves(s4, 'player', Gp);
-  const w4 = days(cn0, sh.knowhowPos(s4, labRecipeG(s4, 'player') - 0.2)!, RECIPE_LEAK_SHARE.openWeights);
+  const w4 = days(cn0, sh.knowhowPos(s4, playerRecipeG(s4) - 0.2)!, RECIPE_LEAK_SHARE.openWeights);
   check(m4.length === (w4 > 0 ? 1 : 0) && (w4 === 0 || (m4[0].lab === s4.china.lab && near(m4[0].days, w4, 1e-9))), "open weights of the player: China's pull reads the player's recipe less the release's distance below its best model");
 }
 // absorb: the buyer takes the better d and adds the compute
