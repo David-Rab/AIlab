@@ -208,3 +208,21 @@ export function incidentHeat(s: GameStateV2): number {
   for (const i of ws4r(s).rivalIncidents) if (i.day <= s.time.day) h += i.severity * decay(s.time.day - i.day);
   return h;
 }
+
+/** The public incidents behind `incidentHeat`, heaviest first: lab, day, severity, what each still weighs and the share of its
+ *  weight left (it halves every OBSERVE.incidentHalfLifeDays). UI readout. */
+export function incidentList(s: GameStateV2): { lab: LabId; day: number; severity: number; weight: number; left: number }[] {
+  const out: { lab: LabId; day: number; severity: number; weight: number; left: number }[] = [];
+  for (const i of s.player.safety.incidents) if ((i.status === 'disclosed' || i.status === 'leaked') && i.day <= s.time.day) out.push({ lab: PLAYER_ID, day: i.day, severity: i.severity, weight: i.severity * decay(s.time.day - i.day), left: decay(s.time.day - i.day) });
+  for (const i of ws4r(s).rivalIncidents) if (i.day <= s.time.day) out.push({ lab: i.lab, day: i.day, severity: i.severity, weight: i.severity * decay(s.time.day - i.day), left: decay(s.time.day - i.day) });
+  return out.sort((a, b) => b.weight - a.weight);
+}
+
+/** The two parts of attention on a lab (spec §3.2): the frontier part (1 within OBSERVE.nearFrontierMonths of the public frontier,
+ *  halving every OBSERVE.attentionHalvingMonths beyond) and the reach part (share of AI users and customers). Attention is the larger. */
+export function attentionParts(s: GameStateV2, lab: LabId): { frontier: number; reach: number; behindMonths: number | null; attention: number } {
+  const f = frontier(s);
+  const behind = f.behindMonths[lab];
+  const front = behind === undefined ? 0 : behind <= OBSERVE.nearFrontierMonths ? 1 : Math.pow(0.5, (behind - OBSERVE.nearFrontierMonths) / OBSERVE.attentionHalvingMonths);
+  return { frontier: front, reach: reachShare(s, lab), behindMonths: behind ?? null, attention: attention(s, lab, f) };
+}

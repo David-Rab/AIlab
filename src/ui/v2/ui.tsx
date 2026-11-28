@@ -26,7 +26,7 @@ export type Params = Record<string, number | string | boolean>;
 export const ACT_NAMES = ['', 'Startup', 'Frontier race', 'Automation', 'Takeoff'] as const;
 /** Act at which a panel or panel section unlocks (§1.5); tutorial off = all. */
 export const UNLOCK_ACT: Record<string, 1 | 2 | 3 | 4> = {
-  overview: 1, research: 1, company: 1, lab: 1, map: 1, finance: 1, departments: 1, models: 1, blueprint: 1, products: 1, relations: 1, safety: 1, codex: 1,
+  overview: 1, research: 1, company: 1, lab: 1, map: 1, finance: 1, departments: 1, models: 1, blueprint: 1, products: 1, powers: 1, safety: 1, codex: 1,
   compute: 2, risk: 2, world: 2,
   baseRuns: 2, deals: 2, rivalIntel: 2, commitments: 2,
   aiLabour: 3, theftMap: 3,

@@ -88,7 +88,6 @@
 .nm-bar { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 4px; font-size: 10.5px; }
 .nm-track { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .nm-track > div { height: 100%; }
-.obl-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 2px 0; }
 .web-lbl { fill: var(--text-2); font-size: 9.5px; font-family: var(--sans); }
 .rival-card { padding: 4px 0; border-bottom: 1px solid #1c2531; }
 .rival-top { display: flex; justify-content: space-between; font-size: 12.5px; }
@@ -195,16 +194,8 @@
 .edge-grade { fill: var(--text-3); font-size: 8.5px; font-family: var(--mono); }
 .traitgraph svg { background: #0f151e; border-radius: 6px; }
 
-/* relations */
-.rungs { display: inline-flex; gap: 2px; }
-.rungs i { display: inline-block; width: 10px; height: 6px; border-radius: 2px; background: var(--line); }
-.rungs i.on { background: var(--accent); }
 .rung.danger span { background: var(--neg); }
-.catalog { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cat-group { display: flex; flex-direction: column; gap: 3px; }
-.cat-card { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .arrows { white-space: nowrap; }
-.grades { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
 .grade b { color: #fff; }
 
 /* world */

@@ -98,7 +98,7 @@ ok('Other campaigns greyed', (await page.$$('.campaign.locked')).length === 3);
 await shot('00-start');
 await page.click('[data-test=new-game]');
 ok('Setup screen', !!(await page.$('[data-test=setup]')));
-for (const [k, v] of [['baseline', 'reality'], ['world', 'tl-fast'], ['alignment', 'hard'], ['econ', 'gate'], ['governance', 'founder'], ['storyteller', 'chaotic'], ['gov', 'hawk'], ['public', 'doomer'], ['china', 'bargainer'], ['tutorial', 'false']]) {
+for (const [k, v] of [['world', 'tl-fast'], ['alignment', 'hard'], ['governance', 'founder'], ['tutorial', 'false']]) {
   await check(`Setup ${k}=${v}`, `store.draftSetup.${k}`, () => page.click(`[data-picker=${k}] [data-opt="${v}"]`), 30);
 }
 await page.fill('[data-test=company]', 'Marenth');
@@ -120,7 +120,7 @@ await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=s
 await shot('01-setup');
 await clearTips(); // a start card's tooltip can lock while the mouse rests on it (slow machines)
 // Game A: defaults with tutorial ON (act locks, coach cards).
-for (const [k, v] of [['baseline', 'classic'], ['world', 'tl-central'], ['alignment', 'medium'], ['econ', 'ai2027'], ['governance', 'legacyNonprofit'], ['storyteller', 'rising'], ['gov', 'realistic'], ['public', 'realistic'], ['china', 'realistic'], ['tutorial', 'true']]) {
+for (const [k, v] of [['world', 'tl-central'], ['alignment', 'medium'], ['governance', 'legacyNonprofit'], ['tutorial', 'true']]) {
   await page.click(`[data-picker=${k}] [data-opt="${v}"]`);
 }
 await page.click('[data-test=start-game]');
@@ -254,7 +254,7 @@ await closeModals();
 await e11Check('day 1');
 await page.evaluate(() => window.ai27v2.step(19));
 await closeModals();
-const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'codex'];
+const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'powers', 'world', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -1836,14 +1836,21 @@ await nav('finance');
 await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80);
 ok('J1 F1: why cash moved counts days, not the last 40 postings', await page.evaluate(() => { const r = [...document.querySelectorAll('[data-home=cashCauses] .cbar-lbl')].map((x) => x.textContent ?? ''); const m = r.map((x) => Number((x.match(/×(\d+)/) ?? [])[1] ?? 0)); return Math.max(0, ...m) >= 28; }));
 ok('J1 F3: Finance opens on cash flow, history and the raise; the rest on tabs', (await page.$$('[data-tabs=finance] [data-tab]')).length >= 3 && !(await page.$('[data-home=ledger]')));
-await nav('relations');
-ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=retire-open]')) && !(await page.$('.catalog [data-act=RETIRE]')));
-ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
-// D4: the data actions moved from Relations to Models › Data (one home per control); Relations links there.
-await page.click('[data-test=rel-groups] [data-opt=A]'); await wait(80);
-ok('D4 Relations: no data actions in the catalogue, a link to Training › Data, old "License data" (D3) gone', !(await page.$('[data-panel=relations] [data-act^="data."]')) && !(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-panel=relations] [data-ref=dataPortfolio]')) && !(await page.$('[data-act=D3]')));
-await check('D4 Relations: the data link opens Training › Data', "store.panel + ':' + (store.tab.blueprint || '')", () => page.click('[data-panel=relations] [data-ref=dataPortfolio]'));
-await nav('relations');
+await nav('powers');
+ok('Powers: Retire is in the game menu behind a confirm, not on the panel', !(await page.$('[data-panel=powers] [data-act=RETIRE]')) && !(await page.$('[data-test=retire-open]')));
+await page.click('[data-test=menu]'); await wait(80);
+ok('Powers: the game menu offers Retire behind a confirm', !!(await page.$('[data-test=menu-list] [data-test=retire-open]')) && !(await page.$('[data-test=menu-list] [data-act=RETIRE]')));
+await page.click('[data-test=retire-open]'); await wait(60);
+ok('Powers: the Retire confirm has Retire now and Cancel', !!(await page.$('[data-test=retire-confirm] [data-act=RETIRE]')) && !!(await page.$('[data-test=retire-cancel]')));
+await page.click('[data-test=retire-cancel]'); await page.click('[data-test=menu]'); await wait(60);
+ok('Powers: no security or data actions on the panel; the data link is gone', !(await page.$('[data-panel=powers] [data-act^="SEC_"]')) && !(await page.$('[data-panel=powers] [data-act^="data."]')));
+ok('Powers: rail, public, US government and China cards render with the ladders, laws and talks', !!(await page.$('[data-test=ms-track]')) && !!(await page.$('[data-test=us-ladder]')) && !!(await page.$('[data-test=tension-ladder]')) && !!(await page.$('[data-test=talks-track]')) && (await page.$$('[data-test=laws] [data-law]')).length >= 10);
+await check('Powers: the briefing control sets the level (Full)', 's.player.policies.govBriefing', () => page.click('[data-test=briefing-seg] [data-brief="2"]'));
+await check('Powers: the briefing control sets the level (None)', 's.player.policies.govBriefing', () => page.click('[data-test=briefing-seg] [data-brief="0"]'));
+await check('Powers: Make a pledge (Whistleblower channel) signs it', 's.commitments.length', () => page.click('[data-test=make-pledge] [data-act=A6]'));
+ok('Powers: the signed pledge is listed', !!(await page.$('[data-test=pledges] [data-test^=pledge-]')));
+await check('Powers: the Compute chip opens Compute › Orders & market', "store.panel + ':' + (store.tab.compute || '')", () => page.click('[data-panel=powers] [data-ref=pw-export]'));
+await nav('powers');
 await nav('models');
 ok('UB-10: the family tree shows a state word on every model and folds retired ones', await page.evaluate(() => { const n = [...document.querySelectorAll('[data-home=lineage] [data-version]')]; return n.length >= 1 && n.every((x) => !!x.querySelector('[data-state]')) && ![...n].some((x) => x.querySelector('[data-state=retired]')); }));
 ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=models]').innerText()).match(/\b(post|base|distill) \d+ (post|base|distill)\b/));

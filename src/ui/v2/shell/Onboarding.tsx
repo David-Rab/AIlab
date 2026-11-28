@@ -34,7 +34,7 @@ function goals(s: GameStateV2): Goal[] {
     { id: 'base', text: <>Launch a <Term id="baseRun">pretraining run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Next run' },
     { id: 'agenda', text: <>Staff a safety <Term id="researchLine">programme</Term></>, done: p.teams.some((t) => t.role === 'sci' && t.dept === 'saf' && !!t.projectId), go: { panel: 'research', tab: 'projects' }, goLabel: 'Safety research' },
     { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:lab'), go: { panel: 'lab' }, goLabel: 'Lab' },
-    { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'relations' }, goLabel: 'Relations' },
+    { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'powers' }, goLabel: 'Powers' },
   ];
 }
 export const goalsActive = (s: GameStateV2) => s.setup.tutorial && s.tutorial.act <= 2 && !seen(s, 'goals:hide');
