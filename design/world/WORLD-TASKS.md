@@ -59,7 +59,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | done 875af419 |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
-| W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
+| W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | W8a proposal (audit, IA map, mockups) running; W8b build after approval |
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | done fe28d849 |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
 | W12 | PARKED (refocus): AI 2027 sweep beyond the outside world → design/OPEN.md. Kept: list the AI 2027-sourced lab parameters for `bal` at merge | — | — | merge | parked |
@@ -205,3 +205,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   is a JUNCTION to AI27-w-w7: run `rmdir` on the junction first, never `worktree remove --force`); untracked scratch:
   scripts/v2/_w1c (in w-w1c), _probe_w5.ts, _w6dbg.ts, worlddash-assets/_apply*.mjs and _checks/_hist.txt, and
   scripts/v2/_obsq.mjs in AI27-world.
+- W6c · Sonnet high · ~3 min · treaty will (concern ≥ 70, the player's pledge if attended, the lead NPC lab's
+  externalAccess ≥ threshold). Taiwan factor 1 + 0.25·min(t,2) + 1.0·max(0,t−2), coercion +0.05/q. Lead set the threshold
+  to 0.45 (the leader kind passes; upstart and racer don't) · 2df67163
+- W14 (lead) · PLANS.md §5: plans A, US-buys-time, C, D and E are possible; AI Futures B (sabotage) and plan A's handoff
+  are not (parked to OPEN.md)
