@@ -291,7 +291,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 // China's lab runs on the NPC compute rule (W6) and its lead is read from the public view (W2), so the old
 // "mean 150–200 d against the player" and "≈ 60 d behind after a theft" no longer describe it. The new rule's shape
 // (NPC-LABS §13), on real RefBot play with no theft, sampled daily over days 30–540: China's lab stays behind the US
-// frontier (the best of the player and the active rivals), by roughly its start lag (mean 120–270 d); a theft closes
+// frontier (the best of the player and the active rivals), by roughly its start lag (mean within the cast span, 90–270 d); a theft closes
 // the gap to the player (it never widens it) and leaves China behind the stolen model.
 {
   const T3_SEEDS = SMOKE ? 2 : 8;
@@ -323,7 +323,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   check(leads0.every((x) => x >= 150 && x <= 200), 'T3 China lead at start 150–200 d', leads0.map((x) => x.toFixed(0)).join(', '));
   const sorted = [...pre].sort((a, b) => a - b);
   const pct = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
-  smokeCheck(mean >= 120 && mean <= 270, `T3 China's lab trails the US frontier by 120–270 d on average until a theft (RefBot, days 30–540 daily, ${T3_SEEDS} seeds)`, `mean ${mean.toFixed(0)} d`);
+  smokeCheck(mean >= 90 && mean <= 270, `T3 China's lab trails the US frontier by 90–270 d (the cast span, 3–9 months) on average until a theft (RefBot, days 30–540 daily, ${T3_SEEDS} seeds)`, `mean ${mean.toFixed(0)} d`);
   smokeCheck(pre.filter((x) => x > 0).length / pre.length >= 0.95, "T3 China's lab stays behind the US frontier on ≥ 95% of days", `${(100 * pre.filter((x) => x > 0).length / pre.length).toFixed(1)}%`);
   // M5 (lead decision on F2): the mean is the test; the 10th–90th percentile of the daily lead is reported (INFO).
   console.log(`INFO  T3 China lead: 10th–90th percentile of the daily lead (window 75–275 d): p10 ${pct(0.1).toFixed(0)} d, p90 ${pct(0.9).toFixed(0)} d (p25 ${pct(0.25).toFixed(0)}, median ${pct(0.5).toFixed(0)}, p75 ${pct(0.75).toFixed(0)})`);
