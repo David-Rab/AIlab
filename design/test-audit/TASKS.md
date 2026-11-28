@@ -48,3 +48,5 @@ sanity.ts full-only; no played games in quick), then quick (ask) and full (ask),
 |---|---|---|
 | CR-A | milestones (calib.ts → calreport, delete calib.ts), rivals (one band per quantity), safety S4/S5 + safetyrates games; paired safety direction check; new sanity.ts (full) | running (ta-cra) |
 | CR-B | world (worldfx bands), finance (played-game targets), market (serving sourced start numbers) | running (ta-crb) |
+
+Guards to finish after the merges: lint-known (every KNOWN value names an existing OPEN.md section: "OPEN.md § <Section>: …"; several today say "§ Bugs", which does not exist) — lead, after CR-A/CR-B/G9.
