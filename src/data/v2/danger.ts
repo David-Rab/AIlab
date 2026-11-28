@@ -15,6 +15,7 @@
 //                     copy: the same act is worse from a capable model with long tasks and real affordances)
 // Values marked [D] are design; [C] are calibrated against the reference run (design/archive/notes/E5.md).
 import type { Channel, DomainId, FootholdKind, TraitId } from '../../engine/v2/types';
+import { WORK_TYPES } from './workTypes';
 
 export interface ActDef {
   /** What the act looks like in play (tooltips, notes). */
@@ -151,14 +152,16 @@ export const COVERT_ANCHOR = 0.12;
 export const COVERT_ANCHOR_X = 0.44;
 /** Start model's RSCH level (ai2027 V0: v2 4.5, RD-U05 score 1.97) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
  *  holds (θ = V0 + 0.5 on either scale, CP3f): κ_SAFSAB = 0.12 ÷ (0.44^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.36 [C] (E16: 1.77 at x 0.37; E7: 0.395 at x = 1). */
-const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+/** The anchor's autonomy × affordance: an 8-hour safety experiment (SAF_EXP.H) on the internal channel (engine: autonomyOf × CHANNEL_AFFORD; sabotage.ts checks the engine's itemTerms reads the anchor with it). */
+const ANCHOR_AF = (WORK_TYPES.SAF_EXP.H / (WORK_TYPES.SAF_EXP.H + H_HALF)) * CHANNEL_AFFORD.internal;
+const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * ANCHOR_AF);
 /** κ of the R&D acts STEER and SUCCSTEER (model v3 E17) [D]. MacDiarmid's 12% measures sabotage of safety-research code
  *  (a deliberately weakened reward-hacking classifier): no source measures how often a model steers capability results or
  *  its successor's training (research/05 §1.10 and §1.12 have incidents, not per-item rates; the self-propagation 58% is a
  *  successor acting on a predecessor's note, E22's anchor). So these acts keep E7's reading of the 12% as the per-item scale
  *  of a fully disposed start model (x = 1): κ = 0.12 ÷ (σ((4.5 − 5)/1) · 0.8) = 0.395, their in-play rates through E7–M6
  *  (E16 had moved them ×4.5 with SAFSAB's organism anchor). */
-const KAPPA_RD = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
+const KAPPA_RD = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * ANCHOR_AF);
 
 /** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = V0's RSCH + 0.5 (v2 5; 2.47 on the RD-U05 score: the anchor
  *  model's capability is about half of the full act's: crude, visible attempts; 3.5 levels above V0 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
