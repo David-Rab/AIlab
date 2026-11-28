@@ -257,3 +257,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   · ca850578. Lead merge: fixture and uitest conflicts resolved; RiskMap and worldLinks point at 'powers'; store alias
   removed; SCHEMA 125; fixtures regenerated and passing.
 - Final: W11c (broken tests, 45-min cap) running; obs-final grid (3 workers) running.
+- obs-final (lead) · identical to obs-built2 run for run: the UI and cleanup changed no behaviour.
+- W11c · Sonnet high · 18 min · fixed nothing; listed 19 uitest failures (Products, Models, Safety, Finance) in
+  OPEN.md § Broken tests. Hygiene timed out on the shared CPU (no FAIL before the cut) · 34b0e693
+- **MERGED to master 2026-11-28** (92ba2e3a). OPEN.md conflict resolved: master's Decide review kept; world's parked
+  rows added. Hand-off for `bal`: design/world/HANDOFF-BAL.md.
