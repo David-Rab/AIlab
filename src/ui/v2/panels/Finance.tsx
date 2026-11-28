@@ -9,9 +9,8 @@ import {
   describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
   BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
 } from '../../../engine/v2';
-import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
-import { OUSTER_NOTICE_D } from '../../../engine/v2';
+import { boardSeats, missionPowers, OUSTER_NOTICE_D, ownerFunded } from '../../../engine/v2';
 import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, MoodSource, PartnerKind, PartnerSupply, PartnerTerms, Pitch, StrategicDeal } from '../../../engine/v2';
 import { DEBT_SIZING, MARKET, PARTNER_KINDS, PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { PathCurve } from './Compute';
@@ -75,7 +74,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const building = pl.sites.filter((x) => x.stage !== 'live' && x.stage !== 'blocked' && x.capex > x.capexPaid);
   const rev = -p.revenue;
   // Jank F2: a division's inflow is the parent's budget (its revenue goes to the parent).
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const parentQ = Math.max(0, -p.funding);
   const steps = [
     division
@@ -140,7 +139,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
 
 // ───────── cash history with raise markers and projections (history is its own datum: no current-value label) ─────────
 /** A division's cash below zero is the parent's advance (FIN5c): the axis extends below $0 and that band is marked. */
-const divisionAdvance = (s: GameStateV2) => isDivision(s) && (s.player.finance.cash < 0 || s.series.cash.some((v) => v < 0) || runwayOf(s).path.some((p) => p.cash < 0));
+const divisionAdvance = (s: GameStateV2) => ownerFunded(s) && (s.player.finance.cash < 0 || s.series.cash.some((v) => v < 0) || runwayOf(s).path.some((p) => p.cash < 0));
 function CashHistory({ s }: { s: GameStateV2 }) {
   const [hi, setHi] = useState<number>();
   const S = s.series;
@@ -154,7 +153,7 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   const n = days.length;
   // Projection: the runway's quarter-by-quarter cash path (each payment in the quarter it falls due).
   const proj = rw.path.map((p) => [p.day, p.cash]);
-  const dry = isDivision(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
+  const dry = ownerFunded(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
   const pend = f.ws3.pendingRound;
   const nq = nextQDay(s);
   const pendPts: number[][] = [];
@@ -467,7 +466,7 @@ function MoodSources({ s }: { s: GameStateV2 }) {
     sums[k] += e.delta;
   }
   const max = Math.max(5, ...Object.values(sums).map(Math.abs));
-  const seats = s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== 'founder');
+  const seats = boardSeats(s).filter((x) => x.weight > 0 && x.kind !== 'founder');
   const row = (key: string, icon: typeof ICON.board, label: ReactNode, mult: ReactNode, v: number, tip: () => ReactNode) => {
     const w = (Math.abs(v) / max) * 50;
     return (
@@ -501,7 +500,7 @@ const IconOf = ({ I }: { I: typeof ICON.board }) => <I size={13} />;
 
 /** FIN3b (spec §7.2): this preset's charter rights, each with what it blocks; the safety committee's row lists the
  *  models it is holding now. */
-const RIGHT_ICON: Record<string, typeof ICON.board> = { safetyCommittee: ICON.safety, trust: ICON.exec, founderControl: ICON.you, nonprofitRemoval: ICON.board };
+const RIGHT_ICON: Record<string, typeof ICON.board> = { safetyCommittee: ICON.safety, trust: ICON.exec, override: ICON.you, security: ICON.board };
 function CharterRights({ s }: { s: GameStateV2 }) {
   const rights = charterRights(s);
   const holds = charterHolds(s);
@@ -571,7 +570,7 @@ function OusterReview({ s }: { s: GameStateV2 }) {
 
 /** FIN3b (spec §7.5): give the critics a seat, shown while confidence is under the warning's clear line. */
 function CriticsSeat({ s }: { s: GameStateV2 }) {
-  if (isDivision(s) || s.player.board.confidence >= BC_CLEAR) return null;
+  if (ownerFunded(s) || s.player.board.confidence >= BC_CLEAR) return null;
   const c = criticsSide(s);
   return (
     <div className="btn-row" style={{ marginTop: 6 }}>
@@ -585,13 +584,13 @@ function BoardCard({ s }: { s: GameStateV2 }) {
   const b = s.player.board;
   return (
     <Card title={<Term id="boardSeat">Board</Term>} id="ctl-board" home="board"
-      right={isDivision(s) ? <GoBtn to={{ panel: 'finance', anchor: 'parent' }} label={<Term id="parentConf">Parent confidence</Term>} testId="fin.go.parentConf" /> : <span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it votes on removing you at every review.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
+      right={ownerFunded(s) ? <GoBtn to={{ panel: 'finance', anchor: 'parent' }} label={<Term id="parentConf">Parent confidence</Term>} testId="fin.go.parentConf" /> : <span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it votes on removing you at every review.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
       <div className="seats">
-        {b.seats.map((x, i) => {
+        {boardSeats(s).map((x, i) => {
           const k = x.stance.reduce((m, v, j) => (Math.abs(v) > Math.abs(x.stance[m]) ? j : m), 0);
           const v = x.stance[k];
           const meta = SEAT[x.kind];
-          const minds = x.kind === 'founder' ? 'your seat: votes yes, moves no mood' : MOOD_SOURCES.map((m) => `${MOOD_LABEL[m].split(' ').pop()} ×${MOOD_WEIGHTS[m][x.kind]}`).join(' · ');
+          const minds = x.holder === 'CEO' ? 'your seat: votes yes, moves no mood' : x.kind === 'founder' ? 'a founder: votes your way unless the news is bad; moves no mood' : MOOD_SOURCES.map((m) => `${MOOD_LABEL[m].split(' ').pop()} ×${MOOD_WEIGHTS[m][x.kind]}`).join(' · ');
           return (
             <Tip key={i} content={() => <TipCard title={x.holder} value={meta.label} rows={[...x.stance.map((sv, j) => ({ label: STANCE[j], value: sv > 0 ? 'for' : sv < 0 ? 'against' : 'neutral', tone: sv > 0 ? 'pos' as const : sv < 0 ? 'neg' as const : 'neutral' as const })), { label: 'Minds', value: minds }]} footer={x.weight > 1 ? `${x.weight} votes` : x.weight > 0 ? '1 vote' : 'observer: no vote'}>{"How this seat votes on major decisions ([[boardVote]]) and how much each kind of news moves it."}</TipCard>}>
               <div className="seat" data-seat={i}>
@@ -603,13 +602,13 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      {!isDivision(s) && <CharterRights s={s} />}
-      {!isDivision(s) && <MoodSources s={s} />}
+      {!ownerFunded(s) && <CharterRights s={s} />}
+      {!ownerFunded(s) && <MoodSources s={s} />}
       <OusterReview s={s} />
       <CriticsSeat s={s} />
       {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.hit.toFixed(1)}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped at ${h.cap})` : ''} · max −{(h.cap * h.mult).toFixed(1)}/q</Limit></div>; })()}
-      {/* Jank F4: the recap question exists only for the capped-profit nonprofit, until it is decided. */}
-      {b.preset === 'legacyNonprofit' && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
+      {/* Jank F4: the recap question exists only under a profit cap, until it is decided. */}
+      {s.player.charter.profitCap && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
         <div className="btn-row" style={{ marginTop: 8 }}>
           <ActBtn id="fin.recap" label={<Term id="recap">Recapitalise</Term>} />
           <ActBtn id="fin.refuseRecap" label="Refuse recap" />
@@ -795,7 +794,7 @@ function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2;
   return (
     <>
       {strings.exclusivity && <Pill kind="bad" title={`No deals with ${rivals.join(', ') || 'its competitors'} for good (exclusivity).`}>exclusive</Pill>}
-      {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' && !ip.trust ? ' Capability-threshold models stay out of the licence (the trust did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
+      {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) && !ip.trust ? ' Capability-threshold models stay out of the licence (the mission body did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
       {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
       {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
@@ -821,7 +820,7 @@ function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerT
       </div>
       {t.kind === 'hyperscaler' && (
         <div className="fin-row" data-test="partner-ip">
-          <Tip content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={ip.blocked ? 'not on offer' : `+${F.money(ip.bump)}`} rows={ip.blocked ? [] : [{ label: 'Adds', value: F.money(ip.bump) }, { label: 'Licensed to', value: ip.labName ?? '—' }, { label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closes a year', value: `≈${F.days(days)}` }]}>{ip.blocked ?? `${ip.labName}, ${t.partner}'s in-house lab, licenses your models for ${t.years} years and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' ? ' The trust votes on licensing a capability-threshold model.' : ''}`}</TipCard>}><span className="dim small">IP access</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={ip.blocked ? 'not on offer' : `+${F.money(ip.bump)}`} rows={ip.blocked ? [] : [{ label: 'Adds', value: F.money(ip.bump) }, { label: 'Licensed to', value: ip.labName ?? '—' }, { label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closes a year', value: `≈${F.days(days)}` }]}>{ip.blocked ?? `${ip.labName}, ${t.partner}'s in-house lab, licenses your models for ${t.years} years and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) ? ' The mission body votes on licensing a capability-threshold model.' : ''}`}</TipCard>}><span className="dim small">IP access</span></Tip>
           <Seg value={ip.on ? 'yes' : 'no'} testId="partner-ipaccess" options={[{ v: 'no', label: 'Keep IP' }, { v: 'yes', label: ip.blocked ? 'License' : ip.bump >= 0.05 ? `License +${F.money(ip.bump)}` : 'License · no more money', ...(ip.blocked ? { locked: ip.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, ipAccess: v === 'yes' })} />
         </div>
       )}
@@ -942,7 +941,7 @@ function oweBadge(s: GameStateV2): number {
 export function Finance({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const dLeft = Math.max(0, nextQDay(s) - s.time.day);
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   // Jank F3: first glance = cash flow, cash history and the raise (or the parent budget); the rest on tabs.
   const tab0 = tabOf('finance', 'cash');
   const tab = division && (tab0 === 'deals' || tab0 === 'story') ? 'cash' : tab0; // a division has no debt or partners (FIN5c: its goals are in What we owe)

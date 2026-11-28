@@ -72,7 +72,7 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   if (v.status === 'evaluating') return 'Still in evaluation';
   const review = oversightBlock(s, v); // W5: the oversight committee reviews a superhuman AI researcher before launch
   if (review) return review;
-  // FIN3b (FINANCE-V3 §7.2): the charter's release block (nonprofit PBC safety committee; PBC + trust on open weights of
+  // FIN3b (FINANCE-V3 §7.2): the charter's release block (a mission body's safety committee and its vote on open weights of
   // a capability-threshold model). Finance reaches the release path only here.
   const charter = charterReleaseBlock(s, v, channel);
   if (charter) return charter;

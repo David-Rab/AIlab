@@ -5,7 +5,7 @@
 // initialisers (finance/ledger.ts, compute/sites.ts …) read it. The other three are built from this table, with the
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
-import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
+import type { Channel, Column, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
 import type { ToolId } from './features';
 import type { ProductToolId } from './tools';
 import { PRE_GAME_G_PER_YEAR } from './runDesign';
@@ -48,13 +48,14 @@ export interface StartDef {
   cash: number;
   revenueRun: number;
   revenueHistory: number[];
-  /** Ownership split (founder, financial, strategic partner). */
-  ownership: { founder: number; fin: number; strat?: Record<string, number> };
+  /** Ownership split (founder, mission body, financial, strategic partners) and which partners' shares vote (control.ts:
+   *  the votes, seats and controller follow from it). */
+  ownership: { founder: number; mission?: number; fin: number; strat?: Record<string, number>; stratVoting?: Record<string, true> };
   /** Compute owned (installed in live sites) and rented (cloud contract), H100e. */
   owned: number;
   rented: number;
-  /** Board preset ('parent' = a big-tech parent company, new in R9). */
-  board: GovernancePresetId;
+  /** The charter's start flags (design/corp/CORPORATE.md §2): a mission body, a profit cap. */
+  charter: { missionBody?: boolean; profitCap?: boolean };
   /** Months behind the leader on the capabilities index (research/18 §0.1): the start model's lag. */
   lagMonths: number;
   /** D6: the start model is an imported open-weight model (post-trainable, not sellable as is). */
@@ -84,7 +85,7 @@ export const STARTS: StartDef[] = [
     cash: 3, revenueRun: 0, revenueHistory: [0, 0, 0, 0],
     ownership: { founder: 0.75, fin: 0.25 },
     owned: 0, rented: 25e3,
-    board: 'founder', lagMonths: 6.5, imported: true,
+    charter: {}, lagMonths: 6.5, imported: true,
     mods: { talentPull: 30 },
     securityLevel: 2.4,
   },
@@ -107,7 +108,7 @@ export const STARTS: StartDef[] = [
     cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5],
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
-    board: 'founder', lagMonths: 3,
+    charter: {}, lagMonths: 3,
     mods: { talentPull: 20 },
     securityLevel: 2.4,
   },
@@ -127,9 +128,10 @@ export const STARTS: StartDef[] = [
     tooling: [],
     // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
     cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
-    ownership: { founder: 0, fin: 0 },
+    // Azimuth owns the division outright, with voting shares: it is the controller (control.ts ownerFunded).
+    ownership: { founder: 0, fin: 0, strat: { Azimuth: 1 }, stratVoting: { Azimuth: true } },
     owned: 800e3, rented: 0,
-    board: 'parent', lagMonths: 6,
+    charter: {}, lagMonths: 6,
     mods: { talentPull: 0 },
     securityLevel: 2.4,
   },
@@ -149,9 +151,10 @@ export const STARTS: StartDef[] = [
     features: ['memory', 'computerUse', 'voiceVision', 'research', 'coding', 'creative'],
     tooling: [],
     cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
-    ownership: { founder: 0.3, fin: 0.17 },
+    // The nonprofit's stake and the legacy Northwind stake (Microsoft-like, ~27%, non-voting) [R15].
+    ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 } },
     owned: 500e3, rented: 700e3,
-    board: 'legacyNonprofit', lagMonths: 0,
+    charter: { missionBody: true, profitCap: true }, lagMonths: 0,
     mods: { talentPull: 10 },
     securityLevel: 2.4,
   },
@@ -164,8 +167,6 @@ export const startLagG = (start: StartType): number => (START_BY_ID[start].lagMo
 /** Setup picker order: hardest first is confusing; the leader (today's game) first. */
 export const START_ORDER: StartType[] = ['leader', 'challenger', 'bigtech', 'spinout'];
 export const startOf = (s: { setup: { start?: StartType } }): StartDef => START_BY_ID[s.setup.start ?? 'leader'];
-/** The player is a big-tech division (no equity, no bankruptcy, the parent's budget; R9). */
-export const isDivision = (s: { setup: { start?: StartType } }) => startOf(s).board === 'parent';
 
 /** Big-tech parent budget ($B per game year, Jul–Jun; research/18 §3.2): $16B in year one (the leader's 2025 compute
  *  spend in the AI 2027 compute forecast), growing with the parent's capex path — Alphabet 52.5 → 91.4 → ~180 in

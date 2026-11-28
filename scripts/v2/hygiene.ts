@@ -6,6 +6,7 @@ import { AGENDA_IDS } from '../../src/data/v2/agendas';
 import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
+import { ownerFunded } from '../../src/engine/v2/finance/control';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
@@ -163,9 +164,9 @@ check(extra.length === 0, 'registry has no unlisted systems', extra.join(', ') |
 const setups: SetupV2[] = [
   defaultSetupV2({ seed: 1 }),
   defaultSetupV2({ seed: 2, world: 'tl-central', alignment: 'sampled' }),
-  defaultSetupV2({ seed: 3, world: 'tl-central', governance: 'founder', alignment: 'hard' }),
+  defaultSetupV2({ seed: 3, world: 'tl-central', alignment: 'hard' }),
   defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy' }),
-  defaultSetupV2({ seed: 5, world: 'tl-fast', governance: 'nonprofitPBC', tutorial: false }),
+  defaultSetupV2({ seed: 5, world: 'tl-fast', tutorial: false }),
   defaultSetupV2({ seed: 6 }), // the default cast
   defaultSetupV2({ seed: 7, world: 'tl-fast' }),
   // R9: every start type (the leader lab follows the start, D1).
@@ -185,16 +186,16 @@ for (const setup of setups) {
   const v0 = s.player.models.versions[0];
   check(TRAIT_IDS.every((t) => v0.traitsTrue[t] !== undefined && v0.beliefs[t] && v0.masks[t]), `${tag}: V0 traits/beliefs/masks`);
   const def = START_BY_ID[setup.start];
-  const division = def.board === 'parent';
+  const division = ownerFunded(s);
   check(s.player.computeOnline > 0 && s.player.finance.cash > 0 && (division ? s.player.finance.valuation === 0 : s.player.finance.valuation > 0), `${tag}: finance/compute start`, `cash ${s.player.finance.cash} V ${s.player.finance.valuation.toFixed(0)} C ${s.player.computeOnline}`);
   if (setup.start !== 'leader') {
-    // R9 start data: teams, owned/rented compute, known nodes, products and features, board, lag.
+    // R9 start data: teams, owned/rented compute, known nodes, products and features, charter, lag.
     const ref = gV0(s.hidden.timeline);
     const nTeams = Object.values(def.teams).reduce((a, b) => a + b, 0);
     check(s.player.teams.length === nTeams && Math.abs(ownedOnline(s) - def.owned) < 1 && Math.abs(rentedOnline(s) - def.rented) < 1, `${tag}: teams and compute owned / rented`, `${s.player.teams.length} teams, ${ownedOnline(s)} / ${rentedOnline(s)}`);
     check(def.known.every((id) => nodeKnown(s, id)) && def.features.every((f) => s.player.features.includes(f)), `${tag}: known nodes and built features`);
     const prods = s.player.deployments.filter((d) => d.channel !== 'internal').map((d) => d.channel).join(',');
-    check(prods === def.products.map((x) => x.channel).join(',') && s.player.board.preset === def.board && s.setup.governance === def.board, `${tag}: products and board`, `${prods} · ${s.player.board.preset}`);
+    check(prods === def.products.map((x) => x.channel).join(',') && s.player.charter.missionBody === !!def.charter.missionBody && s.player.charter.profitCap === !!def.charter.profitCap, `${tag}: products and charter`, `${prods} · ${JSON.stringify(s.player.charter)}`);
     const v = s.player.models.versions[0];
     check(v.G < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `G ${v.G.toFixed(3)} < ${ref.toFixed(3)}`);
   }

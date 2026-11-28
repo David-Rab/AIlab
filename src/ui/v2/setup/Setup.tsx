@@ -1,6 +1,6 @@
 // Start and setup screens (§6.9, §6.10). "AI 2027 scenario" is the only pre-game use of the name.
 import { useRef } from 'react';
-import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
+import { AUTOSAVE_KEY, ownerFunded, SLOT_KEYS, startControl, structureLabel, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
 import { START_BY_ID, START_ORDER, parentBudgetYear, type Difficulty, type StartDef } from '../../../data/v2/starts';
@@ -89,7 +89,6 @@ function Picker<K extends keyof SetupV2>({ label, k, opts }: { label: string; k:
 }
 
 const DIFF_TONE: Record<Difficulty, string> = { Easy: 'good', Medium: 'warn', Hard: 'bad', Impossible: 'bad' };
-const BOARD_LABEL: Record<string, string> = { founder: 'Founder-controlled', parent: 'Parent company', legacyNonprofit: 'Capped-profit nonprofit' };
 const kH = (h: number) => (h >= 1e6 ? `${(h / 1e6).toFixed(1)}M` : `${Math.round(h / 1e3)}K`);
 const staffOfStart = (d: StartDef) => d.teams.eng * TEAM_SIZE.eng + (d.teams['re.cap'] + d.teams['re.saf']) * TEAM_SIZE.re + (d.teams['sci.cap'] + d.teams['sci.saf']) * TEAM_SIZE.sci;
 
@@ -98,9 +97,7 @@ function StartPicker() {
   const st = useV2();
   const cur = st.draftSetup.start ?? 'leader';
   const pick = (id: StartType) => {
-    const d = START_BY_ID[id];
-    // The board is the start's own unless you lead (then Governance picks it).
-    st.draftSetup = { ...st.draftSetup, start: id, ...(id === 'leader' ? {} : { governance: d.board }) };
+    st.draftSetup = { ...st.draftSetup, start: id };
     st.notify();
   };
   return (
@@ -109,11 +106,11 @@ function StartPicker() {
       <div className="start-opts">
         {START_ORDER.map((id) => {
           const d = START_BY_ID[id];
-          const money = d.board === 'parent' ? `$${d.cash}B + $${parentBudgetYear(0)}B/yr from the parent` : id === 'leader' ? '$40B (cash + committed round)' : `$${d.cash}B`;
+          const money = ownerFunded(startControl(d)) ? `$${d.cash}B + $${parentBudgetYear(0)}B/yr from the parent` : id === 'leader' ? '$40B (cash + committed round)' : `$${d.cash}B`;
           return (
             <Tip key={id} content={() => (
               <TipCard title={`${d.name} · ${d.difficulty}`}>
-                {`${d.character} Like ${d.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; board ${BOARD_LABEL[d.board] ?? d.board}.${d.leaderLab ? ` The frontier leader (${LEADER_NAME}) races you.` : ''} Scoring is the same for every start.`}
+                {`${d.character} Like ${d.analogues}. Cash ${money}; staff ${staffOfStart(d).toLocaleString('en-US')}; compute ${kH(d.owned)} owned / ${kH(d.rented)} rented H100e; model ${d.lagMonths ? `${d.lagMonths} months behind the leader${d.imported ? ' (an imported open-weight model)' : ''}` : 'at the frontier'}; structure ${structureLabel(startControl(d))}.${d.leaderLab ? ` The frontier leader (${LEADER_NAME}) races you.` : ''} Scoring is the same for every start.`}
               </TipCard>
             )}>
               <button className={`start-opt ${cur === id ? 'active' : ''}`} data-opt={id} onClick={() => pick(id)}>
@@ -148,14 +145,7 @@ export function SetupScreen() {
             { v: 'tl-slow', label: 'Slow', desc: 'The forecast’s slow track: superhuman AI coders around 2035.' },
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
-          {(d.start ?? 'leader') === 'leader' ? (
-            <Picker label="Governance" k="governance" opts={[
-              { v: 'legacyNonprofit', label: 'Legacy nonprofit', desc: 'Mission board; recapitalisation needed to raise at scale.' },
-              { v: 'nonprofitPBC', label: 'Nonprofit + PBC' }, { v: 'pbcTrust', label: 'PBC + trust' }, { v: 'founder', label: 'Founder control' },
-            ]} />
-          ) : (
-            <div data-test="start-board"><div className="picker-label">Governance</div><div className="small dim">{BOARD_LABEL[START_BY_ID[d.start].board]} (set by the start)</div></div>
-          )}
+          <div data-test="start-board"><div className="picker-label">Structure</div><div className="small dim">{structureLabel(startControl(START_BY_ID[d.start ?? 'leader']))} (set by the start)</div></div>
         </div>
         <div className="setup-col">
           <RivalsSection />

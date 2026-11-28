@@ -6,7 +6,8 @@
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
 import { CAMPUS, PARTNERS, SITE_MIN_MW, SITE_TIERS, type CampusBuildings } from '../../../data/v2/deals';
-import { isDivision, START_BY_ID } from '../../../data/v2/starts';
+import { START_BY_ID } from '../../../data/v2/starts';
+import { ownerFunded } from './control';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
@@ -173,8 +174,8 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
   if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
   if (f.state === 'insolvent') return;
 
-  // Governance: start the recapitalisation when it becomes available (Q4 2025).
-  if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
+  // Governance: start lifting the profit cap when it becomes available (Q4 2025).
+  if (o.recap && s.player.charter.profitCap && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
 
   // Board (FIN3b, spec §7.5): below the board's warning line (35), give the critics a seat when it is available (once a
   // year) and it leaves more room above the ouster vote's passing line than before: +15 now, but the new director votes
@@ -195,7 +196,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // Last resort before insolvency: sell owned chips to cover a quarter's shortfall (a CEO who keeps the company).
   // (A division cannot go broke: it never sells its compute, R9.)
-  if (f.state === 'distress' && !isDivision(s) && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
+  if (f.state === 'distress' && !ownerFunded(s) && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
     const perH = (s.market.rental * 8760 * 1.5) / 1e9; // fin.sellChips resale value per H100e ($B)
     const need = Math.max(1, runwayOf(s).burnQ) - f.cash;
     if (perH > 0 && need > 0) tryAct('fin.sellChips', { qty: Math.max(1e4, need / perH) });

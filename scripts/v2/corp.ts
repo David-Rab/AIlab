@@ -1,8 +1,9 @@
 // C1: the control model (design/corp/CORPORATE.md §2–§3): votes by share class, the emergent controller, seats, label and
 // powers, on constructed cap tables. Run alone: `node --import tsx scripts/v2/corp.ts`.
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { PARENT_STANCE } from '../../src/engine/v2/finance/board';
-import { controllerOf, holdingsOf, investorAppeal, missionPowers, overrideAvailable, ownerFunded, seatsOf, securityPowers, structureLabel } from '../../src/engine/v2/finance/control';
+import { boardSeats, controllerOf, holdingsOf, investorAppeal, missionPowers, overrideAvailable, ownerFunded, PARENT_STANCE, seatsOf, securityPowers, startControl, structureLabel } from '../../src/engine/v2/finance/control';
+import { START_BY_ID } from '../../src/data/v2/starts';
+import type { StartType } from '../../src/engine/v2/types';
 import type { Charter, GameStateV2, Ownership } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
@@ -77,8 +78,14 @@ check(investorAppeal(mk({}, { founder: 1 })) === 1 && near(investorAppeal(mk({ m
 check([s1, s2, s3, s4, s5, s6, s6n, s7, s9].every((s) => total(s)) && total(s8, 2), '11 seat count is 1 + 6 (+2 golden) in cases 1-9');
 check(seatsOf(s2, [{ kind: 'independent', holder: 'Critics', stance: [0, 0, 0, 0], weight: 1 }]).length === 8, '11 extras are appended');
 
-// Init: the start's charter.
-const g = (governance: 'legacyNonprofit' | 'pbcTrust' | 'founder') => newGame({ ...defaultSetupV2({ seed: 1 }), governance }).player.charter;
-check(g('legacyNonprofit').missionBody && g('legacyNonprofit').profitCap && g('pbcTrust').missionBody && !g('pbcTrust').profitCap && !g('founder').missionBody, 'init charter by governance');
+// Init (C2): each start's charter, cap table and label; the board is the seats by votes.
+const LABEL: Record<StartType, string> = { leader: 'Mission-controlled', challenger: 'Board-run', spinout: 'Founder-led', bigtech: 'Division of Azimuth' };
+const games = Object.fromEntries((Object.keys(LABEL) as StartType[]).map((st) => [st, newGame({ ...defaultSetupV2({ seed: 1 }), start: st })])) as Record<StartType, GameStateV2>;
+check((Object.keys(LABEL) as StartType[]).every((st) => structureLabel(games[st]) === LABEL[st] && structureLabel(startControl(START_BY_ID[st])) === LABEL[st]), 'init label by start: leader Mission-controlled, challenger Board-run, spinout Founder-led, bigtech Division of Azimuth', (Object.keys(LABEL) as StartType[]).map((st) => `${st} ${structureLabel(games[st])}`).join(' · '));
+const ch = games.challenger.player.finance.ownership;
+check(near(ch.founder, 0.4) && near(ch.fin, 0.45) && near(ch.strat.Azimuth ?? 0, 0.15), 'init challenger: founders 40%, investors 45%, Azimuth 15%');
+check(games.leader.player.charter.missionBody && games.leader.player.charter.profitCap && !games.spinout.player.charter.missionBody && !games.challenger.player.charter.profitCap, 'init charter by start: leader mission body + profit cap; others none');
+check(ownerFunded(games.bigtech) && !ownerFunded(games.leader) && overrideAvailable(games.spinout) && !overrideAvailable(games.challenger) && missionPowers(games.leader), 'init powers: bigtech owner-funded, spinout override, challenger none, leader mission powers');
+check(boardSeats(games.leader).length === 7 && boardSeats(games.leader).filter((x) => x.kind === 'mission').length === 4 && games.leader.player.board.extraSeats.length === 0, 'init leader board: CEO + 6 elected, 4 mission seats, no extras');
 
 finish('corp');

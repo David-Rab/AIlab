@@ -19,7 +19,8 @@
 // and no ouster vote: a division head answers to the parent, and low confidence costs budget, never the game.
 // (Covering an overspend by writing it off would make overspending free money at a bounded confidence cost: the advance
 // is repaid from later budgets instead, and minded at every review while it is outstanding.)
-import { isDivision, parentBudgetYear } from '../../../data/v2/starts';
+import { parentBudgetYear } from '../../../data/v2/starts';
+import { ownerFunded } from './control';
 import { dayOfQuarter } from '../core/time';
 import type { Day, DivisionBudget, DivisionReview, FinancePromise, GameStateV2, Money, SystemCtx } from '../types';
 import { bookCash, qOf } from './ledger';
@@ -29,7 +30,7 @@ import { runwayOf } from './runway';
 
 /** Why an equity, deal or debt action is unavailable to a division (undefined for other companies). */
 export const DIVISION_REASON = 'A division of the parent: no outside equity, deals or debt (the parent funds you)';
-export const divisionBlock = (s: GameStateV2): string | undefined => (isDivision(s) ? DIVISION_REASON : undefined);
+export const divisionBlock = (s: GameStateV2): string | undefined => (ownerFunded(s) ? DIVISION_REASON : undefined);
 
 /** The parent's budget rule [D, FIN5c]: budget = plan × min(1, floor + confidence × (1 − floor) ÷ fullAt); overspend
  *  costs overConf × overspend ÷ budget confidence, at most overConf (overspending a whole year's budget weighs as much as
@@ -63,12 +64,12 @@ function setGoals(s: GameStateV2, budget: Money, ctx?: SystemCtx): FinancePromis
 
 /** A division's budget state (newGame creates it, startDivision). */
 export function divisionOf(s: GameStateV2): DivisionBudget | undefined {
-  return isDivision(s) ? s.player.finance.ws3.division : undefined;
+  return ownerFunded(s) ? s.player.finance.ws3.division : undefined;
 }
 
 /** newGame: budget year 0 at the plan (the Q3 2025 payment is in the starting cash) and its goals. */
 export function startDivision(s: GameStateV2): void {
-  if (!isDivision(s)) return;
+  if (!ownerFunded(s)) return;
   const d = newYear(0, s.player.board.confidence, 0, 0, []);
   d.paid = d.budget / 4;
   d.carryIn = s.player.finance.cash - d.paid;
@@ -132,7 +133,7 @@ export function divisionQ(s: GameStateV2, ctx: SystemCtx): void {
 
 /** Revenue goes to the parent: book the day's revenue, then hand it over (both lines stay on the statement). */
 export function revenueToParent(s: GameStateV2, ctx: SystemCtx, amount: Money): void {
-  if (amount > 0 && isDivision(s)) bookCash(s, ctx, -amount, 'financing', 'revenue to the parent');
+  if (amount > 0 && ownerFunded(s)) bookCash(s, ctx, -amount, 'financing', 'revenue to the parent');
 }
 
 export interface DivisionView {

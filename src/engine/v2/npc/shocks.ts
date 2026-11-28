@@ -12,6 +12,7 @@ import { startLagG } from '../../../data/v2/starts';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
 import { distillFit, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
 import { licensedModel } from '../finance/observe';
+import { missionPowers } from '../finance/control';
 import { CHINA_ID, PLAYER_ID, activeRivals, bestG, versionById } from '../models/labs';
 import { playerRecipeG, startRecipeG } from '../models/stacks';
 import { decimalYear } from '../core/time';
@@ -167,7 +168,7 @@ export function ipAccessDays(s: GameStateV2, r: RivalLab): number {
   for (const x of s.player.finance.deals) {
     const ip = x.strings.ipAccess;
     if (!ip || ip.lab !== r.core.id || x.until <= s.time.day) continue;
-    const v = licensedModel(s, s.player.board.preset === 'pbcTrust' && !ip.trust);
+    const v = licensedModel(s, missionPowers(s) && !ip.trust);
     if (!v) continue;
     share += PARTNER_TERMS.strings.ipCloseYr / 365;
     pos = posOf(s, v.G);

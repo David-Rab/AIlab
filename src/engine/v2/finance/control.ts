@@ -1,9 +1,27 @@
 // Control: holders, share classes, votes, the controller, the board's seats and the structure label
-// (design/corp/CORPORATE.md §2–§3). Pure functions of the cap table and the charter; nothing here is stored. Not yet read
-// by the board, charter or equity code (task C2 switches them).
-import type { BoardSeat, GameStateV2 } from '../types';
-import { isListed } from './equity';
-import { PARENT_STANCE, SEAT_STANCE } from './board';
+// (design/corp/CORPORATE.md §2–§3). Pure functions of the cap table and the charter; nothing here is stored. The board's
+// seats (boardSeats), the override, the charter's powers and investor appeal all read these.
+import type { StartDef } from '../../../data/v2/starts';
+import type { BoardSeat, Charter, FinanceState, GameStateV2 } from '../types';
+
+type Vec4 = [number, number, number, number];
+
+/** Stance vectors (speed, fin, safety, mission) from R15 §1.6. The founder/CEO seat votes the player's way [D]. */
+export const SEAT_STANCE: Record<BoardSeat['kind'], Vec4> = {
+  founder: [1, 0.3, 0.2, 0.3],
+  mission: [-0.5, 0.3, 1, 1],
+  financial: [1, 0.6, -0.2, 0],
+  strategic: [0.5, 0, 0, 0],
+  independent: [0, 0.5, 0.3, 0.3],
+  gov: [0.2, 0.3, 0.6, 0.4],
+};
+
+/** The controlling company's seats (research/18 §3.2): vote speed +0.5, finance +1.0, safety +0.2, mission 0 [Design]. */
+export const PARENT_STANCE: Vec4 = [0.5, 1, 0.2, 0];
+
+/** What the control rules read: the cap table, the share classes and the charter. A game state is one; so is a start's
+ *  definition (startControl), which the setup screen labels before a game exists. */
+export interface ControlView { player: { finance: Pick<FinanceState, 'ownership' | 'dualClass' | 'stratVoting'>; charter: Charter } }
 
 export type ShareClass = 'common' | 'superVoting' | 'nonVoting' | 'mission' | 'state';
 export type HolderKind = 'founders' | 'investors' | 'partner' | 'public' | 'mission' | 'government';
@@ -27,7 +45,7 @@ const ELECTED = 6;
 
 type Draft = Omit<Holding, 'votes'>;
 
-export function holdingsOf(s: GameStateV2): Holding[] {
+export function holdingsOf(s: ControlView): Holding[] {
   const { finance: f, charter: c } = s.player;
   const o = f.ownership;
   const missionCls: ShareClass = c.missionBody && !c.stateControl ? 'mission' : 'common';
@@ -52,7 +70,7 @@ export function holdingsOf(s: GameStateV2): Holding[] {
 }
 
 /** The holder with more than half of all votes; investors and the public are crowds, never one controller. */
-export function controllerOf(s: GameStateV2): Holding | undefined {
+export function controllerOf(s: ControlView): Holding | undefined {
   return holdingsOf(s).find((h) => h.votes > 0.5 && h.kind !== 'investors' && h.kind !== 'public');
 }
 
@@ -66,7 +84,7 @@ const SEAT_KIND: Record<HolderKind, { kind: BoardSeat['kind']; name: string }> =
 };
 
 /** The CEO's seat, 6 elected seats by largest remainder over votes, 2 government directors under a golden share, then extras. */
-export function seatsOf(s: GameStateV2, extras: BoardSeat[] = []): BoardSeat[] {
+export function seatsOf(s: ControlView, extras: BoardSeat[] = []): BoardSeat[] {
   const holds = holdingsOf(s).filter((h) => h.votes > 0);
   const controller = controllerOf(s);
   const quota = holds.map((h) => {
@@ -90,7 +108,12 @@ export function seatsOf(s: GameStateV2, extras: BoardSeat[] = []): BoardSeat[] {
   return [...seats, ...extras];
 }
 
-export function structureLabel(s: GameStateV2): string {
+/** The board now: the seats by votes, then the critics' seats (board.extraSeats). */
+export const boardSeats = (s: GameStateV2): BoardSeat[] => seatsOf(s, s.player.board.extraSeats);
+
+const isListed = (s: ControlView) => s.player.finance.ownership.public > 0;
+
+export function structureLabel(s: ControlView): string {
   const c = controllerOf(s);
   const base = !c ? (isListed(s) ? 'Public company' : 'Board-run')
     : c.kind === 'government' ? 'Government-controlled'
@@ -100,12 +123,26 @@ export function structureLabel(s: GameStateV2): string {
   return isListed(s) && base !== 'Public company' ? `${base} · listed` : base;
 }
 
-export const overrideAvailable = (s: GameStateV2) => controllerOf(s)?.kind === 'founders';
-export const missionPowers = (s: GameStateV2) => s.player.charter.missionBody && !s.player.charter.stateControl;
-export const securityPowers = (s: GameStateV2) => s.player.charter.goldenShare || s.player.charter.stateControl;
-export const ownerFunded = (s: GameStateV2) => { const k = controllerOf(s)?.kind; return k === 'partner' || k === 'government'; };
+export const overrideAvailable = (s: ControlView) => controllerOf(s)?.kind === 'founders';
+export const missionPowers = (s: ControlView) => s.player.charter.missionBody && !s.player.charter.stateControl;
+export const securityPowers = (s: ControlView) => s.player.charter.goldenShare || s.player.charter.stateControl;
+/** A corporate owner or the government controls the company and funds it through a budget (§3.2). */
+export const ownerFunded = (s: ControlView) => { const k = controllerOf(s)?.kind; return k === 'partner' || k === 'government'; };
 
-export function investorAppeal(s: GameStateV2): number {
-  const { charter: c, finance: f } = s.player;
-  return (c.missionBody ? CHARTER_APPEAL.mission : 1) * (c.profitCap ? CHARTER_APPEAL.profitCap : 1) * (f.dualClass ? CHARTER_APPEAL.dualClass : 1);
+/** Investor appeal of a charter (§2.4): a product of its features. Rivals use it on their kind's charter. */
+export function appealOf(c: { missionBody?: boolean; profitCap?: boolean; dualClass?: boolean }): number {
+  return (c.missionBody ? CHARTER_APPEAL.mission : 1) * (c.profitCap ? CHARTER_APPEAL.profitCap : 1) * (c.dualClass ? CHARTER_APPEAL.dualClass : 1);
 }
+
+export const investorAppeal = (s: ControlView): number => appealOf({ ...s.player.charter, dualClass: s.player.finance.dualClass });
+
+/** The charter a start begins with (StartDef.charter). */
+export const startCharter = (def: StartDef): Charter => ({ missionBody: !!def.charter.missionBody, profitCap: !!def.charter.profitCap, goldenShare: false, stateControl: false });
+
+/** A start's cap table and charter as the control rules read them (the setup screen's label, the start builders). */
+export const startControl = (def: StartDef): ControlView => ({
+  player: {
+    finance: { ownership: { founder: def.ownership.founder, mission: def.ownership.mission ?? 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 }, ...(def.ownership.stratVoting ? { stratVoting: { ...def.ownership.stratVoting } } : {}) },
+    charter: startCharter(def),
+  },
+});

@@ -1,5 +1,5 @@
 // End conditions (V2-SPEC §5.1), checked daily in spec order, and ending construction. Owner: WS4.
-import { isDivision } from '../../../data/v2/starts';
+import { ownerFunded } from '../finance/control';
 import { cadencesDue, decimalYear } from '../core/time';
 import { CHINAGOV } from '../world/chinagov';
 import { activeRivals } from '../models/labs';
@@ -46,7 +46,7 @@ export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], powe
 /** Sale of control (§5.1 #1 'acquired'): a rescue flag (endingProgress), or one strategic holder above 50% of the equity after
  *  WS3's rescue / deals (finance ownership) [D]. */
 function soldControl(s: GameStateV2): boolean {
-  if (isDivision(s)) return false; // a division is owned by its parent by construction (R9)
+  if (ownerFunded(s)) return false; // an owner-funded company is owned by its controller by construction (R9)
   return s.endingProgress.soldControl || Object.values(s.player.finance.ownership.strat).some((x) => x > 0.5);
 }
 

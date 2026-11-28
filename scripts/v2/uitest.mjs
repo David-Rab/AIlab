@@ -98,29 +98,29 @@ ok('Other campaigns greyed', (await page.$$('.campaign.locked')).length === 3);
 await shot('00-start');
 await page.click('[data-test=new-game]');
 ok('Setup screen', !!(await page.$('[data-test=setup]')));
-for (const [k, v] of [['world', 'tl-fast'], ['alignment', 'hard'], ['governance', 'founder'], ['tutorial', 'false']]) {
+for (const [k, v] of [['world', 'tl-fast'], ['alignment', 'hard'], ['tutorial', 'false']]) {
   await check(`Setup ${k}=${v}`, `store.draftSetup.${k}`, () => page.click(`[data-picker=${k}] [data-opt="${v}"]`), 30);
 }
 await page.fill('[data-test=company]', 'Marenth');
 await wait(30);
 ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
-// R9: start picker (four starts with difficulty labels); a non-leader start turns the leader lab on and fixes the board.
+// R9: start picker (four starts with difficulty labels); each start shows its structure (C2: no governance picker).
 ok('Setup: four starts with difficulty labels', (await page.$$('[data-picker=start] [data-opt] [data-difficulty]')).length === 4);
 await check('Setup start=spinout', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="spinout"]'), 30);
-ok('Setup: spinout sets the board', (await get('store.draftSetup.governance')) === '"founder"' && !!(await page.$('[data-test=start-board]')));
+ok('Setup: spinout shows its structure', /Founder-led/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
 await check('Setup start=bigtech', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="bigtech"]'), 30);
 await page.hover('[data-picker=start] [data-opt="bigtech"]');
 await wait(300);
 ok('Setup: start tooltip shows the start values', (await page.evaluate(() => document.body.innerText)).includes('from the parent'));
 await clearTips();
 await check('Setup start=leader', 'store.draftSetup.start', () => page.click('[data-picker=start] [data-opt="leader"]'), 30);
-ok('Setup: leader start has a Governance picker', !!(await page.$('[data-picker=governance]')));
+ok('Setup: no Governance picker; the leader start is mission-controlled', !(await page.$('[data-picker=governance]')) && /Mission-controlled/.test(await page.evaluate(() => document.querySelector('[data-test=start-board]')?.textContent ?? '')));
 await check('Setup company name', 'store.draftSetup.companyName', () => page.fill('[data-test=company]', 'TestLab'), 30);
 await check('Setup seed', 'store.draftSetup.seed', () => page.fill('[data-test=seed]', '2027'), 30);
 await shot('01-setup');
 await clearTips(); // a start card's tooltip can lock while the mouse rests on it (slow machines)
 // Game A: defaults with tutorial ON (act locks, coach cards).
-for (const [k, v] of [['world', 'tl-central'], ['alignment', 'medium'], ['governance', 'legacyNonprofit'], ['tutorial', 'true']]) {
+for (const [k, v] of [['world', 'tl-central'], ['alignment', 'medium'], ['tutorial', 'true']]) {
   await page.click(`[data-picker=${k}] [data-opt="${v}"]`);
 }
 await page.click('[data-test=start-game]');
@@ -1964,10 +1964,10 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await clearTips();
   await shot('58-fin3a-board');
   // A down round is a major decision: tight runway makes it available; the vote shows under the button, seat by seat.
-  const saved = await get('({ state: s.player.finance.state, bc: s.player.board.confidence, preset: s.player.board.preset })');
+  const saved = await get('({ state: s.player.finance.state, bc: s.player.board.confidence, charter: s.player.charter, own: s.player.finance.ownership })');
   await page.evaluate(() => { const s = window.ai27v2.state; s.player.finance.state = 'tight'; s.player.board.confidence = 60; window.ai27v2.notify(); });
   await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(150);
-  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0).length'));
+  const nVoters = JSON.parse(await get('window.ai27v2Views.boardSeats(s).filter((x) => x.weight > 0).length'));
   const chips = await page.evaluate(() => document.querySelectorAll('.act-col:has([data-act="fin.downRound"]) [data-test=vote] [data-vote]').length);
   ok('FIN3a: the down-round button shows each seat\'s vote before you ask', chips === nVoters && chips > 0, `${chips} chips, ${nVoters} voting seats`);
   await page.hover('.act-col:has([data-act="fin.downRound"]) [data-test=vote]');
@@ -1979,15 +1979,15 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.confidence = 0; s.player.finance.cash = Math.max(s.player.finance.cash, 1e4); window.ai27v2.notify(); });
   await wait(150);
   ok('FIN3a: a failed vote disables the decision', !!(await page.$('.act-col:has([data-act="fin.downRound"]) [data-test=vote][data-pass="0"]')) && !!(await page.$('[data-act="fin.downRound"][disabled]')));
-  ok('FIN3a: without founder control there is no force button', !(await page.$('[data-act="fin.downRound:force"]')));
-  // Founder control: the same failed vote can be forced at board confidence −20.
-  await page.evaluate(() => { const s = window.ai27v2.state; s.player.board.preset = 'founder'; s.player.board.confidence = 30; window.ai27v2.notify(); });
+  ok('FIN3a: without a founder majority there is no force button', !(await page.$('[data-act="fin.downRound:force"]')));
+  // A founder majority (the override): the same failed vote can be forced at board confidence −20.
+  await page.evaluate(() => { const s = window.ai27v2.state; s.player.charter = { ...s.player.charter, missionBody: false, profitCap: false }; s.player.finance.ownership = { founder: 0.75, mission: 0, fin: 0.25, strat: {}, public: 0 }; s.player.board.confidence = 30; window.ai27v2.notify(); });
   await wait(150);
   const forceBtn = await page.$('[data-act="fin.downRound:force"]');
   if (forceBtn) {
-    await check('FIN3a: founder control forces a failed vote (confidence −20, the round books)', 's.player.finance.rounds.length + ":" + Math.round(s.player.board.confidence)', () => forceBtn.click(), 200);
-  } else ok('FIN3a: founder control forces a failed vote (confidence −20, the round books)', false, 'no force button (the vote passed?)');
-  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.finance.state = o.state; s.player.board.confidence = o.bc; s.player.board.preset = o.preset; window.ai27v2.notify(); }, saved);
+    await check('FIN3a: a founder majority forces a failed vote (confidence −20, the round books)', 's.player.finance.rounds.length + ":" + Math.round(s.player.board.confidence)', () => forceBtn.click(), 200);
+  } else ok('FIN3a: a founder majority forces a failed vote (confidence −20, the round books)', false, 'no force button (the vote passed?)');
+  await page.evaluate((v) => { const s = window.ai27v2.state; const o = JSON.parse(v); s.player.finance.state = o.state; s.player.board.confidence = o.bc; s.player.charter = o.charter; s.player.finance.ownership = o.own; window.ai27v2.notify(); }, saved);
   await wait(100);
 }
 // FIN3b (finance v3 §7.2, §7.5): charter rights on the Board card with what each blocks and the models the safety
@@ -1995,11 +1995,10 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
 // the critics' seat is a standing action with its preview.
 {
   const saved = await get('({ board: s.player.board, warn: s.player.finance.ws3.boardWarnDay, critics: s.player.finance.ws3.criticsDay, versions: s.player.models.versions.length, causes: s.causes.byKey["board.confidence"] ?? [] })');
-  // Nonprofit PBC with a red-flagged model ready to release (and the same flag on every full model, so a launch hits it).
+  // A mission body with a red-flagged model ready to release (and the same flag on every full model, so a launch hits it).
   await page.evaluate(() => {
     const s = window.ai27v2.state;
-    s.player.board.preset = 'nonprofitPBC';
-    s.player.board.safetyCommitteeVeto = true;
+    s.player.charter.missionBody = true;
     const fulls = s.player.models.versions.filter((v) => v.variant === 'full' && (v.status === 'ready' || v.status === 'deployed'));
     const c = JSON.parse(JSON.stringify(fulls[fulls.length - 1]));
     c.id = 'V-ui-held'; c.name = 'Held-1'; c.status = 'ready';
@@ -2032,7 +2031,7 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   });
   await nav('finance');
   await page.click('[data-tabs=finance] [data-tab=owners]'); await wait(120);
-  const nVoters = JSON.parse(await get('s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== "founder").length'));
+  const nVoters = JSON.parse(await get('window.ai27v2Views.boardSeats(s).filter((x) => x.weight > 0 && x.holder !== "CEO").length'));
   const oChips = await page.evaluate(() => document.querySelectorAll('[data-test=ouster-vote][data-live="1"] [data-vote]').length);
   ok('FIN3b: the ouster vote is on the Board card, seat by seat, before the review', oChips === nVoters && oChips > 0, `${oChips} chips, ${nVoters} voting seats`);
   await page.hover('[data-test=board-review]');
@@ -2047,7 +2046,7 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await wait(300);
   ok('FIN3b: the critics\' seat preview names the director and the +15', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Safety director/.test(t) && /15/.test(t); })()`)));
   await clearTips();
-  await check('FIN3b: giving the critics a seat adds a director and +15 confidence', 's.player.board.seats.length + ":" + Math.round(s.player.board.confidence)', () => page.click('[data-act="fin.critics"]'), 200);
+  await check('FIN3b: giving the critics a seat adds a director and +15 confidence', 'window.ai27v2Views.boardSeats(s).length + ":" + Math.round(s.player.board.confidence)', () => page.click('[data-act="fin.critics"]'), 200);
   ok('FIN3b: the critics\' seat is once a year', !!(await page.$('[data-act="fin.critics"][disabled]')) || !(await page.$('[data-act="fin.critics"]')));
   await shot('63-fin3b-critics');
   await page.evaluate((v) => {
@@ -2404,11 +2403,11 @@ await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 // ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
 const ia9 = iaIssues.length;
 await closeModals();
-await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', governance: 'parent' }); });
+await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech' }); });
 await wait(150);
 await page.evaluate(() => window.ai27v2.step(5));
 await closeModals();
-ok('Big tech: a division', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.board.preset')) === '"parent"');
+ok('Big tech: a division', (await get('s.setup.start')) === '"bigtech"' && (await get('s.player.finance.ownership.strat.Azimuth')) === '1' && (await get('s.player.finance.stratVoting.Azimuth')) === 'true');
 await nav('finance');
 ok('Big tech Finance: parent budget schedule, no raise card or ownership', !!(await page.$('[data-home=parentBudget] [data-q]')) && !(await page.$('#ctl-raise-card')) && !(await page.$('[data-home=ownership]')));
 ok('Big tech Finance: equity unavailable with its reason', (await page.locator('[data-test=division-reason]').innerText().catch(() => '')).includes('no outside equity'));

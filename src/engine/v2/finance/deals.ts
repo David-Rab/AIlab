@@ -14,7 +14,8 @@ import { dayOfQuarter } from '../core/time';
 import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, RivalLab, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
 import { cloudPricePerYear } from '../compute/market';
-import { addSeat, boardVote, commitmentsVote, voteGate } from './board';
+import { boardVote, commitmentsVote, voteGate } from './board';
+import { missionPowers } from './control';
 import { controlVotes, ipTransferVote } from './charter';
 import { issue, partnerEquityIn, raiseCeiling, stakeRoom } from './equity';
 import { gwOwned, leadEstimate } from './observe';
@@ -266,7 +267,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
   partnerEquityIn(s, ctx, partner, t.equityNow, label);
   if (t.rescue) {
     issue(f.ownership, topUp(stakeOf(s, partner), t.stake ?? 0), { kind: 'strat', name: partner });
-    addSeat(s, 'strategic', partner, t.strings.boardVotes ?? 0);
+    f.stratVoting = { ...(f.stratVoting ?? {}), [partner]: true }; // the rescuer's stake votes (control.ts seats it)
     f.ws3.lastRescueDay = s.time.day;
   }
   t.tranches.forEach((x, i) => f.tranches.push({
@@ -323,7 +324,7 @@ export function partnerCosts(s: GameStateV2): { partner: string; revenueShare: n
     out.push({
       partner: d.partner,
       revenueShare: running ? (d.strings.revenueShare ?? 0) * s.player.finance.revenueRun : 0,
-      ...(ip ? { ip: { lab: ip.lab, labName: labName(s, ip.lab), daysYr: ST.ipCloseYr * Math.max(0, lead), leadEst: lead, noThreshold: s.player.board.preset === 'pbcTrust' && !ip.trust } } : {}),
+      ...(ip ? { ip: { lab: ip.lab, labName: labName(s, ip.lab), daysYr: ST.ipCloseYr * Math.max(0, lead), leadEst: lead, noThreshold: missionPowers(s) && !ip.trust } } : {}),
       blocks: d.strings.exclusivity ? (partnerDef(d.partner)?.competitors ?? []) : [],
     });
   }

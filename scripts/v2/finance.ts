@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WORLD_START, globalCompute } from '../../src/data/world';
-import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
+import { CAPEX_LEASE, DEBT_TERMS, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -20,12 +20,13 @@ import { constructionGrowth, contingentLiabilities, crf, leaseAvailable, leaseGu
 import { chipCollateral, creditLineCapacity, debtHeadroom, debtRatePct, drawDebt, ratingOf, ratingTerms } from '../../src/engine/v2/finance/debt';
 import { ACQUIRE, acquireTerms, acquireVotes, rivalObligations, shownVote } from '../../src/engine/v2/finance/acquire';
 import { FINANCE_ACTIONS, raiseQuote } from '../../src/engine/v2/finance/actions';
-import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncFinancialSeats, founderControl, initialBoard, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
+import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, OUSTER, ousterVote, updateRunwayState, VOTE } from '../../src/engine/v2/finance/board';
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
-import { bustTarget, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
+import { bustTarget, parentFunded, capMultiple, RIVAL, RIVAL_CHARTER, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
 import { ipAccessDays } from '../../src/engine/v2/npc/shocks';
-import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
+import { appealOf, boardSeats, CHARTER_APPEAL, controllerOf, missionPowers, overrideAvailable } from '../../src/engine/v2/finance/control';
+import { growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
@@ -65,6 +66,18 @@ const RUN_PICKS = [
 ];
 
 
+/** C2: the charter and cap table a check needs (the board follows the votes, control.ts): 'mission' a mission body (the
+ *  safety committee and trust approval), 'founders' a founder majority (the override), 'boardRun' no controller. */
+type Shape = 'mission' | 'founders' | 'boardRun';
+function shape(s: GameStateV2, k: Shape): GameStateV2 {
+  s.player.board.extraSeats = [];
+  s.player.charter = { missionBody: k === 'mission', profitCap: false, goldenShare: false, stateControl: false };
+  if (k === 'mission' && s.player.finance.ownership.mission <= 0) s.player.finance.ownership = { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 };
+  if (k === 'founders') s.player.finance.ownership = { founder: 0.75, mission: 0, fin: 0.25, strat: {}, public: 0 };
+  if (k === 'boardRun') s.player.finance.ownership = { founder: 0.4, mission: 0, fin: 0.45, strat: { Azimuth: 0.15 }, public: 0 };
+  return s;
+}
+
 const median = (xs: number[]) => {
   const a = [...xs].sort((x, y) => x - y);
   return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
@@ -79,7 +92,7 @@ const marksSum = (st: ReturnType<typeof storyNow>) => st.labs.reduce((a, l) => a
 /** FIN5a: each quarter mark also records the story (sector value, the player's share and valuation, growth, a bust, and
  *  each trailing private rival with revenue: FIN5b its marked valuation and run-rate). */
 interface QRow { day: number; year: number; shipped: number; stock: number; margin: number; supply: number; S: number; sumV: number; share: number; V: number; R: number; g: number; bust: boolean; trailing: { v: number; r: number }[] }
-/** FIN3b: versions the nonprofit PBC's safety committee held back (ready to release, red-flagged), and the days held. */
+/** FIN3b: versions the mission body's safety committee held back (ready to release, red-flagged), and the days held. */
 /** FIN5b: a private rival at a snapshot (end-2026). */
 interface RivalRow { id: string; arch: string; status: string; V: number; R: number; cash: number }
 interface Run { s: GameStateV2; q: QRow[]; firstDistress: number; gw2026: number; v2026: number; held: string[]; heldDays: number; pbcDays: number; rivals2026: RivalRow[]; private0: string[] }
@@ -96,7 +109,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number): R
   let rivals2026: RivalRow[] = [];
   const private0 = s.rivals.filter((r) => r.finance.valuation > 0 && !parentFunded(r)).map((r) => r.core.id);
   while (s.time.day < until) {
-    if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
+    if (missionPowers(s) && s.time.day % 7 === 0) {
       pbcDays += 7;
       const hs = s.player.models.versions.filter((v) => v.status === 'ready' && (v.variant === 'full' || v.variant === 'mini') && charterReleaseBlock(s, v, 'api'));
       for (const v of hs) held.add(v.id);
@@ -551,11 +564,10 @@ for (const a of FINANCE_ACTIONS) {
     check(f.rounds[f.rounds.length - 1].down && s.player.board.confidence < bc0 && JSON.stringify(s.player.teams.map((t) => t.heads)) === heads && JSON.stringify(s.player.staff) === staff, 'FIN2 a down round costs board confidence, never staff', `board ${bc0.toFixed(0)} → ${s.player.board.confidence.toFixed(0)}`);
   }
   {
-    // The IPO: its own one-time action; dual-class keeps founder control at valuation ×0.95; a listing independent.
-    const s = fx();
+    // The IPO: its own one-time action; dual-class keeps the founders' majority at valuation ×0.95.
+    const s = shape(fx(), 'founders');
     s.capital.ipoWindow = true;
     s.player.finance.state = 'healthy';
-    s.player.board.preset = 'founder';
     const avail = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.available(s);
     const V0 = s.player.finance.valuation;
     const err = act(s, 'fin.ipo', { dualClass: true });
@@ -565,11 +577,13 @@ for (const a of FINANCE_ACTIONS) {
     s.player.finance.state = 'healthy';
     const again = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.available(s);
     const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
-    check(avail === true && !err && r.ipo === true && ask / (V0 + ask) <= 0.05 + 1e-9 && s.player.finance.ownership.public > 0 && s.player.finance.dualClass === true && Math.abs(playerGov(s) - GOV_FACTOR.founder * DUAL_CLASS_GOV) < 1e-12 && founderControl(s) && typeof again === 'string' && s.player.board.seats.some((x) => x.holder === 'Listing independent') && livePromises(s).every((p) => p.closeDay !== r.day), 'FIN2 the IPO is a one-time action (≤ 5%, no promise); dual-class keeps founder control at governance ×0.95 (FIN5a: on the share)', `ask $${f1(ask)}B = ${F1pct(ask / (V0 + ask))} at signing · public ${F1pct(s.player.finance.ownership.public)} at close · again: ${again}`);
-    const t = fx();
-    t.player.board.preset = 'founder';
-    t.player.finance.ownership.public = 0.05;
-    check(!founderControl(t), 'FIN2 a founder listing without dual-class shares loses founder control');
+    check(avail === true && !err && r.ipo === true && ask / (V0 + ask) <= 0.05 + 1e-9 && s.player.finance.ownership.public > 0 && s.player.finance.dualClass === true && Math.abs(playerGov(s) - CHARTER_APPEAL.dualClass) < 1e-12 && overrideAvailable(s) && controllerOf(s)?.kind === 'founders' && typeof again === 'string' && livePromises(s).every((p) => p.closeDay !== r.day), 'FIN2 the IPO is a one-time action (≤ 5%, no promise); dual-class keeps the founders\' majority at governance ×0.95 (FIN5a: on the share)', `ask $${f1(ask)}B = ${F1pct(ask / (V0 + ask))} at signing · public ${F1pct(s.player.finance.ownership.public)} at close · again: ${again}`);
+    // Without dual-class shares the founders' votes dilute like everyone's: a thin majority ends at the listing.
+    const t = shape(fx(), 'founders');
+    t.player.finance.ownership = { founder: 0.52, mission: 0, fin: 0.48, strat: {}, public: 0 };
+    const before = overrideAvailable(t);
+    t.player.finance.ownership = { founder: 0.494, mission: 0, fin: 0.456, strat: {}, public: 0.05 };
+    check(before && !overrideAvailable(t), 'FIN2 a listing without dual-class shares can end the founders\' majority (and the override)');
   }
   {
     // No revenue plan: the board's quarterly review posts no plan causes.
@@ -620,7 +634,7 @@ for (const a of FINANCE_ACTIONS) {
     const v1 = boardVote(s, 'commitments', 'test');
     const rng0 = JSON.stringify(s.rng);
     const v2 = boardVote(s, 'commitments', 'test');
-    const voters = s.player.board.seats.filter((x) => x.weight > 0);
+    const voters = boardSeats(s).filter((x) => x.weight > 0);
     check(JSON.stringify(v1) === JSON.stringify(v2) && JSON.stringify(s.rng) === rng0 && v1.seats.length === voters.length && v1.total === voters.reduce((a, x) => a + x.weight, 0) && v1.passes === v1.yes > v1.total / 2, 'FIN3a a board vote is deterministic, seat by seat; passes when the weighted yes is more than half', `${v1.label}: ${v1.seats.map((x) => `${x.kind} ${x.yes ? 'yes' : 'no'} ${f1(x.lean)}`).join(', ')} → ${v1.yes}/${v1.total}`);
   }
   {
@@ -664,10 +678,8 @@ for (const a of FINANCE_ACTIONS) {
     check(!rv.passes && typeof err === 'string' && /board votes no/.test(err) && t.player.board.confidence === bc0 && !('blockedUntil' in t.player.finance.ws3), 'FIN3a a failed vote stops the action with its reason; no confidence hit, no 90-day block', String(err));
   }
   {
-    // Founder control forces a failed vote at −20 confidence; without it, force does nothing.
-    const s = fx();
-    s.player.board = { ...s.player.board, preset: 'founder', seats: [{ kind: 'founder', holder: 'CEO', stance: [1, 0.3, 0.2, 0.3], weight: 2 }, { kind: 'financial', holder: 'Lead investor', stance: [1, 0.6, -0.2, 0], weight: 1 }, { kind: 'independent', holder: 'Independent', stance: [0, 0.5, 0.3, 0.3], weight: 1 }] };
-    s.player.finance.ownership.public = 0;
+    // A founder majority's override forces a failed vote at −20 confidence; a mission-controlled board cannot be forced.
+    const s = shape(fx(), 'founders');
     s.player.board.confidence = 25;
     s.player.finance.cash = 2;
     const p = { term: 8, h100e: 50e6, firm: true };
@@ -679,13 +691,14 @@ for (const a of FINANCE_ACTIONS) {
     t.player.board.confidence = 25;
     t.player.finance.cash = 2;
     const err2 = act(t, 'cmp.rentCompute', { ...p, force: true });
-    check(!v.passes && v.canForce && !err && s.player.cloud.length > n0 && Math.abs(forced - (25 - VOTE.forceCost)) < 1e-9 && typeof err2 === 'string', 'FIN3a founder control forces a failed vote at board confidence −20; a board without it cannot be forced', `founder: ${v.yes}/${v.total} forced, confidence 25 → ${forced} · legacy board: ${err2}`);
+    check(!v.passes && v.canForce && !err && s.player.cloud.length > n0 && Math.abs(forced - (25 - VOTE.forceCost)) < 1e-9 && typeof err2 === 'string', 'FIN3a a founder majority forces a failed vote at board confidence −20; a board without the override cannot be forced', `founders: ${v.yes}/${v.total} forced, confidence 25 → ${forced} · mission board: ${err2}`);
   }
   {
     // Mood by seat kind (spec §7.4 table): a mission board minds incidents more and falling behind not at all; a
     // financial board the opposite. No safety-grade bonus, no tight-runway hit, no plan.
     const s = fx();
-    const kinds = (k: 'mission' | 'financial') => { s.player.board.seats = [{ kind: 'founder', holder: 'CEO', stance: [1, 0.3, 0.2, 0.3], weight: 1 }, { kind: k, holder: k, stance: [0, 0, 0, 0], weight: 2 }]; return { inc: moodWeight(s, 'incidents'), behind: moodWeight(s, 'behind'), res: moodWeight(s, 'results'), set: moodWeight(s, 'setbacks') }; };
+    // The founders own it all (their seats move no mood), so the one extra seat sets the weights.
+    const kinds = (k: 'mission' | 'financial') => { shape(s, 'founders'); s.player.finance.ownership = { founder: 1, mission: 0, fin: 0, strat: {}, public: 0 }; s.player.board.extraSeats = [{ kind: k, holder: k, stance: [0, 0, 0, 0], weight: 2 }]; return { inc: moodWeight(s, 'incidents'), behind: moodWeight(s, 'behind'), res: moodWeight(s, 'results'), set: moodWeight(s, 'setbacks') }; };
     const m = kinds('mission');
     const fi = kinds('financial');
     check(m.inc === 2 && m.behind === 0 && m.res === 0.5 && m.set === 1 && fi.inc === 0.5 && fi.behind === 1.5 && fi.res === 1.5 && fi.set === 1 && MOOD_WEIGHTS.setbacks.independent === 1.5, 'FIN3a mood weights by seat kind (financial / mission / independent: promises 1.5/0.5/1, setbacks 1/1/1.5, behind 1.5/0/0.5, incidents 0.5/2/1)');
@@ -728,11 +741,10 @@ for (const a of FINANCE_ACTIONS) {
     return c;
   };
   {
-    // Nonprofit PBC: the safety committee halts the release of a model the player's own evals red-flag, on every
-    // external channel and on a live product's model swap; internal use is not a release; the veto flag is what is
-    // read; the hold lifts when the estimate falls to 30% or less.
-    const s = fx();
-    s.player.board = initialBoard('nonprofitPBC');
+    // A mission body: the safety committee halts the release of a model the player's own evals red-flag, on every
+    // external channel and on a live product's model swap; internal use is not a release; the charter's mission body is
+    // what is read; the hold lifts when the estimate falls to 50% or less.
+    const s = shape(fx(), 'mission');
     const v = candidate(s, 'VCOMMITTEE');
     v.beliefs.SCHEME = B(s.time.day, 0.6);
     const g1 = deployGate(s, v, 'api');
@@ -740,24 +752,23 @@ for (const a of FINANCE_ACTIONS) {
     const gi = deployGate(s, v, 'internal');
     const live = s.player.deployments.find((d) => (d.channel === 'api' || d.channel === 'consumer') && d.status !== 'withdrawn');
     const swap = live ? editBlock(s, live, { versionId: v.id }) : 'no live product';
-    s.player.board.safetyCommitteeVeto = false;
+    s.player.charter.missionBody = false;
     const g2 = deployGate(s, v, 'api');
-    s.player.board.safetyCommitteeVeto = true;
+    s.player.charter.missionBody = true;
     for (const k of ['SCHEME', 'AF', 'SAND'] as const) v.beliefs[k] = B(s.time.day, 0.45);
     const g3 = deployGate(s, v, 'api');
     const isHold = (g: true | string | undefined) => typeof g === 'string' && /Safety committee/.test(g);
-    check(isHold(g1) && isHold(gc) && gi === true && isHold(swap) && !isHold(g2) && !isHold(g3), 'FIN3b nonprofit PBC: the safety committee halts the release of a red-flagged model (every external channel and a live swap; not internal use; the veto flag is read; lifts at ≤ 50%; the 30% E17 alarm alone does not halt)', `${g1} · consumer ${isHold(gc)} · internal ${gi} · swap ${isHold(swap)} · veto off ${isHold(g2)} · cleared ${isHold(g3)}`);
+    check(isHold(g1) && isHold(gc) && gi === true && isHold(swap) && !isHold(g2) && !isHold(g3), 'FIN3b a mission body: the safety committee halts the release of a red-flagged model (every external channel and a live swap; not internal use; the charter is read; lifts at ≤ 50%; the 30% E17 alarm alone does not halt)', `${g1} · consumer ${isHold(gc)} · internal ${gi} · swap ${isHold(swap)} · veto off ${isHold(g2)} · cleared ${isHold(g3)}`);
     const l = fx();
     const lv = candidate(l, 'VLEGACY');
     lv.beliefs.SCHEME = B(l.time.day, 0.6);
-    l.player.board = initialBoard('legacyNonprofit');
-    check(!isHold(deployGate(l, lv, 'api')) && charterRights(l).every((r) => r.id !== 'safetyCommittee') && charterRights(s).some((r) => r.id === 'safetyCommittee'), 'FIN3b the release block is the nonprofit PBC\'s alone (legacy nonprofit: no committee)');
+    shape(l, 'boardRun');
+    check(!isHold(deployGate(l, lv, 'api')) && charterRights(l).every((r) => r.id !== 'safetyCommittee') && charterRights(s).some((r) => r.id === 'safetyCommittee'), 'FIN3b the release block is a mission body\'s alone (a board-run lab: no committee)');
   }
   {
-    // PBC + trust: the trust votes (its mission seats only, no force) on releasing a capability-threshold model's
+    // A mission body: its seats vote (mission seats only, no force) on releasing a capability-threshold model's
     // weights and on a sale of control; neither passes on its stance. A model without a threshold flag needs no vote.
-    const s = fx();
-    s.player.board = initialBoard('pbcTrust');
+    const s = shape(fx(), 'mission');
     const v = candidate(s, 'VTRUST');
     v.flags = { cyberOffense: true };
     const g = deployGate(s, v, 'open');
@@ -766,8 +777,8 @@ for (const a of FINANCE_ACTIONS) {
     plain.flags = { persuasion: true };
     const gp = deployGate(s, plain, 'open');
     const cv = controlVote(s, 'Test partner', 0.6);
-    check(typeof g === 'string' && /trust votes no/.test(g) && tv.body === 'trust' && !tv.canForce && tv.seats.length > 0 && tv.seats.every((x) => x.kind === 'mission') && !(typeof gp === 'string' && /trust/.test(gp)) && !!cv && !cv.passes && !controlVote(s, 'Test partner', 0.4), 'FIN3b PBC + trust: the trust votes no on open weights of a capability-threshold model and on a sale of control (mission seats only, no force); no vote below 50% or without a threshold flag', `${g} · control: ${cv?.yes}/${cv?.total}`);
-    // A deal that would hand a partner control stops at the trust before anything is booked. FIN4a: offers are
+    check(typeof g === 'string' && /mission body votes no/.test(g) && tv.body === 'trust' && !tv.canForce && tv.seats.length > 0 && tv.seats.every((x) => x.kind === 'mission') && !(typeof gp === 'string' && /trust/.test(gp)) && !!cv && !cv.passes && !controlVote(s, 'Test partner', 0.4), 'FIN3b a mission body votes no on open weights of a capability-threshold model and on a sale of control (mission seats only, no force); no vote below 50% or without a threshold flag', `${g} · control: ${cv?.yes}/${cv?.total}`);
+    // A deal that would hand a partner control stops at the mission body before anything is booked. FIN4a: offers are
     // computed live, so the partner already holds 49% and its cheque would take it past half.
     {
       const partner = 'Gulf Sovereign Fund';
@@ -776,16 +787,14 @@ for (const a of FINANCE_ACTIONS) {
       const own0 = JSON.stringify(s.player.finance.ownership);
       const after = partnerStakeAfter(s, partnerTerms(s, partner));
       const err = signPartner(s, makeCtx(s), partner, { force: true });
-      check(typeof err === 'string' && /trust votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && after > 0.5 && !dealWith(s, partner), 'FIN3b a deal past 50% under PBC + trust stops at the trust (no cash, no shares, force does not help)', `${String(err)} · stake after ${F1pct(after)}`);
+      check(typeof err === 'string' && /mission body votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && after > 0.5 && !dealWith(s, partner), 'FIN3b a deal past 50% under a mission body stops at its vote (no cash, no shares, force does not help)', `${String(err)} · stake after ${F1pct(after)}`);
     }
-    const o = fx();
-    o.player.board = initialBoard('nonprofitPBC');
-    check(!controlVote(o, 'Test partner', 0.6) && !transferVote(o, v, 'open'), 'FIN3b only PBC + trust has the trust\'s votes');
+    const o = shape(fx(), 'boardRun');
+    check(!controlVote(o, 'Test partner', 0.6) && !transferVote(o, v, 'open'), 'FIN3b only a mission body has the trust approval votes');
   }
   // Ouster votes on a set board and grievance (the last year's confidence losses).
-  const board = (preset: Parameters<typeof initialBoard>[0], bc: number, source: string, warnAgo = 100) => {
-    const s = fx();
-    s.player.board = initialBoard(preset);
+  const board = (k: Shape, bc: number, source: string, warnAgo = 100) => {
+    const s = shape(fx(), k);
     s.player.board.confidence = bc;
     s.player.finance.ws3.boardWarnDay = s.time.day - warnAgo;
     s.causes.byKey['board.confidence'] = [{ day: s.time.day - 10, delta: -30, source }];
@@ -797,27 +806,24 @@ for (const a of FINANCE_ACTIONS) {
     while (quarterIndex(s.time.startDate, s.time.day) === q0) tick(s, { skip: ['endings'] });
   };
   {
-    // Deterministic and seat by seat: the same state gives the same vote and draws no dice; the legacy nonprofit board
-    // removes a CEO more easily (half the reluctance), so on a "burning cash" grievance it musters more votes.
-    const s = board('nonprofitPBC', 22, 'down round');
+    // Deterministic and seat by seat: the same state gives the same vote and draws no dice; one reluctance under every
+    // board; the CEO does not vote and the founder directors vote no.
+    const s = board('mission', 22, 'down round');
     const rng0 = JSON.stringify(s.rng);
     const a = ousterVote(s);
     const b = ousterVote(s);
-    const legacy = board('nonprofitPBC', 22, 'down round');
-    legacy.player.board.preset = 'legacyNonprofit';
-    const l = ousterVote(legacy);
-    check(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(s.rng) === rng0 && a.seats.every((x) => x.kind !== 'founder') && a.live && l.reluctance === OUSTER.legacyMult * a.reluctance && l.yes > a.yes, 'FIN3b the ouster vote is deterministic and seat by seat; the legacy nonprofit board removes a CEO more easily (reluctance ×0.5)', `burning cash at 22: PBC ${a.yes}/${a.total} (${a.seats.map((x) => `${x.kind} ${x.lean.toFixed(2)}`).join(', ')}) · legacy ${l.yes}/${l.total}`);
-    const young = board('nonprofitPBC', 15, 'down round', 30);
-    check(!ousterVote(young).live && !ousterVote(board('nonprofitPBC', 30, 'down round')).live, 'FIN3b no ouster vote without confidence under 25 and a warning at least 60 days old');
+    check(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(s.rng) === rng0 && a.seats.every((x) => x.holder !== 'CEO' && (x.kind !== 'founder' || !x.yes)) && a.live && a.reluctance === OUSTER.reluctance, 'FIN3b the ouster vote is deterministic and seat by seat (one reluctance for every board; founder directors back the CEO)', `burning cash at 22: ${a.yes}/${a.total} (${a.seats.map((x) => `${x.kind} ${x.lean.toFixed(2)}`).join(', ')})`);
+    const young = board('mission', 15, 'down round', 30);
+    check(!ousterVote(young).live && !ousterVote(board('mission', 30, 'down round')).live, 'FIN3b no ouster vote without confidence under 25 and a warning at least 60 days old');
   }
   {
-    // At the review: a reckless CEO on the legacy nonprofit board is voted out, and loyal staff no longer reinstate
+    // At the review: a reckless CEO on a mission-controlled board is voted out, and loyal staff no longer reinstate
     // anyone; a slow CEO on the same mission board is shielded (the vote falls short and the game goes on).
-    const r = board('legacyNonprofit', 12, 'public incident');
+    const r = board('mission', 12, 'public incident');
     r.player.morale.overall = 95;
     const pre = ousterVote(r);
     toReview(r);
-    const slow = board('legacyNonprofit', 12, 'behind a rival');
+    const slow = board('mission', 12, 'behind a rival');
     const preSlow = ousterVote(slow);
     toReview(slow);
     check(pre.passes && r.flags['ws3.ousterDay'] !== undefined && !preSlow.passes && slow.flags['ws3.ousterDay'] === undefined, 'FIN3b at the review the vote shown beforehand decides: a reckless CEO is ousted (staff morale 95 does not reinstate); a mission board shields a slow one', `reckless ${pre.yes}/${pre.total} · slow ${preSlow.yes}/${preSlow.total}`);
@@ -825,20 +831,20 @@ for (const a of FINANCE_ACTIONS) {
   {
     // Give the critics a seat: below 40 only, once a year; the side driving the decline gets a director for good
     // (incidents → a mission seat; falling behind → an investor seat); +15 now; the board's mood weights move its way.
-    const s = board('nonprofitPBC', 50, 'public incident');
+    const s = board('mission', 50, 'public incident');
     const above = criticsAvailable(s);
     s.player.board.confidence = 35;
-    const n0 = s.player.board.seats.length;
+    const n0 = boardSeats(s).length;
     const w0 = moodWeight(s, 'incidents');
     const err = act(s, 'fin.critics', {});
-    const x = s.player.board.seats[s.player.board.seats.length - 1];
+    const x = boardSeats(s)[boardSeats(s).length - 1];
     s.player.board.confidence = 30;
     const again = criticsAvailable(s);
-    const i = board('nonprofitPBC', 35, 'behind a rival');
+    const i = board('mission', 35, 'behind a rival');
     const wb = moodWeight(i, 'behind');
     act(i, 'fin.critics', {});
-    const y = i.player.board.seats[i.player.board.seats.length - 1];
-    check(typeof above === 'string' && !err && s.player.board.seats.length === n0 + 1 && x.kind === 'mission' && moodWeight(s, 'incidents') > w0 && typeof again === 'string' && y.kind === 'financial' && moodWeight(i, 'behind') > wb && i.player.board.confidence === 35 + CRITICS.gain, 'FIN3b critics seat: below 40, once a year; incidents bring a mission director, falling behind an investor one; +15 now and the mood weights lean their way', `${x.holder}: incidents ×${w0.toFixed(2)} → ×${moodWeight(s, 'incidents').toFixed(2)} · ${y.holder}: behind ×${wb.toFixed(2)} → ×${moodWeight(i, 'behind').toFixed(2)} · again: ${again}`);
+    const y = boardSeats(i)[boardSeats(i).length - 1];
+    check(typeof above === 'string' && !err && boardSeats(s).length === n0 + 1 && x.kind === 'mission' && moodWeight(s, 'incidents') > w0 && typeof again === 'string' && y.kind === 'financial' && moodWeight(i, 'behind') > wb && i.player.board.confidence === 35 + CRITICS.gain, 'FIN3b critics seat: below 40, once a year; incidents bring a mission director, falling behind an investor one; +15 now and the mood weights lean their way', `${x.holder}: incidents ×${w0.toFixed(2)} → ×${moodWeight(s, 'incidents').toFixed(2)} · ${y.holder}: behind ×${wb.toFixed(2)} → ×${moodWeight(i, 'behind').toFixed(2)} · again: ${again}`);
   }
   {
     // Distress (spec §8): no morale hit; the board still minds each review in distress.
@@ -873,13 +879,13 @@ for (const a of FINANCE_ACTIONS) {
     } else check(false, 'FIN3b the IPO sells at most 5% at close', String(err));
   }
   {
-    // How often the committee bites on the reference bot: leader start (legacy nonprofit), recapitalised into a
-    // nonprofit PBC around Q4 2026; ready models it held back, through 2027.
+    // How often the committee bites on the reference bot: the leader start's mission body holds it from day 0; ready
+    // models it held back, through 2027.
     const pbc = ref.filter((r) => r.pbcDays > 0);
     const games = pbc.filter((r) => r.held.length > 0).length;
     const versions = pbc.reduce((a, r) => a + r.held.length, 0);
     const share = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
-    check(pbc.length > 0 && share <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(share)} of PBC weeks with a hold`);
+    check(pbc.length > 0 && share <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under a mission body: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games under a mission body · ${games} held a model · ${versions} versions held · median ${F1pct(share)} of weeks with a hold`);
   }
 }
 
@@ -889,9 +895,9 @@ for (const a of FINANCE_ACTIONS) {
   const E32 = EVENT_BY_ID.get('E32')!;
   const idx = (e: typeof E32, label: string) => e.choices.findIndex((c) => c.label === label);
   /** A fixture with a private rival out of money and its E32 offer pending; a rich, confident board unless told. */
-  const offer = (opts: { cash?: number; bc?: number; preset?: Parameters<typeof initialBoard>[0]; rivalV?: number } = {}) => {
+  const offer = (opts: { cash?: number; bc?: number; shape?: Shape; rivalV?: number } = {}) => {
     const s = fx();
-    if (opts.preset) s.player.board = initialBoard(opts.preset);
+    if (opts.shape) shape(s, opts.shape);
     s.player.board.confidence = opts.bc ?? 80;
     s.player.finance.cash = opts.cash ?? 2000;
     const r = s.rivals.find((x) => x.core.status === 'active' && x.finance.valuation > 0)!;
@@ -957,14 +963,14 @@ for (const a of FINANCE_ACTIONS) {
     const mp = vPoor[vPoor.length - 1];
     const need = (v: typeof m) => v.seats.find((x) => x.kind !== 'founder')!.parts.need;
     check(a.length === 1 && m.decision === 'merger' && m.passes && /after the deal/.test(m.needLabel) && JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(rich.s.rng) === rng0 && !mp.passes && need(mp) < need(m), 'FIN3c buying a rival needs the board\'s merger vote (deterministic), judged on the runway after the deal: flush it passes, spending the last cash on it fails', `rich ${m.yes}/${m.total} (${m.needLabel}) · poor ${mp.yes}/${mp.total} (${mp.needLabel})`);
-    // A failed vote makes the choice unavailable (nothing booked); founder control can force it at −20, shown first.
+    // A failed vote makes the choice unavailable (nothing booked); a founder majority can force it at −20, shown first.
     const no = offer({ bc: 0 });
     const ic = idx(E32, 'Pay cash');
     const why = E32.choices[ic].available!(no.s, no.d);
     const cash0 = no.s.player.finance.cash;
     const err = resolve(no.s, 'E32@t', ic);
     // Founder board at 25 with just the price in the bank: the vote fails (mood and a thin runway after the deal).
-    const fo = offer({ bc: 25, preset: 'founder' });
+    const fo = offer({ bc: 25, shape: 'founders' });
     fo.s.player.finance.cash = acquireTerms(fo.s, fo.r).price + 1;
     const fv = shownVote(acquireVotes(fo.s, acquireTerms(fo.s, fo.r), 'cash'))!;
     const fpv = E32.choices[ic].preview(fo.s, fo.d);
@@ -974,36 +980,34 @@ for (const a of FINANCE_ACTIONS) {
   }
   // Sale of control: only stock past 50% (the trust, then the board); never cash. If it goes through you lose the company.
   {
-    const { s, r, d } = offer({ preset: 'pbcTrust', rivalV: 1e6 });
+    const { s, r, d } = offer({ shape: 'mission', rivalV: 1e6 });
     const t = acquireTerms(s, r);
     const vs = acquireVotes(s, t, 'stock');
     const cashVs = acquireVotes(s, t, 'cash');
     const ist = idx(E32, 'Pay in stock');
     const why = E32.choices[ist].available!(s, d);
     const pv = E32.choices[ist].preview(s, d);
-    const small = offer({ preset: 'pbcTrust' });
+    const small = offer({ shape: 'mission' });
     const smallVs = acquireVotes(small.s, acquireTerms(small.s, small.r), 'stock');
-    check(t.stockFrac > 0.5 && vs[0].body === 'trust' && vs[0].decision === 'saleOfControl' && vs[1].decision === 'saleOfControl' && vs[1].body !== 'trust' && vs[vs.length - 1].decision === 'merger' && cashVs.every((v) => v.decision === 'merger') && smallVs.every((v) => v.decision === 'merger') && typeof why === 'string' && /trust votes no/.test(why) && pv.costs.some((c) => c.currency === 'freedom' && /ends the game/.test(String(c.target))), 'FIN3c a stock payment that hands its holders more than half the company is a sale of control: the trust votes first (PBC + trust), then the board; buying for cash, or for a small stake, is only a merger', `${(t.stockFrac * 100).toFixed(0)}%: ${vs.map((v) => `${v.body ?? 'board'} ${v.decision} ${v.yes}/${v.total}`).join(', ')} · ${why}`);
-    // Founder board (votes forced if they fail): the lab's holders end up in control, the 'acquired' ending.
-    const fo = offer({ preset: 'founder', bc: 90, rivalV: 1e6 });
+    check(t.stockFrac > 0.5 && vs[0].body === 'trust' && vs[0].decision === 'saleOfControl' && vs[1].decision === 'saleOfControl' && vs[1].body !== 'trust' && vs[vs.length - 1].decision === 'merger' && cashVs.every((v) => v.decision === 'merger') && smallVs.every((v) => v.decision === 'merger') && typeof why === 'string' && /mission body votes no/.test(why) && pv.costs.some((c) => c.currency === 'freedom' && /ends the game/.test(String(c.target))), 'FIN3c a stock payment that hands its holders more than half the company is a sale of control: the mission body votes first (under one), then the board; buying for cash, or for a small stake, is only a merger', `${(t.stockFrac * 100).toFixed(0)}%: ${vs.map((v) => `${v.body ?? 'board'} ${v.decision} ${v.yes}/${v.total}`).join(', ')} · ${why}`);
+    // A founder majority (votes forced if they fail): the lab's holders end up in control, the 'acquired' ending.
+    const fo = offer({ shape: 'founders', bc: 90, rivalV: 1e6 });
     const err = resolve(fo.s, 'E32@t', ist);
     tick(fo.s);
     check(!err && fo.s.ending?.id === 'acquired', 'FIN3c a sale of control by stock that goes through ends the game (acquired)', `${err ?? ''} ending ${fo.s.ending?.id}`);
   }
   // Deals: a partner past 50% now meets the board's own sale-of-control vote after the trust's (FIN3b wired the trust).
   {
-    const s = fx();
-    s.player.board = initialBoard('pbcTrust');
+    const s = shape(fx(), 'mission');
     const partner = 'Gulf Sovereign Fund';
     const own = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
     s.player.finance.ownership = structuredClone(own);
     const t = partnerTerms(s, partner);
     const vs = dealVotes(s, t);
-    const o = fx();
-    o.player.board = initialBoard('nonprofitPBC');
+    const o = shape(fx(), 'boardRun');
     o.player.finance.ownership = structuredClone(own);
     const ov = dealVotes(o, t);
-    check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the trust\'s, under PBC + trust)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
+    check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the mission body\'s, under one)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
   }
 }
 
@@ -1019,7 +1023,7 @@ for (const a of FINANCE_ACTIONS) {
     const nw = s.player.finance.deals.find((d) => d.partner === 'Northwind Cloud');
     const why = partnerBlocker(s, 'Northwind Cloud');
     const offers = partnerOffers(s);
-    check(!!nw?.legacy && JSON.stringify(nw.strings) === '{}' && !!why && /capped at 15%/.test(why) && !s.player.board.seats.some((x) => /observer/.test(x.holder)) && offers.filter((o) => !o.blocked).map((o) => o.partner).join(',') === 'Azimuth,Silica Systems,Corvid Micro,Gulf Sovereign Fund', 'FIN4a leader start: Northwind is a legacy holder above the 15% cap (no observer seat, no strings); the four other partners offer terms', `${why} · open: ${offers.filter((o) => !o.blocked).map((o) => o.partner).join(', ')}`);
+    check(!!nw?.legacy && JSON.stringify(nw.strings) === '{}' && !!why && /capped at 15%/.test(why) && !boardSeats(s).some((x) => /observer/.test(x.holder)) && offers.filter((o) => !o.blocked).map((o) => o.partner).join(',') === 'Azimuth,Silica Systems,Corvid Micro,Gulf Sovereign Fund', 'FIN4a leader start: Northwind is a legacy holder above the 15% cap (no observer seat, no strings); the four other partners offer terms', `${why} · open: ${offers.filter((o) => !o.blocked).map((o) => o.partner).join(', ')}`);
   }
   {
     // Hyperscaler on cloud: equity in three tranches; capacity priced on the expected cloud path less the firm discount
@@ -1030,7 +1034,7 @@ for (const a of FINANCE_ACTIONS) {
     const t = partnerTerms(s, 'Azimuth', { supply: 'cloud', exclusive: true });
     const sp = t.supply!;
     const pathOk = sp.prices.every((p, k) => near(p, expectedCloudPrice(s, 1 + k) * (1 - 0.1) * (1 - PARTNER_TERMS.hyperscaler.discount)));
-    const seats0 = s.player.board.seats.length;
+    const seats0 = boardSeats(s).length;
     const cash0 = s.player.finance.cash;
     // FIN4b: exclusivity is optional; this check signs it to keep testing the FIN4a string.
     const err = signPartner(s, ctx, 'Azimuth', { supply: 'cloud', exclusive: true });
@@ -1038,7 +1042,7 @@ for (const a of FINANCE_ACTIONS) {
     const led = s.player.finance.ledger.filter((c) => c.payee === 'Azimuth');
     const ledTotal = led.reduce((a, c) => a + c.perQuarter, 0);
     const tr = s.player.finance.tranches.filter((x) => x.partner === 'Azimuth');
-    check(!err && pathOk && sp.partnerDiscount === PARTNER_TERMS.hyperscaler.discount && sp.firmDiscount === 0.1 && sp.prices[0] > sp.prices[sp.prices.length - 1] && near(ledTotal, sp.total) && led.length === sp.quarters && led.every((c) => c.cancellableNoticeQ === null) && near(s.player.finance.cash - cash0, t.equityNow, 1e-3) && tr.length === 2 && tr.every((x) => /^gw:/.test(x.condition ?? '') && x.stakeCap === 0.15 && x.deadline! > x.dueDay) && s.player.board.seats.length === seats0 && !!d?.strings.exclusivity && d.strings.revenueShare === 0.08,
+    check(!err && pathOk && sp.partnerDiscount === PARTNER_TERMS.hyperscaler.discount && sp.firmDiscount === 0.1 && sp.prices[0] > sp.prices[sp.prices.length - 1] && near(ledTotal, sp.total) && led.length === sp.quarters && led.every((c) => c.cancellableNoticeQ === null) && near(s.player.finance.cash - cash0, t.equityNow, 1e-3) && tr.length === 2 && tr.every((x) => /^gw:/.test(x.condition ?? '') && x.stakeCap === 0.15 && x.deadline! > x.dueDay) && boardSeats(s).length === seats0 && !!d?.strings.exclusivity && d.strings.revenueShare === 0.08,
       'FIN4a hyperscaler cloud: priced on the expected path less the firm (10%) and partner (10%) discounts, the same take-or-pay schedule booked, equity now + two GW tranches under the 15% cap, exclusivity and revenue share, no board seat',
       `${f1(sp.h100e / 1e6)}M H100e · $${f1(sp.first)}K → $${f1(sp.last)}K/H100e-yr · take-or-pay $${f1(sp.total)}B · equity $${f1(t.equityNow)}B + 2 × $${f1(tr[0]?.amount ?? 0)}B`);
     // The preview shows what signing books: cash now, the first payment, the tranches with their conditions.
@@ -1107,19 +1111,18 @@ for (const a of FINANCE_ACTIONS) {
     check(vs.some((v) => v.decision === 'commitments') && firstYearCommit(t) > 0 && !dealVotes(rich, partnerTerms(rich, 'Azimuth', { supply: 'cloud' })).length, 'FIN4a a partner\'s take-or-pay above 3× revenue goes to the board (none when revenue covers it)', `first year $${f1(firstYearCommit(t))}B`);
   }
   {
-    // Rescue (distress only): cash for a 30% stake, two board seats and exclusivity; nothing else (no IP rights flag).
+    // Rescue (distress only): cash for a 30% stake that votes, and exclusivity; nothing else (no IP rights flag).
     const s = fx();
     s.player.finance.state = 'distress';
     s.player.board.confidence = 90;
     check(/Distress: only a rescue/.test(partnerBlocker(s, 'Azimuth') ?? ''), 'FIN4a in distress only a rescue is on offer');
-    const seats0 = s.player.board.seats.length;
     // FIN5a: the stake is the top-up to 30%, or more when the rescuer's own cash already takes it past (a legacy holder
     // near 30%, at the day-400 fixture's lower story mark): what the offer's stake-after says.
     const rp = rescuePartner(s)!;
     const after = partnerStakeAfter(s, partnerTerms(s, rp, { rescue: true }));
     const err = act(s, 'fin.rescue', {});
     const d = s.player.finance.deals.find((x) => x.rescue);
-    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
+    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.finance.stratVoting?.[d.partner] === true, 'FIN4a rescue: a 30% stake that votes (its seats follow its votes) and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
   }
   {
     // The reference bot's partner deal: a hyperscaler on cloud (Azimuth on the leader start), priced on the path.
@@ -1199,11 +1202,10 @@ for (const a of FINANCE_ACTIONS) {
       'FIN4b a signed IP access moves the affiliated lab lag a share of the way to the licensed model each day (npc/shocks.ts ipAccessDays); none without it', `${want.toExponential(2)} d a day`);
   }
   {
-    // PBC + trust (§7.2): IP access that would license a capability-threshold model needs the trust's transfer vote
+    // A mission body (§7.2): IP access that would license a capability-threshold model needs its transfer vote
     // (not forceable): a no stops the deal with IP access; without IP access it signs. A rescue's IP access is not
     // voted: its licence stops below the thresholds.
-    const s = withLabs(fx());
-    s.player.board = initialBoard('pbcTrust');
+    const s = shape(withLabs(fx()), 'mission');
     const best = licensedModel(s)!;
     // FINM: the model-v3 day-400 fixture's best version crossed no threshold (RefBot's RL focus there sets no danger
     // flag), so the test marks it as a capability-threshold model.
@@ -1218,7 +1220,7 @@ for (const a of FINANCE_ACTIONS) {
     s.player.finance.state = 'distress';
     const rt = partnerTerms(s, 'Northwind Cloud', { rescue: true });
     check(capabilityThresholds(best).length > 0 && !!v && v.body === 'trust' && !v.passes && !v.canForce && vs[0] === v && !!err && nothing && ok2 && !!rt.strings.ipAccess && !rt.strings.ipAccess.trust && !dealVotes(s, rt).some((x) => x.decision === 'transferModel') && licensedGap(s, rt.strings.ipAccess.lab, true) <= licensedGap(s, rt.strings.ipAccess.lab),
-      'FIN4b PBC + trust: IP access to a capability-threshold model goes to the trust\'s transfer vote (first, not forceable); its no stops the deal, which signs without IP access; a rescue\'s licence stops below the thresholds', `${best.name}: ${capabilityThresholds(best).join(', ')} · trust ${v?.yes}/${v?.total} · ${err}`);
+      'FIN4b a mission body: IP access to a capability-threshold model goes to its transfer vote (first, not forceable); its no stops the deal, which signs without IP access; a rescue\'s licence stops below the thresholds', `${best.name}: ${capabilityThresholds(best).join(', ')} · trust ${v?.yes}/${v?.total} · ${err}`);
   }
   {
     // A strategic partner's guarantee opens leases below B: the B rate + 3 points, named on the lease option; a stake from
@@ -1381,8 +1383,7 @@ for (const a of FINANCE_ACTIONS) {
   {
     // H2: a tiny round's promise weighs little: weight = amount ÷ max(raised in the year, a typical round at the close);
     // stacking stays weight-neutral for normal rounds.
-    const s = fx();
-    s.player.board = initialBoard('pbcTrust');
+    const s = shape(fx(), 'mission');
     s.player.finance.state = 'healthy';
     act(s, 'fin.raise', { ask: 0.1, type: 'scale', pitch: 'base' });
     const pre = s.player.finance.ws3.pendingRound!.preMoney;
@@ -1402,8 +1403,7 @@ for (const a of FINANCE_ACTIONS) {
   {
     // H3: a round of $20B or more pays half at the close; every preview shows the tranche; a lapse cancels the unpaid
     // shares (as if half the round had been raised at the same price); the IPO and the distress down round pay in full.
-    const s = fx();
-    s.player.board = initialBoard('pbcTrust');
+    const s = shape(fx(), 'mission');
     s.player.finance.state = 'healthy';
     const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.raise')!.preview(s, { ask: 40, type: 'scale', pitch: 'base' });
     const cash = pv.gains.filter((g) => g.currency === 'cash');
@@ -1412,18 +1412,16 @@ for (const a of FINANCE_ACTIONS) {
     const ipo = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.preview(s, { ask: 40 }).gains.filter((g) => g.currency === 'cash');
     check(cash.length === 2 && near(cash[0].amount, 20) && near(cash[1].amount, 20) && /tranche: if revenue run-rate reaches/.test(String(cash[1].target)) && near(cash[1].lagDays ?? 0, sp.tranche!.dueDay - s.time.day) && ipo.length === 1 && near(ipo[0].amount, 40), 'FIN4r H3 the raise preview shows cash at the close and the conditional tranche (amount, condition, deadline); the IPO pays in full', cash.map((c) => `$${f1(c.amount)}B in ${c.lagDays}d ${c.target}`).join(' · '));
     // The booking matches the preview; a lapse cancels the unpaid shares.
-    const a = fx();
-    a.player.board = initialBoard('pbcTrust');
+    const a = shape(fx(), 'mission');
     const P = a.player.finance.valuation;
     const now = bookRound(a, makeCtx(a), 40, P);
     const t = a.player.finance.tranches[a.player.finance.tranches.length - 1];
-    const sp2 = roundSplit(fx(), 40);
+    const sp2 = roundSplit(shape(fx(), 'mission'), 40);
     t.condition = 'revenue:1e9';
     t.deadline = dayOfQuarter(a.time.startDate, qOf(a) + 1);
     while (a.time.day < t.deadline) tick(a, { skip: ['endings', 'director', 'capitalQ'] });
     capitalQSystem.run(a, makeCtx(a));
-    const b = fx();
-    b.player.board = initialBoard('pbcTrust');
+    const b = shape(fx(), 'mission');
     bookRound(b, makeCtx(b), 20, P, { full: true });
     const o = a.player.finance.ownership;
     const ob = b.player.finance.ownership;
@@ -1522,8 +1520,7 @@ for (const a of FINANCE_ACTIONS) {
   }
   {
     // L2: the partner preview sums the force cost of every failing vote it forces.
-    const s = fx();
-    s.player.board = initialBoard('founder');
+    const s = shape(fx(), 'founders');
     s.player.board.confidence = 0;
     s.player.finance.state = 'distress';
     s.player.finance.cash = 1e4;
@@ -1551,7 +1548,7 @@ for (const a of FINANCE_ACTIONS) {
     // L4: the IPO's dual-class discount is a valuation line, not cash. L5: a raise's anchor must be on offer.
     const s = fx();
     const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.preview(s, { dualClass: true });
-    s.player.board = initialBoard('pbcTrust');
+    shape(s, 'mission');
     s.player.finance.state = 'healthy';
     const err = act(s, 'fin.raise', { ask: 1, anchor: 'Not a partner' });
     check(pv.exposure.some((e) => e.currency === 'valuation' && e.amount < 0) && !pv.exposure.some((e) => e.currency === 'cash' && /dual-class/.test(String(e.target))) && typeof err === 'string' && !s.player.finance.ws3.pendingRound, 'FIN4r L4/L5 the dual-class discount is shown on the valuation (not cash); a raise\'s anchor must be one on offer', `${err}`);
@@ -1568,14 +1565,11 @@ for (const a of FINANCE_ACTIONS) {
     check(near(m1, m0) && near(m2 - m1, 3e5), 'FIN4r L6 the scale milestone counts owned and firm compute, not spot rentals or cancellable cloud', `${f1(m0 / 1e3)}k → ${f1(m1 / 1e3)}k (spot + cancellable) → ${f1(m2 / 1e3)}k (firm)`);
   }
   {
-    // L8: the critics' investor director does not take the place of a founder preset's ownership seat.
-    const s = fx();
-    s.player.board = initialBoard('founder');
-    s.player.board.seats.push({ kind: 'financial', holder: `${CRITICS_INVESTOR} (2026)`, stance: [1, 1, 0, 0], weight: 1 });
-    s.player.finance.ownership.fin = 0.2;
-    const n0 = s.player.board.seats.length;
-    syncFinancialSeats(s);
-    check(s.player.board.seats.length === n0 + 1, 'FIN4r L8 the critics\' investor director is not one of the founder preset\'s ownership seats', s.player.board.seats.map((x) => x.holder).join(', '));
+    // L8 (C2): the critics' investor director sits on top of the seats votes elect, never in place of one.
+    const s = shape(fx(), 'founders');
+    const n0 = boardSeats(s).length;
+    s.player.board.extraSeats.push({ kind: 'financial', holder: `${CRITICS_INVESTOR} (2026)`, stance: [1, 1, 0, 0], weight: 1 });
+    check(n0 === 7 && boardSeats(s).length === n0 + 1 && boardSeats(s).filter((x) => x.kind === 'financial').length === 2, 'FIN4r L8 the critics\' investor director is not one of the seats votes elect', boardSeats(s).map((x) => x.holder).join(', '));
   }
   {
     // L10: an unpaid maturity no longer skips the covenant tests (the chip-loan sweep still runs).
@@ -1659,7 +1653,7 @@ for (const a of FINANCE_ACTIONS) {
     s.player.finance.dualClass = true;
     const w1 = storyShares(s)[0].weight;
     // (FIN5b: rivals' valuations are now marked from the same split; checked in the FIN5b block.)
-    check(me.id === 'player' && labs.length === priv.length + 1 && labs.slice(1).every((a) => priv.includes(a.id)) && near(sum, 1, 1e-9) && ok && near(w1 / w0, DUAL_CLASS_GOV, 1e-9) && near(me.gov, GOV_FACTOR[s.player.board.preset], 1e-9), 'FIN5a share = cred · gov · exp(z/τ) ÷ Σ over the private labs (big-tech and parent-funded labs out); dual-class ×0.95 on the weight', `${labs.map((a) => `${a.id} ${F1pct(a.share)}`).join(' · ')}`);
+    check(me.id === 'player' && labs.length === priv.length + 1 && labs.slice(1).every((a) => priv.includes(a.id)) && near(sum, 1, 1e-9) && ok && near(w1 / w0, CHARTER_APPEAL.dualClass, 1e-9) && near(me.gov, appealOf(s.player.charter), 1e-9), 'FIN5a share = cred · gov · exp(z/τ) ÷ Σ over the private labs (big-tech and parent-funded labs out); dual-class ×0.95 on the weight', `${labs.map((a) => `${a.id} ${F1pct(a.share)}`).join(' · ')}`);
   }
   {
     // Drivers: position against the best public model of any other lab, in 2-level units; a lab with no public model
@@ -1753,8 +1747,8 @@ for (const a of FINANCE_ACTIONS) {
     const rung = (back: number) => { h.splice(0, h.length, back, back, back, back); return rivalCred(s, r); };
     const up = rung(R / 2), down = rung(R / 0.7), halved = rung(R / 0.4);
     const w = storyShares(s).find((a) => a.id === r.core.id)!;
-    const govs = (['safety', 'maverick', 'upstart', 'leader'] as const).map((k) => GOV_FACTOR[RIVAL_GOV[k]]);
-    check(up.mult === 1 && down.mult === 0.9 && halved.mult === 0.7 && w.cred === halved.mult && w.rung === 'Doubted' && w.gov === rivalGov(r) && govs.join(',') === '1,1.1,1.1,0.9' && near(w.weight, w.cred * w.gov * Math.exp(w.z / STORY.tau), 1e-12), 'FIN5b a rival\'s credibility comes from one rule (revenue up over four quarters: Credible ×1, down: Unproven ×0.9, halved: Doubted ×0.7) and its governance from its kind (safety PBC + trust ×1, maverick and upstart founder ×1.1, leader lab nonprofit PBC ×0.9), both in its weight', `growth ×${up.growth.toFixed(1)} ${up.id} · ×${down.growth.toFixed(2)} ${down.id} · ×${halved.growth.toFixed(2)} ${halved.id}`);
+    const govs = (['safety', 'racer', 'upstart', 'leader'] as const).map((k) => appealOf(RIVAL_CHARTER[k]));
+    check(up.mult === 1 && down.mult === 0.9 && halved.mult === 0.7 && w.cred === halved.mult && w.rung === 'Doubted' && w.gov === rivalGov(r) && govs.join(',') === '0.9,1,1,0.9' && near(w.weight, w.cred * w.gov * Math.exp(w.z / STORY.tau), 1e-12), 'FIN5b a rival\'s credibility comes from one rule (revenue up over four quarters: Credible ×1, down: Unproven ×0.9, halved: Doubted ×0.7) and its governance from the charter of its kind (safety and leader labs a mission body ×0.9, racer and upstart founder-led ×1), both in its weight', `growth ×${up.growth.toFixed(1)} ${up.id} · ×${down.growth.toFixed(2)} ${down.id} · ×${halved.growth.toFixed(2)} ${halved.id}`);
   }
   {
     // The bust's push (FIN3c gap): the most over-committed private rival raises nothing that quarter, is in distress

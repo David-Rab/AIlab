@@ -21,7 +21,6 @@ import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
 import { initialSites } from '../compute/sites';
 import { staffOf, startTeams } from '../departments/teams';
-import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
 import { startStory } from '../finance/story';
@@ -49,8 +48,6 @@ import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
   Deployment, DomainId, EvalRecord, GameStateV2, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
-  Charter,
-  GovernancePresetId,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
 import { seedStreams, stream } from './rng';
@@ -58,7 +55,8 @@ import { Phi, bisect, tasteSigma } from '../production/ces';
 import { P0, W0, W_STAR0, STAR_TOP_PERCENTILE, STAR_EMPLOYER0, STAR_FIRST_NAMES, STAR_LAST_NAMES, BASE_TASTE_FLOOR } from '../../../data/v2/labourMarket';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
-import { startBoard, startCompute, startFinance } from './starts';
+import { startCompute, startFinance } from './starts';
+import { startCharter } from '../finance/control';
 import { START_DATE } from './time';
 import { initialUsgov } from '../world/usgov';
 import { initialChinagov } from '../world/chinagov';
@@ -69,7 +67,6 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     world,
     alignment: 'sampled',
     cast: 'realistic',
-    governance: 'legacyNonprofit',
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
@@ -241,9 +238,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     security: initialSecurity(staff, def.securityLevel),
     actionDay: {},
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
-    finance: compute ? startFinance(def, compute) : initialFinance(setup.governance, startDate),
-    board: leader ? initialBoard(setup.governance) : startBoard(def),
-    charter: initialCharter(setup.governance),
+    finance: compute ? startFinance(def, compute) : initialFinance(startDate),
+    board: { confidence: 70, extraSeats: [] },
+    charter: startCharter(def),
     sites: compute ? compute.sites : initialSites(startDate),
     orders: compute ? [] : initialOrders(),
     cloud: compute ? compute.cloud : initialCloud(startDate),
@@ -302,18 +299,11 @@ export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, player: Pi
   };
 }
 
-/** The charter a governance preset starts with (design/corp/CORPORATE.md §2). */
-function initialCharter(g: GovernancePresetId): Charter {
-  const mission = g === 'legacyNonprofit' || g === 'nonprofitPBC' || g === 'pbcTrust';
-  return { missionBody: mission, profitCap: g === 'legacyNonprofit', goldenShare: false, stateControl: false };
-}
-
 export function newGame(setupIn: SetupV2): GameStateV2 {
   // R1 setup fields: callers built before them (older UI drafts, scripts) get today's start.
-  // R9: the start type sets the leader lab (D1) unless the caller sets it, and (other than the leader's) the board.
+  // R9: the start type sets the leader lab (D1) unless the caller sets it, and the cap table and charter.
   const start = setupIn.start ?? 'leader';
-  const def = START_BY_ID[start];
-  const setup: SetupV2 = { ...setupIn, start, ...(start === 'leader' ? {} : { governance: def.board }) };
+  const setup: SetupV2 = { ...setupIn, start };
   const startDate = START_DATE;
   const rngState = seedStreams(setup.seed);
   const worldRng = new Rng(rngState.world);

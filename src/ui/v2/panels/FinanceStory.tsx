@@ -3,7 +3,7 @@
 // owe). One card, one selector (engine storyNow). FIN5b: home of the private rivals' valuations (their bars' tooltips).
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { capMultiple, credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, RIVAL_GOV, STORY, storyNow } from '../../../engine/v2';
+import { capMultiple, credRung, dateOf, dayOfQuarter, DRIVERS, fmtDate, qOf, RIVAL, rivalStructure, STORY, storyNow, structureLabel } from '../../../engine/v2';
 import type { Driver, GameStateV2, LabStory, StoryNow } from '../../../engine/v2';
 import { Term, Tip, TipCard, Why } from '../ui';
 import { Card, GoBtn } from '../kit';
@@ -11,7 +11,6 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 
-const PRESET: Record<string, string> = { legacyNonprofit: 'legacy nonprofit', nonprofitPBC: 'nonprofit PBC', pbcTrust: 'PBC + trust', founder: 'founder', parent: 'parent' };
 const X = (x: number) => `×${x.toFixed(2)}`;
 const tone = (x: number) => (x > 1.005 ? 'tone-pos' : x < 0.995 ? 'tone-neg' : '');
 
@@ -97,7 +96,7 @@ const capWhy = (a: LabStory) => (a.revenue < STORY.preRevenue || (a.cap ?? 0) <=
 
 /** FIN6b: a rival's story details, one level down from its bar's tooltip (hover "details"). */
 function RivalWhy({ s, a }: { s: GameStateV2; a: LabStory }) {
-  const gov = PRESET[RIVAL_GOV[s.rivals.find((r) => r.core.id === a.id)?.npc.kind ?? ''] ?? 'pbcTrust'];
+  const gov = rivalStructure(s.rivals.find((r) => r.core.id === a.id)?.npc.kind ?? '');
   return (
     <Tip content={() => <TipCard title={`${a.name}: its story`} value={`weight ${a.weight.toFixed(2)}`} rows={[
       { label: 'Best public level', value: `L ${F.level(a.level)}${a.floored ? ' (open-weight)' : ''}` },
@@ -204,8 +203,8 @@ export function StoryCard({ s }: { s: GameStateV2 }) {
         <FactorTile label="Investor credibility" term="investorCred" icon={ICON.board} x={me.cred} you={rung.id} refTo={<span data-ref="investorCred"> · in What we owe</span>}>
           Investor credibility's rung (Doubted ×0.7, Unproven ×0.9, Credible ×1, Proven ×1.15). Its score and the promises that move it are in What we owe.
         </FactorTile>
-        <FactorTile label="Governance" term="govFactor" icon={ICON.exec} x={me.gov} you={`${PRESET[s.player.board.preset] ?? s.player.board.preset}${f.dualClass ? ', dual-class' : ''}`}>
-          Legacy capped-profit nonprofit ×0.6, nonprofit PBC ×0.9, PBC + trust ×1, founder ×1.1; dual-class shares ×0.95 more. Rivals by kind (their bars' details).
+        <FactorTile label="Governance" term="govFactor" icon={ICON.exec} x={me.gov} you={`${structureLabel(s)}${s.player.charter.profitCap ? ', profit cap' : ''}${f.dualClass ? ', dual-class' : ''}`}>
+          The charter's appeal to investors: a profit cap ×0.67, a mission body ×0.9, dual-class shares ×0.95, otherwise ×1. Rivals by kind (their bars' details).
         </FactorTile>
       </div>
       <div className="fin-foot">

@@ -179,12 +179,13 @@ export type { PromiseStatus, Trend } from './finance/promises';
 export { raiseQuote, raiseTerms } from './finance/actions';
 export { canIpo, isListed, LARGE_ROUND, roundSplit } from './finance/equity';
 // FIN5a: the story (sector value × share), the investor pool and supplier terms.
-export { storyNow, sectorValue, STORY, SUPPLIER, DRIVERS, DUAL_CLASS_GOV, supplierTerms, poolAnnualOf } from './finance/story';
+export { storyNow, sectorValue, STORY, SUPPLIER, DRIVERS, supplierTerms, poolAnnualOf } from './finance/story';
 export type { StoryNow, LabStory, SectorValue, Driver, SupplierTerms } from './finance/story';
-export { RIVAL, RIVAL_GOV, capMultiple, valueCap } from './finance/rivalFinance';
+export { RIVAL, RIVAL_CHARTER, rivalStructure, capMultiple, valueCap } from './finance/rivalFinance';
 export { raceResponseOf } from './npc/lab';
 // FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
-export { boardVote, founderControl, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
+export { boardSeats, missionPowers, overrideAvailable, ownerFunded, startControl, structureLabel } from './finance/control';
+export { boardVote, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
 export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';
 export type { MoodSource } from './finance/mood';
 /** The board vote an action needs with these params (FIN3a), or undefined (never throws). */

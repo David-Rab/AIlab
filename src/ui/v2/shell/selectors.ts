@@ -4,7 +4,7 @@ import { activeRivals, dateOf, dayOfQuarter, engine, leadDays, OUSTER_BC, OUSTER
 import type { DivisionView, GameStateV2, ProductRead, RiskSource } from '../../../engine/v2';
 import * as F from '../fmt';
 import { runwayState } from '../theme';
-import { isDivision } from '../../../data/v2/starts';
+import { ownerFunded } from '../../../engine/v2';
 
 export function nearestRival(s: GameStateV2) {
   const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
@@ -21,7 +21,7 @@ export function catRisk(s: GameStateV2) {
  *  (big-tech start) cannot go broke: the parent covers any shortfall, so it never shows a runway alarm (jank F2). */
 export function runwayLive(s: GameStateV2) {
   const rw = runwayOf(s);
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const live = division ? 'healthy' : runwayState(rw.q);
   const official = s.player.finance.state;
   const review = dateOf(s, dayOfQuarter(s.time.startDate, qOf(s) + 1));
@@ -37,7 +37,7 @@ export function boardReview(s: GameStateV2) {
   const bc = s.player.board.confidence;
   const warn = s.player.finance.ws3?.boardWarnDay;
   const live = bc < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
-  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s), division: isDivision(s) };
+  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s), division: ownerFunded(s) };
 }
 
 /** A big-tech division's budget year in words (jank F2, FIN5c): the top strip, the core loop and the Parent budget card

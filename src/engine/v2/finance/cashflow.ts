@@ -7,10 +7,10 @@
 // (on delivery, marketQ) and site capex (by stage, sitesQ). Security spend and the transition fund are charged ONLY
 // here (WS4 keeps the security effects, WS5 the fund's effects on workers). Other workstreams book one-off costs
 // through `bookCash` themselves (WS1 run cash at launch, WS4 action/event costs) and must not deduct the items above.
-import { isDivision } from '../../../data/v2/starts';
 import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
+import { ownerFunded } from './control';
 import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
 import { ensureWs3, revenueShareRate, yearStats } from './ext';
@@ -32,7 +32,7 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
   }
   f.ws3.negativeSinceDay ??= s.time.day;
   // A division cannot go broke (R9): the parent carries the overdraft against its next payment.
-  if (isDivision(s)) return;
+  if (ownerFunded(s)) return;
   if (f.state !== 'insolvent' && s.time.day - f.ws3.negativeSinceDay >= INSOLVENCY_GRACE_DAYS) {
     f.state = 'insolvent';
     ctx.log('alert', `Insolvent: cash has been negative for ${INSOLVENCY_GRACE_DAYS} days with no options left.`, 5);

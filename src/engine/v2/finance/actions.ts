@@ -7,7 +7,7 @@ import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, 
 import { addCommunityPackage, campusMW, newSite, oppositionOdds, siteBuildingLiveInQ, siteCapex, siteSchedule, siteSizeError, type SiteOpts } from '../compute/sites';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, PartnerTerms, Pitch, Site, SystemCtx } from '../types';
-import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, founderControl, giveCriticsSeat, voteCost, voteGate } from './board';
+import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, giveCriticsSeat, voteCost, voteGate } from './board';
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
@@ -19,7 +19,9 @@ import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
-import { DUAL_CLASS_GOV, supplierTerms } from './story';
+import { supplierTerms } from './story';
+import { CHARTER_APPEAL, missionPowers, overrideAvailable, seatsOf, type ControlView } from './control';
+import { issue } from './equity';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -132,14 +134,22 @@ const ipo: ActionDef = {
     const gains: CostLine[] = roundCashLines(s, ask, s.time.day + nextQDays(s), true);
     const exposure: CostLine[] = [];
     if (dual) {
-      gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder votes keep control (you can force board decisions)' });
+      gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder shares carry ×10 votes' });
       // FIN4r (L4): a discount on the valuation mark, not cash. FIN5a: the factor is on the lab's weight in the story
       // share, so the valuation falls by 1 − k / (k·share + 1 − share) at today's share.
       const sh = s.capital.ws3?.playerShare ?? 0;
-      const drop = 1 - DUAL_CLASS_GOV / (DUAL_CLASS_GOV * sh + 1 - sh);
-      exposure.push({ currency: 'valuation', amount: -Math.round(drop * s.player.finance.valuation), target: `governance ×${DUAL_CLASS_GOV} on your share at every mark (−${(drop * 100).toFixed(1)}% of the valuation at today's share; no cash moves)` });
-    } else if (founderControl(s)) costs.push({ currency: 'freedom', amount: -1, target: 'founder control ends: no more forcing board decisions' });
-    costs.push({ currency: 'freedom', amount: -1, target: 'a listing independent joins the board' });
+      const k = CHARTER_APPEAL.dualClass;
+      const drop = 1 - k / (k * sh + 1 - sh);
+      exposure.push({ currency: 'valuation', amount: -Math.round(drop * s.player.finance.valuation), target: `governance ×${k} on your share at every mark (−${(drop * 100).toFixed(1)}% of the valuation at today's share; no cash moves)` });
+    }
+    // The board after the listing: public holders elect seats by their votes (control.ts seatsOf).
+    const f0 = s.player.finance;
+    const own = { ...f0.ownership, strat: { ...f0.ownership.strat } };
+    issue(own, r.dilution, { kind: 'public' });
+    const after: ControlView = { player: { finance: { ownership: own, stratVoting: f0.stratVoting, dualClass: dual || f0.dualClass }, charter: s.player.charter } };
+    if (overrideAvailable(s) && !overrideAvailable(after)) costs.push({ currency: 'freedom', amount: -1, target: 'the override ends: your founders no longer hold most of the votes' });
+    const pub = seatsOf(after).filter((x) => x.kind === 'independent').length;
+    if (pub > 0) costs.push({ currency: 'freedom', amount: -pub, target: `public holders elect ${pub} independent director${pub > 1 ? 's' : ''}` });
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
     return { costs, gains, exposure };
   },
@@ -299,10 +309,10 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const lead = leadEstimate(s, ip.lab);
     const name = t.options.ipAccess.labName ?? ip.lab;
     const days = PARTNER_TERMS.strings.ipCloseYr * Math.max(0, lead);
-    const below = s.player.board.preset === 'pbcTrust' && !ip.trust ? "; capability-threshold models stay out without the trust's yes" : '';
+    const below = missionPowers(s) && !ip.trust ? "; capability-threshold models stay out without the mission body's yes" : '';
     costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
-  if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
+  if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `${t.partner}'s stake votes (its seats follow its votes), and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }
@@ -330,7 +340,7 @@ const partner: ActionDef = {
   vote: partnerVote,
   preview(s, p) {
     const v = dealPreview(s, termsOf(s, p));
-    // FIN4r (L2): every failing vote founder control forces costs its −20 (signPartner forces each in turn).
+    // FIN4r (L2): every failing vote the override forces costs its −20 (signPartner forces each in turn).
     return { ...v, costs: [...v.costs, ...dealVotes(s, termsOf(s, p)).flatMap((x) => voteCost(x, bool(p, 'force')))] };
   },
   apply(s, ctx, p) {
@@ -437,7 +447,7 @@ const recap: ActionDef = {
   id: 'fin.recap', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Recapitalise',
   available: (s) => {
     const f = s.player.finance;
-    if (s.player.board.preset !== 'legacyNonprofit') return 'Only for the capped-profit nonprofit';
+    if (!s.player.charter.profitCap) return 'Only under a profit cap';
     if (f.ws3?.recap.startDay !== undefined || f.ws3?.recap.refused) return 'Already decided';
     if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025 (E02)';
     return true;
