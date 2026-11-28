@@ -21,11 +21,14 @@ with its source and band, one home per target. It does not live in a test.
 
 A sanity bound must be loose enough that tuning can't break it, and tight enough that a real bug does.
 
-**One home per target.** Every sourced band is written once, in `balance/targets.ts` (the target registry, the balance
-session's file; `npm run registry:lint` checks it). The calibration report, the back-of-envelope estimates and the
-dashboards refer to a target by its id and read band, unit and source from there. No band literal anywhere else. A
-missing target is added to the registry with its source (paper, dataset or official figure), band, unit and
-tolerance.
+**One home per target.** Every sourced value is written once, in `balance/scenarios.ts` (history and per-timeline
+checkpoints, each with its source). Every target is written once, in `balance/targets.ts` (the target registry): its
+band, tolerance and how it is measured; a target whose band comes from a sourced value names that checkpoint by id and
+holds no copy of the number (balance/schema.ts). Both are the balance session's files; `npm run registry:lint` and
+`npm run scenarios:lint` check them. The calibration report, the back-of-envelope estimates and the dashboards refer to
+a target by its id and read band, unit and source through `bandOf` / `rowOf` (scripts/v2/calreport/types.ts). No band
+literal anywhere else. A missing target is added with its source (paper, dataset or official figure), band, unit and
+tolerance: the sourced value as a checkpoint, the band and tolerance as a target.
 
 **Back-of-envelope estimates.** These are pure calculations: the engine's own functions and parameters evaluated on
 sourced reference inputs (the reference curves, the start tables), compared to the registry target. **No games, no

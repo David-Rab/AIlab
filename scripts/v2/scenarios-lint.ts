@@ -1,5 +1,6 @@
 // Scenarios lint (design/bal/SCENARIOS.md). Run: npm run scenarios:lint
-// Checks balance/scenarios.ts: unique ids, layer/timeline/align consistency, targetId in balance/targets.ts, lo <= value <= hi, p10 <= lo and hi <= p90, neverBy2100 in 0..1,
+// Checks balance/scenarios.ts: unique ids, layer/timeline/align consistency, no targetId (a target names its checkpoint, balance/schema.ts),
+// every Target.checkpoint in balance/targets.ts names a checkpoint here, lo <= value <= hi, p10 <= lo and hi <= p90, neverBy2100 in 0..1,
 // a milestone checkpoint per timeline, history dates <= 2027.0. Prints counts per layer, timeline and status. Exit 1 on any error.
 import { ALIGNMENT_LEVELS, CHECKPOINTS, TIMELINES } from '../../balance/scenarios';
 import type { Checkpoint } from '../../balance/scenarios';
@@ -9,7 +10,6 @@ import { check, finish } from './lib';
 const errors: string[] = [];
 const err = (c: Checkpoint, msg: string) => errors.push(`${c.id}: ${msg}`);
 
-const targetIds = new Set(TARGETS.map((t) => t.id));
 const timelineIds = new Set<string>(TIMELINES.map((t) => t.id));
 const levelIds = new Set<string>(ALIGNMENT_LEVELS.map((l) => l.id));
 
@@ -38,7 +38,8 @@ for (const c of CHECKPOINTS) {
   } else err(c, `unknown layer ${String(c.layer)}`);
 
   // targets
-  if (c.targetId !== undefined && !targetIds.has(c.targetId)) err(c, `targetId ${c.targetId} is not in TARGETS`);
+  // targets: the reference runs one way (balance/schema.ts): a target names its checkpoint, never the reverse
+  if ('targetId' in c) err(c, 'has targetId: a target names its checkpoint (Target.checkpoint in balance/targets.ts), not the other way');
 
   // numbers
   const { lo, hi, value } = c;
@@ -70,6 +71,9 @@ for (const c of CHECKPOINTS) {
   if (!c.sourceRef) err(c, 'sourceRef is empty');
   if (!c.unit) err(c, 'unit is empty');
 }
+
+// Every checkpoint a target names exists.
+for (const t of TARGETS) for (const id of t.checkpoint === undefined ? [] : ([] as string[]).concat(t.checkpoint)) if (!seen.has(id)) errors.push(`target ${t.id}: checkpoint ${id} is not in CHECKPOINTS`);
 
 // Every timeline has at least one milestone checkpoint (with a value).
 for (const t of TIMELINES) {

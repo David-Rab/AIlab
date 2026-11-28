@@ -7,7 +7,7 @@ Chunk files: `src/engine/v2/worldfx/*` (18 files). Sector data tables in `src/da
 
 | id | question | evidence |
 |---|---|---|
-| Q-worldfx-1 | `HYPE.rev` / `HYPE.level` carry both `[D]` and fit tags. Designer values, or fitted to the "+30% in 2026" Dow target (T `W.equity2026`)? Registered `unclear`. | macro.ts:28-29 "Hype index weights ... [D, fit]"; macro.ts:173 "[D, fitted to \"+30% in 2026\"]". No fit script named. |
+| Q-worldfx-1 | `HYPE.rev` / `HYPE.level` carry both `[D]` and fit tags. Designer values, or fitted to the "+30% in 2026" Dow target (T `W.equity2026` (deleted 2026-11-28, H))? Registered `unclear`. | macro.ts:28-29 "Hype index weights ... [D, fit]"; macro.ts:173 "[D, fitted to \"+30% in 2026\"]". No fit script named. |
 | Q-worldfx-2 | `ACCEPT.base/gain/spread/rate` are tagged "[D, fit §7.3]". Is "fit §7.3" a fit (to what, with which script) or a pointer to V2-SPEC §7.3? Only `mid` is explicitly refit (G1, target `W.govAccept85`); registered `fitted`, the other four `unclear`. | control.ts:21-30; design/notes/G1.md |
 | Q-worldfx-3 | `ROBOT.sezRampYears` is 1.5 but the [A27] source text it sits under says the ramp reaches 1M/month "within about a year" (`sezRampPerYear` 10.8e6 is the one-year-ramp rate). Intended? | robots.ts:9 vs :26-27 |
 | Q-worldfx-4 | The same real-world numbers are written in several places with no shared constant: regional baseline growth (G_BASE 0.018/0.04/0.028 vs sectors.ts:381 `gAI` inline; start-state macro growth 0.02/0.045/0.028 at sectors.ts:217), start GDP (GDP0 vs sectors.ts:217 `macro(30000, ...)`), Dow 44000 (DOW0 vs sectors.ts:218). A rebalancer that moves one will desync the others. Register as one linked parameter, or refactor to one constant? | macro.ts:23,27,28; sectors.ts:217-218, 381 |

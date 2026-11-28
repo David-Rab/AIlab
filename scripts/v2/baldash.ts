@@ -19,6 +19,7 @@ import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
 import { LAB_KINDS } from '../../src/data/v2/starts';
 import { loadLive, type LiveOpts } from './baldash-live';
 import { calibrateRun, parseMap, readRecs, type RunCalib } from './calibscore';
+import { bandOfEntry } from './calreport/types';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../..');
@@ -136,6 +137,9 @@ async function main() {
     world: { 'tl-fast': 'Fast', 'tl-central': 'Central', 'tl-slow': 'Slow' },
   };
   const scen = await loadScenarios(scenarios);
+  // A target that names a scenario checkpoint holds no numbers of its own: show its resolved band (calreport/types.ts bandOfEntry).
+  const cpById = new Map(scen.checkpoints.map((c) => [c.id, c]));
+  const shownTargets = targets.map((t) => { const { lo, hi, p50, unit } = bandOfEntry(t, cpById); return { ...t, value: { lo, hi, p50, unit } }; });
   let liveInfo: Record<string, unknown> | null = null;
   let finished = false; // every forecast job is done: the page needs no refresh
   if (live) { // the live clusters replace the timeline layer and the timeline texts; history and alignment stay
@@ -155,7 +159,7 @@ async function main() {
     layers: Object.fromEntries(Object.entries(calibLayers).map(([id, cps]) => [id, calibRuns.map((name): RunCalib => calibrateRun(name, readRecs(join(ROOT, 'balance/runs', name, 'games.jsonl')), cps, scShift, map))])),
   };
   const tastecurve = readJson<unknown>(join(ROOT, 'balance/mechanics/tastecurve.json')) ?? null; // scripts/v2/tastecurve.ts
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo, tastecurve, calib };
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets: shownTargets, names, scenarios: scen, live: liveInfo, tastecurve, calib };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');

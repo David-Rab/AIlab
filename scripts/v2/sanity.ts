@@ -11,7 +11,7 @@
 // (a few CPU-s each). The game is not shared with the calibration report (its safety games run to ASI, 5840 days).
 // The integrated RefBot economy collapses today (revenue ~$15B → < $1B, insolvent about day 1400, no SC): the checks that
 // fail for that reason print WARN (KNOWN) with the OPEN.md row, so sanity stays green while the bug is open.
-import { TARGETS } from '../../balance/targets';
+import { bandOf } from './calreport/types';
 import { START_DATE, decimalYearOf } from '../../src/engine/v2/core/time';
 import { CAL_SEED } from './calseeds';
 import { KNOWN, check, finish } from './lib';
@@ -28,9 +28,9 @@ const COLLAPSE = 'OPEN.md § Balance and calibration: Integrated RefBot economy 
 
 /** The ×10 bound around a registry band: [lo / 10, hi × 10]. */
 function times10(id: string): { lo: number; hi: number; label: string } {
-  const t = TARGETS.find((x) => x.id === id);
-  if (!t || t.value.lo === undefined || t.value.hi === undefined) throw new Error(`sanity: registry target ${id} needs lo and hi`);
-  const [lo, hi] = [t.value.lo / 10, t.value.hi * 10];
+  const b = bandOf(id);
+  if (!b || b.lo === undefined || b.hi === undefined) throw new Error(`sanity: registry target ${id} needs lo and hi`);
+  const [lo, hi] = [b.lo / 10, b.hi * 10];
   return { lo, hi, label: `$${lo.toPrecision(3)}–${hi.toFixed(0)}B (×10 around ${id})` };
 }
 
