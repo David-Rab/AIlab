@@ -90,17 +90,16 @@ function TieChip({ opt, active, reason, label, onPick }: { opt: string; active: 
   return reason && !active ? <Tip content={() => <TipCard title={label}>{reason}</TipCard>}>{chip}</Tip> : chip;
 }
 
-/** The owner and backer pickers of one lab. Rules (CORPORATE.md §5.8): a lab has one owner or none; a company that owns a
- *  rival cannot also back one (and the reverse); the company whose lab you take the place of cannot own another. */
-function TiesRow({ i, lab, labs, replaced, update }: { i: number; lab: NpcSetupLab; labs: NpcSetupLab[]; replaced?: NpcKindId; update: (l: NpcSetupLab) => void }) {
+/** The owner and backer pickers of one lab. Rules (CORPORATE.md §5.8): a lab has one owner or none, and an owned lab has
+ *  no outside backers; the company whose lab you take the place of cannot own another. A company may own one lab and back
+ *  others (Google owns DeepMind and backs Anthropic). */
+function TiesRow({ i, lab, replaced, update }: { i: number; lab: NpcSetupLab; replaced?: NpcKindId; update: (l: NpcSetupLab) => void }) {
   const owner = lab.owner;
   const backers = lab.backers ?? {};
   const backer = (Object.keys(backers) as CompanyId[])[0];
   const taken = replaced ? entryOf(replaced).owner : undefined;
-  const owns = (c: CompanyId) => labs.some((l) => l.owner === c);
-  const backs = (c: CompanyId) => labs.some((l) => (l.backers?.[c] ?? 0) > 0);
-  const ownerBlock = (c: CompanyId) => (c === taken ? `You take the place of ${c}'s own lab, so ${c} cannot own another.` : backs(c) ? `${c} backs a rival, and a company that backs a rival cannot also own one.` : undefined);
-  const backerBlock = (c: CompanyId) => (owner ? 'An owned lab has no outside backers.' : owns(c) ? `${c} owns a rival, and a company that owns a rival cannot also back another.` : undefined);
+  const ownerBlock = (c: CompanyId) => (c === taken ? `You take the place of ${c}'s own lab, so ${c} cannot own another.` : undefined);
+  const backerBlock = (_c: CompanyId) => (owner ? 'An owned lab has no outside backers.' : undefined);
   const stake = backer ? Math.round((backers[backer] ?? 0.1) * 100) : 10;
   const setOwner = (c?: CompanyId) => update({ kind: lab.kind, lagMonths: lab.lagMonths, ...(lab.personality ? { personality: lab.personality } : {}), ...(c ? { owner: c } : {}), backers: {} });
   const setBacker = (c?: CompanyId, pct = stake) => update({ ...lab, backers: c ? { [c]: pct / 100 } : {} });
@@ -126,7 +125,7 @@ function TiesRow({ i, lab, labs, replaced, update }: { i: number; lab: NpcSetupL
   );
 }
 
-function LabRow({ i, lab, labs, replaced, update, remove }: { i: number; lab: NpcSetupLab; labs: NpcSetupLab[]; replaced?: NpcKindId; update: (l: NpcSetupLab) => void; remove: () => void }) {
+function LabRow({ i, lab, replaced, update, remove }: { i: number; lab: NpcSetupLab; replaced?: NpcKindId; update: (l: NpcSetupLab) => void; remove: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="lab-row" data-lab={i}>
@@ -143,7 +142,7 @@ function LabRow({ i, lab, labs, replaced, update, remove }: { i: number; lab: Np
         <button className={`btn btn-sm ${open ? 'active' : ''}`} data-test={`adjust-${i}`} onClick={() => setOpen(!open)}>{lab.personality ? 'Personality: adjusted' : 'Adjust personality'}</button>
         <button className="btn btn-sm" aria-label={`Remove lab ${i + 1}`} onClick={remove}>Remove</button>
       </div>
-      <TiesRow i={i} lab={lab} labs={labs} replaced={replaced} update={update} />
+      <TiesRow i={i} lab={lab} replaced={replaced} update={update} />
       {open && <PersonalityEditor lab={lab} set={(p) => update({ kind: lab.kind, lagMonths: lab.lagMonths, ...(lab.owner ? { owner: lab.owner } : {}), ...(lab.backers ? { backers: lab.backers } : {}), ...(p ? { personality: p } : {}) })} />}
     </div>
   );
@@ -181,7 +180,7 @@ export function RivalsSection() {
           <div className="lab-count"><span className="dim small">US labs</span>
             <span className="picker-opts" data-picker="lab-count">{Array.from({ length: MAX_LABS + 1 }, (_, n) => <button key={n} className={`chip chip-sm ${labs.length === n ? 'active' : ''}`} data-opt={n} onClick={() => setCount(n)}>{n}</button>)}</span>
           </div>
-          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} labs={labs} replaced={replaced} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
+          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} replaced={replaced} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
           {labs.length === 0 && <div className="dim small">No US rivals: only China's lab races you.</div>}
         </div>
       )}
