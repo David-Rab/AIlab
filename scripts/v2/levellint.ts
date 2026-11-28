@@ -10,6 +10,8 @@
  * (x.CYBER − 10, …) count as levels.
  *
  *   npx tsx scripts/v2/levellint.ts
+ *
+ * Cost: no sim (reads src/engine/v2 text), about 1 CPU-s. Tier: quick, full.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -37,6 +39,10 @@ const PATTERNS: [string, RegExp][] = [
 ];
 /** Not capability levels: WSL (security level), zero / epsilon guards. */
 const IGNORE = [/\bWSL\b/, /\b\w+\s*(?:>=|<=|>|<)\s*0(?![.\d])/, /\b\w+\s*(?:>=|<=|>|<)\s*1e-/];
+
+/** `.L` of measuredLabour() is the work done (labour L, a ratio of two labour results in workfit's margins), not a display level:
+ *  lines reading it are not level uses. */
+const LABOUR_L = /\b(?:ml|measuredLabour\([^()]*\))\.L\b/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const f of readdirSync(dir)) {
@@ -69,7 +75,7 @@ for (const file of walk(ROOT)) {
     for (const [what, re] of PATTERNS) {
       const m = re.exec(ln);
       if (!m) continue;
-      if (IGNORE.some((r) => r.test(m[0]))) continue;
+      if (IGNORE.some((r) => r.test(m[0])) || LABOUR_L.test(ln)) continue;
       (tag(/level-lint-left/) ? left : hits).push(`${rel}:${i + 1}: ${what}: ${raw[i].trim().slice(0, 140)}`);
       break;
     }
