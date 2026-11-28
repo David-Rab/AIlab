@@ -1,6 +1,7 @@
 // Calibration scenarios (design/bal/SCENARIOS.md): shared history to late 2026, three timelines, alignment levels.
-// One machine-readable home for the checkpoints. The dashboard and the calibration tooling both read this file.
-// The numbers come from design/bal/SC1-SPEC.md; every checkpoint carries its source.
+// One machine-readable home for the sourced values (history and per-timeline checkpoints): balance/targets.ts holds the
+// bands, tolerances and measurement, and a target names its checkpoint here instead of repeating the number (balance/schema.ts).
+// The dashboard and the calibration tooling both read this file. The numbers come from design/bal/SC1-SPEC.md; every checkpoint carries its source.
 
 export type TimelineId = 'fast' | 'central' | 'slow';
 export type AlignLevel = 'beginner' | 'easy' | 'normal' | 'hard' | 'impossible';
@@ -23,7 +24,7 @@ export interface AlignmentLevel {
 }
 
 export interface Checkpoint {
-  id: string;                         // reuse a balance/targets.ts id when one exists
+  id: string;                         // its own id (H<n>.*, <timeline>.*, <level>.*); a target in balance/targets.ts names it (Target.checkpoint), never the other way
   layer: 'history' | 'timeline' | 'alignment';
   timeline?: TimelineId;              // required when layer = 'timeline'
   align?: AlignLevel;                 // required when layer = 'alignment'
@@ -43,7 +44,6 @@ export interface Checkpoint {
   bandFrom: 'source' | 'none' | 'designer';
   source: string;                     // citation in words
   sourceRef: string;                  // file:line in this repo, or a URL
-  targetId?: string;                  // existing target in balance/targets.ts
   status: 'sourced' | 'unsure' | 'proposed' | 'blank';
   notes?: string;
 }
@@ -108,7 +108,7 @@ const SC1 = 'design/bal/SC1-SPEC.md';
 const HISTORY: Checkpoint[] = [
   // H1 METR 50% doubling time
   hist('H1.metr.h50.doubling', 'other', 'METR 50% horizon doubling time, 2023-26', 2026.99, 'months', 'METR TH1.1 (129 d since 2023 [104,158]; 88.6 d since 2024)', 'research/20:50; research/03:276',
-    { value: 4.2, lo: 3.4, hi: 5.2, bandFrom: 'source', targetId: 'METR.h50.doubling', notes: 'Band is the METR interval since 2023. The game checks 3.2-5.2 (+-1 month) and today pins the target to the ai2027 RefBot only. METR also gives 6.2 months all-time. Date is the end of the 2023-26 span.' }),
+    { value: 4.2, lo: 3.4, hi: 5.2, bandFrom: 'source', notes: 'Band is the METR interval since 2023. The game checks 3.2-5.2 (+-1 month) and today pins the target to the ai2027 RefBot only. METR also gives 6.2 months all-time. Date is the end of the 2023-26 span.' }),
   // H2 METR 80% horizon of the frontier
   hist('H2.metr.h80.2025-04', 'horizon80', 'METR 80% horizon of the frontier, Apr 2025', 2025.27, 'min', 'METR TH1.1', 'research/09:59; research/03:262-274', { value: 30, notes: 'Game tolerance +-15% (targets.ts:109).' }),
   hist('H2.metr.h80.2025-12', 'horizon80', 'METR 80% horizon of the frontier, Dec 2025 (GPT-5.2)', 2025.96, 'min', 'METR TH1.1', 'research/09:59; research/03:262-274',
@@ -126,14 +126,14 @@ const HISTORY: Checkpoint[] = [
   hist('H4.metr.h80over50', 'other', 'The 80% horizon as a fraction of the 50% horizon', 2026.99, 'fraction', 'METR; workTypes.ts', 'research/20:51; workTypes.ts:147',
     { value: 0.2, lo: 0.1, hi: 0.25, bandFrom: 'source', notes: 'Written 1/5, band 1/4 to 1/10. Span 2025-26, date is its end.' }),
   // H5 frontier effective-compute path G
-  hist('H5.gpath.2025-08', 'other', 'Frontier effective-compute path G, 15 Aug 2025', 2025.62, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.0, targetId: 'GPATH.ai2027.2026', notes: 'Game tolerance +-0.2 G per anchor. Anchor dates from calib.ts:291.' }),
-  hist('H5.gpath.2025-11', 'other', 'Frontier effective-compute path G, 15 Nov 2025', 2025.87, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.4, targetId: 'GPATH.ai2027.2026', notes: 'Game tolerance +-0.2 G per anchor.' }),
-  hist('H5.gpath.2026-02', 'other', 'Frontier effective-compute path G, 15 Feb 2026', 2026.13, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.7, targetId: 'GPATH.ai2027.2026', notes: 'Game tolerance +-0.2 G per anchor.' }),
-  hist('H5.gpath.2026-04', 'other', 'Frontier effective-compute path G, 15 Apr 2026', 2026.29, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 29.0, targetId: 'GPATH.ai2027.2026', notes: 'Game tolerance +-0.2 G per anchor.' }),
-  hist('H5.gpath.2026-10', 'other', 'Frontier effective-compute path G, 15 Oct 2026', 2026.79, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 29.4, targetId: 'GPATH.ai2027.2026', notes: 'Game tolerance +-0.2 G per anchor.' }),
-  hist('H5.gpath.slope', 'other', 'Growth of the frontier effective-compute path G per year, 2025-26', 2026.79, 'G per year', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { lo: 1.1, hi: 1.3, bandFrom: 'source', targetId: 'GPATH.ai2027.2026', notes: 'A range with no central value. The game prints this slope but does not check it.' }),
+  hist('H5.gpath.2025-08', 'other', 'Frontier effective-compute path G, 15 Aug 2025', 2025.62, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.0, notes: 'Game tolerance +-0.2 G per anchor. Anchor dates from calib.ts:291.' }),
+  hist('H5.gpath.2025-11', 'other', 'Frontier effective-compute path G, 15 Nov 2025', 2025.87, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.4, notes: 'Game tolerance +-0.2 G per anchor.' }),
+  hist('H5.gpath.2026-02', 'other', 'Frontier effective-compute path G, 15 Feb 2026', 2026.13, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 28.7, notes: 'Game tolerance +-0.2 G per anchor.' }),
+  hist('H5.gpath.2026-04', 'other', 'Frontier effective-compute path G, 15 Apr 2026', 2026.29, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 29.0, notes: 'Game tolerance +-0.2 G per anchor.' }),
+  hist('H5.gpath.2026-10', 'other', 'Frontier effective-compute path G, 15 Oct 2026', 2026.79, 'G', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { value: 29.4, notes: 'Game tolerance +-0.2 G per anchor.' }),
+  hist('H5.gpath.slope', 'other', 'Growth of the frontier effective-compute path G per year, 2025-26', 2026.79, 'G per year', 'AI 2027 frontier anchors (research/12 §0.2)', 'research/12 §0.2 via calib.ts:285-291', { lo: 1.1, hi: 1.3, bandFrom: 'source', notes: 'A range with no central value. The game prints this slope but does not check it.' }),
   // H6 pretraining stack growth
-  hist('H6.pretrainRate', 'other', 'Pretraining stack growth, to 2024', 2024.99, 'OOM per year', 'Ho et al.', 'research/20:33 B1 (targets.ts:209)', { value: 0.48, targetId: 'STACK.pretrainRate.ai2027', notes: 'Game tolerance +-30%. Target today is the ai2027 preset only.' }),
+  hist('H6.pretrainRate', 'other', 'Pretraining stack growth, to 2024', 2024.99, 'OOM per year', 'Ho et al.', 'research/20:33 B1 (targets.ts:209)', { value: 0.48, notes: 'Game tolerance +-30%. Target today is the ai2027 preset only.' }),
   // H7 global chip output
   hist('H7.chipOutput.2024', 'other', 'Global AI chip output per quarter, 2024', 2024.5, 'H100e per quarter', 'Epoch AI', 'research/15:27', { value: m(0.83), notes: '0.83M. SC1 gives the year, not the quarter; date is mid-2024. F1.production2026 (25M) is a level, not this.' }),
   hist('H7.chipOutput.2026-Q2', 'other', 'Global AI chip output per quarter, Q2 2026', 2026.37, 'H100e per quarter', 'Epoch AI', 'research/15:27', { value: m(6.33), notes: '6.33M.' }),
@@ -167,30 +167,30 @@ const HISTORY: Checkpoint[] = [
   hist('H12.priceDecline', 'price', 'Fall in price at fixed capability per year, 2025-26', 2026.99, 'x per year', 'Cottier 2025; DeepSeek', 'research/20:48-49', { value: 10, lo: 9, hi: 900, bandFrom: 'source', notes: 'Written "x9 to x900/yr".' }),
   hist('H12.apiMargin', 'other', 'API gross margin, 2025-26', 2026.99, 'fraction', 'Cottier 2025; DeepSeek', 'research/20:48-49', { value: 0.6, lo: 0.4, hi: 0.85, bandFrom: 'source' }),
   // H13 private lab marks
-  hist('H13.privateMarks.2025-07', 'other', 'Total value of the private labs, Jul 2025', 2025.5, 'USD B', 'Lab valuations (research/15 §2.9)', 'research/15 §2.9 (target F9.fc1.start)', { lo: 450, hi: 750, bandFrom: 'source', targetId: 'F9.fc1.start', notes: 'A range ($0.45-0.75T) with no central value.' }),
-  hist('H13.privateMarks.2026-late', 'other', 'Total value of the private labs, Oct 2026 to Jan 2027', 2026.99, 'USD B', 'Lab valuations (research/15 §2.9)', 'research/15 §2.9 (target F9.fc1.late2026)', { lo: 2200, hi: 3300, bandFrom: 'source', targetId: 'F9.fc1.late2026', notes: 'A range ($2.2-3.3T) with no central value. The window runs to Jan 2027; date is capped at the end of 2026.' }),
+  hist('H13.privateMarks.2025-07', 'other', 'Total value of the private labs, Jul 2025', 2025.5, 'USD B', 'Lab valuations (research/15 §2.9)', 'research/15 §2.9 (target F9.fc1.start)', { lo: 450, hi: 750, bandFrom: 'source', notes: 'A range ($0.45-0.75T) with no central value.' }),
+  hist('H13.privateMarks.2026-late', 'other', 'Total value of the private labs, Oct 2026 to Jan 2027', 2026.99, 'USD B', 'Lab valuations (research/15 §2.9)', 'research/15 §2.9 (target F9.fc1.late2026)', { lo: 2200, hi: 3300, bandFrom: 'source', notes: 'A range ($2.2-3.3T) with no central value. The window runs to Jan 2027; date is capped at the end of 2026.' }),
   // H14-H19 safety effects
-  hist('H14.inoculation.mis', 'safetyEffect', 'Inoculation prompting cuts misalignment caused by reward hacking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.9, bandFrom: 'source', targetId: 'F2.inoculation.mis', notes: 'A range (75-90%) with no central value.' }),
-  hist('H14.inoculation.af', 'safetyEffect', 'Inoculation prompting cuts alignment faking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.9, bandFrom: 'source', targetId: 'F2.inoculation.af', notes: 'A range (75-90%) with no central value.' }),
-  hist('H14.inoculation.sabotage', 'safetyEffect', 'Inoculation prompting cuts sabotage', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.95, bandFrom: 'source', targetId: 'F2.inoculation.sabotage', notes: 'A range (75-95%) with no central value.' }),
-  hist('H15.antiScheming.cut', 'safetyEffect', 'Anti-scheming training cuts covert actions', 2025.5, 'fraction', 'Schoen 2025', 'targets.ts:1218', { lo: 0.9, hi: 0.98, bandFrom: 'source', targetId: 'F5.antiScheming.cut', notes: 'A range (90-98%) with no central value. o3 13% to 0.4%; o4-mini 8.7% to 0.3%.' }),
-  hist('H16.sabotageAfterHacking', 'safetyEffect', 'Share of safety-research runs with sabotage after learned hacking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1170', { value: 0.12, targetId: 'F2.sabotageAfterHacking', notes: 'The game checks 6-20% (one setting, +-50%).' }),
-  hist('H17.persistence.scheme', 'safetyEffect', 'Safety training leaves a scheming behaviour in place', 2025.5, 'fraction', 'Hubinger 2024; research/20 F6', 'targets.ts:1258', { lo: 0.8, hi: 1.0, bandFrom: 'source', targetId: 'F6.persistence.scheme', notes: 'A range (80-100%) with no central value. Span 2024-26, read at mid-2025.' }),
-  hist('H18.evalAwareness2026', 'safetyEffect', 'Share of tests the model says it notices, late 2026', 2026.87, 'fraction', 'research/05 §1.7', 'targets.ts:1230', { lo: 0.2, hi: 0.5, bandFrom: 'source', targetId: 'F5.evalAwareness2026', notes: 'A range (20-50%) with no central value.' }),
-  hist('H18.afComplianceGap2026', 'safetyEffect', 'Gap in compliance when the model thinks it is watched, late 2026', 2026.87, 'fraction', 'research/05 §1.4', 'targets.ts:1244', { lo: 0, hi: 0.15, bandFrom: 'source', targetId: 'F5.afComplianceGap2026', notes: 'A range (0-15%) with no central value.' }),
-  hist('H19.actRate', 'other', 'Incident acts per lab-year, 2025', 2025.5, 'acts per lab-year', 'research/05 §1.1-1.2', 'targets.ts:1295', { value: 1.2, lo: 0.4, hi: 3, bandFrom: 'source', targetId: 'DANGER.start.actRate', notes: 'Written "~1.2".' }),
+  hist('H14.inoculation.mis', 'safetyEffect', 'Inoculation prompting cuts misalignment caused by reward hacking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.9, bandFrom: 'source', notes: 'A range (75-90%) with no central value.' }),
+  hist('H14.inoculation.af', 'safetyEffect', 'Inoculation prompting cuts alignment faking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.9, bandFrom: 'source', notes: 'A range (75-90%) with no central value.' }),
+  hist('H14.inoculation.sabotage', 'safetyEffect', 'Inoculation prompting cuts sabotage', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1182-1206', { lo: 0.75, hi: 0.95, bandFrom: 'source', notes: 'A range (75-95%) with no central value.' }),
+  hist('H15.antiScheming.cut', 'safetyEffect', 'Anti-scheming training cuts covert actions', 2025.5, 'fraction', 'Schoen 2025', 'targets.ts:1218', { lo: 0.9, hi: 0.98, bandFrom: 'source', notes: 'A range (90-98%) with no central value. o3 13% to 0.4%; o4-mini 8.7% to 0.3%.' }),
+  hist('H16.sabotageAfterHacking', 'safetyEffect', 'Share of safety-research runs with sabotage after learned hacking', 2025.5, 'fraction', 'MacDiarmid 2025', 'targets.ts:1170', { value: 0.12, notes: 'The game checks 6-20% (one setting, +-50%).' }),
+  hist('H17.persistence.scheme', 'safetyEffect', 'Safety training leaves a scheming behaviour in place', 2025.5, 'fraction', 'Hubinger 2024; research/20 F6', 'targets.ts:1258', { lo: 0.8, hi: 1.0, bandFrom: 'source', notes: 'A range (80-100%) with no central value. Span 2024-26, read at mid-2025.' }),
+  hist('H18.evalAwareness2026', 'safetyEffect', 'Share of tests the model says it notices, late 2026', 2026.87, 'fraction', 'research/05 §1.7', 'targets.ts:1230', { lo: 0.2, hi: 0.5, bandFrom: 'source', notes: 'A range (20-50%) with no central value.' }),
+  hist('H18.afComplianceGap2026', 'safetyEffect', 'Gap in compliance when the model thinks it is watched, late 2026', 2026.87, 'fraction', 'research/05 §1.4', 'targets.ts:1244', { lo: 0, hi: 0.15, bandFrom: 'source', notes: 'A range (0-15%) with no central value.' }),
+  hist('H19.actRate', 'other', 'Incident acts per lab-year, 2025', 2025.5, 'acts per lab-year', 'research/05 §1.1-1.2', 'targets.ts:1295', { value: 1.2, lo: 0.4, hi: 3, bandFrom: 'source', notes: 'Written "~1.2".' }),
   // H20 China gap
   hist('H20.chinaGap.eci', 'chinaGap', 'Best Chinese model behind the US frontier, Nov 2026 (capability index)', 2026.87, 'months', 'IFP Oct 2026; CAISI May 2026', 'research/10:27, :135, :279', { value: 6.5, lo: 6.5, hi: 8, bandFrom: 'source', notes: 'Band 6.5-8 covers all three readings. T3.china.startLead (150-200 d) is the AI 2027 text for Jul 2025, a different date.' }),
   hist('H20.chinaGap.horizon', 'chinaGap', 'Best Chinese model behind the US frontier, Nov 2026 (task horizon)', 2026.87, 'months', 'IFP Oct 2026', 'research/10:27, :135, :279', { value: 6.6, notes: 'Inside the band 6.5-8 months given on the capability-index checkpoint.' }),
   hist('H20.chinaGap.caisi', 'chinaGap', 'Best Chinese model behind the US frontier, Nov 2026 (CAISI)', 2026.87, 'months', 'CAISI May 2026', 'research/10:27, :135, :279', { value: 8, notes: 'Inside the band 6.5-8 months given on the capability-index checkpoint.' }),
   // H21-H25 adoption and labour
-  hist('H21.hoursOfUse', 'adoption', 'Share of US work hours assisted by AI, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.063, targetId: 'A2a.hoursOfUse2026', notes: 'The game checks 5-6.5%.' }),
-  hist('H21.workers', 'adoption', 'Share of US workers using AI at work, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { lo: 0.39, hi: 0.41, bandFrom: 'source', targetId: 'A2a.workers2026', notes: 'A range (39-41%) with no central value. The game checks 35-45%.' }),
-  hist('H21.hoursSaved', 'adoption', 'Share of US work hours saved by AI, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.022, targetId: 'A2a.hoursSaved2026', notes: 'The game checks 1.7-2.7%.' }),
-  hist('H21.savedPerHour', 'adoption', 'Hours saved per hour of AI use, Q2 2026', 2026.37, 'hours per hour', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.35, targetId: 'A2a.savedPerHour', notes: 'The game checks 0.3-0.4.' }),
-  hist('H22.firmAdoption.2026-01', 'adoption', 'US firms using AI, Jan 2026', 2026.04, 'fraction', 'Census BTOS', 'research/22 row 1f (targets.ts:1067)', { value: 0.177, targetId: 'W4.firmAdoption', notes: 'The game checks 15-22%.' }),
-  hist('H22.firmAdoption.2026-05', 'adoption', 'US firms using AI, May 2026', 2026.37, 'fraction', 'Census BTOS', 'research/22 row 1f (targets.ts:1067)', { value: 0.198, targetId: 'W4.firmAdoption', notes: 'The game checks 15-22%.' }),
-  hist('H23.paidShare2026', 'adoption', 'Paid share of AI users, 2026', 2026.5, 'fraction', 'research/22 row 2e (50M subscribers of 900M weekly users)', 'research/22 row 2e (targets.ts:1029)', { value: 0.056, targetId: 'A2b.paidShare2026', notes: 'Written "~5.6%". The game checks 4-9% at both ends of 2026.' }),
+  hist('H21.hoursOfUse', 'adoption', 'Share of US work hours assisted by AI, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.063, notes: 'The game checks 5-6.5%.' }),
+  hist('H21.workers', 'adoption', 'Share of US workers using AI at work, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { lo: 0.39, hi: 0.41, bandFrom: 'source', notes: 'A range (39-41%) with no central value. The game checks 35-45%.' }),
+  hist('H21.hoursSaved', 'adoption', 'Share of US work hours saved by AI, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.022, notes: 'The game checks 1.7-2.7%.' }),
+  hist('H21.savedPerHour', 'adoption', 'Hours saved per hour of AI use, Q2 2026', 2026.37, 'hours per hour', 'Bick, Blandin, Deming RPS', 'research/22:23-31 (targets.ts:981-1017)', { value: 0.35, notes: 'The game checks 0.3-0.4.' }),
+  hist('H22.firmAdoption.2026-01', 'adoption', 'US firms using AI, Jan 2026', 2026.04, 'fraction', 'Census BTOS', 'research/22 row 1f (targets.ts:1067)', { value: 0.177, notes: 'The game checks 15-22%.' }),
+  hist('H22.firmAdoption.2026-05', 'adoption', 'US firms using AI, May 2026', 2026.37, 'fraction', 'Census BTOS', 'research/22 row 1f (targets.ts:1067)', { value: 0.198, notes: 'The game checks 15-22%.' }),
+  hist('H23.paidShare2026', 'adoption', 'Paid share of AI users, 2026', 2026.5, 'fraction', 'research/22 row 2e (50M subscribers of 900M weekly users)', 'research/22 row 2e (targets.ts:1029)', { value: 0.056, notes: 'Written "~5.6%". The game checks 4-9% at both ends of 2026.' }),
   hist('H24.chatgptWAU.2025-07', 'adoption', 'ChatGPT weekly active users, Jul 2025', 2025.5, 'users', 'NBER w34255; OpenAI', 'research/22:23-61 row 2c', { value: m(700) }),
   hist('H24.chatgptWAU.2026-02', 'adoption', 'ChatGPT weekly active users, Feb 2026', 2026.13, 'users', 'NBER w34255; OpenAI', 'research/22:23-61 row 2c', { value: m(900), notes: 'Source reads ">900M": a lower bound.' }),
   hist('H24.copilotSeats.2026-01', 'adoption', 'Microsoft 365 Copilot paid seats, Jan 2026', 2026.04, 'seats', 'Microsoft earnings', 'research/22:23-61 row 4e', { value: m(15) }),
@@ -201,8 +201,8 @@ const HISTORY: Checkpoint[] = [
   hist('H24.hoursAssisted.2025-Q4', 'adoption', 'Share of US work hours assisted by AI, Q4 2025', 2025.87, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-61 row 1b; :354-360', { value: 0.056 }),
   hist('H24.hoursAssisted.2026-Q2', 'adoption', 'Share of US work hours assisted by AI, Q2 2026', 2026.37, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-61 row 1b; :354-360', { value: 0.063, notes: 'The same figure as H21 hours of use.' }),
   hist('H24.hoursAssisted.2026-Q3', 'adoption', 'Share of US work hours assisted by AI, Q3 2026', 2026.62, 'fraction', 'Bick, Blandin, Deming RPS', 'research/22:23-61 row 1b; :354-360', { value: 0.053 }),
-  hist('H25.aggregateU', 'other', 'Aggregate unemployment effect of AI, Nov 2026', 2026.87, 'percentage points', 'Stanford "Canaries"', 'research/09:53; targets.ts:1041-1054', { value: 0, targetId: 'W4.aggregateU', notes: 'Written "~0". The game checks +-0.15 pp.' }),
-  hist('H25.youthExposed', 'other', 'Exposed workers aged 22-25 versus the no-AI path, Nov 2026', 2026.87, 'fraction vs counterfactual', 'Stanford "Canaries"', 'research/09:53; targets.ts:1041-1054', { value: -0.19, targetId: 'W4.youthExposed', notes: '19% below the counterfactual. The game checks +-5 points; the target stores the ratio 0.81.' }),
+  hist('H25.aggregateU', 'other', 'Aggregate unemployment effect of AI, Nov 2026', 2026.87, 'percentage points', 'Stanford "Canaries"', 'research/09:53; targets.ts:1041-1054', { value: 0, notes: 'Written "~0". The game checks +-0.15 pp.' }),
+  hist('H25.youthExposed', 'other', 'Exposed workers aged 22-25 versus the no-AI path, Nov 2026', 2026.87, 'fraction vs counterfactual', 'Stanford "Canaries"', 'research/09:53; targets.ts:1041-1054', { value: -0.19, notes: '19% below the counterfactual. The game checks +-5 points; the target stores the ratio 0.81.' }),
   // H26 R&D uplift
   hist('H26.uplift.metr', 'other', 'AI uplift to AI R&D pace, Oct 2026 (METR estimate for Anthropic)', 2026.79, 'x', 'METR', 'research/09:45', { value: 2, lo: 1.3, hi: 3, bandFrom: 'source', notes: 'Written "~2x". RS.<preset>.startM is the v1 multiplier at the start, a different quantity.' }),
   hist('H26.uplift.attributable', 'other', 'AI-attributable uplift to AI R&D pace, Oct 2026', 2026.79, 'x', 'METR', 'research/09:45', { value: 1.7, notes: 'Written "~1.7x".' }),
@@ -483,10 +483,10 @@ const LABEL_REF = 'targets.ts:453; starts.ts:20-24';
 const LABEL_NOTE = 'Existing start-difficulty label band for the strongest bot win rate, offered as a starting point; the designer sets the real per-level band (winBand).';
 const ALIGNMENT: Checkpoint[] = [
   al('beginner', 'winRate', 'Strongest-bot win rate at the Beginner level', 'none', `${SC1}:172`, { status: 'blank', notes: 'No existing label band; the designer sets it.' }),
-  al('easy', 'winRate', 'Strongest-bot win rate at the Easy level', 'Start difficulty label "Easy" (30% or more)', LABEL_REF, { lo: 0.3, bandFrom: 'source', status: 'proposed', targetId: 'START.difficultyLabel', notes: LABEL_NOTE }),
-  al('normal', 'winRate', 'Strongest-bot win rate at the Normal level', 'Start difficulty label "Medium" (10-30%)', LABEL_REF, { lo: 0.1, hi: 0.3, bandFrom: 'source', status: 'proposed', targetId: 'START.difficultyLabel', notes: LABEL_NOTE }),
-  al('hard', 'winRate', 'Strongest-bot win rate at the Hard level', 'Start difficulty label "Hard" (1-10%)', LABEL_REF, { lo: 0.01, hi: 0.1, bandFrom: 'source', status: 'proposed', targetId: 'START.difficultyLabel', notes: LABEL_NOTE }),
-  al('impossible', 'winRate', 'Strongest-bot win rate at the Impossible level', 'Start difficulty label "Impossible" (under 1%)', LABEL_REF, { hi: 0.01, bandFrom: 'source', status: 'proposed', targetId: 'START.difficultyLabel', notes: LABEL_NOTE }),
+  al('easy', 'winRate', 'Strongest-bot win rate at the Easy level', 'Start difficulty label "Easy" (30% or more)', LABEL_REF, { lo: 0.3, bandFrom: 'source', status: 'proposed', notes: LABEL_NOTE }),
+  al('normal', 'winRate', 'Strongest-bot win rate at the Normal level', 'Start difficulty label "Medium" (10-30%)', LABEL_REF, { lo: 0.1, hi: 0.3, bandFrom: 'source', status: 'proposed', notes: LABEL_NOTE }),
+  al('hard', 'winRate', 'Strongest-bot win rate at the Hard level', 'Start difficulty label "Hard" (1-10%)', LABEL_REF, { lo: 0.01, hi: 0.1, bandFrom: 'source', status: 'proposed', notes: LABEL_NOTE }),
+  al('impossible', 'winRate', 'Strongest-bot win rate at the Impossible level', 'Start difficulty label "Impossible" (under 1%)', LABEL_REF, { hi: 0.01, bandFrom: 'source', status: 'proposed', notes: LABEL_NOTE }),
 ];
 
 export const CHECKPOINTS: Checkpoint[] = [...HISTORY, ...FAST, ...CENTRAL, ...SLOW, ...ALIGNMENT];

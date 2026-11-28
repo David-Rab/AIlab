@@ -1,5 +1,7 @@
 // ================================================================ TAB 4: SCENARIOS
 // Reads D.scenarios (balance/scenarios.ts: TIMELINES, ALIGNMENT_LEVELS, CHECKPOINTS). Appended to client.js by baldash.ts.
+// A target names its checkpoint (balance/schema.ts Target.checkpoint); the reverse link (checkpoint -> target id) is computed here.
+const targetOfCp = new Map(D.targets.flatMap((t) => (t.checkpoint == null ? [] : [].concat(t.checkpoint)).map((id) => [id, t.id])));
 const SC = D.scenarios || { timelines: [], levels: [], checkpoints: [] };
 const LIVE = D.live || null; // set by --scenarios-live: the timeline layer comes from a running forecast job (baldash-live.ts)
 // The timeline layer can be cut three ways (live builds that found the files): by AC date, by SAR date, or as a 3x3 matrix.
@@ -119,7 +121,7 @@ function cpTip(c, color, who) {
   if (c.sourceRef) lines.push(['Reference', c.sourceRef]);
   lines.push(['Status', STATUS_NAME[c.status] + (c.status === 'sourced' ? '' : ` (hollow marker). ${STATUS_DEF[c.status]}`)]);
   if (c.notes) lines.push(['Note', c.notes]);
-  lines.push(['Target', c.targetId ? c.targetId : 'none yet']);
+  lines.push(['Target', targetOfCp.get(c.id) ? targetOfCp.get(c.id) : 'none yet']);
   const raw = c.value != null && (c.quantity === 'horizon50' || c.quantity === 'horizon80') ? ` (${fmtCompact(toMin(c, c.value))} min)` : '';
   return { title: c.label, rows: [{ c: color, v: valueText(c) + raw, n: dist ? who + ' (median)' : who, hl: true }], lines };
 }
@@ -633,7 +635,7 @@ function renderScenarios() {
   const calCard = calibrationCard();
   if (calCard) host.append(calCard);
   const nBy = (s) => CPS.filter((c) => c.status === s).length;
-  const nTgt = CPS.filter((c) => c.targetId).length;
+  const nTgt = CPS.filter((c) => targetOfCp.get(c.id)).length;
   // ---- 1. intro, legend of the three timelines
   const intro = H('div', { class: 'card' }, H('h2', { text: 'Three possible futures, one shared past' }),
     H('div', { class: 'sub', text: CPS.length ? `${CPS.length} benchmarks: ${nBy('sourced')} sourced, ${nBy('unsure')} unsure, ${nBy('proposed')} proposed, ${nBy('blank')} still to be filled. ${nTgt} already have a target in the targets list.` : 'No benchmarks have been entered yet, so the charts below are empty frames. The levels and the grid still show their structure.' }));
@@ -782,10 +784,10 @@ function groupEl(title, sub, list, emptyMsg, band) {
   for (const c of list) {
     const b = fmtBand(c);
     const raw = c.value != null && (c.quantity === 'horizon50' || c.quantity === 'horizon80') ? fmtDur(toMin(c, c.value)) : c.quantity === 'milestone' && c.value != null ? fmtWhen(c.value) : null;
-    const tg = c.targetId ? targetById.get(c.targetId) : null;
-    const tgEl = !c.targetId ? H('span', { class: 'muted', text: 'no target yet' })
-      : tg ? H('button', { class: 'chip lnk', text: c.targetId, title: 'Open in the Targets tab', onclick: () => { showTab('tgt'); setTF({ q: c.targetId, type: '', role: '', policy: '' }); } })
-        : H('span', { class: 'chip', text: c.targetId, title: 'This id is not in the targets list' });
+    const tg = targetOfCp.get(c.id) ? targetById.get(targetOfCp.get(c.id)) : null;
+    const tgEl = !targetOfCp.get(c.id) ? H('span', { class: 'muted', text: 'no target yet' })
+      : tg ? H('button', { class: 'chip lnk', text: targetOfCp.get(c.id), title: 'Open in the Targets tab', onclick: () => { showTab('tgt'); setTF({ q: targetOfCp.get(c.id), type: '', role: '', policy: '' }); } })
+        : H('span', { class: 'chip', text: targetOfCp.get(c.id), title: 'This id is not in the targets list' });
     rows.push(H('tr', {},
       H('td', {}, H('div', { text: c.label }), c.date != null && c.quantity !== 'milestone' ? H('div', { class: 'muted', text: fmtWhen(c.date) }) : c.quantity === 'interval' ? H('div', { class: 'muted', text: `${MS_NAME[c.from] || c.from} to ${MS_NAME[c.milestone] || c.milestone}` }) : null, c.notes ? H('div', { class: 'muted', text: c.notes }) : null),
       H('td', { class: 'num' }, c.value != null ? fmtNum(c, c.value) : '—', raw ? H('div', { class: 'muted', text: raw }) : null),

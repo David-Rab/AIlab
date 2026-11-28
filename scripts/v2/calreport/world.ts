@@ -210,7 +210,7 @@ export function targets(): Target[] {
   {
     const a = at['2026-11-01'];
     R('W4.aggregateU', `${(a.U - U0).toFixed(2)} pp`, a.U - U0);
-    R('W4.youthExposed', `${((a.youthX - 1) * 100).toFixed(1)}% (ratio ${a.youthX.toFixed(3)})`, a.youthX);
+    R('W4.youthExposed', `${((a.youthX - 1) * 100).toFixed(1)}% (ratio ${a.youthX.toFixed(3)})`, a.youthX - 1);
     // CAL-X: the anchor is BTOS over Dec 2025–May 2026; read at the Jul 2026 mark (the first after the window).
     const fJul = at['2026-07-01'].firm;
     R('W4.firmAdoption', pct(fJul), fJul);
