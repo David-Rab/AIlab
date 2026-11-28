@@ -248,3 +248,12 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   check) · 767c86ab. Lead: the merge met the ws4 split (observe.ts incidentList) → fixed; tension "needs" wording fixed.
 - Designer: "the CPU is half-yours ... dont hog all CPU" → final checks at ≤ half the cores (grid --workers 2, tests one
   at a time).
+- W8b-3 · Sonnet high · ~34 min · World tabs Work / Risk / Tech & control:
+  - Four economy tiles with sparklines from new weekly record series (aiWork, aiIncome, robots).
+  - The sector card has the three adoption numbers and a Providers link to Finance › Story.
+  - The Jobs card has a relief-law chip. All 29 techs are shown. The control-index legend uses the player's name.
+  - Risk rows show their top driver; levers come only from riskLevers.
+
+  · ca850578. Lead merge: fixture and uitest conflicts resolved; RiskMap and worldLinks point at 'powers'; store alias
+  removed; SCHEMA 125; fixtures regenerated and passing.
+- Final: W11c (broken tests, 45-min cap) running; obs-final grid (3 workers) running.
