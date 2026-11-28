@@ -213,7 +213,7 @@ export function incidentHeat(s: GameStateV2): number {
 export function incidentList(s: GameStateV2): { lab: LabId; day: number; severity: number; weight: number; left: number }[] {
   const out: { lab: LabId; day: number; severity: number; weight: number; left: number }[] = [];
   for (const i of s.player.safety.incidents) if ((i.status === 'disclosed' || i.status === 'leaked') && i.day <= s.time.day) out.push({ lab: PLAYER_ID, day: i.day, severity: i.severity, weight: i.severity * decay(s.time.day - i.day), left: decay(s.time.day - i.day) });
-  for (const i of ws4r(s).rivalIncidents) if (i.day <= s.time.day) out.push({ lab: i.lab, day: i.day, severity: i.severity, weight: i.severity * decay(s.time.day - i.day), left: decay(s.time.day - i.day) });
+  for (const i of s.rivalIncidents) if (i.day <= s.time.day) out.push({ lab: i.lab, day: i.day, severity: i.severity, weight: i.severity * decay(s.time.day - i.day), left: decay(s.time.day - i.day) });
   return out.sort((a, b) => b.weight - a.weight);
 }
 
