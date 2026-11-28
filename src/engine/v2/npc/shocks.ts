@@ -7,9 +7,10 @@
 import { DISTILL_S } from '../../../data/v2/calibration';
 import { PARTNER_TERMS } from '../../../data/v2/deals';
 import { RELEASE_CADENCE_DAYS } from '../../../data/v2/npcLabs';
-import { distillFit, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
+import { distillFit, labRecipeG, RECIPE_LEAK_SHARE, teacherAccess, TACIT_FIRM_SHARE } from '../production/diffusion';
 import { licensedModel } from '../finance/observe';
 import { CHINA_ID, PLAYER_ID, activeRivals, bestG, versionById } from '../models/labs';
+import { gV0 } from '../models/capability';
 import { ws4 } from '../actors/state';
 import { decimalYear } from '../core/time';
 import { clockOfGAt, persOf } from './lab';
@@ -18,7 +19,7 @@ import type { GameStateV2, LabId, RivalLab } from '../types';
 // ───────────────────────────── parameters (N6; listed in design/archive/npc/N6-RESULT.md) ─────────────────────────────
 
 /** Theft: days China needs to integrate stolen weights (adapt, serve, post-train them on its own stack), the one typical
- *  value [P]: AI 2027's China, after stealing Agent-2, is about 2 months behind (it goes from about 6 to 2; the old
+ *  value [P]: AI 2027's China, after stealing Agent-2, is about 2 months behind (it goes from about 6 to 2; the former
  *  THEFT_GAP_CLOSED's source, research/RD-X04r T5). */
 export const THEFT_INTEGRATION_DAYS = 60;
 /** Treaty: the reference clock's speed under a verified treaty (the former research-rate multiplier) [D]. */
@@ -61,6 +62,20 @@ export function pullDays(r: Pick<RivalLab, 'npc'>, pos: number | undefined, shar
   if (!r.npc || pos === undefined || !(share > 0)) return 0;
   return Math.max(0, share * (r.npc.d - pos));
 }
+/** KNOW-HOW → LAG (the one conversion the know-how shocks use: publish, open weights, the secrets leak). A shock that
+ *  transfers know-how closes a share of the receiver's know-how (software) gap, not of its whole capability gap: a leak
+ *  carries no compute, and the player's capability position includes a compute lead that China's leak cannot close (read as
+ *  a capability position it pulled China from 198 d to -462 d by 2028). `knowhowPos` is where a recipe of `recipeG` (OOM
+ *  over the leader's day-0 recipe) sits on the reference clock: the lag of a lab on the reference path whose know-how is that
+ *  recipe (NPC-LABS §4: a lab's recipe is its capability above G(V0) at the leader's start compute). `knowhowPull` moves the
+ *  receiver `share` of the way to a source at that position: on a smooth path closing share x of the know-how gap is closing
+ *  share x of the lag gap (the lead accepts this for now). When F0's reference SOFTWARE path S_ref lands, `knowhowPos` reads
+ *  S_ref instead of the reference G (the clock where S_ref reaches the recipe) and nothing else changes. */
+export const knowhowPos = (s: GameStateV2, recipeG: number) => posOf(s, gV0(s.hidden.timeline) + recipeG);
+export const knowhowPull = pullDays;
+/** The player's know-how position: where its own recipe sits (production/diffusion.ts labRecipeG). */
+export const playerKnowhowPos = (s: GameStateV2) => knowhowPos(s, labRecipeG(s, PLAYER_ID));
+
 /** Apply a move of `days` (positive: the lag falls). */
 function move(r: Pick<RivalLab, 'npc'>, days: number): number {
   if (r.npc && days !== 0 && Number.isFinite(days)) r.npc.d -= days;
@@ -68,29 +83,39 @@ function move(r: Pick<RivalLab, 'npc'>, days: number): number {
 }
 export interface Move { lab: RivalLab; days: number }
 const apply = (moves: Move[]) => moves.map((m) => move(m.lab, m.days));
-/** Every active NPC lab (the US labs and China's), without `skip`. */
-const labs = (s: GameStateV2, skip?: LabId): RivalLab[] => [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].filter((r) => r.core.id !== skip && r.npc);
-/** Moves of every lab behind position `pos`, each `share` of the way. */
-const pulls = (s: GameStateV2, pos: number | undefined, share: number, skip?: LabId): Move[] =>
-  labs(s, skip).map((lab) => ({ lab, days: pullDays(lab, pos, share) })).filter((m) => m.days > 0);
+/** Every active NPC lab (the US labs and China's). */
+const labs = (s: GameStateV2): RivalLab[] => [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].filter((r) => r.npc);
 
 // ───────────────────────────── the shocks ─────────────────────────────
 
-/** THEFT: China's lag jumps to the victim's position plus the integration delay (only ever shortens it). Returns the days gained. */
+/** THEFT: China's lag jumps to the victim's position plus the integration delay (only ever shortens it). The one integration
+ *  rule of a theft (NPC-LABS §5): the lab's daily step follows the lag, so nothing else sets the stolen model's G. Returns
+ *  the days gained. */
 export function theft(s: GameStateV2, stolenG: number): number {
   const cn = s.china.lab, pos = posOf(s, stolenG);
   if (!cn.npc || pos === undefined) return 0;
   return move(cn, Math.max(0, cn.npc.d - (pos + THEFT_INTEGRATION_DAYS)));
 }
 
-/** PUBLISH (A4): every lab behind the player's best model moves RECIPE_LEAK_SHARE.publish of the way to it. */
-export const publishMoves = (s: GameStateV2): Move[] => pulls(s, playerPos(s), RECIPE_LEAK_SHARE.publish);
+/** PUBLISH (A4): every lab behind the player's know-how closes RECIPE_LEAK_SHARE.publish of its know-how gap to it (lag days, knowhowPull). */
+export const publishMoves = (s: GameStateV2): Move[] => {
+  const pos = playerKnowhowPos(s);
+  return labs(s).map((lab) => ({ lab, days: knowhowPull(lab, pos, RECIPE_LEAK_SHARE.publish) })).filter((m) => m.days > 0);
+};
 export const publish = (s: GameStateV2) => apply(publishMoves(s));
 
-/** OPEN WEIGHTS (C6 and any open release; `releaser` = the lab's id or 'player'): above the open frontier, every other lab
- *  behind the released model moves RECIPE_LEAK_SHARE.openWeights of the way to it. */
-export const openWeightsMoves = (s: GameStateV2, releaser: LabId, G: number): Move[] =>
-  G > s.knowledge.openWeightsG ? pulls(s, posOf(s, G), RECIPE_LEAK_SHARE.openWeights, releaser) : [];
+/** OPEN WEIGHTS (C6 and any open release; `releaser` = the lab's id or 'player'): only China absorbs them (as before the NPC
+ *  merge; the US labs have their own stacks and the diffusion rule reads their public models), and not its own. Above the open
+ *  frontier it closes RECIPE_LEAK_SHARE.openWeights of its know-how gap to the release (lag days, knowhowPull). The release's
+ *  know-how: an NPC lab's model sits on the reference clock at its G; the player's is its recipe less the release's distance
+ *  below its best model (an older model, an older recipe). */
+export const openWeightsMoves = (s: GameStateV2, releaser: LabId, G: number): Move[] => {
+  const cn = s.china.lab;
+  if (releaser === CHINA_ID || cn.core.status !== 'active' || !(G > s.knowledge.openWeightsG)) return [];
+  const pos = releaser === PLAYER_ID ? knowhowPos(s, labRecipeG(s, PLAYER_ID) - Math.max(0, bestG(s, PLAYER_ID) - G)) : posOf(s, G);
+  const days = knowhowPull(cn, pos, RECIPE_LEAK_SHARE.openWeights);
+  return days > 0 ? [{ lab: cn, days }] : [];
+};
 export const openWeights = (s: GameStateV2, releaser: LabId, G: number) => apply(openWeightsMoves(s, releaser, G));
 
 /** ABSORB (license-and-hire by an NPC buyer, finance/rivalFinance.ts exitRival): the buyer takes the better lag and adds the
@@ -153,9 +178,10 @@ export const spill = (s: GameStateV2) => apply(spillMoves(s));
 export const track2Moves = (s: GameStateV2): Move[] => (s.china.lab.core.status === 'active' ? stepMoves(s, [s.china.lab], TRACK2_DAYS) : []);
 export const track2 = (s: GameStateV2) => apply(track2Moves(s));
 
-/** CHINA'S SECRETS LEAK: a daily pull toward the player's position by the channel's strength `share` (a fraction of the gap
- *  a day; security/theft.ts secretsLeakDaily: spies × weak security). Returns the days gained. */
-export const secretsLeak = (s: GameStateV2, share: number) => move(s.china.lab, pullDays(s.china.lab, playerPos(s), share));
+/** CHINA'S SECRETS LEAK: a daily close of its KNOW-HOW gap to the player by the channel's strength `share` (a fraction of
+ *  the gap a day; security/theft.ts secretsLeakDaily: spies × weak security), as the code before the NPC merge did (secrets
+ *  are recipe, not what the player's compute buys). Returns the days gained. */
+export const secretsLeak = (s: GameStateV2, share: number) => move(s.china.lab, knowhowPull(s.china.lab, playerKnowhowPos(s), share));
 
 /** CHINA'S DISTILLATION: at each of its releases, a pull toward the player's best servable product by the channel's
  *  strength: DISTILL_S × access × fit (production/diffusion.ts rule B's coefficient; a level, taken once per release). */

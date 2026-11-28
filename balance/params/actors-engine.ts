@@ -60,7 +60,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     unit: 'per spy per day', area: 'actors', layer: 'world', actor: 'china', kind: 'fitted',
     evidence: 'tuning.ts:4-9 "Secrets-leak coefficient per spy ... [fit, T3] M2 step 5: 1e-5 → 3e-4"',
     fit: { targets: [], script: 'unnamed' },
-    notes: 'T3: lead stays 150-200 d until the theft (R11 #16c); no script named in the comment.',
+    notes: 'T3: lead stays 150-200 d until the theft (R11 #16c); no script named in the comment. F4: the daily share of the KNOW-HOW gap of China gap to the player (read as lag days, npc/shocks.ts secretsLeak), not of the whole capability gap.',
   },
   {
     id: 'act.WS4_TUNING.distillK',

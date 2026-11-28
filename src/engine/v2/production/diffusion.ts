@@ -119,8 +119,8 @@ export function distillLift(s: GameStateV2, lab: LabId, ownG: number, params: nu
 
 // ───────── RD-X04b: discrete transfers sized by what moves (research/RD-X04r §3C) ─────────
 // Recipe leaks move the receiver's recipeG (RECIPE_F, RD-B16) toward the source's by a share of the recipe gap; a leak
-// with no gap (receiver at or above the source) moves nothing. Stolen weights move the thief's model G toward the
-// stolen model's G. Every site and its preview reads these functions.
+// with no gap (receiver at or above the source) moves nothing. (An NPC lab receives them as a share of its know-how gap
+// read as lag days, npc/shocks.ts knowhowPull; stolen weights are npc/shocks.ts theft.) Every site and its preview reads these functions.
 /** Share of the recipe gap each recipe / secrets leak moves, per event type. */
 export const RECIPE_LEAK_SHARE = {
   /** A4 publish [D]: a paper discloses about one of the ~20 techniques that make up a recipe lead. */
@@ -135,10 +135,6 @@ export const RECIPE_LEAK_SHARE = {
 /** C4 poach / E16 let go [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning, not the
  *  hire's own reuse; the transfer is this × the movers' share of the source's research staff × the recipe gap. */
 export const TACIT_FIRM_SHARE = 0.5;
-/** Weight theft [P, research/RD-X04r T5]: in AI 2027 China goes from about 6 to 2 months behind on stealing Agent-2, so
- *  the thief closes 4/6 of its model gap; the remaining third is the integration loss (adapting, serving, post-training
- *  the weights on its own stack). */
-export const THEFT_GAP_CLOSED = 2 / 3;
 
 /** OOM into `dst`'s pretraining recipe from a leak of recipe `srcRecG` at `share` of the gap (0 with no gap). */
 export function recipeLeakG(s: GameStateV2, srcRecG: number, dst: LabId, share: number): number {
@@ -151,5 +147,3 @@ export function tacitLeakG(s: GameStateV2, src: LabId, dst: LabId, moved: number
   const share = TACIT_FIRM_SHARE * Math.min(1, Math.max(0, moved) / Math.max(1, srcStaff));
   return recipeLeakG(s, labRecipeG(s, src), dst, share);
 }
-/** The thief's model G after stealing weights at `stolenG`: own G plus THEFT_GAP_CLOSED of the gap (own G with none). */
-export const stolenModelG = (ownG: number, stolenG: number) => ownG + THEFT_GAP_CLOSED * Math.max(0, stolenG - ownG);

@@ -58,8 +58,8 @@ function def(x: Spec): ActionDef {
 const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
 const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 const dealmakerMult = (s: GameStateV2) => (govPresetOf(s.gov.preset).id === 'dealmaker' ? 1.6 : 1);
-/** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best, RD-L03). N6: every lab
- *  behind that G moves RECIPE_LEAK_SHARE.openWeights of the way to it (npc/shocks.ts openWeightsMoves). */
+/** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best, RD-L03). N6: China
+ *  closes RECIPE_LEAK_SHARE.openWeights of its know-how gap to them (npc/shocks.ts openWeightsMoves); no other lab moves. */
 const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
 /** C4's poached heads (3% of the rival's capabilities staff, at least 5). */
 const poachHeads = (r: RivalLab) => Math.max(5, Math.round(r.core.staff.cap * 0.03));
@@ -122,7 +122,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     preview: (s) => pv([L('leadDays', maxDays(shock.publishMoves(s)), `days the best-placed of ${shock.publishMoves(s).length} labs behind you closes on you`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 })]),
     apply(s, ctx) {
       const w = ws4(s);
-      shock.publish(s); // N6: every lab behind you moves RECIPE_LEAK_SHARE.publish of the way to your best model
+      shock.publish(s); // N6: every lab behind your know-how closes RECIPE_LEAK_SHARE.publish of its know-how gap
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
       w.papers++;
@@ -345,17 +345,17 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'C6', verb: 'launch', system: 'models', title: 'Open weights', cooldown: 180,
-    // N6: the lead lines are what apply adds (npc/shocks.ts openWeightsMoves): days off the lag of the best-placed rival and of China;
+    // N6: the lead line is what apply adds (npc/shocks.ts openWeightsMoves): days off China's lag (only China absorbs open weights);
     // none if the weights are not above the open frontier.
     preview: (s, p) => {
       const G = openReleaseG(s, num(p, 'behind', 1));
       const mv = shock.openWeightsMoves(s, 'player', G);
       const cn = Math.round(mv.find((x) => x.lab === s.china.lab)?.days ?? 0);
-      return pv([L('leadDays', maxDays(mv.filter((x) => x.lab !== s.china.lab)), "days the best-placed rival closes on you (at once)"), L('leadDays', cn, "days China closes on you: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
+      return pv([L('leadDays', cn, "days China closes on you: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
     },
     apply(s, ctx, p) {
       const G = openReleaseG(s, num(p, 'behind', 1));
-      openWeightsReleased(s, ctx, 'player', G); // N6: every lab behind the weights moves RECIPE_LEAK_SHARE.openWeights of the way to them
+      openWeightsReleased(s, ctx, 'player', G); // N6: China closes RECIPE_LEAK_SHARE.openWeights of its know-how gap to the weights
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');
       bloc(s, ctx, 'hawks', -8, 5, 'C6 open weights');

@@ -153,16 +153,14 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
  *  previews' unit (the player's own progress; NPC labs' shocks are in days of lag, npc/shocks.ts). */
 export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / frontierGPerYear(s, id, PACE_WINDOW_DAYS);
 
-/** Open weights released by lab `id` at effective compute G: the world's open frontier rises and every other lab behind the
- *  weights (China included) moves part of the way to them (N6: npc/shocks.ts openWeights; C6 previews the same moves). */
+/** Open weights released by lab `id` at effective compute G: the world's open frontier rises and China (only China absorbs
+ *  open weights, never its own) closes part of its know-how gap to them (N6: npc/shocks.ts openWeights; C6 previews the same move). */
 export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number) {
   const k = s.knowledge;
   if (G <= k.openWeightsG) return;
-  const cn = s.china.lab;
-  const moves = shock.openWeightsMoves(s, id, G);
-  for (const m of moves) {
+  for (const m of shock.openWeightsMoves(s, id, G)) {
     m.lab.npc.d -= m.days;
-    if (m.lab === cn) ctx.cause('china.lag', -m.days, 'open weights absorbed', id);
+    ctx.cause('china.lag', -m.days, 'open weights absorbed', id);
   }
   k.openWeightsG = G;
   ctx.log('world', `New open-weights frontier model released (${id === 'player' ? 'by you' : (labOf(s, id)?.core.name ?? id)}).`, 2);
