@@ -110,8 +110,6 @@ export const PARAMS_FINANCE = defineParams([
     evidence: 'cashflow.ts:21 "Insolvency grace: cash may sit below zero this many days ... [D]."' },
   { id: 'fin.COMMITTEE_EST', ref: E('charter', 'COMMITTEE_EST'), value: 0.5, unit: 'probability (estimate)', ...W, kind: 'designer',
     evidence: 'charter.ts:32-34 "estimate above 50% with clarity above 0.4 [D, FIN3b]. ... On the bots (10 seeds each) 50% held 13% of the reference bot\'s full models"', notes: 'The 0.4 clarity floor sits in the redFlags helper outside this chunk.' },
-  { id: 'fin.ANCHOR_SHARE', ref: E('deals', 'ANCHOR_SHARE'), value: 0.4, unit: 'fraction of round', ...W, kind: 'sourced',
-    evidence: 'deals.ts:355 "Share of a round an anchor must take for the 14% dilution limit (R15 §1.5)."', source: 'R15 §1.5 (research/15)' },
   { id: 'fin.PV_COMMIT', ref: E('debt', 'PV_COMMIT'), value: 0.85, unit: 'fraction', ...W, kind: 'designer',
     evidence: 'debt.ts:191 "PV of firm commitments ≈ 0.85 × the remaining firm payments [D]."' },
   // ───────────────────────────── equity.ts ─────────────────────────────
@@ -222,8 +220,6 @@ export const PARAMS_FINANCE = defineParams([
     evidence: 'promises.ts:32 "Results at the deadline [D, spec §2.4]: met +30 × weight credibility, +10 × weight board; missed by more than 20% ... −30 / −15 × weight"',
     ...(k === 'metBoard' || k === 'missBoard' ? { notes: 'Comment says +10 / −15 for the board part; code holds 30 / -30. See Q-finance-2.' } : {}),
   })),
-  { id: 'fin.START_CREDIBILITY', ref: E('promises', 'START_CREDIBILITY'), value: [60, 50, 40, 50], unit: 'credibility', ...W, kind: 'designer',
-    evidence: 'promises.ts:37 "Start credibility by start type [D, spec §2.4]: leader Credible 60, challenger Credible 50, spinout Unproven 40."', notes: 'Array order = leader, challenger, spinout, bigtech.' },
   { id: 'fin.TREND.minLevels', ref: E('promises', 'TREND', ['minLevels']), value: 0.2, unit: 'levels per year', ...W, kind: 'designer',
     evidence: 'promises.ts:41 "Trend floors and caps per year [D]: ... (+0.2 levels, +10%) ... (+4 levels, ×8)"' },
   { id: 'fin.TREND.maxLevels', ref: E('promises', 'TREND', ['maxLevels']), value: 4, unit: 'levels per year', ...W, kind: 'designer',
@@ -315,11 +311,9 @@ export const PARAMS_FINANCE = defineParams([
   // ───────────────────────────── inline literals (cap 40) ─────────────────────────────
   // equity.ts
   { id: 'fin.equity.dMaxIpo', ref: I('equity', 'ipo ? 0.05 :'), value: 0.05, unit: 'fraction of company per round', ...W, kind: 'sourced',
-    evidence: 'equity.ts:17 "Maximum dilution per round: 0.08 financial; 0.14 with a strategic anchor taking ≥ 40%; 0.05 IPO (R15 §1.5)."', source: 'R15 §1.5 (research/15)', notes: 'IPO cap; RIVAL.dMax repeats the 0.08.' },
-  { id: 'fin.equity.dMaxAnchor', ref: I('equity', 'anchor ? 0.14 :'), value: 0.14, unit: 'fraction of company per round', ...W, kind: 'sourced',
-    evidence: 'equity.ts:17 "... 0.14 with a strategic anchor taking ≥ 40% ... (R15 §1.5)."', source: 'R15 §1.5 (research/15)' },
-  { id: 'fin.equity.dMaxPlain', ref: I('equity', '0.14 : 0.08)'), value: 0.08, unit: 'fraction of company per round', ...W, kind: 'sourced',
-    evidence: 'equity.ts:17 "Maximum dilution per round: 0.08 financial ... (R15 §1.5)."', source: 'R15 §1.5 (research/15)' },
+    evidence: 'equity.ts:17 "Maximum dilution per round: 0.08 private; 0.05 IPO (R15 §1.5)."', source: 'R15 §1.5 (research/15)', notes: 'IPO cap; RIVAL.dMax repeats the 0.08.' },
+  { id: 'fin.equity.dMaxPlain', ref: I('equity', '0.05 : 0.08)'), value: 0.08, unit: 'fraction of company per round', ...W, kind: 'sourced',
+    evidence: 'equity.ts:17 "Maximum dilution per round: 0.08 private; 0.05 IPO (R15 §1.5)."', source: 'R15 §1.5 (research/15)' },
   { id: 'fin.equity.tightPoolMult', ref: I('equity', "f.state === 'tight' ? 0.8 : 1"), value: 0.8, unit: 'multiplier on pool share', ...W, kind: 'untagged',
     evidence: 'no tag; equity.ts:30 (doc at :21-25 "Tight runway cuts the pool share ×0.8")' },
   { id: 'fin.equity.ipoPublicPool', ref: I('equity', 'opts.ipo ? 0.5 * s.capital.poolAnnual'), value: 0.5, unit: 'x annual pool (then x 0.25 per quarter)', ...W, kind: 'sourced',
