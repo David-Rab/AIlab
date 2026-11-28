@@ -1,285 +1,44 @@
-// Outside world and revenue: what it guards. The world effects on reference play (V2-SPEC §7.3, F11; research/16 §6–7,
-// research/22): revenue bands, labour/adoption/token anchors from measured data (RPS, BTOS, R22), four date checks,
-// leverage tier, the two World actions. Failing sourced targets are CAL-TARGETs registered in KNOWN (balance owns them).
-// Cost: full = 1 RefBot game (seed 2027, tl-central) to 2028-01-15 (915 days) + 4 timing games of the same length
-// (5 seeds, see the band arithmetic below) + ~150 idle days; ≈ 45 ms per game-day => ~3.7 CPU-min. Quick (--smoke) =
-// the same game to 2027-01-02 (550 days, ≈ 25 CPU-s) + ~100 idle days; 2027 checks print SMOKE. Tier: quick (smoke) and full.
-// Reference play = real RefBot games on the integrated engine (endings skipped so the world keeps running past ASI).
-// Date targets use ±3 months (R16 §7 test 1), on the median first day over CAL_SEEDS runs (model v3 F4; calseeds.ts).
-// The games go through the simulation cache (simcache.ts), keyed on the game.
-import { dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
+// Outside world and revenue, mechanism checks: what it guards. The world effects' wiring (V2-SPEC §7.3, F11): revenue
+// is written on every external deployment, world state stays plain JSON, leverage is a tier in [0,1), the two World
+// actions (transition fund, moonshot) take effect. Constructed cases only, no played game: a fresh start (30 + 60 days)
+// and the day-900 fixture (60 days). Cost ≈ 150 sim-days, a few CPU-s. Tier: quick.
+// The sourced outcome bands of reference play (revenue, labour, adoption, token anchors, date checks) are calibration, not
+// tests: they live in scripts/v2/calreport/world.ts (design/TESTING.md §0).
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { ACTIONS } from '../../src/engine/v2/core/registry';
 import { domainScaleGs } from '../../src/engine/v2/models/capability';
 import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2/worldfx/control';
-import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
-import { consumerUse, firmAdoption, remoteWorkAutomation, workBilling, workUse, youthExposedEmployment } from '../../src/engine/v2/worldfx/readouts';
-import { worldMix } from '../../src/engine/v2/worldfx/mix';
-import { labMarketRevenue, revenueOf } from '../../src/engine/v2/worldfx/revenue';
+import { revenueOf } from '../../src/engine/v2/worldfx/revenue';
 import type { GameStateV2, SetupV2 } from '../../src/engine/v2/types';
-import { refBot } from '../../src/engine/v2/bots/ref';
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
-import { resolve } from '../../src/engine/v2/core/loop';
-import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
-import { engine } from '../../src/engine/v2/index';
 import { WORLD_TECHS } from '../../src/data/v2/techs';
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import { techBlocker } from '../../src/engine/v2/worldfx/techtree';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { fileURLToPath } from 'node:url';
-import { FIXTURE_DIR, KNOWN, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
-import { cached, pick, prefill } from './simcache';
-import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
+import { FIXTURE_DIR, check, finish, validateJson } from './lib';
 
-// Sourced calibration targets that the balance session owns (OPEN.md § Balance); the checks keep their thresholds.
-const CAL = 'OPEN.md § Balance: outside-world calibration (CAL-TARGET, test audit G4)';
-KNOWN['F7/F11 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%'] = CAL + ': 2026 revenue';
-KNOWN['F11 2027 revenue ~$140B (±30%)'] = CAL + ': 2027 revenue';
-KNOWN['Late 2026: SOFT youth employment falling, youth unemployment rising'] = CAL + ': youth employment 2026';
-KNOWN['Jul 2027: AI-friend share 10% (±3)'] = CAL + ': AI-friend share';
-KNOWN['A2c: tokens a day grow ×4.6–20 over 2026 (R22 3a–3b: Google first-party API ×4.6/yr, Google all surfaces ×20/yr), through agent-hours per supervising hour rising with horizon and coverage'] = CAL + ': tokens a day growth';
-KNOWN['W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)'] = CAL + ': exposed 22–25';
-
-const START = '2025-07-01';
-const D = (iso: string) => dayOfDate(START, iso);
-const fmt = (day: number | undefined) => (day === undefined ? 'never' : new Date(Date.parse(START) + day * 864e5).toISOString().slice(0, 10));
-const within = (day: number | undefined, iso: string, tol = 92) => day !== undefined && Math.abs(day - D(iso)) <= tol;
-const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
-
-interface Trace {
-  s: GameStateV2;
-  annual: Record<number, number>;
-  U: number[];
-  firstHire10?: number;
-  firstRemote25?: number;
-  firstU12?: number;
-  firstAccept85?: number;
-  /** A2c: calendar-year revenue of the non-China closed providers (rivals' demand-side market revenue; the player's in
-   *  `annual`). */
-  rivalAnnual: Record<number, number>;
-  at: Record<string, { U: number; youthSoft: number; youthU: number; friend: number; hireSoft: number; youthX: number; firm: number; rev: number; use: ReturnType<typeof workUse>; cons: ReturnType<typeof consumerUse>; bill: ReturnType<typeof workBilling> }>;
-}
-
-const FILES = [fileURLToPath(import.meta.url)];
-const MARKS = ['2025-07-02', '2025-07-31', '2026-01-01', '2026-07-01', '2026-11-01', '2026-12-31', '2027-07-01', '2027-10-01', '2027-12-31'];
-
-/** One day of real reference play: RefBot decides pending events, acts, then the engine ticks (endings skipped). */
-function refDay(s: GameStateV2) {
-  for (const p of [...s.events.pending]) {
-    const c = refBot.decide(s, p);
-    if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-  }
-  refBot.act(s, engine);
-  tick(s, { skip: ['endings'] });
-}
 /** A fresh start state (tutorial on, as a player starts). */
 const refGame = (over: Partial<SetupV2> = {}): GameStateV2 => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', ...over }));
-const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, ...over }));
 
-function run(over: Partial<SetupV2>, days: number): Trace {
-  const s = refGameV2(over);
-  const tr: Trace = { s, annual: {}, rivalAnnual: {}, U: [], at: {} };
-  const marks = new Map(MARKS.map((m) => [D(m), m]));
-  while (s.time.day < days) {
-    refDay(s);
-    const d = s.time.day;
-    const W = s.world;
-    const rev = s.player.deployments.reduce((a, x) => a + (x.revenueRate ?? 0), 0);
-    const y = Math.floor(decimalYear(s));
-    tr.annual[y] = (tr.annual[y] ?? 0) + rev / 365;
-    tr.U[d] = W.unemployment.US;
-    if (tr.firstHire10 === undefined && W.sectors.US.SOFT.hireRate <= 0.1) tr.firstHire10 = d;
-    if (tr.firstRemote25 === undefined && remoteWorkAutomation(s) >= 0.25) tr.firstRemote25 = d;
-    if (tr.firstU12 === undefined && d >= 365 && W.unemployment.US - tr.U[d - 365] >= 1) tr.firstU12 = d;
-    if (tr.firstAccept85 === undefined && W.control.GOV.accept >= 0.85) tr.firstAccept85 = d;
-    if (d % 7 === 0 && y >= 2025 && y <= 2027) {
-      let rv = 0;
-      for (const p of worldMix(s).providers) if (p.key !== 'player' && p.key !== 'china' && !p.open) rv += labMarketRevenue(s, p.key);
-      tr.rivalAnnual[y] = (tr.rivalAnnual[y] ?? 0) + (rv * 7) / 365;
-    }
-    const m = marks.get(d);
-    if (m) {
-      tr.at[m] = {
-        U: W.unemployment.US, youthSoft: W.fx.youthRel.SOFT, youthU: W.youthUnemployment, friend: W.friendShare,
-        hireSoft: W.sectors.US.SOFT.hireRate, youthX: youthExposedEmployment(s), firm: firmAdoption(s), rev: s.player.finance.revenueRun,
-        use: workUse(s, 'US'), cons: consumerUse(s), bill: workBilling(s),
-      };
-    }
-  }
-  return tr;
-}
+const fx = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
 
-/** run() through the simulation cache. `picks` = the final-state paths the checks read (undefined: the whole state);
- *  `jsonErrs` = validateJson of the live final state. */
-interface CTrace extends Trace { jsonErrs: string[] }
-function runC(over: Partial<SetupV2>, days: number, opts: object = {}, picks?: string[]): CTrace {
-  return cached('worldfx-run', { over, days, opts, picks: picks ?? 'all' }, FILES, () => {
-    const { U: _U, ...tr } = run(over, days);
-    return { ...tr, U: [], jsonErrs: validateJson(tr.s), s: picks ? pick(tr.s, picks) : tr.s };
-  });
-}
-
-/** Model v3 F4: the classic run's timing reads on one more seed of CAL_SEEDS (cached): the four date checks (first day of
- *  each), F11 2027 revenue and A2c's tokens-a-day growth over 2026. Seed CAL_SEED's come from the main classic run. */
-interface TimingRec { hire10: number | null; remote25: number | null; u12: number | null; accept85: number | null; f11_2027: number; a2c: number }
-const tokOf = (tr: Pick<Trace, 'at'>, m: string) => { const b = tr.at[m].bill; return b.world.tokAdopted + b.world.tokSeated + b.world.tokAgent + b.consumerTokens; };
-const timingOf = (tr: Pick<Trace, 'firstHire10' | 'firstRemote25' | 'firstU12' | 'firstAccept85' | 'annual' | 'at'>): TimingRec => ({
-  hire10: tr.firstHire10 ?? null, remote25: tr.firstRemote25 ?? null, u12: tr.firstU12 ?? null, accept85: tr.firstAccept85 ?? null,
-  f11_2027: tr.annual[2027] ?? 0, a2c: tokOf(tr, '2026-12-31') / tokOf(tr, '2026-01-01'),
-});
-function timingRec(seed: number): TimingRec {
-  return cached('worldfx-timing', { seed, days: HORIZON }, FILES, () => timingOf(run({ seed }, HORIZON)));
-}
-// Band arithmetic: the date checks have a ±92-day window; one seed's first day spreads p10–p90 90–170 d (sd ≈ 35–66 d), so
-// the median of n seeds has se ≈ 1.25·66/√n ≈ 37 d at n = 5, well inside the window (was 20 seeds, se ≈ 18 d: more than the
-// windows can tell apart). Smoke: seed 2027 only, and the game stops at the end of 2026 (≈ 550 days, not 1005).
-const TIMING_SEEDS = SMOKE ? [] : CAL_SEEDS.filter((x) => x !== CAL_SEED).slice(0, 4);
-const HORIZON = SMOKE ? D('2027-01-02') : D('2028-01-15');
-// The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
-prefill([
-  () => runC({}, HORIZON),
-  ...TIMING_SEEDS.map((x) => () => timingRec(x)),
-]);
-
-// ───────────── 1. Reference play (§7.3 table, F11) ─────────────
-const c = runC({}, HORIZON);
-const at = c.at;
-const U0 = 4.3;
-console.log('Reference play');
+console.log('Revenue and state');
 check(Math.abs(refGame().player.finance.revenueRun - 12) < 1e-9, 'F11 revenue run-rate at start = $12B', '');
-check(at['2025-07-31'].rev >= 9 && at['2025-07-31'].rev <= 16.5, 'F11 Jul 2025 run-rate ≈ $12B (capacity-bound, ±35%)', `$${at['2025-07-31'].rev.toFixed(1)}B`);
-// FINREF: AI 2027's $45B is a plot point; the measured 2026 leader (Anthropic) earns ≈ $53–56B (research/22 §4 [P]): both ±20%.
-check(c.annual[2026] >= 36 && c.annual[2026] <= 67, 'F7/F11 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%', `$${c.annual[2026].toFixed(1)}B`);
-const SKIP27 = '(skipped: the smoke game ends Dec 2026)';
-if (SMOKE) smokeCheck(true, 'F11 2027 revenue ~$140B (±30%)', '', SKIP27);
-else check(c.annual[2027] >= 98 && c.annual[2027] <= 182, 'F11 2027 revenue ~$140B (±30%)', `${c.annual[2027].toFixed(1)}B`);
-check(at['2026-12-31'].youthSoft < at['2026-01-01'].youthSoft - 0.03 && at['2026-12-31'].hireSoft < at['2026-01-01'].hireSoft && at['2026-12-31'].youthU > at['2026-01-01'].youthU,
-  'Late 2026: SOFT youth employment falling, youth unemployment rising',
-  `SOFT 22–25 ${at['2026-01-01'].youthSoft.toFixed(3)} → ${at['2026-12-31'].youthSoft.toFixed(3)}; hire ${at['2026-01-01'].hireSoft.toFixed(2)} → ${at['2026-12-31'].hireSoft.toFixed(2)}; youth U ${at['2026-01-01'].youthU.toFixed(1)} → ${at['2026-12-31'].youthU.toFixed(1)}%`);
-check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at['2026-12-31'].U - U0).toFixed(2)} pp`);
-// Model v3 F4: the four date checks bind on the MEDIAN first day over CAL_SEEDS (20 classic runs; never reached = +∞):
-// on one seed they moved in and out of their ±3-month windows (p10–p90 spans 90–170 d, as wide as the windows); seed
-// 2027's date and the spread are printed with them. Under --smoke (seed 2027 only) they print SMOKE.
+check(validateJson(fx).length === 0, 'world state stays plain JSON (day-900 fixture)', validateJson(fx).slice(0, 3).join('; '));
 {
-  const recs = SMOKE ? [] : [timingOf(c), ...TIMING_SEEDS.map((x) => timingRec(x))];
-  // `info`: printed, never binding. CAL3-I (design/archive/RD-AUDIT/DECISIONS.md "After CAL2"): the two Oct 2027 labour rows are
-  // AI 2027 scenario projections (research/01 row 37), like F11's floor, not measurements.
-  const dateCheck = (key: 'hire10' | 'remote25' | 'u12' | 'accept85', iso: string, label: string, info = false) => {
-    if (SMOKE) return void (info || smokeCheck(true, label, '', SKIP27));
-    const days = recs.map((r) => r[key] ?? Infinity);
-    const med = medianOf(days);
-    const inWin = days.filter((d) => within(d, iso)).length;
-    const fd = (d: number) => (Number.isFinite(d) ? fmt(Math.round(d)) : 'never');
-    const detail = `median over ${recs.length} seed(s) ${fd(med)} (p10 ${fd(quantOf(days, 0.1))}, p90 ${fd(quantOf(days, 0.9))}; ${inWin}/${recs.length} in the window); seed ${CAL_SEED} ${fmt(recs[0][key] ?? undefined)}`;
-    if (info) console.log(`INFO  ${label} [AI 2027 scenario projection, not binding: DECISIONS.md "After CAL2"]  — ${within(med, iso) ? 'in' : 'out of'} the window; ${detail}`);
-    else check(within(med, iso), label, detail);
-  };
-  dateCheck('hire10', '2027-07-01', 'Jul 2027 (±3 mo): HireRate_SOFT ≤ 10%');
-  if (SMOKE) smokeCheck(true, 'Jul 2027: AI-friend share 10% (±3)', '', SKIP27);
-  else check(at['2027-07-01'].friend >= 0.07 && at['2027-07-01'].friend <= 0.13, 'Jul 2027: AI-friend share 10% (±3)', pct(at['2027-07-01'].friend));
-  dateCheck('remote25', '2027-10-01', 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI', true);
-  dateCheck('u12', '2027-10-01', 'Oct 2027 (±3 mo): U +1 pp over 12 months', true);
-  dateCheck('accept85', '2027-12-15', 'Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85');
-  if (recs.length > 1) {
-    const f = recs.map((r) => r.f11_2027);
-    const g = recs.map((r) => r.a2c);
-    console.log(`INFO  F4 spread over ${recs.length} seeds (the checks above and below read seed ${CAL_SEED}): F11 2027 revenue median $${medianOf(f).toFixed(1)}B (p10 $${quantOf(f, 0.1).toFixed(1)}B, p90 $${quantOf(f, 0.9).toFixed(1)}B; floor $98B); A2c tokens a day over 2026 median ×${medianOf(g).toFixed(1)} (p10 ×${quantOf(g, 0.1).toFixed(1)}, p90 ×${quantOf(g, 0.9).toFixed(1)}; band ×4.6–20)`);
-  }
-}
-// A2a: hours of AI use and hours saved per hour of use from the worker surveys (research/22 §1; Bick, Blandin & Deming
-// RPS on FRED): 4.1% of US work-hours assisted (Q3 2024) → 5.7% (Q3 2025) → 6.3% (Q2 2026); 39–41% of workers; 2.2% of
-// hours saved, 0.35 per hour of use.
-{
-  const u0 = at['2025-07-02'].use;
-  const u26 = at['2026-07-01'].use;
-  const uEnd = at['2027-12-31']?.use;
-  check(u26.hours >= 0.05 && u26.hours <= 0.065, 'A2a mid-2026: US hours of AI use ≈ 6% of work-hours (RPS 6.3% Q2 2026; 5–6.5%)', pct(u26.hours));
-  check(u0.savedPerHour >= 0.3 && u0.savedPerHour <= 0.4, 'A2a start: an hour of AI use saves ≈ 0.35 hours of work (RPS 2.2 / 6.3; 0.3–0.4)', u0.savedPerHour.toFixed(3));
-  check(u26.workers >= 0.35 && u26.workers <= 0.45, 'A2a 2026: ≈ 40% of US workers use AI at work (RPS 39–41%; 35–45%)', pct(u26.workers));
-  check(u26.saved >= 0.017 && u26.saved <= 0.027, 'A2a mid-2026: hours saved ≈ 2.2% of US work-hours (RPS)', pct(u26.saved));
-  check((uEnd === undefined || uEnd.savedPerHour > u26.savedPerHour + 0.05) && u26.savedPerHour > u0.savedPerHour, 'A2a: hours saved per hour of use rise with agency (substituted share α·A/U grows)',
-    `${u0.savedPerHour.toFixed(3)} → ${u26.savedPerHour.toFixed(3)} → ${uEnd?.savedPerHour.toFixed(3) ?? 'n/a (smoke)'}`);
-  check(at['2026-11-01'].firm < u26.workers - 0.1, 'A2a: firm adoption (BTOS analogue, firm-weighted) stays a separate, lower quantity than worker use', `firms ${pct(at['2026-11-01'].firm)} vs workers ${pct(u26.workers)}`);
-  console.log(`INFO  A2a US hours of use (share of work-hours; RPS 4.1% Q3 2024, 5.7% Q3 2025, 6.3% Q2 2026, 5.3% Q3 2026): ${MARKS.filter((m) => at[m]).map((m) => `${m} ${pct(at[m].use.hours)} (workers ${pct(at[m].use.workers)}, saved/h ${at[m].use.savedPerHour.toFixed(2)})`).join('; ')}`);
-}
-// A2b: consumer chat from measured anchors (research/22 §2): weekly reach (US ≈ 50% of adults use genAI outside work,
-// Nov 2025), the market's paid share (5–6%), subscribers × price as its own revenue line. Reported, not fitted.
-{
-  const c0 = at['2025-07-02'].cons;
-  const c26 = at['2026-07-01'].cons;
-  check(c26.regions.US.reach >= 0.45 && c26.regions.US.reach <= 0.65 && c26.regions.ROW.reach < c26.regions.US.reach,
-    'A2b 2026: US weekly AI chat reach ≈ 50–60% of adults (RPS ≈ 50% non-work use Nov 2025), ROW below the US', `US ${pct(c26.regions.US.reach)}, ROW ${pct(c26.regions.ROW.reach)}`);
-  const ps = (x: typeof c0) => x.subs / Math.max(1, x.users);
-  check(ps(c0) >= 0.04 && ps(c0) <= 0.09 && ps(c26) >= 0.04 && ps(c26) <= 0.09, 'A2b: the market\'s paid share stays near the measured 5–6% (4–9%) through 2026', `${pct(ps(c0))} → ${pct(ps(c26))}`);
-  console.log(`INFO  A2b consumer (all providers, US + ROW): ${MARKS.filter((m) => at[m]).map((m) => `${m} users ${(at[m].cons.users / 1e6).toFixed(0)}M, subs ${(at[m].cons.subs / 1e6).toFixed(0)}M (${pct(ps(at[m].cons))}), spend $${at[m].cons.spend.toFixed(1)}B, player users ${((at[m].cons.regions.US.playerUsers + at[m].cons.regions.ROW.playerUsers) / 1e6).toFixed(0)}M`).join('; ')}`);
-}
-// A2c: who pays for work use, and the agent-work term (research/22 §3–7). Reported, not fitted.
-{
-  const b = (m: string) => at[m].bill;
-  const exCN = (m: string) => b(m).world.seats - b(m).regions.CN.seats;
-  const tok = (m: string) => b(m).world.tokAdopted + b(m).world.tokSeated + b(m).world.tokAgent + b(m).consumerTokens;
-  const kOf = (m: string) => b(m).world.agent / Math.max(1, b(m).world.supervising);
-  check(exCN('2026-01-01') >= 20e6 && exCN('2026-01-01') <= 45e6 && exCN('2026-07-01') >= 35e6 && exCN('2026-07-01') <= 75e6,
-    'A2c: paid enterprise seats outside China ≈ 30M in Jan 2026 and ≈ 50M by mid-2026 (R22 4e–4g: M365 Copilot 15M → 30M, ChatGPT > 7M, Gemini > 8M)',
-    `${MARKS.slice(0, 6).map((m) => `${m} ${(exCN(m) / 1e6).toFixed(0)}M`).join(', ')}`);
-  const g26 = tok('2026-12-31') / tok('2026-01-01');
-  // Band ×4.6–×20 (M10, lead decision after MKT; was ×3–8, anchored on Google's first-party API alone). research/22 §3
-  // and §7 [P] measure the growth of token volume over a year on three instruments: Google first-party API tokens 7B →
-  // 32B a minute Q3 2025 → Q3 2026 (×4.6, row 3a); Google all surfaces 480T a month (May 2025) → > 1.3 quadrillion (Oct
-  // 2025), "> 20× in a year" (row 3b); OpenAI enterprise reasoning tokens per organisation ×320 in the 12 months to
-  // Nov 2025 (row 3c: per organisation and reasoning-only, an upper outlier, not a world total). The game's world total
-  // (API + seats + agents + consumer, every provider) sits between the API-only and the all-surface measures.
-  check(g26 >= 4.6 && g26 <= 20 && kOf('2026-12-31') > kOf('2026-07-01') && kOf('2026-07-01') > kOf('2026-01-01'),
-    'A2c: tokens a day grow ×4.6–20 over 2026 (R22 3a–3b: Google first-party API ×4.6/yr, Google all surfaces ×20/yr), through agent-hours per supervising hour rising with horizon and coverage',
-    `×${g26.toFixed(1)} (${(tok('2026-01-01') / 1e12).toFixed(0)}T → ${(tok('2026-12-31') / 1e12).toFixed(0)}T a day); agent-hours per supervising hour ${['2026-01-01', '2026-07-01', '2026-12-31'].map((m) => kOf(m).toFixed(2)).join(' → ')}`);
-  // CAL3-I: usage intensity per adopter = work tokens (adopted + seated + agent) per hour of use (adopted + seated +
-  // unseated). Measured Q3 2025 → Q3 2026: Google first-party API tokens ×4.6 (R22 3a) over US hours of use ×1.0–1.15
-  // (RPS, R22 §7) → ×4.0–4.6 a year; OpenRouter tokens per request ×1.8–2.2 a year (prompt 1.5k → 6k and sequence < 2k →
-  // > 5.4k, late 2023 / early 2024 → late 2025; openrouter.ai/state-of-ai, Dec 2025, read for CAL3-I). Reported, not fitted.
-  const perUseH = (m: string) => {
-    const w = b(m).world;
-    return ((w.tokAdopted + w.tokSeated + w.tokAgent) * 365) / Math.max(1, w.adopted + w.seated + w.unseated);
-  };
-  console.log(`INFO  A2c intensity: work tokens per hour of use ${['2025-07-02', '2026-01-01', '2026-07-01', '2026-12-31'].map((m) => `${m} ${(perUseH(m) / 1e3).toFixed(0)}k`).join(', ')}; Jul 2025 → Jul 2026 ×${(perUseH('2026-07-01') / perUseH('2025-07-02')).toFixed(1)} (measured ×4.0–4.6 a year: Google API tokens ÷ RPS hours)`);
-  const nonChina = c.annual[2026] + (c.rivalAnnual[2026] ?? 0);
-  console.log(`INFO  A2c CY2026 non-China frontier-lab revenue (player actual + closed rivals' demand-side market revenue; R22 §4 $100–130B): $${nonChina.toFixed(1)}B, leader (player) $${c.annual[2026].toFixed(1)}B =${pct(c.annual[2026] / nonChina)}`);
-  for (const m of ['2025-07-02', '2026-01-01', '2026-07-01', '2026-12-31']) {
-    const w = b(m).world;
-    console.log(`INFO  A2c ${m}: hours of use ${((w.adopted + w.seated + w.unseated) / 1e9).toFixed(0)}B/yr = adopted ${(w.adopted / 1e9).toFixed(0)}B (per hour) + seated ${(w.seated / 1e9).toFixed(0)}B (seat) + unseated ${(w.unseated / 1e9).toFixed(0)}B (unbilled); agent-hours ${(w.agent / 1e9).toFixed(1)}B; seats ${(w.seats / 1e6).toFixed(0)}M (player ${(b(m).playerSeats / 1e6).toFixed(0)}M); spend adopted $${w.spendAdopted.toFixed(1)}B, agents $${w.spendAgent.toFixed(1)}B, seats $${w.spendSeat.toFixed(1)}B; tokens/day ${(tok(m) / 1e12).toFixed(0)}T (agents ${(w.tokAgent / 1e12).toFixed(0)}T, consumer ${(b(m).consumerTokens / 1e12).toFixed(0)}T)`);
-  }
-}
-check(c.jsonErrs.length === 0, 'world state stays plain JSON (classic run)', c.jsonErrs.slice(0, 3).join('; '));
-const fired = new Set(c.s.headlines.map((h) => h.id.split(':')[0]));
-const once = HEADLINES.filter((h) => h.cooldownDays === undefined).every((h) => c.s.headlines.filter((x) => x.id === h.id).length <= 1);
-// 9 distinct fired by Jan 2027 (the smoke horizon), more after: ≥ 6 there, ≥ 10 over the full run.
-check(fired.size >= (SMOKE ? 6 : 10) && once, `headlines: ≥${SMOKE ? 6 : 10} distinct fire on the reference path; one-shot ones fire once`, [...fired].join(' '));
-check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) => d.revenueRate !== undefined && d.demandBound !== undefined && revenueOf(c.s, d.id) === d.revenueRate),
-  'revenue writes revenueRate and demandBound on every external deployment');
-
-// ───────────── 2. The world at Nov 2026 (W4) ─────────────
-{
-  // The classic run is the same game (tl-central, seed 2027) and records the 2026-07 and 2026-11 marks: no second game.
-  const r = c;
-  const a = r.at['2026-11-01'];
-  console.log('Nov 2026 / tl-central');
-  check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
-  check(a.youthX >= 0.76 && a.youthX <= 0.86, 'W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)', `${((a.youthX - 1) * 100).toFixed(1)}%`);
-  // CAL-X: the anchor is BTOS 17–20% of firms over Dec 2025–May 2026 (19.8% on 3 May 2026; research/22 §1 1f [P], new
-  // question since Nov 2025); it was checked at Nov 2026, half a year after its window, when the press readings
-  // (21.7% Jul, 23.8% Sep 2026 [UNVERIFIED]) had moved on. Now read at the Jul 2026 mark (the first after the window).
-  const fJul = r.at['2026-07-01'].firm;
-  check(fJul >= 0.15 && fJul <= 0.22, 'W4: firm adoption 17–20% (±2 pp), BTOS Dec 2025–May 2026, at the Jul 2026 mark', pct(fJul));
-  console.log(`INFO  W4 firm adoption (BTOS 17.7% Jan → 19.8% May [P] → 21.7% Jul → 23.8% Sep 2026 [press]): ${['2026-01-01', '2026-07-01', '2026-11-01'].map((m) => `${m} ${pct(r.at[m].firm)}`).join(', ')}`);
-  console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
+  const s = structuredClone(fx);
+  for (let i = 0; i < 7; i++) tick(s, { skip: ['endings'] });
+  const ext = s.player.deployments.filter((d) => d.channel !== 'internal');
+  check(ext.length > 0 && ext.every((d) => d.revenueRate !== undefined && d.demandBound !== undefined && revenueOf(s, d.id) === d.revenueRate),
+    'revenue writes revenueRate and demandBound on every external deployment', `${ext.length} external deployments`);
 }
 
-// ───────────── 6. Control / leverage and actions ─────────────
+console.log('Control / leverage and actions');
 {
-  const s = c.s;
-  const lev = leverage(s, 'player');
-  check(lev >= 0 && lev < 1 && ['none', 'entrenched', 'indispensable', 'decisive'].includes(leverageTier(s, lev)), 'leverage(player) in [0,1) with a tier', `${lev.toFixed(3)} (${leverageTier(s, lev)}; thresholds ${Object.values(LEVERAGE_THRESHOLDS).join('/')})`);
+  const lev = leverage(fx, 'player');
+  check(lev >= 0 && lev < 1 && ['none', 'entrenched', 'indispensable', 'decisive'].includes(leverageTier(fx, lev)), 'leverage(player) in [0,1) with a tier', `${lev.toFixed(3)} (${leverageTier(fx, lev)}; thresholds ${Object.values(LEVERAGE_THRESHOLDS).join('/')})`);
   const s2 = refGame();
   for (let i = 0; i < 30; i++) tick(s2, { skip: ['endings'] });
   const ctx = makeCtx(s2);
@@ -293,9 +52,9 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   for (let i = 0; i < 60; i++) tick(s2, { skip: ['endings'] });
   check(s2.player.policies.transitionFund === 10 && s2.player.finance.cash < cash0 + 1e3, 'transition fund: set and paid from cash');
   const ms = wa.find((a) => a.id === 'wfx.moonshot')!;
-  // [M2 test fix] At day 30 the start model researches nothing (every tech is gated: W03 needs REASON 7), so the
-  // action is unavailable there; use the day-900 fixture, where a beneficial non-risk tech is researchable.
-  const s3 = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
+  // At day 30 the start model researches nothing (every tech is gated: W03 needs REASON 7), so the action is unavailable
+  // there; use the day-900 fixture, where a beneficial non-risk tech is researchable.
+  const s3 = structuredClone(fx);
   const iv = internalVersion(s3);
   const tech = WORLD_TECHS.find((x) => s3.world.techs[x.id]?.discoveredDay === undefined && x.effects.benefit && !x.risk && iv && techBlocker(s3, x, domainScaleGs(s3.hidden.timeline, iv)) === undefined)?.id ?? 'W03';
   const avail = ms.available(s3);
