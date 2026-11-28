@@ -62,12 +62,14 @@ const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g };
   const [r, q] = s.rivals.filter((x) => x.core.status === 'active');
   // Smallest G (0.01 OOM grid) where the predicate gives SAR.
   let gSar = NaN;
-  for (let G = r.internal.G; G < r.internal.G + 15; G += 0.01) { setG(r, G); if (otherLabMilestones(s, r)[4]) { gSar = G; break; } }
+  const gr0 = r.internal.G; // setG moves internal.G, so the bound must not read it (that made this loop endless when SAR is never reached)
+  for (let G = gr0; G < gr0 + 15; G += 0.01) { setG(r, G); if (otherLabMilestones(s, r)[4]) { gSar = G; break; } }
   check(Number.isFinite(gSar), 'rival reaches SAR by the predicate', `G ${gSar.toFixed(2)} λ ${levelOfG(w, gSar).toFixed(2)}`);
   setG(r, gSar);
   r.core.milestoneDays = {};
   // q: display level 13 (past the SAR knot 12) but AI dearer than the best engineers per work-hour.
-  for (let G = q.internal.G; G < q.internal.G + 15 && levelOfG(w, G) < 13; G += 0.01) setG(q, G);
+  const gq0 = q.internal.G;
+  for (let G = gq0; G < gq0 + 15 && levelOfG(w, G) < 13; G += 0.01) setG(q, G);
   q.internal.params = 1e17; q.internal.fpt = 1e18;
   q.core.milestoneDays = {};
   s.time.day = 10;
