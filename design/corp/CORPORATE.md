@@ -1,17 +1,20 @@
 # Corporate structure, partners and lab kinds (draft for review)
 
 Started 2026-11-28 with the designer. Inputs: the code inventory (summarised in §9), [DEALS-AUDIT.md](DEALS-AUDIT.md),
-research/15 §1.6–1.7, research/18 §3, FINANCE-V3 §6–§7 and §13.
+research/15 §1.6–1.7, research/18 §3, FINANCE-V3 §6–§7 and §13, and the outside world as merged
+(design/world/OUTSIDE-WORLD.md, world/usgov.ts). Branch `corp` was rebased onto master 7ce0ad7e (outside world merged).
 
 ## 0. Designer's decisions (2026-11-28)
 
 - Three things were tangled together. **Structure** is who controls you. **Ties** are your partners. **Position** is
   where you start, and it sets the difficulty. A **lab kind** bundles all three, and Custom lets you mix them.
-- **Four structures:** founder-led, mission-controlled (nonprofit and trust are ONE structure), division of a parent, and
-  public company. Structures **change during play.**
+- **Structures:** founder-led, mission-controlled (nonprofit and trust are ONE structure), division of a parent, public
+  company, and (added the same day) government-controlled. Structures **change during play.**
 - **A holder above 50% does not end the game.** A change of owner limits what you can do and changes how the company
   works. You lose control only when the company is **dissolved** (for example, folded into another AI company) or when
   you, the **CEO, are dismissed**.
+- **Nationalization isn't the end either.** The lead lab stays in control under a **government-controlled** structure.
+  The same structure later serves China's lab.
 - Some lab kinds start with partners.
 - Partners and deals get real work. Today they are opaque, unbalanced and don't fit the game (§5).
 
@@ -38,6 +41,7 @@ everything else is derived from them.
 
 | # | Structure | Rule | Real analogues |
 |---|---|---|---|
+| 0 | **Government-controlled** | The US government took control (DPA consolidation accepted, or the hard path; §2.4) | AI 2027's oversight committee over the leading lab; later China's lab |
 | 1 | **Division** | One corporate holder (a parent or a partner) has more than half the votes | GDM, Meta AI, MS AI; Waymo (majority-owned) |
 | 2 | **Mission-controlled** | `missionBody` is set | OpenAI (both eras), Anthropic |
 | 3 | **Public company** | `listed` | Meta (dual-class), any widely held listed lab |
@@ -72,12 +76,12 @@ are.
 |---|---|---|---|
 | **Founder control** | Founders hold more than half the votes (by shares or dual-class) | You can push through a decision the board voted down, at −20 confidence. The reason: they could replace the board | `preset === 'founder'`; dual-class under any preset (bug 5) |
 | **Mission veto** | A mission body | It holds a vote that can't be forced on any holder passing 50%, and on handing out a capability-threshold model (open weights or an IP licence). Its safety committee halts the release of a red-flagged model | the trust (pbcTrust only) and the committee (nonprofitPBC only) |
-| **Parent's goals and budget** | The controller in a division | It sets yearly goals and the budget (§2.3) | `preset === 'parent'` checks |
+| **Controller's goals and budget** | The controller: a parent in a division (§2.3), the government under government control (§2.4) | It sets yearly goals and the budget | `preset === 'parent'` checks |
 
 **Removed:** "nonprofit removal ×0.5". The mission seats' priorities already make them turn on a reckless CEO and protect
 a careful one. A flat multiplier for one preset is a special case with no mechanism behind it.
 
-### 1.4 Investor appeal and the safety-index grade come from the charter
+### 1.4 Investor appeal comes from the charter
 
 - **Investor appeal** today is the flat table GOV_FACTOR (legacy 0.6, nonprofit + PBC 0.9, PBC + trust 1.0, founder 1.1).
   It becomes a product of charter features:
@@ -87,9 +91,6 @@ a careful one. A flat multiplier for one preset is a special case with no mechan
   - dual-class ×0.95, as now;
   - otherwise 1.0. The founder's 1.1 is dropped: R15 gives 1.1 for growth money but 0.8 for "responsible" money, so the
     two cancel to about 1.
-- **The safety-index governance grade** today is a flat table, GOV_SCORE. It is re-read per structure from the outside
-  grades for the analogues (the FLI AI Safety Index governance domain; to verify). It must fix today's oddity: PBC +
-  trust (0.6) currently ranks below the legacy nonprofit (0.65).
 - **Rival labs** use the same functions on their own charter. RIVAL_GOV maps each kind to a charter, not to a preset id.
 
 ## 2. What each structure offers and makes hard
@@ -110,7 +111,7 @@ the charter release gate, partners.
 | Change | How it happens | Votes | Cost and gain |
 |---|---|---|---|
 | **IPO** | The `fin.ipo` action, as today | none | As today. Dual-class keeps founder control |
-| **Lift the profit cap** (was "recapitalise") | Action, available only with `profitCap` | none | About 4 quarters of state Attorney General review, scrutiny +5, safety-staff morale −3. Afterwards the conditional tranche is paid. The mission body stays: OpenAI's 2025 recap kept nonprofit control |
+| **Lift the profit cap** (was "recapitalise") | Action, available only with `profitCap` | none | About 4 quarters of state Attorney General review, safety-staff morale −3 (the old scrutiny cost went with the outside-world rewrite). Afterwards the conditional tranche is paid. The mission body stays: OpenAI's 2025 recap kept nonprofit control |
 | **A holder passes 50%** | A rescue top-up, partner tranches, an anchor round, stock paid for a merger | The mission body (if any), then the board. **Every path** that can cross 50% goes through these votes (fixes bug 13: today tranches cross with no vote) | Structure → Division (§2.3) |
 | **Founder control lost** | Emergent: founders drop below half the votes | none | Shown ahead in every raise preview: "after this round founders hold 46% of votes: founder control ends" |
 | **Leave mission control** | **Not offered** (decision Q2) | — | Precedent: state AGs stopped OpenAI's attempt to drop nonprofit control (May 2025); Anthropic's trust needs board and stockholder supermajorities to change |
@@ -119,10 +120,10 @@ the charter release gate, partners.
 
 | Ending | Trigger | Status |
 |---|---|---|
-| **Ousted** | The board's ouster vote (as today); in a division, the parent's dismissal (§2.3) | extended to divisions |
+| **Ousted** | The board's ouster vote (as today); in a division, the parent's dismissal (§2.3); under government control, the government's (§2.4) | extended |
 | **Dissolved** (new; replaces "acquired") | The controller folds you into its own lab (§2.3) | new |
 | **Insolvent** | As today (never a division) | kept |
-| **Nationalized** | As today | kept |
+| **Nationalized** | Only when you are **not** the frontier lab when the government takes control: your lab is folded into the national project (a kind of dissolved). When you lead, it becomes government control instead (§2.4) | changed |
 | ~~Acquired~~ | A holder above 50% | **removed**; it becomes the change to Division |
 
 The "Independent at the end" scoring bonus is read off the structure at the end. A division always scoring −40 on the
@@ -147,6 +148,40 @@ There is one division model whether you start as one (big tech) or become one (a
   ahead of you (Brain + DeepMind, 2023).
 - **The parent's own lab** gets IP access to your models for as long as it controls you (it already would through a
   rescue).
+
+### 2.4 Government control (new; replaces the nationalized loss for the lead lab)
+
+**Today, after the outside-world merge** (world/usgov.ts):
+- **Stage 4 consolidation:** E22 offers the frontier lab DPA consolidation when the government's trust is above its soft
+  line. Accepting pools 50% of every US NPC lab's compute into you as free cloud capacity (`dpaAccepted`), and nothing
+  else changes.
+- **The hard path:** trust stays low past the hold time at stage 3 or above, or a misalignment leak raises public concern.
+  This sets `consolidated = 'nationalized'`, which is the loss ending.
+- The epilogue already reads "DPA + low trust at ASI" as the government holding power.
+
+**New:** both paths make you **government-controlled**, the same controlled model as a division (§2.3) with the
+government as the controller.
+
+| | DPA accepted (soft) | Hard path (taken) |
+|---|---|---|
+| **When** | You accept E22 | Low trust past the hold time, or the leak scare |
+| **You are the frontier lab** | Government-controlled; you stay CEO | Government-controlled; you stay CEO, starting at low confidence (on probation) |
+| **You are not the frontier lab** | (E22 is only offered to the frontier lab) | Folded into the national project: the **nationalized** loss (a kind of dissolved) |
+
+- **The controller's confidence** is the government's trust (`usgov.trust`). One meter; it is already shown and moves on
+  named causes.
+- **Board:** an oversight committee holds 4 of 7 seats. It leans toward security and safety, and its stance vector is a
+  new row (§1.2). The other seats follow the votes, as before, because the cap table stays and the shareholders remain.
+- **Money:** you keep your revenue and cash. The pooled compute is the government's contribution, and there is no outside
+  equity, sale of control or deal without the committee's yes. Whether it also pays a budget, like the parent, is
+  decision Q11.
+- **Goals:** security level (the WSL floor it already checks), staying ahead of China (`chinagov`), and no incidents.
+  These use the same goals and reviews mechanism as the parent.
+- **Dismissal:** at trust below the dismissal line for two reviews, the government replaces you (ousted). This is how a
+  distrusted CEO loses control.
+- **No way out:** the government doesn't hand a frontier lab back (out of scope).
+- **China's lab later:** the same controlled structure with the Chinese state as controller. The NPC headline lab only
+  needs the label and the shape (NPC-simple). Not in this workstream.
 
 ## 3. Lab kinds and setup
 
@@ -210,7 +245,7 @@ happens even under "Founder control". Picking a kind fills the Custom fields, so
     own sites, and two chip vendors both pay for the same 2 GW.
 - **Most strings are free money.** Exclusivity (+$5.1B for the leader) blocks a competitor that is already at its cap,
   and it never ends. IP access costs about 9 days of lead a year, and nothing at all when you're behind. The sovereign's
-  political cost fades within about 90 days. Anchoring a round adds 75% to its size with no strings and bypasses the
+  political cost faded within about 90 days, and since the outside-world merge it has none at all. Anchoring a round adds 75% to its size with no strings and bypasses the
   partner limit.
 - **Rescue is arbitrary, and it's the one deal bots actually use.**
   - The rescuer is simply the first name in a fixed list.
@@ -284,10 +319,10 @@ Each partner has **one interest**. It's shown in player words and moves its offe
 
 **6. Every path that raises one holder's stake is judged at the stake it will reach (fixes finding 17).**
 - **Hyperscaler and chip-vendor stakes are capped at 15% with no votes** (antitrust, sourced). The only way past the cap is
-  a rescue or an acquisition. Both go through the control votes and an antitrust review, which adds scrutiny.
+  a rescue or an acquisition. Both go through the control votes and an antitrust review (a US-government trust cost; scrutiny no longer exists after the outside-world merge).
 - **The separate anchoring channel is removed.** A round is either a round or a partner deal.
-- **A sovereign is an investor type within a round.** It makes the round bigger. Its political cost (Congress trust,
-  security demand) lasts **as long as it holds its stake**, instead of fading.
+- **A sovereign is an investor type within a round.** It makes the round bigger. Its political cost (a standing cost in
+  the US government's trust, `usgov.trust`) lasts **as long as it holds its stake**, instead of fading.
 
 **7. Rivals:** drop the dead "one lab per partner" rule. Rival cards show a backer label only (simple background, no
 mechanics).
@@ -323,11 +358,16 @@ mechanics).
 8. **Partners act:** a renewal at the end of a deal, follow-on offers as actions, terms that follow the partner's
    interest and your dependence on it (recommended). Or keep partners static and only fix the sizes and previews.
 9. **Remove** Corvid Micro, round anchoring as its own channel, and the dead "one lab per partner" rule (recommended).
+10. **Government control:** the soft path (E22) and the hard path both lead to government control while you are the
+    frontier lab. The hard path starts you on probation. If you are behind, the hard path folds you in (the nationalized
+    loss). (Recommended.)
+11. **Government money:** the pooled compute only (recommended: what the merged code already does), or also a yearly
+    budget like a parent's?
 
 ## 7. Cleanup (last task of the build)
 
 Delete: GovernancePresetId and every preset string, GOV_FACTOR and GOV_SCORE as preset tables, `OUSTER.legacyMult`,
-`syncFinancialSeats`, the "Listing independent" literal, the `ws4.soldControl` flag and the 'acquired' ending, the
+`syncFinancialSeats`, the "Listing independent" literal, the `endingProgress.soldControl` flag and the 'acquired' ending, the
 never-created 'gov' seat kind, the never-produced 'ipo' tranche condition, the citations of the non-existent events E02
 and E26, `issueWarrants`' copy of `issue()`, the `leaderLab` field and the stale `setup.leaderLab` comment, BOARD_LABEL
 and the other duplicated label tables (one source), and the dead "trust notified of new debt" log. Fix the hubView
