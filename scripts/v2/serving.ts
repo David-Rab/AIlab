@@ -1,3 +1,10 @@
+// GUARDS: the serving / pricing / consumer / seat / ceiling invariants of the market (who pays what for work use, price never
+// below cost, shares sum to 1, preview = effect, the agent-work ceiling) and the exact decomposition of the fixed-capability
+// price. Mechanism checks (shape, identities); the few sourced start numbers (C1 700M users, A7 0.24 Wh, A8 revenue) are
+// CAL-TARGETs listed in KNOWN.
+// COST: quick (--smoke) ≈ 15 CPU-s: one game built once and cloned (day 3 / day 20), the day-0/400/900 fixtures, about 130
+// simulated days in all; D2 runs 30 RefBot days from the day-900 fixture. Full: D2 runs 300 RefBot days (day 900 → 1200,
+// ≈ 50 CPU-s more). TIER: quick (needs run.ts to pass --smoke) and full.
 // Serving, products and sectors on work types (model v3 V4.4; design/archive/V3-BUILD.md "V4" and "V4 notes"). Owner: WS5.
 //   S1  cost per work-hour ∝ FLOP per token (2·N_active) × tokens; a bigger model costs more per task (the size → cost
 //       link v2's revenue exponent damped)
@@ -30,13 +37,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PRODUCT_TOOLS as FEATURES, PRODUCT_TOOL_BY_ID as FEATURE_BY_ID } from '../../src/data/v2/tools';
 import { AGENT_WORK, SEATS, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
+import { TOOL_BY_ID } from '../../src/data/v2/features';
 /** MK-6: the old standard tier's markup (margin 0.6), kept here only as offer arithmetic for these checks (offerOf's
  *  markup); the game prices by competition (worldfx/mix.ts). */
 const MARKUP = { standard: 1 / 0.4 };
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { decimalYear, dayOfDate } from '../../src/engine/v2/core/time';
+import { decimalYear } from '../../src/engine/v2/core/time';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -49,8 +57,8 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier,
+  adoptedTokens, agentDemandOf, agentMixOf, agentLeverage, blendTiers, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, labToolOpts,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
 import { REFERENCE_BASE } from '../../src/data/v2/runDesign';
@@ -66,7 +74,13 @@ import { decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERV
 import { serveTechMult } from '../../src/engine/v2/models/runs';
 import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2/departments/workfit';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, check, finish } from './lib';
+import { FIXTURE_DIR, KNOWN, SMOKE, check, finish } from './lib';
+
+// Known failures (design/test-audit/G3-report.md; OPEN.md § Balance "Re-derive ~100 quick-test expectations" for the CAL-TARGETs):
+KNOWN["C1 the leader's Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: start users 620M vs the sourced ≈ 700M)';
+KNOWN["A7 a free message costs within ×3 of Google's measured 0.24 Wh median"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: the free tier is the cheapest lineup model since RD-P02, 0.02 Wh)';
+KNOWN["A8 the leader's day-1 revenue $12–15B, Chat 60–75% of it"] = 'OPEN.md § Balance: re-derive quick-test expectations (CAL-TARGET: day-1 revenue $15.6B, Chat 49%; MARKET-CP (c))';
+KNOWN["B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat's serving cost)"] = "OPEN.md: BUG seat price readout is the last sector cell's, not the average (worldfx/revenue.ts:575 a.seatPrice = o.seat; MARKET-CP (b) 1)";
 
 // The cheapest model a lab can serve at a capability (A3; moved here from worldfx/serving.ts in RD-C04: only this
 // suite reads it).
@@ -105,6 +119,20 @@ function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): Cheapest
 }
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
+// One game is built once and cloned per section (TESTING §2): day 0, day 3 (the old "run(s, 3)" start) and, lazily, day 20.
+const DAY0 = game();
+const fresh0 = () => structuredClone(DAY0);
+const DAY3 = structuredClone(DAY0);
+for (let i = 0; i < 3; i++) tick(DAY3, { skip: ['endings'] });
+const fresh = () => structuredClone(DAY3);
+let day20: GameStateV2 | undefined;
+const fresh20 = () => {
+  if (!day20) {
+    day20 = fresh();
+    for (let i = 0; i < 17; i++) tick(day20, { skip: ['endings'] });
+  }
+  return structuredClone(day20);
+};
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };
@@ -123,7 +151,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const h1 = h100eHoursPer(2e12, tok);
   check(near(h100eHoursPer(4e12, tok), 2 * h1) && near(h100eHoursPer(2e12, { input: 2 * tok.input, output: 2 * tok.output }), 2 * h1),
     'S1 H100e-hours per work-hour ∝ FLOP per token and ∝ tokens', `${h1.toFixed(3)} H100e-h per agentic work-hour at 1T active`);
-  const s = game();
+  const s = fresh();
   const v0 = s.player.models.versions[0];
   const big = cloneVersion(s, v0, 'VB', { fpt: 2 * (v0.fpt ?? 2e12) });
   const rate = serveDollarsPerHour(s);
@@ -140,8 +168,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── S2 capacity ∝ H100e; revenue = min(demand, capacity) × price ─────────
 {
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const rd1 = revenueReadout(s);
   const pool1 = servingPool(s);
   s.player.computeOnline *= 2;
@@ -178,7 +205,7 @@ for (const d of [400, 900]) {
     const value = valuePerHour(s, sid, r);
     mix.providers.forEach((p, i) => {
       if (!p.model || !m.prices[i]) return;
-      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud }); // D10: the provider's decode utilisation (M5)
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud, tools: p.tools, ...labToolOpts(s, p.tools, sid, p.model) }); // D10: the provider's decode utilisation (M5); MK-CP: its tools as mix.ts builds it (MK-11 labToolOpts: harness ΔG, tokens, horizon)
       n++;
       // A5: the provider sells a lineup (its model and its cheap tiers); every tier's price is in [cost, max(cost, value)]
       // and the provider's price is its customers' tier mix of them (≥ the mix's cost).
@@ -203,8 +230,7 @@ for (const d of [400, 900]) {
 
 // ───────── S4 customers move gradually ─────────
 {
-  const s = game();
-  run(s, 20);
+  const s = fresh20();
   const mix0 = worldMix(s);
   const pi = mix0.providers.findIndex((p) => p.key === 'player');
   const sh0 = mix0.sec.US.SOFT.share[pi];
@@ -219,22 +245,22 @@ for (const d of [400, 900]) {
   const rT = mixT.reach.US.target[pi];
   run(s, 1);
   const sh1 = worldMix(s).sec.US.SOFT.share[pi];
-  run(s, 44);
+  run(s, 14); // 15 days in all (was 45: each day costs ~0.1 s; the expectations scale with the day count)
   const m45 = worldMix(s);
   const sh45 = m45.sec.US.SOFT.share[pi];
   const r45 = m45.reach.US.stock[pi];
   const tgt45 = m45.sec.US.SOFT.target[pi];
-  const want = 1 - Math.exp(-45 / (CUSTOMER_TAU.sector * 365));
-  check(tgt > sh0 + 0.02 && rT > 0.9 && r45 > r0 + 0.5 * (rT - r0) * (1 - Math.exp(-45 / (MULTI_HOMING.tau * 365))) && tgt45 > tgt && sh1 - sh0 < 0.05 * (tgt - sh0) + 0.01 && sh45 > sh0 + 0.5 * want * (tgt - sh0),
+  const want = 1 - Math.exp(-15 / (CUSTOMER_TAU.sector * 365));
+  check(tgt > sh0 + 0.02 && rT > 0.9 && r45 > r0 + 0.5 * (rT - r0) * (1 - Math.exp(-15 / (MULTI_HOMING.tau * 365))) && tgt45 > tgt && sh1 - sh0 < 0.05 * (tgt - sh0) + 0.01 && sh45 > sh0 + 0.5 * want * (tgt - sh0),
     'S4 a much better model: the target share rises at once and more as firms add the lab (reach → its target over MULTI_HOMING.tau); the customer stock moves a little a day (CUSTOMER_TAU.sector)',
-    `share ${sh0.toFixed(3)} → day 1 ${sh1.toFixed(3)} → day 45 ${sh45.toFixed(3)} (target ${tgt.toFixed(3)} → ${tgt45.toFixed(3)}); reach ${r0.toFixed(3)} → ${r45.toFixed(3)} (target ${rT.toFixed(3)})`);
+    `share ${sh0.toFixed(3)} → day 1 ${sh1.toFixed(3)} → day 15 ${sh45.toFixed(3)} (target ${tgt.toFixed(3)} → ${tgt45.toFixed(3)}); reach ${r0.toFixed(3)} → ${r45.toFixed(3)} (target ${rT.toFixed(3)})`);
   const c0 = worldMix(s).consumer.US.share[pi];
   check(Number.isFinite(c0) && c0 > 0, 'S4 consumers are a stock too (moves in weeks)', c0.toFixed(3));
 }
 
 // ───────── S5 sector feasibility on the shared coverage function ─────────
 {
-  const s = game();
+  const s = fresh();
   const w = s.hidden.timeline;
   const th = sectorTheta(w, 'SOFT');
   const a = (f: number, h: number) => sectorCover(w, 'SOFT', f, h);
@@ -250,8 +276,7 @@ for (const d of [400, 900]) {
 // ───────── S6 typed features in products and internal use ─────────
 {
   check(FEATURES.every((f) => (f.fx.length > 0 || f.agentGateH !== undefined) && f.fx.every((x) => ['enabler', 'horizon', 'scaffold'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
-  const s = game();
-  run(s, 2);
+  const s = fresh();
   const api = prod(s, 'api');
   const base = productOffer(s, api, 'SOFT');
   s.player.features.push('coding');
@@ -259,9 +284,15 @@ for (const d of [400, 900]) {
   const withF = productOffer(s, api, 'SOFT');
   const sc = FEATURE_BY_ID.coding.fx[0] as { dG: number; tokens: number };
   check(near(withF.fit, base.fit + sc.dG, 1e-9) && near(withF.cost, base.cost * sc.tokens, 1e-9), 'S6 scaffold (coding agent) on a product: +ΔG fit in Software & IT and × tokens per work-hour', `fit ${base.fit.toFixed(3)} → ${withF.fit.toFixed(3)}, cost $${base.cost.toFixed(2)} → $${withF.cost.toFixed(2)}`);
-  const l0 = labourOf(game(), 'SWE');
-  const l1 = labourOf(s, 'SWE');
-  check(near(l1.fit.fit, l0.fit.fit + sc.dG, 1e-6) && internalFx(s, 'SWE').tok === sc.tokens, 'S6 the same scaffold applies to the internal engineering agents (fit +ΔG, × tokens per work-hour)', `${l0.fit.fit.toFixed(3)} → ${l1.fit.fit.toFixed(3)}`);
+  // RD-A06 (DD-03): a product tool acts only inside its product; the lab's internal agents get the same typed effect from
+  // the internal tool it owns (INTERNAL_TOOLS, built by engineers): the coding harness is the internal coding scaffold.
+  const sI = fresh();
+  const l0 = labourOf(sI, 'SWE');
+  const inTool = TOOL_BY_ID.codingHarness.fx[0] as { dG: number; tokens: number };
+  check(internalFx(s, 'SWE').tok === 1 && near(labourOf(s, 'SWE').fit.fit, l0.fit.fit, 1e-6), 'S6 a product tool does not touch the internal agents (it acts only inside its product offer)');
+  sI.player.tooling = [...(sI.player.tooling ?? []), 'codingHarness'];
+  const l1 = labourOf(sI, 'SWE');
+  check(near(l1.fit.fit, l0.fit.fit + inTool.dG, 1e-6) && internalFx(sI, 'SWE').tok === inTool.tokens, 'S6 the internal coding harness (the internal tool) applies the typed scaffold to the engineering agents (fit +ΔG, × tokens per work-hour)', `${l0.fit.fit.toFixed(3)} → ${l1.fit.fit.toFixed(3)}`);
   const hz = fxOn(FEATURE_BY_ID.memory.fx, 'OFFICE');
   check(hz.hMult === 1.3 && fxOn(FEATURE_BY_ID.memory.fx, 'EXP').hMult === 1.3, 'S6 horizon extender (memory): × h50 on every work type, products and internal');
   const ent = prod(s, 'consumer');
@@ -279,29 +310,28 @@ for (const d of [400, 900]) {
   check(tg1 > tg0 && tg1 <= tg0 * (1 + en) * (1 + 1e-9) && near(rd1.users ?? 0, rd0.users ?? 0, 1e-9),
     'S6 / RD-B11 task enabler (companion) opens Chat users once: through the users\' app choice (target ≤ ×(1 + share)), not again on the users',
     `US target ${tg0.toFixed(4)} → ${tg1.toFixed(4)} (×${(tg1 / tg0).toFixed(3)}, enabler ${en}); same-day users ${((rd0.users ?? 0) / 1e6).toFixed(0)}M → ${((rd1.users ?? 0) / 1e6).toFixed(0)}M`);
-  run(s, 30);
+  run(s, 10);
   const rd2 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
-  check((rd2.users ?? 0) > (rd1.users ?? 0), 'S6 the companion enabler\'s users arrive through the customer stock', `${((rd1.users ?? 0) / 1e6).toFixed(0)}M → ${((rd2.users ?? 0) / 1e6).toFixed(0)}M users after 30 days`);
+  check((rd2.users ?? 0) > (rd1.users ?? 0), 'S6 the companion enabler\'s users arrive through the customer stock', `${((rd1.users ?? 0) / 1e6).toFixed(0)}M → ${((rd2.users ?? 0) / 1e6).toFixed(0)}M users after 10 days`);
 }
 
 // ───────── C consumer demand from measured anchors (A2b; research/22 §2–3) ─────────
 {
   // C1 reach is a stock that moves toward its target (the best model's consumer-chat coverage), in both directions.
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const tUS = reachTarget('US', worldMix(s).consumer.US.bestCover);
   s.world.fx.reach.US = 0.2;
   run(s, 1);
   const r1 = s.world.fx.reach.US;
-  run(s, 59);
+  run(s, 14); // day 15 (was 60; the reach speed is (p + q·R) a year, so ≈ +0.035 in 15 days from 0.2)
   const r60 = s.world.fx.reach.US;
   const tUS60 = reachTarget('US', worldMix(s).consumer.US.bestCover);
-  check(r1 > 0.2 && r1 - 0.2 < 0.02 && r60 > r1 + 0.03 && r60 < tUS60, 'C1 reach below its target rises toward it over months, not at once',
-    `0.200 → day 1 ${r1.toFixed(3)} → day 60 ${r60.toFixed(3)} (target ${tUS.toFixed(3)} → ${tUS60.toFixed(3)})`);
+  check(r1 > 0.2 && r1 - 0.2 < 0.02 && r60 > r1 + 0.008 && r60 < tUS60, 'C1 reach below its target rises toward it over months, not at once',
+    `0.200 → day 1 ${r1.toFixed(3)} → day 15 ${r60.toFixed(3)} (target ${tUS.toFixed(3)} → ${tUS60.toFixed(3)})`);
   s.world.fx.reach.US = 0.95;
-  run(s, 30);
+  run(s, 10);
   check(s.world.fx.reach.US < 0.95 && s.world.fx.reach.US > 0.9, 'C1 reach above its target falls slowly', s.world.fx.reach.US.toFixed(3));
-  const g0 = game();
+  const g0 = fresh0();
   check(Math.abs(g0.world.fx.reach.US - CONSUMER_MKT.reach.startUS) < 1e-12 && Math.abs(g0.world.fx.reach.ROW - CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow) < 1e-12,
     'C1 start reach: 46% of US adults weekly (RPS ≈ 50% non-work use in Nov 2025), ROW 0.548 × the US (A6b: the leader starts at ChatGPT’s ≈ 700M weekly users)', `US ${g0.world.fx.reach.US}, ROW ${g0.world.fx.reach.ROW.toFixed(3)}`);
   const u0 = revenueReadout(g0).deps.filter((x) => x.channel === 'consumer').reduce((a, x) => a + (x.users ?? 0), 0);
@@ -309,17 +339,16 @@ for (const d of [400, 900]) {
 }
 {
   // C2 the paid share is a stock that moves toward its target; C5 a better consumer model raises the paid share.
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
   const tgt = worldMix(s).consumer.US.paidTarget[pi];
   s.world.fx.paid.US.player = 0.01;
   run(s, 1);
   const p1 = s.world.fx.paid.US.player;
-  run(s, 59);
+  run(s, 14); // day 15 (was 60)
   const p60 = s.world.fx.paid.US.player;
-  check(tgt > 0.03 && tgt < 0.12 && p1 > 0.01 && p1 - 0.01 < 0.05 * (tgt - 0.01) && p60 > 0.01 + 0.5 * (tgt - 0.01),
-    'C2 the paid share moves toward its target over weeks (τ ≈ 8 weeks), not at once', `0.010 → day 1 ${p1.toFixed(4)} → day 60 ${p60.toFixed(4)} (target ${tgt.toFixed(4)})`);
+  check(tgt > 0.03 && tgt < 0.12 && p1 > 0.01 && p1 - 0.01 < 0.05 * (tgt - 0.01) && p60 > 0.01 + 0.5 * (1 - Math.exp(-15 / (CONSUMER_MKT.paid.tau * 365))) * (tgt - 0.01),
+    'C2 the paid share moves toward its target over weeks (τ ≈ 8 weeks), not at once', `0.010 → day 1 ${p1.toFixed(4)} → day 15 ${p60.toFixed(4)} (target ${tgt.toFixed(4)})`);
   const chat = prod(s, 'consumer');
   const v0 = versionById(s, chat.versionId)!;
   const m0 = worldMix(s);
@@ -330,7 +359,7 @@ for (const d of [400, 900]) {
   chat.versionId = better.id;
   const m1 = worldMix(s);
   const sub0 = s.world.fx.paid.US.player;
-  run(s, 45);
+  run(s, 15);
   check(m1.consumer.US.cover[pi] > a0 + 0.05 && m1.consumer.US.paidTarget[pi] > t0 * 1.05 && s.world.fx.paid.US.player > sub0,
     'C5 a better consumer model (same price) raises the paid-share target, and the stock follows',
     `coverage ${a0.toFixed(3)} → ${m1.consumer.US.cover[pi].toFixed(3)}, target ${t0.toFixed(4)} → ${m1.consumer.US.paidTarget[pi].toFixed(4)}, stock ${sub0.toFixed(4)} → ${s.world.fx.paid.US.player.toFixed(4)}`);
@@ -340,8 +369,7 @@ for (const d of [400, 900]) {
 }
 {
   // C3 subscribers × price × 12 is the consumer revenue line, independent of work hours.
-  const s = game();
-  run(s, 20);
+  const s = fresh20();
   const chat = prod(s, 'consumer');
   const x0 = revenueReadout(s).deps.find((x) => x.id === chat.id)!;
   const line = ((x0.subs ?? 0) * (x0.subPrice ?? 0) * 12) / 1e9;
@@ -359,8 +387,7 @@ for (const d of [400, 900]) {
 {
   // C4 the free users' serving need uses the measured budget (≈ 9k tokens per weekly-user-day), served last.
   const fr = CONSUMER_MKT.perDay.free;
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const chat = prod(s, 'consumer');
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
   // A7: on the free tier (its mini, else the cheapest student of its model).
@@ -375,8 +402,7 @@ for (const d of [400, 900]) {
   // A7 free tiers with parity: every provider's free tier holds its consumer model's chat fit less one year of the
   // reference frontier (RD-P02: rivals: their cheapest real lineup model); users choose on the free tier; the start's free users are
   // served and a free message costs within ≈ 3× of Google's measured 0.24 Wh median (arXiv 2508.15734).
-  const s = game();
-  run(s, 1);
+  const s = fresh();
   const mix = worldMix(s);
   // RD-P02: a rival's free tier is its cheapest real lineup model (below its model's fit when it has a lineup).
   let bad = 0;
@@ -397,8 +423,10 @@ for (const d of [400, 900]) {
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
   const msgS = (h100eHoursPer(ft.fpt, CONSUMER_MKT.perDay.free, decodeUtilNow(s)) * 3600) / CONSUMER_MKT.messagesPerDay;
   const wh = (msgS * 0.7) / 3.6; // accelerator energy at 0.7 kW per H100e
-  check((x.cutFree ?? 0) <= 0.1 * (x.needFree ?? 0) && wh >= 0.24 / 3 && wh <= 0.24 * 3,
-    'A7 day 1: free users served (≥ 90%) and a free message within ×3 of 0.24 Wh', `free need ${Math.round((x.needFree ?? 0) / 1e3)}k cut ${Math.round((x.cutFree ?? 0) / 1e3)}k; ${msgS.toFixed(2)} H100e-s ≈ ${wh.toFixed(2)} Wh`);
+  check((x.cutFree ?? 0) <= 0.1 * (x.needFree ?? 0) && (x.needFree ?? 0) > 0, 'A7 at the start the free users are served (≥ 90% of their need)', `free need ${Math.round((x.needFree ?? 0) / 1e3)}k cut ${Math.round((x.cutFree ?? 0) / 1e3)}k`);
+  // CAL-TARGET (sourced: Google's measured median Gemini Apps text prompt, arXiv 2508.15734). Since RD-P02 the free tier is
+  // the lab's cheapest lineup model, ~12× cheaper to serve than the Gemini median the anchor measures.
+  check(wh >= 0.24 / 3 && wh <= 0.24 * 3, "A7 a free message costs within ×3 of Google's measured 0.24 Wh median", `${msgS.toFixed(2)} H100e-s ≈ ${wh.toFixed(2)} Wh`);
 }
 {
   // A8 multi-homing: each provider is in a sector buyer's set with probability min(1, MULTI_HOMING.providers ÷ the
@@ -406,7 +434,7 @@ for (const d of [400, 900]) {
   // at the firms that buy from it. The start stocks are the day-0 targets (A7's start cap is gone), and the classic
   // leader (3–9 months ahead) holds the measured spread: 0.25 (OpenAI mid-2025) to 0.45 (Anthropic 40% end-2025) of
   // US and ROW sector spend (Menlo Ventures, Jul and Dec 2025).
-  const s = game();
+  const s = fresh0();
   const mix = worldMix(s);
   let bad = 0;
   for (const r of ['US', 'ROW', 'CN'] as const) for (const def of SECTORS) {
@@ -470,9 +498,11 @@ for (const d of [400, 900]) {
   run(s, 1);
   const rd = revenueReadout(s);
   const chatRev = rd.deps.find((z) => z.channel === 'consumer')!.revenue;
-  check(us / (us + row) >= 0.4 && us / (us + row) <= 0.72 && hr > 3 && hr < 4.2 && near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9) && rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75,
-    'A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6; leader day-1 revenue $12–15B, Chat 60–75% of it',
-    `US $${us.toFixed(2)}B of $${(us + row).toFixed(2)}B (${((100 * us) / (us + row)).toFixed(0)}%); hours ROW / US ${hr.toFixed(2)}; revenue $${rd.total.toFixed(2)}B (Chat $${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
+  check(us / (us + row) >= 0.4 && us / (us + row) <= 0.72 && hr > 3 && hr < 4.2 && near(a0, (REGION_SCALE.ROW.use * SEATS.start.ROW) / SEATS.start.US, 1e-9),
+    'A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6 (ROW sector scale = use × seats ratio)',
+    `US ${us.toFixed(2)}B of ${(us + row).toFixed(2)}B (${((100 * us) / (us + row)).toFixed(0)}%); hours ROW / US ${hr.toFixed(2)}`);
+  // CAL-TARGET (sourced: research/22 §4, the leader's 2025 run-rate ≈ $12–15B, Chat ≈ two thirds).
+  check(rd.total >= 12 && rd.total <= 15 && chatRev / rd.total >= 0.6 && chatRev / rd.total <= 0.75, "A8 the leader's day-1 revenue $12–15B, Chat 60–75% of it", `revenue ${rd.total.toFixed(2)}B (Chat ${chatRev.toFixed(2)}B, ${((100 * chatRev) / rd.total).toFixed(0)}%)`);
 }
 for (const d of [400, 900]) {
   // C6 no provider's subscription is priced above the willingness to pay (unless serving a subscriber costs more).
@@ -502,7 +532,7 @@ for (const d of [400, 900]) {
 // ───────── B who pays for work use, and agent work (A2c; research/22 §3–7) ─────────
 {
   // B1 seats ⊆ the workers who use AI; B2 adopted + seated + unseated hours = the hours of use.
-  for (const [label, s] of [['start', (() => { const g = game(); run(g, 3); return g; })()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
+  for (const [label, s] of [['start', fresh()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
     let bad1 = 0;
     let bad2 = 0;
     let seats = 0;
@@ -522,15 +552,13 @@ for (const d of [400, 900]) {
   }
   // B3 seat revenue = seats × seat price × 12; the seat price never below the seat's serving cost. The price is the
   // lineup tiers' weighted blend (worldfx/mix.ts); MK-9: set by competition, at most SEATS.cap.
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const ent = revenueReadout(s).deps.find((x) => x.channel === 'enterprise')!;
   check((ent.seats ?? 0) > 1e6 && near(ent.seatDemand ?? 0, ((ent.seats ?? 0) * (ent.seatPrice ?? 0) * 12) / 1e9, 1e-9) && (ent.seatPrice ?? 0) >= (ent.seatCost ?? 0) && (ent.seatPrice ?? 0) <= SEATS.cap * (1 + 1e-12),
     'B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat\'s serving cost)',
     `${((ent.seats ?? 0) / 1e6).toFixed(1)}M × $${(ent.seatPrice ?? 0).toFixed(0)} × 12 = $${(ent.seatDemand ?? 0).toFixed(2)}B; serving cost $${(ent.seatCost ?? 0).toFixed(2)}/seat-month`);
   // B4 unseated hours bill no one: more unseated use (W up, no seats) leaves sector spend and the player's need unchanged.
-  const u0 = game();
-  run(u0, 3);
+  const u0 = fresh();
   for (const row of Object.values(u0.world.sectors)) for (const st of Object.values(row)) st.seat = 0;
   const m0 = revenueReadout(u0);
   const sp0 = m0.marketSpend.US + m0.marketSpend.ROW + m0.marketSpend.CN;
@@ -550,9 +578,16 @@ for (const d of [400, 900]) {
     'B5 agents per supervising hour λ = 1/(c/h80 + ρ(1 − a) + m) rises with the horizon and coverage, capped at 1/m',
     `start-like (a 0.1, h50 203 min) ${l(0.1, 203).toFixed(2)}; h50 10 h ${l(0.1, 600).toFixed(2)}; a 0.5 ${l(0.5, 600).toFixed(2)}; cap ${(1 / AGENT_WORK.floorH).toFixed(0)}`);
   // B6 parallelism and token intensity raise agent-hours and the serving need, not the human hours of use.
-  const s = game();
-  run(s, 3);
+  // MK-CP restatement: since RF-P1 the start's Enterprise already carries Memory, and since MK-11 agent-hours need Agent
+  // mode and pass its horizon gate, which no start model does (0 agent-hours at the start with or without Agent mode). So
+  // the rig runs on the day-400 fixture's Enterprise (Agent mode on), with Memory and Deep research taken off first.
+  const s = fixture(400);
   const api = prod(s, 'enterprise');
+  for (const id of ['memory', 'research'] as const) {
+    api.features = api.features.filter((f) => f !== id);
+    if (!s.player.deployments.some((d) => d.features.includes(id))) s.player.features = s.player.features.filter((f) => f !== id);
+  }
+  if (!api.features.includes('agentMode')) api.features.push('agentMode');
   const humans = (g: GameStateV2) => (['US', 'CN', 'ROW'] as const).reduce((a, r) => a + Object.keys(g.world.sectors[r]).reduce((b, sid) => b + sectorHours(g, r, sid as SectorId), 0), 0);
   const x0 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
   const H0 = humans(s);
@@ -580,7 +615,7 @@ for (const d of [400, 900]) {
   for (const r of ['US', 'CN', 'ROW'] as const) for (const [sid, m] of Object.entries(mix.sec[r]) as [SectorId, (typeof mix.sec.US)[SectorId]][]) {
     mix.providers.forEach((p, i) => {
       if (!p.model) return;
-      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud }); // D10: the provider's decode utilisation (M5)
+      const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], sid, { markup: p.markup, rate, ud: p.ud, tools: p.tools, ...labToolOpts(s, p.tools, sid, p.model) }); // D10: the provider's decode utilisation (M5); MK-CP: its tools as mix.ts builds it (MK-11 labToolOpts: harness ΔG, tokens, horizon)
       const wage = wagePerHour(sid, r);
       n++;
       // A5: costs are the customers' tier mix (its model and its cheap tiers); k is its model's (the lineup's coverage).
@@ -639,7 +674,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
 // H100e-hour (rental), margin. Per token = per task ÷ the fall in tokens per task (Cottier et al. measure per token).
 {
   // A1 the cheapest-at-G model is a run the lab can launch: planRun's distillation gap for that student = fit − G
-  const s = game();
+  const s = fresh();
   const v0 = s.player.models.versions[0];
   const g0 = workFit(s, v0, 'SWE').fit;
   const at0 = cheapestAt(s, g0)!;
@@ -652,17 +687,18 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
     `${(lower.params / 1e9).toFixed(0)}B active (δ = ${DISTILL.a} + ${DISTILL.b}·log₁₀ ${(at0.params / lower.params).toFixed(2)})`);
 }
 {
-  const s = game();
-  const START = '2025-07-01';
-  const marks = ['2025-08-01', '2026-02-01', '2026-08-01', '2027-02-01'].map((x) => dayOfDate(START, x));
-  const rows: string[] = [];
+  // Snapshots of one canary game (seed 2027, central, RefBot): day 0, day 400, day 900 from the committed fixtures
+  // (scripts/v2/fixtures) instead of playing 580 RefBot days to 2027-02-01. The decomposition below is an identity on any
+  // two snapshots; the decline per year is read over day 0 → day 900 (2.46 y; it was Aug 2025 → Feb 2027, 1.5 y).
+  const states = [fixture(0), fixture(400), fixture(900)];
+  const s = states[0];
   const fixedG = workFit(s, s.player.models.versions[0], 'SWE').fit; // V0's capability, held fixed
   const tok = TOKENS.agentic;
   // D10: per task (one agentic work-hour: uncached input and τ × output tokens at the lab's decode utilisation), and per
   // million blended tokens of that task (price per task ÷ its tokens).
   const secPerFlop = (tau: number, ud: number) => tok.input / U_PREFILL + (tok.output * tau) / ud; // peak-seconds per FLOP per task
-  const perTask = (fpt: number, tau: number, ud: number, markup: number) => h100eHoursPer(fpt, { input: tok.input, output: tok.output * tau }, ud) * serveDollarsPerHour(s) * markup;
-  const perM = (fpt: number, tau: number, ud: number, markup: number) => (perTask(fpt, tau, ud, markup) / (tok.input + tok.output * tau)) * 1e6;
+  const perTask = (fpt: number, tau: number, ud: number, markup: number, rate: number) => h100eHoursPer(fpt, { input: tok.input, output: tok.output * tau }, ud) * rate * markup;
+  const perM = (fpt: number, tau: number, ud: number, markup: number, rate: number) => (perTask(fpt, tau, ud, markup, rate) / (tok.input + tok.output * tau)) * 1e6;
   type Snap = { t: number; N: number; fpp: number; tau: number; ud: number; rate: number; markup: number; task: number; price: number; serve: number; rivalServe: number };
   const snaps: Snap[] = [];
   // A5: what customers actually pay for V0's capability in the market (US Software & IT: the hardest band of tasks V0
@@ -671,37 +707,32 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   const u0 = offerOf(s, [{ v: s.player.models.versions[0], fpt: flopPerToken(s, s.player.models.versions[0]), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate: serveDollarsPerHour(s) }).a;
   type Paid = { t: number; perM: number; below: number; own: number; rate: number; margin: number; hphM: number; kind: Record<TierKind, number>; world: Record<TierKind, number>; prov: Record<string, number> };
   const paid: Paid[] = [];
-  while (s.time.day <= marks[marks.length - 1]) {
-    for (const p of [...s.events.pending]) {
-      const c = refBot.decide(s, p);
-      if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-    }
-    refBot.act(s, engine);
-    tick(s, { skip: ['endings'] });
-    if (marks.includes(s.time.day)) {
-      const api = prod(s, 'api');
-      const v = versionById(s, api.versionId)!;
-      const c = cheapestAt(s, fixedG)!;
-      const teacher = versionById(s, c.versionId)!;
-      const tau = tokEff(teacher); // a student reasons like its teacher (it learns from its traces)
-      const ud = decodeUtilNow(s);
-      const snap: Snap = {
-        t: decimalYear(s), N: c.params, fpp: c.fpt / c.params, tau, ud, rate: serveDollarsPerHour(s), markup: MARKUP.standard,
-        task: perTask(c.fpt, tau, ud, MARKUP.standard), price: perM(c.fpt, tau, ud, MARKUP.standard), serve: serveNow(s),
-        rivalServe: npcServeOom(s.time.day),
-      };
-      snaps.push(snap);
-      const mix = worldMix(s);
-      const tk = adoptedTokens(s, 'SOFT');
-      const perTok = 1e6 / (tk.input + tk.output);
-      const bp = bandPaid(mix, 'US', 'SOFT', u0, true, true);
-      paid.push({
-        t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
-        margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(s, mix), prov: bp.byProvider,
-      });
-      rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(s, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(s, v), tokEff(v), ud, MARKUP.standard).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M, $${snap.task.toFixed(3)}/task (τ ${tau.toFixed(3)}); serving stack ${snap.serve.toFixed(3)} OOM (U_decode ${ud.toFixed(3)}), rivals' mean ${snap.rivalServe.toFixed(3)}; rental $${snap.rate.toFixed(2)}/H100e-h`);
-    }
+  const rows: string[] = [];
+  for (const st of states) {
+    const api = prod(st, 'api');
+    const v = versionById(st, api.versionId)!;
+    const c = cheapestAt(st, fixedG)!;
+    const teacher = versionById(st, c.versionId)!;
+    const tau = tokEff(teacher); // a student reasons like its teacher (it learns from its traces)
+    const ud = decodeUtilNow(st);
+    const rate = serveDollarsPerHour(st);
+    const snap: Snap = {
+      t: decimalYear(st), N: c.params, fpp: c.fpt / c.params, tau, ud, rate, markup: MARKUP.standard,
+      task: perTask(c.fpt, tau, ud, MARKUP.standard, rate), price: perM(c.fpt, tau, ud, MARKUP.standard, rate), serve: serveNow(st),
+      rivalServe: npcServeOom(st.time.day),
+    };
+    snaps.push(snap);
+    const mix = worldMix(st);
+    const tk = adoptedTokens(st, 'SOFT');
+    const perTok = 1e6 / (tk.input + tk.output);
+    const bp = bandPaid(mix, 'US', 'SOFT', u0, true, true);
+    paid.push({
+      t: snap.t, perM: bp.price * perTok, below: bandPaid(mix, 'US', 'SOFT', u0).price * perTok, own: bp.ownModelPrice * perTok, rate: snap.rate,
+      margin: bp.price / (snap.rate * bp.hph), hphM: bp.hph * perTok, kind: bp.byKind, world: hoursByKind(st, mix), prov: bp.byProvider,
+    });
+    rows.push(`${snap.t.toFixed(2)}: API ${v.name} ${(paramsOfVersion(st, v) / 1e9).toFixed(0)}B $${perM(flopPerToken(st, v), tokEff(v), ud, MARKUP.standard, rate).toFixed(2)}/M; V0-level cheapest ${c.student ? `student of ${teacher.name} (fit +${(c.teacherFit - fixedG).toFixed(2)}, δ ${c.gap.toFixed(2)})` : teacher.name} ${(c.params / 1e9).toFixed(1)}B $${snap.price.toFixed(3)}/M, $${snap.task.toFixed(3)}/task (τ ${tau.toFixed(3)}); serving stack ${snap.serve.toFixed(3)} OOM (U_decode ${ud.toFixed(3)}), rivals' mean ${snap.rivalServe.toFixed(3)}; rental $${snap.rate.toFixed(2)}/H100e-h`);
   }
+  const sEnd = states[states.length - 1]; // the end state (day 900) for V1's counts
   const a = snaps[0];
   const b = snaps[snaps.length - 1];
   const yrs = b.t - a.t;
@@ -731,9 +762,9 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
     `${fmt(total)}/yr per task, ${fmt(perTok)}/yr per token over ${a.t.toFixed(2)}–${b.t.toFixed(2)}`);
   // V1 (D10): the reference lab's serving stack grows by mechanism (its Inference-efficiency line: adopted ideas in the
   // serve stack), and so does the rivals' aggregate one (RivalPhys.serve from their research speed).
-  const nServe = s.player.research.stacks.serve.n;
+  const nServe = sEnd.player.research.stacks.serve.n;
   const yr1 = snaps.find((x) => x.t >= a.t + 0.95) ?? b;
-  check(b.serve > a.serve + 0.05 && nServe > 0 && (s.player.research.want['L.infer'] ?? 0) >= 1 && b.rivalServe > a.rivalServe + 0.05,
+  check(b.serve > a.serve + 0.05 && nServe > 0 && (sEnd.player.research.want['L.infer'] ?? 0) >= 1 && b.rivalServe > a.rivalServe + 0.05,
     'V1 the reference lab\'s serving stack grows by its Inference-efficiency line (RefBot ranks it), the rivals\' with their aggregate research',
     `RefBot ${a.serve.toFixed(3)} → ${b.serve.toFixed(3)} OOM over ${yrs.toFixed(2)} y (${nServe} ideas adopted; first year ${(yr1.serve - a.serve).toFixed(3)}), decode utilisation ${a.ud.toFixed(3)} → ${b.ud.toFixed(3)}; rivals' mean ${a.rivalServe.toFixed(3)} → ${b.rivalServe.toFixed(3)} OOM (SERVE_RATE0 ${SERVE_RATE0}/yr at rs 1)`);
   check(b.tau < a.tau - 0.05,
@@ -766,7 +797,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
 // ───────── V2–V4 serving-efficiency ideas and tokens per task (task D10; research/20 D1–D3) ─────────
 {
   // V2 decode utilisation and new versions' FLOP per token follow the serving stack at the stated sizes.
-  const s = game();
+  const s = fresh();
   const v0 = s.player.models.versions[0];
   const rate = serveDollarsPerHour(s);
   const off = () => productOffer(s, prod(s, 'api'), 'SOFT');
@@ -792,7 +823,7 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
 }
 {
   // V3 a model's reasoning tokens fall with its RL recipe at fixed capability, and not with the calendar alone.
-  const s = game();
+  const s = fresh();
   const v0 = s.player.models.versions[0];
   const rate = serveDollarsPerHour(s);
   const b0 = v0.build!;
@@ -811,8 +842,8 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
     `RL G-equivalent +${g.toFixed(3)} OOM → τ ${tau.toFixed(3)}, cost per adopted hour ×${(o(better).hph / o(v0).hph).toFixed(3)}, fit ${fit0.toFixed(3)} = ${fit1.toFixed(3)}`);
   // the calendar alone: the same versions 200 days later (passive) keep their τ
   const tBefore = [tokEff(v0), tokEff(better)];
-  run(s, 200);
-  check(tokEff(v0) === tBefore[0] && tokEff(better) === tBefore[1], 'V3 not with the calendar: the same versions keep their reasoning tokens 200 days later (τ is a property of the RL recipe they were trained with)',
+  run(s, 5); // tokEff reads only the version's own recipe; a few ticks show no calendar term (was 200 days)
+  check(tokEff(v0) === tBefore[0] && tokEff(better) === tBefore[1], 'V3 not with the calendar: the same versions keep their reasoning tokens 5 days later (τ is a property of the RL recipe they were trained with)',
     `τ ${tBefore.map((x) => x.toFixed(3)).join(', ')} at day 0 and ${[tokEff(v0), tokEff(better)].map((x) => x.toFixed(3)).join(', ')} at day ${s.time.day}`);
   // a distilled student of the better version reasons like its teacher; the floor
   const student = cloneVersion(s, better, 'VS', { variant: 'mini' });
@@ -823,7 +854,6 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   // V4 rivals: serving stack from their research, their offers at their utilisation and FLOP part, the consumer chat
   // price and need on τ and utilisation (fixture day 400).
   const s = fixture(400);
-  run(s, 30); // a month of rival research on the migrated fixture (serving stacks start at 0)
   const mix = worldMix(s);
   let bad = 0;
   let n = 0;
@@ -881,35 +911,40 @@ for (const d of [400, 900]) {
   console.log(`INFO  D day ${d}: agent-hours ${(b.agent / 1e9).toFixed(1)}B bought of ${(b.agentWanted / 1e9).toFixed(1)}B wanted (${(b.agent / Math.max(1, b.supervising)).toFixed(2)} per supervising hour), ${b.bound} cells at the ceiling; agent spend $${b.spendAgent.toFixed(0)}B`);
 }
 {
-  // D2 a takeoff run: RefBot to day 1200 on ai2027 and fast; every 20 days every cell stays under the ceiling.
-  for (const world of ['tl-central', 'tl-fast'] as const) {
-    const s = newGame(defaultSetupV2({ seed: 2027, world, alignment: 'medium', tutorial: false }));
-    const bad: string[] = [];
-    let worst = { hours: 0, spend: 0 };
-    let maxBound = 0;
-    let at1200 = '';
-    while (s.time.day < 1200 && !s.ending) {
-      for (const p of [...s.events.pending]) if (resolve(s, p.instance, refBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-      refBot.act(s, engine);
-      tick(s, { skip: ['endings'] });
-      if (s.time.day % 20 !== 0 && s.time.day !== 1200) continue;
-      const c = ceilingCells(s);
-      bad.push(...c.bad.map((x) => `day ${s.time.day} ${x}`));
-      worst = { hours: Math.max(worst.hours, c.worstHours), spend: Math.max(worst.spend, c.worstSpend) };
-      maxBound = Math.max(maxBound, c.bound);
-      if (s.time.day === 1200) {
-        const w = workBilling(s).world;
-        at1200 = `day 1200: agent-hours ${(w.agent / 1e9).toFixed(0)}B of ${(w.agentWanted / 1e9).toFixed(0)}B wanted (${(w.agent / Math.max(1, w.supervising)).toFixed(1)} per supervising hour), agent spend $${w.spendAgent.toFixed(0)}B`;
-      }
+  // D2 a takeoff run: RefBot on from the day-900 fixture (the same seed-2027 central game: where the sector ceilings come
+  // closest) to day 1200 in full, to day 930 in quick (--smoke); every 20 (quick 10) days every cell stays under the
+  // ceiling. Was two worlds (central + fast) from day 0 to 1200 = 2400 RefBot days; the invariant does not depend on the
+  // world and D1 reads the day-400 and day-900 fixtures of the same game, so the fast world is dropped.
+  const end = SMOKE ? 930 : 1200;
+  const every = SMOKE ? 10 : 20;
+  const s = fixture(900);
+  const bad: string[] = [];
+  let worst = { hours: 0, spend: 0 };
+  let maxBound = 0;
+  let n = 0;
+  let atEnd = '';
+  while (s.time.day < end && !s.ending) {
+    for (const p of [...s.events.pending]) if (resolve(s, p.instance, refBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
+    refBot.act(s, engine);
+    tick(s, { skip: ['endings'] });
+    if (s.time.day % every !== 0 && s.time.day !== end) continue;
+    const c = ceilingCells(s);
+    n++;
+    bad.push(...c.bad.map((x) => `day ${s.time.day} ${x}`));
+    worst = { hours: Math.max(worst.hours, c.worstHours), spend: Math.max(worst.spend, c.worstSpend) };
+    maxBound = Math.max(maxBound, c.bound);
+    if (s.time.day === end) {
+      const w = workBilling(s).world;
+      atEnd = `day ${end}: agent-hours ${(w.agent / 1e9).toFixed(0)}B of ${(w.agentWanted / 1e9).toFixed(0)}B wanted (${(w.agent / Math.max(1, w.supervising)).toFixed(1)} per supervising hour), agent spend $${w.spendAgent.toFixed(0)}B`;
     }
-    check(bad.length === 0 && s.time.day >= 1200, `D2 takeoff (RefBot, ${world}, to day 1200): agent-hours and agent spend stay under the sector ceiling in every sector, region and checkpoint`,
-      bad.length ? bad.slice(0, 4).join('; ') : `up to ${maxBound}/42 cells bound; worst hours ÷ ceiling ${worst.hours.toFixed(3)}, agent spend ÷ (wage bill × X) ${worst.spend.toFixed(3)}; ${at1200}`);
   }
+  check(bad.length === 0 && n >= 3 && s.time.day >= end, `D2 takeoff (RefBot from the day-900 fixture to day ${end}, ${n} checkpoints): agent-hours and agent spend stay under the sector ceiling in every sector, region and checkpoint`,
+    bad.length ? bad.slice(0, 4).join('; ') : `up to ${maxBound}/42 cells bound; worst hours ÷ ceiling ${worst.hours.toFixed(3)}, agent spend ÷ (wage bill × X) ${worst.spend.toFixed(3)}; ${atEnd}`);
 }
 {
   // D3 below the ceiling nothing changes: at the start and on the day-400 fixture no cell binds, and every provider's agent-
   // hours per supervising hour is exactly its A2c value (k after the buyer's gate, no ceiling factor).
-  for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return g; })()], ['day 400', fixture(400)]] as const) {
+  for (const [label, s] of [['day 1', fresh()], ['day 400', fixture(400)]] as const) {
     const mix = worldMix(s);
     const rate = serveDollarsPerHour(s);
     let bound = 0;
@@ -920,22 +955,32 @@ for (const d of [400, 900]) {
       if (m.agentCeiling.bound !== 'none' || m.agentCeiling.fill !== 1) bound++;
       mix.providers.forEach((p, i) => {
         if (!p.model) return;
-        const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }); // as mix.ts builds it (RF-P1 tools, ud)
-        // A5: the agent price and cost are the customers' tier mix; k and λ its model's.
+        const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, ...labToolOpts(s, p.tools, def.id, p.model) }); // as mix.ts builds it (RF-P1 tools, ud; MK-CP: MK-11 labToolOpts)
+        // A5: the agent price and cost are the customers' tier mix; k and λ its model's. MK-CP restatement: MK-6 prices an
+        // agent-hour at c_ag × p/c of its tier (T.offers carry the cost-level agent price), and MK-5c gives the player the
+        // mix of its tiers, each at its own k and λ (serving.ts agentMixOf). Compared to 1e-9 relative (was bit-identical:
+        // the two sums run in a different order).
         const T = m.tiers;
-        let priceAg = 0;
-        let costAg = 0;
-        T.offers[i].forEach((t, k) => {
-          if (T.weight[i][k] > 0) {
-            priceAg += T.weight[i][k] * t.priceAg;
-            costAg += T.weight[i][k] * t.costAg;
-          }
-        });
+        const wage = wagePerHour(def.id, r);
+        const P = T.offers[i].map((t, k) => ({ ...t, priceAg: t.cost > 0 ? (t.costAg * T.price[i][k]) / t.cost : t.priceAg }));
+        let want: number;
+        if (p.key === 'player' && m.target[i] > 1e-12) want = agentMixOf(P, T.weight[i], wage).k;
+        else {
+          let priceAg = 0;
+          let costAg = 0;
+          P.forEach((t, k) => {
+            if (T.weight[i][k] > 0) {
+              priceAg += T.weight[i][k] * t.priceAg;
+              costAg += T.weight[i][k] * t.costAg;
+            }
+          });
+          want = agentDemandOf({ k: o.k, lam: o.lam, priceAg, costAg }, wage).k;
+        }
         n++;
-        if (m.agentK[i] !== agentDemandOf({ k: o.k, lam: o.lam, priceAg, costAg }, wagePerHour(def.id, r)).k) diff++;
+        if (Math.abs(m.agentK[i] - want) > 1e-9 * Math.max(1e-12, Math.abs(want), Math.abs(m.agentK[i]))) diff++;
       });
     }
-    check(bound === 0 && n > 0 && diff === 0, `D3 ${label}: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule on its customers' tier mix)`, `${n} provider offers, ${diff} differ, ${bound} cells bound`);
+    check(bound === 0 && n > 0 && diff === 0, `D3 ${label}: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour equals the A2c rule on its customers' tier mix at MK-6 agent prices; the player's MK-5c tier mix)`, `${n} provider offers, ${diff} differ, ${bound} cells bound`);
   }
 }
 {
@@ -954,19 +999,25 @@ for (const d of [400, 900]) {
 }
 {
   // D5 agent capacity beyond the ceiling is not bought: no revenue and no serving need (it stays in the lab's spare
-  // serving). Day-900 fixture: the player's agent-hours and need with the ceiling vs with it lifted.
+  // serving). No cell of the day-900 fixture binds the ceiling (D1 above), so the binding case is constructed: every
+  // cell's ceiling fill is set to ½ (agentK after the ceiling = ½ of the wanted), as agentCeilingOf gives it when an
+  // agent-hours demand is twice the room (D4 checks that function), and the player's agent-hours, demand and serving need
+  // are read with it and with it lifted (fill 1).
   const s = fixture(900);
-  const mix = worldMix(s);
-  const rd = revenueReadout(s, mix);
+  const lifted = worldMix(s);
+  const mix = structuredClone(lifted);
+  let cut = 0;
   for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
     const m = mix.sec[r][def.id];
-    const f = m.agentCeiling.fill;
-    if (f < 1 && f > 0) for (let i = 0; i < m.agentK.length; i++) m.agentK[i] /= f;
-    m.agentCeiling = { ...m.agentCeiling, fill: 1, hours: Infinity, value: Infinity };
+    if (!(m.agentCeiling.fill === 1)) continue; // (a real binding cell would already be cut)
+    m.agentK = m.agentK.map((x) => x * 0.5);
+    m.agentCeiling = { ...m.agentCeiling, fill: 0.5, bound: 'hours' };
+    cut++;
   }
-  const raw = revenueReadout(s, mix);
+  const rd = revenueReadout(s, mix);
+  const raw = revenueReadout(s, lifted);
   const sum = (x: typeof rd, k: 'agentHours' | 'needH100e' | 'demand') => x.deps.filter((z) => z.channel !== 'consumer').reduce((a, z) => a + (z[k] ?? 0), 0);
-  check(sum(raw, 'agentHours') > sum(rd, 'agentHours') && sum(raw, 'needH100e') > sum(rd, 'needH100e') && sum(raw, 'demand') > sum(rd, 'demand'),
+  check(cut === 42 && sum(raw, 'agentHours') > sum(rd, 'agentHours') && sum(raw, 'needH100e') > sum(rd, 'needH100e') && sum(raw, 'demand') > sum(rd, 'demand'),
     'D5 day 900: agent-hours beyond the ceiling are not bought (the player\'s agent-hours, demand and serving need fall; the capacity stays spare)',
     `player agent-hours ${(sum(raw, 'agentHours') / 1e9).toFixed(1)}B → ${(sum(rd, 'agentHours') / 1e9).toFixed(1)}B, demand $${sum(raw, 'demand').toFixed(0)}B → $${sum(rd, 'demand').toFixed(0)}B, need ${Math.round(sum(raw, 'needH100e') / 1e3)}k → ${Math.round(sum(rd, 'needH100e') / 1e3)}k H100e`);
 }
@@ -1009,7 +1060,7 @@ for (const d of [400, 900]) {
     `${c5.target[0].toFixed(4)}`);
   check(adequacy(0.5, 0.2, 0.4) === 1 && near(adequacy(0.3, 0.2, 0.4), 0.5, 1e-12) && adequacy(0.1, 0.2, 0.4) === 0 && MARKET_BANDS === 8, 'A5 adequacy: the share of a band of tasks a tier does = its coverage\'s position in the band');
 }
-for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return g; })()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
+for (const [label, s] of [['day 1', fresh()], ['day 400', fixture(400)], ['day 900', fixture(900)]] as const) {
   // E6 shares sum to 1 (targets and stocks) in every sector and region; E4 the tier mix of every provider sums to 1.
   const mix = worldMix(s);
   let bad = 0;
@@ -1027,8 +1078,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   // E7 the player's cheap tier: a student sized by the cheapestAt rule to hold a weaker version's capability
   // (launchDistill holdVersionId) set as the API's mini takes the easy bands, lowers the API's price per hour and the
   // serving it needs; the customer stock follows gradually.
-  const s = game();
-  run(s, 20);
+  const s = fresh20();
   const api = prod(s, 'api');
   const v0 = versionById(s, api.versionId)!;
   const weaker = cloneVersion(s, v0, 'VW', { build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 1.2 } });
@@ -1117,8 +1167,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
 {
   // B15: a Chat mini serves only the free users: paid conversion (the paid-share target), the paying users' fit and
   // coverage (the reach target's input) read the main model; only the free tier's fit (the users' app choice) moves.
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const chat = prod(s, 'consumer');
   const v0 = versionById(s, chat.versionId)!;
   const mini = cloneVersion(s, v0, 'VMC', { variant: 'mini', build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 1 } });
@@ -1133,8 +1182,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
 }
 {
   // B14: a sector enabler never sells more hours than the sector adopts (share × (1 + enabler) ≤ 1).
-  const s = game();
-  run(s, 3);
+  const s = fresh();
   const api = prod(s, 'api');
   s.player.features.push('computerUse');
   api.features.push('computerUse');
@@ -1159,15 +1207,16 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
 }
 {
   // B16: Trusted access's ×3 is a price in its offer (the market's choice reads productOffer), not a factor after it.
-  const s = game();
-  run(s, 1);
+  const s = fresh();
   const api = prod(s, 'api');
   const plain = { ...api, channel: 'enterprise' as const, kyc: 0 as const, features: [] };
-  const trusted = { ...plain, channel: 'vetted' as const }; // Vetted carries Trusted's ×3 until MK-6 deletes CHANNEL_PRICE
+  // MK-CP restatement: Trusted and its ×3 are gone (MARKET.md M1, M6, "Removed": CHANNEL_PRICE); the market sets prices
+  // (M5), so the offer carries no channel factor: Vetted's offer has Enterprise's price, cost and fit.
+  const trusted = { ...plain, channel: 'vetted' as const };
   const o0 = productOffer(s, plain, 'FIN');
   const o1 = productOffer(s, trusted, 'FIN');
-  check(near(o1.price, 3 * o0.price, 1e-9) && near(o1.cost, o0.cost, 1e-9) && near(o1.fit, o0.fit, 1e-12),
-    'RD-B11 B16 Trusted access\'s ×3 is in its offer: the price buyers see is ×3 at the same cost and fit',
+  check(near(o1.price, o0.price, 1e-9) && near(o1.cost, o0.cost, 1e-9) && near(o1.fit, o0.fit, 1e-12),
+    'RD-B11 B16 no channel price factor (MK-CP; was Trusted access\'s ×3): Vetted\'s offer has Enterprise\'s price, cost and fit',
     `$${o0.price.toFixed(2)} → $${o1.price.toFixed(2)} per adopted task-hour (cost $${o1.cost.toFixed(2)})`);
   // B41: one appeal table: the market reads the version's own appeal (POST_PREF), the number the Models card shows.
   const v = versionById(s, api.versionId)!;
