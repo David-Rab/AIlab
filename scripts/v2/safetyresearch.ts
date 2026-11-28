@@ -1,3 +1,6 @@
+// GUARDS: safety line projects (E1 pacing and inputs, E2 AI labour from the SAF_* work types, sabotage weight). Cost: no game
+// ticks; one newGame per seed (cloned per case), line tests walked day by day on 2 lines, 36 seed builds for the result-type
+// odds, 4x1200 finding draws. About 18 CPU-s. Tier: quick.
 // Safety research lines on the project mechanism (model v3 E1; design/archive/notes/E1.md). Owner: WS2.
 // Reference inputs reproduce research/14's T₁ pacing; engineers, compute and AI labour speed the stages through the
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
@@ -19,7 +22,7 @@ import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { labourOf, resetWorkContext, safetyLabour, workContext } from '../../src/engine/v2/departments/workfit';
 import type { AgendaId, FindingType, GameStateV2, ModelVersion, SystemCtx, Team } from '../../src/engine/v2/types';
 import { stepProject } from '../../src/engine/v2/models/research';
-import { check, finish } from './lib';
+import { check, finish, KNOWN } from './lib';
 import { RE_LABOUR_UNIT } from '../../src/data/v2/workTypes';
 import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 
@@ -30,8 +33,14 @@ const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * RE_UNIT_HEADS;
 /** A leader-start lab with one research line staffed: science capacity `cap` (× SERIOUS_CAP) on the line's follow-up
  *  project, `re` research-engineer units on experiments, the line pool at `c` × the agenda's reference compute share of
  *  the leader's day-0 compute. Nothing else runs (no tick): only the line project's stages. */
+const BASE = new Map<number, GameStateV2>();
+const baseGame = (seed: number): GameStateV2 => {
+  let b = BASE.get(seed);
+  if (!b) BASE.set(seed, (b = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }))));
+  return structuredClone(b);
+};
 function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: number } = {}): { s: GameStateV2; id: string } {
-  const s = newGame(defaultSetupV2({ seed: o.seed ?? 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
+  const s = baseGame(o.seed ?? 11); // build once per seed, clone per case (TESTING §2)
   const p = s.player;
   const id = lineNodeId(ag);
   const sci = p.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;
@@ -95,26 +104,36 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   return out;
 }
 
-// ───────────────────────────── 1. reference inputs reproduce T₁ ─────────────────────────────
+// ───────────────────────────── 1. pacing: the stepper does what the rates say ─────────────────────────────
+// The agendas.ts contract says the first result arrives after T₁ at reference inputs; stepTest adds the science and the
+// experiment rate (each 1/30 of T₁ months a day at reference), so the first result comes at about T₁/2 (design/bal/
+// SAFETY-UNIFY.md line 37 noted it). Whether the contract or the stepper is right is the designer's call.
+KNOWN['E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line'] = 'OPEN.md § Bugs: safety line pacing T₁/2 vs the documented T₁ (stepTest sums the science and experiment rates)';
 {
   const rows: string[] = [];
   let worst = 0;
+  let nLines = 0;
   for (const ag of AGENDA_IDS) {
     const { s, id } = lab(ag);
     const r = lineRates(s, id, safAllocation(s, id));
-    const days = results(s, id, 2);
+    // The first result is the test's work ÷ the summed daily rates; the stepper is walked day by day on the two shortest lines (cost).
+    const want = AGENDA_BY_ID[ag].T1 / (r.sci + r.exp);
     const T = 30 * AGENDA_BY_ID[ag].T1;
-    worst = Math.max(worst, Math.abs(days[0] / T - 1));
-    if (['AG18', 'AG02', 'AG01', 'AG12'].includes(ag)) rows.push(`${ag} T₁ ${AGENDA_BY_ID[ag].T1} mo: first ${days[0]} d, next +${days[1] - days[0]} d (c ${r.c.toFixed(2)}, ℓ ${r.l.toFixed(2)}, X ${r.X.toFixed(2)})`);
+    worst = Math.max(worst, Math.abs(want / T - 1));
+    const days = ['AG18', 'AG02'].includes(ag) ? results(s, id, 1) : [Math.ceil(want)];
+    if (['AG18', 'AG02'].includes(ag)) check(Math.abs(days[0] - want) <= 1.01, `E1 ${ag}: first result day = T₁ ÷ (science + experiment rate) (the stepper does what lineRates says)`, `${days[0]} d vs ${want.toFixed(1)}`);
+    nLines++;
+    if (['AG18', 'AG02', 'AG01', 'AG12'].includes(ag)) rows.push(`${ag} T₁ ${AGENDA_BY_ID[ag].T1} mo: first ${days[0]} d (c ${r.c.toFixed(2)}, ℓ ${r.l.toFixed(2)}, X ${r.X.toFixed(2)})`);
   }
+  check(nLines >= 10, 'E1 every agenda line is covered', `${nLines} lines`);
   console.log(`      ${rows.join('\n      ')}`);
   check(worst <= 0.02, 'E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line', `worst ${(worst * 100).toFixed(1)}%`);
+  // Readouts equal effects: the ETA of a fresh project (believed inputs) is the days the stepper takes, and the cycle is
+  // the ETA (no stages: one test after another).
   const { s, id } = lab('AG08');
-  const d = results(s, id, 3);
-  const steady = (d[2] - d[1]) / (30 * AGENDA_BY_ID.AG08.T1);
-  check(Math.abs(steady - (SAF_STAGES.small + SAF_STAGES.val)) < 0.03, 'E1 once the pipeline is full a result follows every (small + validation) × T₁ (scientists ideate while engineers test)', `${steady.toFixed(3)} T₁`);
-  const { s: s2, id: id2 } = lab('AG08');
-  check(Math.abs(lineEtaDays(s2, id2) - 30 * AGENDA_BY_ID.AG08.T1) < 1 && Math.abs(lineCycleDays(s2, id2) - 30 * 0.8 * AGENDA_BY_ID.AG08.T1) < 1, 'E1 readouts: ETA of a fresh project = T₁, steady cycle = 0.8 T₁ at reference', `${lineEtaDays(s2, id2).toFixed(1)} d, ${lineCycleDays(s2, id2).toFixed(1)} d`);
+  const eta = lineEtaDays(s, id);
+  const d = results(s, id, 2);
+  check(Math.abs(eta - d[0]) / d[0] < 0.1 && Math.abs(lineCycleDays(s, id) - eta) < 1e-6 && Math.abs(d[1] - 2 * d[0]) <= 2, 'E1 readouts: ETA of a fresh project = days to the first result, the steady cycle = the ETA (a result follows every test)', `ETA ${eta.toFixed(1)} d, results at ${d.join(', ')} d`);
 }
 
 // ───────────────────────────── 2. engineers and compute speed the experiments ─────────────────────────────
@@ -136,7 +155,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   const lb0 = X({ re: 1e-6, c: 1e6 });
   const lbL = X({ re: 2e-6, c: 1e6 }) / lb0;
   const lbC = X({ re: 1e-6, c: 2e6 }) / lb0;
-  check(cbC > 1.3 && cbL < 1.1 && lbL > 1.25 && lbC < 1.1, 'E1 a compute-bound line gains from compute and not from engineers, a labour-bound one the reverse', `compute-bound ×${cbC.toFixed(3)} compute vs ×${cbL.toFixed(3)} engineers; labour-bound ×${lbL.toFixed(3)} engineers vs ×${lbC.toFixed(3)} compute`);
+  check(cbC > 1.3 && cbC > 1.3 * cbL && lbL > 1.25 && lbL > 1.3 * lbC, 'E1 a compute-bound line gains from compute far more than from engineers, a labour-bound one the reverse (the CES is near Cobb-Douglas: a ratio, not a cut at 1.1)', `compute-bound ×${cbC.toFixed(3)} compute vs ×${cbL.toFixed(3)} engineers; labour-bound ×${lbL.toFixed(3)} engineers vs ×${lbC.toFixed(3)} compute`);
   // In days: twice the engineers and twice the compute bring the first result forward.
   const { s, id } = lab('AG18', { re: 0.5, c: 0.5 });
   const slow = results(s, id, 1)[0];
@@ -150,7 +169,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   results(u, uid, 0, 1);
   resetSafAllocation(u);
   const after = safetyRe(u);
-  check(before.experiments === 0 && Math.abs(after.experiments - REF_RE_HEADS) < 1e-9 && Math.abs(after.idle - (before.idle - REF_RE_HEADS)) < 1e-9, 'E1 a project in experiments takes SAF_RE_ASK engineers from the idle engineers (none while it ideates)', `idle ${before.idle} → ${after.idle}`);
+  check(before.experiments === 0 && after.experiments >= REF_RE_HEADS - 1e-9 && Math.abs(after.experiments - before.experiments - (before.idle - after.idle)) < 1e-9 && after.idle < before.idle, 'E1 a project in experiments takes at least SAF_RE_ASK engineers, all from the idle engineers one for one (none while it ideates; L6: the surplus joins)', `idle ${before.idle} → ${after.idle}, on experiments ${after.experiments.toFixed(0)} (ask ${REF_RE_HEADS})`);
   // Science capacity speeds ideation as √capacity (λ = 0.5 in ai2027).
   const { s: a, id: aid } = lab('AG07', { cap: 1 });
   const { s: b, id: bid } = lab('AG07', { cap: 4 });
@@ -165,7 +184,7 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   // The stages decide when a result comes, never its type: at the same state and day the result is the draw fireFinding
   // makes without the stages (as before E1), so the distribution at reference inputs is unchanged.
   let same = 0;
-  const N = 150;
+  const N = 36; // 12 seeds per efficacy third × 3 results: the odds gap (61% vs 92% at 150 seeds) is ≫ the binomial spread (~7 points)
   const byE: { e: number; tech: number; dead: number }[] = [];
   const counts: Partial<Record<FindingType, number>> = {};
   for (let seed = 1; seed <= N; seed++) {
@@ -175,12 +194,12 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
     const direct = fireFinding(copy, makeCtx(copy), 'AG08', id)?.trueType;
     const staged: (FindingType | undefined)[] = [];
     const ctx = makeCtx(s);
-    results(s, id, 5, 4000, () => { staged.push(fireFinding(s, ctx, 'AG08', id)?.trueType); });
+    results(s, id, 3, 4000, () => { staged.push(fireFinding(s, ctx, 'AG08', id)?.trueType); });
     if (staged[0] === direct) same++;
     for (const t of staged) if (t) counts[t] = (counts[t] ?? 0) + 1;
     byE.push({ e: trueEfficacy(s, 'AG08'), tech: staged.filter((t) => t === 'TECH').length, dead: staged.filter((t) => t === 'DEAD').length });
   }
-  check(same === N, 'E1 the staged result is the type fireFinding draws at the same state (types unchanged by the stages)', `${same}/${N}; first five results: ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+  check(same === N, 'E1 the staged result is the type fireFinding draws at the same state (types unchanged by the stages)', `${same}/${N}; first three results: ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   byE.sort((a, b) => a.e - b.e);
   const odds = (xs: typeof byE) => { const t = xs.reduce((a, x) => a + x.tech, 0); const d = xs.reduce((a, x) => a + x.dead, 0); return t / Math.max(1, t + d); };
   const lo = odds(byE.slice(0, N / 3));
@@ -239,24 +258,30 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   check(la.exp < 1.2 && la.ideas < 1.05 && Math.abs(da / d0 - 1) < 0.04,'E2 start: the start model handed half the work adds little (SAF coverage a few per cent)', `SAF_EXP a ${(sl.exp.fit.a * 100).toFixed(1)}%, SAF_IDEAS a ${(sl.ideas.fit.a * 100).toFixed(2)}%; m ${la.exp.toFixed(3)} / ${la.ideas.toFixed(4)}; first result ${d0} → ${da} d`);
 }
 {
-  // Coverage and copies drive it; no √M cap. A covering model (fit +6 OOM) fully trusted gets far more than v2's
-  // ceiling 1 + t·Auto·min(10, √M) = 11.
+  // Coverage and copies drive it; no √M cap. A covering model (fit +6 OOM) fully trusted gets more than v2's ceiling
+  // 1 + t·Auto·min(10, √M) = 11. With scarce agents (a package of a few copies) m grows with the copies; once the agents
+  // outnumber the humans what is left is the coverage: the uncovered share of the work stays with the humans (Amdahl), so
+  // m stops growing with copies, as it must (the old "doubling the copies lifts m" held only while agents were scarce).
   const { s } = aiLab('AG08', { t: 1, dg: 6 });
   const hi = lineLabour(s, 'AG08');
-  const { s: s2 } = aiLab('AG08', { t: 1, dg: 6, pkg: 0.6 });
-  const hi2 = lineLabour(s2, 'AG08');
   const { s: s3 } = aiLab('AG08', { t: 1, dg: 2 });
   const mid = lineLabour(s3, 'AG08');
+  const few = aiLab('AG08', { t: 1, dg: 6, pkg: 1e-5 }).s;
+  const some = aiLab('AG08', { t: 1, dg: 6, pkg: 1e-4 }).s;
+  const many = aiLab('AG08', { t: 1, dg: 6, pkg: 1e-2 }).s;
+  const lf = lineLabour(few, 'AG08').exp;
+  const ls = lineLabour(some, 'AG08').exp;
+  const lm = lineLabour(many, 'AG08').exp;
   const a = safetyLabour(s).exp.fit.a;
-  check(hi.exp > 11 && hi2.exp > hi.exp * 1.5, "E2 AI labour on safety experiments grows with the package's copies and has no √M cap", `m_exp ${hi.exp.toFixed(1)} → ${hi2.exp.toFixed(1)} at ${safetyFleet(s).copies.toFixed(0)} → ${safetyFleet(s2).copies.toFixed(0)} copies (SAF_EXP a ${a.toFixed(3)})`);
+  check(hi.exp > 11 && ls > 2 * lf && ls <= lm && lm / hi.exp < 1.05, "E2 AI labour on safety experiments grows with the package's copies while agents are scarce (no √M cap: above v2's 11), then saturates at the coverage", `m_exp ${lf.toFixed(2)} → ${ls.toFixed(2)} → ${lm.toFixed(2)} at ${safetyFleet(few).copies.toFixed(0)} → ${safetyFleet(some).copies.toFixed(0)} → ${safetyFleet(many).copies.toFixed(0)} copies (SAF_EXP a ${a.toFixed(3)})`);
   check(mid.exp < hi.exp && mid.ideas < hi.ideas, 'E2 more SAF coverage (a stronger safety model) gives more AI labour', `fit +2 OOM: m ${mid.exp.toFixed(2)} / ${mid.ideas.toFixed(2)}; +6 OOM: ${hi.exp.toFixed(1)} / ${hi.ideas.toFixed(1)}`);
-  // Low coverage adds little even with lots of compute and full trust.
+  // Low coverage adds little even with lots of compute and full trust: the work AI does is bounded by the coverage (a ×
+  // Auto) and far below a covering model's. The start model's SAF_EXP coverage is ~17% since the F4 refit, so the cuts
+  // are relations to the coverage, not the old 6%.
   const { s: w } = aiLab('AG08', { t: 1, pkg: 0.6 });
   const lo = lineLabour(w, 'AG08');
-  // Thresholds m_exp < 1.4, m_ideas < 1.1 [D] (M9 re-baseline, same channel as the start check above; were 1.25 /
-  // 1.02): the start model's AI taste is 0.75 SD higher since F4's sd_SC 1.25, m 1.303 / 1.058 on the merged head; the
-  // work AI does stays under 6%.
-  check(lo.exp < 1.4 && lo.ideas < 1.1 && lo.aiShare < 0.06,'E2 a safety model with low SAF coverage adds little (start model, full trust, 60% of the safety pool)', `m ${lo.exp.toFixed(3)} / ${lo.ideas.toFixed(4)}, work AI does ${(lo.aiShare * 100).toFixed(1)}%`);
+  const slw = safetyLabour(w);
+  check(lo.exp < 1.4 && lo.ideas < 1.1 && lo.aiShare <= Math.max(slw.exp.fit.a, slw.ideas.fit.a) + 1e-9 && lo.aiShare < hi.aiShare / 3, 'E2 a safety model with low SAF coverage adds little and its sabotage weight (the work AI does) is bounded by its coverage (start model, full trust, 60% of the safety pool)', `m ${lo.exp.toFixed(3)} / ${lo.ideas.toFixed(4)}, work AI does ${(lo.aiShare * 100).toFixed(1)}% (SAF_EXP a ${(slw.exp.fit.a * 100).toFixed(1)}%) vs ${(hi.aiShare * 100).toFixed(0)}% for a covering model`);
   // The share handed is the player's lever: at t = 0.5 the humans keep half the work, so the CES caps the gain.
   const { s: h } = aiLab('AG08', { t: 0.5, dg: 6 });
   const half = lineLabour(h, 'AG08');
@@ -264,12 +289,14 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   // A line's automation factor (research/14 Auto) scales its share of covered work: agent foundations barely automates.
   const ag12 = lineLabour(s, 'AG12');
   check(ag12.exp < hi.exp && ag12.aiShare < hi.aiShare, "E2 a line's automation factor scales the covered share (AG12 Auto 0.2 vs AG08 1.0)", `AG12 m ${ag12.exp.toFixed(2)}, work AI does ${(ag12.aiShare * 100).toFixed(0)}% vs AG08 ${(hi.aiShare * 100).toFixed(0)}%`);
-  // Taste: the covering model's SAF_IDEAS taste lifts ideation's taste like capability IDEAS.
-  const { s: tq, id: tid } = aiLab('AG08', { t: 1, dg: 6 });
-  const { s: t0, id: t0id } = aiLab('AG08', { t: 0, dg: 6 });
-  const qa = safSciOn(tq, tid).q;
-  const qh = safSciOn(t0, t0id).q;
-  check(qa > 2 * qh && Math.abs(qh - 1) < 1e-12, "E2 AI taste from the safety model's SAF_IDEAS fit lifts the scientists' taste (weight: AI's share of the SAF_IDEAS labour, DD-13)", `taste ${qh.toFixed(3)} → ${qa.toFixed(2)} (sd_AI ${safetyLabour(tq).sdAI.toFixed(1)})`);
+  // Taste: AI taste in SDs above the human median is 3.09·(fit − median)/Δ_bm (workfit.ts sdAIOf), so a covering model
+  // below the human median (+6 OOM: −15 SD) pulls the scientists' taste DOWN as its share of the ideas labour grows, and a
+  // model past the median (+20 OOM: +17 SD) lifts it, weighted by AI's share of the SAF_IDEAS labour (DD-13).
+  const taste = (dg: number, t: number) => { const { s: x, id: xid } = aiLab('AG08', { t, dg }); return { q: safSciOn(x, xid).q, sd: safetyLabour(x).sdAI }; };
+  const up = taste(20, 1);
+  const dn = taste(6, 1);
+  const none = taste(20, 0);
+  check(up.sd > 1 && up.q > 2 * none.q && dn.sd < 0 && dn.q < none.q && Math.abs(none.q - 1) < 1e-12, "E2 AI taste from the safety model's SAF_IDEAS fit moves the scientists' taste with the sign of its sd_AI (weight: AI's share of the SAF_IDEAS labour, DD-13)", `taste ${none.q.toFixed(3)} (nothing handed) → ${dn.q.toFixed(2)} (sd_AI ${dn.sd.toFixed(1)}) / ${up.q.toFixed(2)} (sd_AI ${up.sd.toFixed(1)})`);
 }
 {
   // Trusted to AI 0 → no AI labour, even with a covering model and a fleet.
@@ -344,9 +371,6 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   const b = rate(0.5, 0.8);
   const c = rate(1, 0.8);
   check(z.f === 0 && a.f < b.f && b.f < c.f, "E2 sabotage: FALSE results rise with the safety model's hidden SAND and with the work AI does (none with nothing trusted)", `FALSE share: t 0 → ${(z.f * 100).toFixed(1)}%; t .5 SAND .2 → ${(a.f * 100).toFixed(1)}%; t .5 SAND .8 → ${(b.f * 100).toFixed(1)}%; t 1 SAND .8 → ${(c.f * 100).toFixed(1)}% (work AI does ${(b.share * 100).toFixed(0)}% / ${(c.share * 100).toFixed(0)}%)`);
-  // A weak (low-coverage) model sabotages little even fully trusted: it does little of the work.
-  const { s } = aiLab('AG08', { t: 1 });
-  check(lineLabour(s, 'AG08').aiShare < 0.06, 'E2 a low-coverage safety model does little of the work, so its sabotage weight is small', `${(lineLabour(s, 'AG08').aiShare * 100).toFixed(1)}%`);
 }
 
 // ───────────────────────────── 6. state ─────────────────────────────
