@@ -11,7 +11,7 @@ import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShi
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { dealVote as firstVote, dealVotes, partnerBlocker, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { dealVote as firstVote, dealVotes, dealWith, partnerBlocker, followOnBlocker, followOnTerms, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signFollowOn, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
@@ -285,7 +285,7 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const lag = Math.max(0, dayOfQuarter(s.time.startDate, sp.startQ) - s.time.day);
     const cuts = `path −${Math.round(sp.firmDiscount * 100)}% firm${sp.partnerDiscount > 0 ? ` −${Math.round(sp.partnerDiscount * 100)}% partner` : ''}${sp.costMult !== undefined ? `, custom chips at ${Math.round(sp.costMult * 100)}% of an H100e` : ''}`;
     if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, one contract a year: ${(sp.h100e / 1e6).toFixed(2)}M H100e in year 1${sp.yearly && sp.yearly.length > 1 ? `, ${(sp.yearly[sp.yearly.length - 1] / 1e6).toFixed(2)}M in year ${sp.yearly.length} as prices fall` : ''} (${t.supply ? `$${(sp.total / (sp.yearly?.length ?? 1)).toFixed(1)}B a year` : ''})` });
-    else gains.push({ currency: 'compute', amount: sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters} quarters, a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
+    else gains.push({ currency: 'compute', amount: sp.yearly ? 4 * sp.yearly.reduce((a, b) => a + b, 0) : sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters / 4} years, one order a year (${(sp.h100e / 1e6).toFixed(2)}M H100e a quarter in year 1${sp.yearly && sp.yearly.length > 1 ? `, ${(sp.yearly[sp.yearly.length - 1] / 1e6).toFixed(2)}M in year ${sp.yearly.length} as prices fall` : ''}), a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
     // FIN5a: a doubted buyer prepays part of the first delivery (supplier terms, spec §5).
     if (sp.prepaid) costs.push({ currency: 'cash', amount: -sp.prepaid, target: `prepaid now: ${Math.round(supplierTerms(s).firstDelivery * 100)}% of the first delivery (supplier terms: your share of investor money and runway)` });
     costs.push({ currency: 'cash', amount: -sp.perQ[0], lagDays: lag, target: `first of ${sp.quarters} quarterly payments (take-or-pay; ${cuts})` });
@@ -351,6 +351,30 @@ const partner: ActionDef = {
   apply(s, ctx, p) {
     const { partner: who, ...c } = partnerOf(s, p);
     const err = signPartner(s, ctx, who, { ...c, force: bool(p, 'force') });
+    if (err) {
+      ctx.log('finance', err, 2);
+      return err;
+    }
+  },
+};
+
+/** The partner a follow-on is asked of (params `partner`; default: the first that offers one, else the first with a deal). */
+const followOnPartner = (s: GameStateV2, p: P) => {
+  const want = str(p, 'partner', '');
+  if (want) return want;
+  const mine = PARTNER_DEFS.map((x) => x.id);
+  return mine.find((x) => !followOnBlocker(s, x)) ?? mine.find((x) => dealWith(s, x)) ?? mine[0];
+};
+
+/** A follow-on (C7b, CORPORATE.md §5.4): while a deal runs and the partner values you highly (interest 1.2 or more), one
+ *  more tranche of equity for 4× it of the same supply; once a year per partner. An action on the partner's row, not an event. */
+const followOn: ActionDef = {
+  id: 'fin.followOn', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Take follow-on',
+  available: (s) => divisionBlock(s) ?? (PARTNER_DEFS.some((x) => !followOnBlocker(s, x.id)) ? true : 'No partner offers a follow-on now'),
+  vote: (s, p) => firstVote(dealVotes(s, followOnTerms(s, followOnPartner(s, p)))),
+  preview: (s, p) => dealPreview(s, followOnTerms(s, followOnPartner(s, p))),
+  apply(s, ctx, p) {
+    const err = signFollowOn(s, ctx, followOnPartner(s, p), { force: bool(p, 'force') });
     if (err) {
       ctx.log('finance', err, 2);
       return err;
@@ -861,7 +885,7 @@ const pickCancellable = (s: GameStateV2, id: string) => {
 };
 
 export const FINANCE_ACTIONS: ActionDef[] = [
-  raise, ipo, partner, draw, repay, recap, refuseRecap, critics,
+  raise, ipo, partner, followOn, draw, repay, recap, refuseRecap, critics,
   buyChips, rentCompute, site, community,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];

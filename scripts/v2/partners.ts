@@ -6,11 +6,14 @@ import { PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { dealWith, exclusiveBlocker, ipBlocker, ipLeadScale, partnerBlocker, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity, vetoesOf } from '../../src/engine/v2/finance/deals';
+import { PARTNER_INTEREST, dependence, partnerInterest } from '../../src/engine/v2/finance/partnerInterest';
+import { computeOnlineOf } from '../../src/engine/v2/compute/power';
+import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import { dealWith, exclusiveBlocker, followOnBlocker, followOnTerms, partnerMonthly, partnersNow, signFollowOn, ipBlocker, ipLeadScale, partnerBlocker, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity, vetoesOf } from '../../src/engine/v2/finance/deals';
 import { capitalQSystem, trancheConditionMet } from '../../src/engine/v2/finance/investors';
 import { leadEstimate } from '../../src/engine/v2/finance/observe';
 import { paidTo } from '../../src/engine/v2/finance/ledger';
-import type { GameStateV2 } from '../../src/engine/v2/types';
+import type { GameStateV2, StrategicDeal } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
@@ -19,6 +22,12 @@ const ST = PARTNER_TERMS.strings;
 /** The leader start (Northwind's legacy 27% is above the cap, so Azimuth is the open hyperscaler). */
 const leader = () => newGame(defaultSetupV2({ seed: 4 }));
 const dealEq = (s: GameStateV2) => Object.values(s.player.finance.ws3.years).reduce((a, y) => a + y.dealEquity, 0);
+/** A start with no rival backed by a partner (the realistic cast has some: each lowers that partner's interest by 0.2). */
+const clean = () => {
+  const s = leader();
+  for (const r of s.rivals) r.npc.backers = {};
+  return s;
+};
 /** Move the affiliated lab so that the player's estimated lead over it is `days`. */
 function setLead(s: GameStateV2, days: number) {
   const lab = s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === 'bigtech')!;
@@ -52,7 +61,7 @@ function setLead(s: GameStateV2, days: number) {
   const c = partnerTerms(s, 'Azimuth', { supply: 'cloud' });
   const t = partnerTerms(s, 'Azimuth', { supply: 'asic' });
   const sp = t.supply!;
-  check(near(termsEquity(t), termsEquity(c), 1e-9) && sp.kind === 'asic' && near(sp.total, 4 * termsEquity(t), 1e-6) && sp.quarters === PARTNER_TERMS.asic.quarters && sp.costMult === PARTNER_TERMS.asic.costMult, '2 custom chips: the same equity as cloud, the same commitment (4 × equity) in dollars over the asic quarters', `equity $${f1(termsEquity(t))}B · chips $${f1(sp.total)}B over ${sp.quarters} q at ${sp.costMult} of list`);
+  check(near(termsEquity(t), termsEquity(c), 1e-9) && sp.kind === 'asic' && near(sp.total, 4 * termsEquity(t), 1e-6) && sp.quarters === 24 && sp.costMult === PARTNER_TERMS.asic.costMult, '2 custom chips: the same equity as cloud, the same commitment (4 × equity) in dollars over the deal 24 quarters', `equity $${f1(termsEquity(t))}B · chips $${f1(sp.total)}B over ${sp.quarters} q at ${sp.costMult} of list`);
   const err = signPartner(s, makeCtx(s), 'Azimuth', { supply: 'asic' });
   const paid = s.player.finance.ledger.filter((x) => x.payee === 'Azimuth').reduce((a, x) => a + x.perQuarter, 0) + (sp.prepaid ?? 0);
   check(!err && near(paid, sp.total, 1e-6), '2 signing books the chips: payments (and any prepaid part) add up to C', `$${f1(paid)}B of $${f1(sp.total)}B`);
@@ -158,18 +167,22 @@ function setLead(s: GameStateV2, days: number) {
   check(new RegExp(`ends about ${months} months closer over the deal`).test(line), '6 the preview says how much closer its lab ends over the deal (ipCloseYr × lead × years, at most the lead)', line.slice(line.indexOf('its lab')));
 }
 
-// 7. Rescue: the largest stake among the hyperscalers that are not blocked; shares at half the valuation.
+// 7. Rescue: the hyperscaler that values you most (interest); ties go to the larger stake; shares at half the valuation.
 {
-  const s = leader();
+  const s = clean();
+  const base = rescuePartner(s); // Azimuth's own lab sits near you: Northwind values you more
+  setLead(s, 400); // its lab far behind: no penalty, so the two are level at 1
   s.player.finance.ownership.strat = { 'Northwind Cloud': 0.1, Azimuth: 0.2 };
-  const who = rescuePartner(s);
+  const tieA = rescuePartner(s);
   s.player.finance.ownership.strat = { 'Northwind Cloud': 0.15, Azimuth: 0.15 };
-  const tie = rescuePartner(s);
-  s.player.finance.ownership.strat = { 'Northwind Cloud': 0.3, Azimuth: 0.05 };
-  const nw = rescuePartner(s);
+  const tieN = rescuePartner(s);
+  s.player.finance.ownership.strat = { 'Northwind Cloud': 0.1, Azimuth: 0.2 };
+  s.player.finance.ws3.paidTo = { 'Northwind Cloud': 9, Other: 1 };
+  const spend = rescuePartner(s);
+  s.player.finance.ws3.paidTo = {};
   s.player.finance.deals.push({ id: 'DLx', partner: 'Northwind Cloud', kind: 'hyperscaler', day: 0, equityNow: 0, equityLater: 0, strings: { exclusivity: true }, until: s.time.day + 1000 });
   const blocked = rescuePartner(s);
-  check(who === 'Azimuth' && tie === 'Northwind Cloud' && nw === 'Northwind Cloud' && blocked === 'Northwind Cloud', '7 the rescuer is the hyperscaler with the largest stake (ties: partner order); a running exclusivity of another partner blocks that other', `${who} · tie ${tie} · ${nw} · ${blocked}`);
+  check(base === 'Northwind Cloud' && tieA === 'Azimuth' && tieN === 'Northwind Cloud' && spend === 'Northwind Cloud' && blocked === 'Northwind Cloud', '7 the rescuer is the hyperscaler with the highest interest (ties: larger stake, then partner order); a running exclusivity of another partner blocks that other', `own lab near: ${base} · level, larger stake: ${tieA} · level, tie: ${tieN} · spend: ${spend} · ${blocked}`);
   const r = leader();
   r.player.finance.ownership.strat = { 'Northwind Cloud': 0.27, Azimuth: 0.1 };
   r.player.finance.ownership.founder *= 0.99;
@@ -191,6 +204,135 @@ function setLead(s: GameStateV2, days: number) {
   const tm = partnerTerms(m, 'Northwind Cloud', { rescue: true });
   check(tm.equityNow >= PARTNER_TERMS.rescue.minCash - 1e-9 && tm.equityNow <= PARTNER_TERMS.rescue.maxShareOfV * V0(m) + 1e-9, '7 the rescue cash is max($20B, 2 × burn), at most 15% of V', `$${f1(tm.equityNow)}B`);
 }
+const deal6 = (s: GameStateV2, partner: string, until: number, extra: Partial<StrategicDeal> = {}) => s.player.finance.deals.push({ id: 'DLt' + partner + until, partner, kind: 'hyperscaler', day: 0, equityNow: 0, equityLater: 0, strings: {}, until, ...extra });
+const interest = (s: GameStateV2, p: string) => partnerInterest(s, p).value;
+
+// 8. Interest: 1 plus named parts, each in words; spend raises it, a backed rival and a near own lab lower it; clamped.
+{
+  const s = clean();
+  setLead(s, 400);
+  const base = interest(s, 'Silica Systems');
+  s.player.finance.ws3.paidTo = { 'Silica Systems': 3, Other: 7 };
+  const spent = partnerInterest(s, 'Silica Systems');
+  const rival = s.rivals.find((r) => r.core.status === 'active')!;
+  rival.npc.backers = { 'Silica Systems': 0.1 };
+  const backed = partnerInterest(s, 'Silica Systems');
+  check(near(base, 1) && near(spent.value, 1 + 0.3 * 0.3, 1e-9) && near(backed.value, spent.value - 0.2, 1e-9) && backed.parts.every((x) => x.label.length > 8) && /30% of your compute payments/.test(spent.parts[1].label) && /rival of yours/.test(backed.parts[2].label), '8 interest: spend share (+0.3 × 30%) raises it, a partner backing a rival (−0.2) lowers it; every part has a label', backed.parts.map((x) => `${x.label} ${x.v.toFixed(2)}`).join(' · '));
+  const own = clean();
+  setLead(own, 0);
+  const lvl = interest(own, 'Azimuth');
+  setLead(own, 91); // 3 months ahead
+  const mid = interest(own, 'Azimuth');
+  setLead(own, 400);
+  const clear = interest(own, 'Azimuth');
+  check(near(clear, 1) && near(lvl, 1 - 0.3, 1e-9) && near(mid, 1 - 0.3 * (1 - 91 / 30.4 / 6), 1e-6), "8 the partner's own lab near you lowers its interest: −0.3 × (1 − your lead in months ÷ 6)", `level ${lvl.toFixed(2)} · 3 months ${mid.toFixed(2)} · far ${clear.toFixed(2)}`);
+  const c = clean();
+  setLead(c, 0);
+  c.rivals.find((r) => r.core.status === 'active')!.npc.backers = { Azimuth: 0.2 };
+  deal6(c, 'Northwind Cloud', c.time.day + 1000);
+  const raw = 1 - 0.3 - 0.2 - 0.2;
+  const low = partnerInterest(c, 'Azimuth');
+  const sil = clean();
+  sil.player.finance.ws3.paidTo = { 'Silica Systems': 1 };
+  const hi = interest(sil, 'Silica Systems');
+  check(raw < PARTNER_INTEREST.min && low.value === PARTNER_INTEREST.min && hi <= PARTNER_INTEREST.max && hi > 1.2, '8 the value is clamped to 0.5–1.5 (own lab level + backs a rival + you lean on its competitor = 0.3 → 0.5)', `raw ${raw.toFixed(2)} → ${low.value} · all-spend Silica ${hi.toFixed(2)}`);
+}
+
+// 9. A plain offer's equity scales with interest (strings and the stake cap still apply).
+{
+  const s = clean();
+  setLead(s, 400);
+  const e1 = termsEquity(partnerTerms(s, 'Azimuth'));
+  const i1 = interest(s, 'Azimuth');
+  setLead(s, 0);
+  const e0 = termsEquity(partnerTerms(s, 'Azimuth'));
+  const i0 = interest(s, 'Azimuth');
+  const sil = clean();
+  const v0 = termsEquity(partnerTerms(sil, 'Silica Systems'));
+  sil.player.finance.ws3.paidTo = { 'Silica Systems': 5, Other: 5 };
+  const v1 = termsEquity(partnerTerms(sil, 'Silica Systems'));
+  check(i0 < i1 && near(e0 / e1, i0 / i1, 1e-9) && near(v1 / v0, 1.15, 1e-9), '9 the equity of a plain offer is × interest (hyperscaler and chip vendor)', `Azimuth ${f1(e0)} at ${i0.toFixed(2)} vs ${f1(e1)} at ${i1.toFixed(2)} · Silica ×${(v1 / v0).toFixed(2)}`);
+}
+
+// 10. Dependence: its cloud (and chips) over your compute; a renewal keeps base discount × (1 − dependence).
+{
+  const s = clean();
+  const before = dependence(s, 'Azimuth');
+  s.player.cloud.push({ id: 'Ct', provider: 'Azimuth', h100e: 1e6, costPerYear: 1, startDay: s.time.day - 1, endDay: s.time.day + 300, cancellableNoticeQ: null });
+  const dep = dependence(s, 'Azimuth');
+  const want = 1e6 / computeOnlineOf(s);
+  const D = PARTNER_TERMS.hyperscaler.discount;
+  const disc = (x: number) => partnerTerms(s, 'Azimuth', { dependence: x }).supply!.partnerDiscount;
+  check(before === 0 && dep > 0.05 && dep < 1 && near(dep, want, 1e-9) && near(disc(0), D) && near(disc(0.4), D * 0.6) && near(disc(1), 0), '10 dependence = its cloud ÷ your compute; the renewal discount is the base × (1 − dependence)', `${(dep * 100).toFixed(1)}% · discount ${disc(0)} → ${disc(0.4).toFixed(3)} → ${disc(1)}`);
+}
+
+// 11. Renewal: one request when a deal passes its end; accepting signs a fresh deal; declining ends it. Running deals only count.
+{
+  const s = clean();
+  const err = signPartner(s, makeCtx(s), 'Azimuth');
+  const d = dealWith(s, 'Azimuth')!;
+  const now = partnersNow(s).length;
+  partnerMonthly(s);
+  const none = s.events.requests.filter((r) => r.id === 'E33').length;
+  d.until = s.time.day; // the deal ends today
+  const gone = !dealWith(s, 'Azimuth') && partnersNow(s).length === 0;
+  partnerMonthly(s);
+  partnerMonthly(s);
+  const reqs = s.events.requests.filter((r) => r.id === 'E33');
+  const ev = EVENT_BY_ID.get('E33')!;
+  const deals0 = s.player.finance.deals.length;
+  ev.choices[0].apply(s, makeCtx(s), reqs[0]?.data ?? {});
+  const renewed = s.player.finance.deals.length === deals0 + 1 && !!dealWith(s, 'Azimuth') && partnersNow(s).length === 1;
+  check(!err && now === 1 && none === 0 && gone && reqs.length === 1 && reqs[0].data.partner === 'Azimuth' && reqs[0].data.supply === 'cloud' && renewed, '11 partnersNow ignores an ended deal; one E33 request fires when the deal passes its end (never again); accepting signs a fresh deal', `requests ${reqs.length} · deals ${deals0} → ${s.player.finance.deals.length}`);
+  const o = clean();
+  signPartner(o, makeCtx(o), 'Azimuth');
+  dealWith(o, 'Azimuth')!.until = o.time.day;
+  partnerMonthly(o);
+  const dd = o.events.requests.find((r) => r.id === 'E33')!.data;
+  const n0 = o.player.finance.deals.length;
+  ev.choices[1].apply(o, makeCtx(o), dd);
+  partnerMonthly(o);
+  check(o.player.finance.deals.length === n0 && !dealWith(o, 'Azimuth') && partnersNow(o).length === 0 && o.events.requests.filter((r) => r.id === 'E33').length === 1, '11 declining ends the partnership (no new deal, no second request)', `deals ${n0}`);
+}
+
+// 12. Follow-on: only at interest ≥ 1.2 with a running deal, once a year.
+{
+  const s = clean();
+  const ctx = makeCtx(s);
+  signPartner(s, ctx, 'Azimuth');
+  setLead(s, 400);
+  const low = followOnBlocker(s, 'Azimuth') ?? '';
+  s.player.finance.ws3.paidTo = { Azimuth: 8, Other: 2 };
+  const i = interest(s, 'Azimuth');
+  const t = followOnTerms(s, 'Azimuth');
+  const eq0 = dealWith(s, 'Azimuth')!.equityNow;
+  const tranche = Math.min(15, 0.03 * Math.max(10, s.player.finance.valuation));
+  const err = signFollowOn(s, ctx, 'Azimuth');
+  const d = dealWith(s, 'Azimuth')!;
+  const again = followOnBlocker(s, 'Azimuth') ?? '';
+  s.time.day += 366;
+  const later = followOnBlocker(s, 'Azimuth');
+  const none = clean();
+  setLead(none, 400);
+  none.player.finance.ws3.paidTo = { Azimuth: 8, Other: 2 };
+  check(/does not value you enough/.test(low) && i >= 1.2 && !err && near(t.equityNow, tranche * i, 1e-9) && near(t.supply!.total, 4 * t.equityNow, 1e-6) && near(d.equityNow, eq0 + t.equityNow, 1e-9) && /one a year/.test(again) && later === undefined && /No running deal/.test(followOnBlocker(none, 'Azimuth') ?? ''), '12 a follow-on needs interest ≥ 1.2 and a running deal: one more tranche × interest for 4× it, once a year', `interest ${i.toFixed(2)} · equity ${f1(t.equityNow)}B for ${f1(t.supply!.total)}B · ${low}`);
+}
+
+// 13. Custom chips: one order a year for 6 years, sized at each year's price, the same dollar total as before.
+{
+  const s = leader();
+  const t = partnerTerms(s, 'Azimuth', { supply: 'asic' });
+  const sp = t.supply!;
+  const yr = (y: number) => sp.perQ.slice(4 * y, 4 * y + 4).reduce((a, b) => a + b, 0) + (y === 0 ? sp.prepaid ?? 0 : 0);
+  const o0 = s.player.orders.length;
+  const l0 = s.player.finance.ledger.length;
+  const err = signPartner(s, makeCtx(s), 'Azimuth', { supply: 'asic' });
+  const orders = s.player.orders.slice(o0);
+  const led = s.player.finance.ledger.slice(l0).filter((c) => c.payee === 'Azimuth');
+  const starts = orders.map((o) => o.ltaStartQ ?? 0);
+  check(!err && sp.yearly?.length === 6 && sp.yearly.every((h, y, a) => y === 0 || h > a[y - 1]) && [0, 1, 2, 3, 4, 5].every((y) => near(yr(y), sp.total / 6, 1e-9)) && near(sp.total, 4 * termsEquity(t), 1e-9) && orders.length === 6 && orders.every((o, y) => near(o.qty, sp.yearly![y]) && o.ltaStartQ === starts[0] + 4 * y) && near(led.reduce((a, c) => a + c.perQuarter, 0) + (sp.prepaid ?? 0), sp.total, 1e-9), '13 custom chips: six yearly orders of C/6 each, more chips as prices fall, the same total C', `${sp.yearly!.map((h) => (h / 1e6).toFixed(2)).join(' → ')}M a quarter · ${f1(sp.total)}B`);
+}
+
 function V0(s: GameStateV2) { return Math.max(10, s.player.finance.valuation); }
 
 finish('partners');
