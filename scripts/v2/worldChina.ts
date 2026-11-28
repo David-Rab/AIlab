@@ -215,6 +215,7 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
     s.china.lab.publicModel!.G = publicG(s, 'player') - 1; // China's public model is a year behind the player's (the lead reads the public models, F7)
     s.chinagov.tension = tension;
     s.player.security.wsl = 1; // a lab at the industry floor (the security system raises it there)
+    s.rivals = []; // theft against the NPC labs is not under test, and its per-day hazard (frontier read per lab) was most of this loop's cost
     const h = theftHazardDaily(s);
     const a0 = s.player.security.theftAttempts;
     for (let i = 0; i < 3 * 365; i++) { s.time.day++; securitySystem.run(s, makeCtx(s)); }
