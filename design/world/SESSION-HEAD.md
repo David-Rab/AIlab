@@ -172,3 +172,8 @@ Finance › Story; 5 keep three adoption numbers; 6 treaty talks are events only
 > should we start the cleanup in the meantime? or will it cause a mess?
 >
 > i think park the economy quesiton for now, keep it for a later session
+
+## 15. Broken tests
+
+> lets also fix/drop the broken tests (at leasy some - we leave the repo cleaner than we found, but i dont want too much
+> time and effort used on it)

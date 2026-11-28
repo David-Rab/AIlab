@@ -63,6 +63,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | done fe28d849 |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | split: W11a docs + ws4.ts checks + stale comments running; W11b ws4 split after W8b-1; scratch removal at the end |
 | W12 | PARKED (refocus): AI 2027 sweep beyond the outside world → design/OPEN.md. Kept: list the AI 2027-sourced lab parameters for `bal` at merge | — | — | merge | parked |
+| W11c | Broken tests: triage the test:ui and hygiene failures; fix the cheap ones, delete checks of deleted or obsolete behaviour, list the rest in OPEN.md; 45 min cap (designer: not too much effort) | Sonnet high | 45 min | W8b-3 | |
 | W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | done 8ed8cc37 |
 | W14 | Plans A–D check after W10: can each plan happen? Add at most the treaty compute cap | lead | — | W10 | done (lead): PLANS.md §5 |
 
