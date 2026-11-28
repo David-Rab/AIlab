@@ -166,3 +166,9 @@ The lead's question: treaties come once concern passes 70 (13 of 24 runs). Keep 
 
 (1 rename Relations → Powers; 2 pledges on Powers; 3 nav badge only, nothing in the top bar; 4 providers → link to
 Finance › Story; 5 keep three adoption numbers; 6 treaty talks are events only.)
+
+## 14. Cleanup timing; economy parked
+
+> should we start the cleanup in the meantime? or will it cause a mess?
+>
+> i think park the economy quesiton for now, keep it for a later session
