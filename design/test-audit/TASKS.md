@@ -31,7 +31,8 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | merged fa40f327 (safety smoke 521 → ~30 s; full ~26 → ~13 CPU-min cold; deep ~36 → ~4) |
 | G1 | suites, signals, successor, data, effective, oversight | merged 9a684123 (14 fail → 0 + 1 KNOWN; each ≤ 12 s) |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | merged 47f5412a (all green or KNOWN; calib full = 3 games ≈ 4–5 CPU-min, central: budget 300) |
-| later | idle, hygiene (after speed merges), directorEndings, npcShocks (after bal merges) | — |
+| G8 | directorEndings, npcShocks | merged ac9dc9ce (dE quick 197 → ~13 s, full ~67 s; npcShocks quick ~14 s) |
+| later | idle, hygiene (after speed merges) | OPEN.md § Tests |
 
 Note: master merged into testaudit 3b233ae8 (bal NPC fixes, schema 127). It brought new untiered tests diffusion.ts, leadread.ts, srefcheck.ts: the P1a orphan guard must list them (add to G6).
 
