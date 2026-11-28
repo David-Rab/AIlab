@@ -11,7 +11,8 @@ import type { GameStateV2 } from '../types';
 // 121: W4, the public (s.public). 122: W5, the US government (s.usgov). 123: W6, the China government (s.chinagov;
 // china.computeAbs → china.access). 124: W11b, the old working-state block is split into its owners (events.requests, player.security,
 // player.actionDay, rivalIncidents, endingProgress, usgov.dpaAccepted, public.misalignLeakDay, world.gdp0, the market, npc and site fields).
-export const SCHEMA_REV = 124;
+// 125: weekly record series aiWork, aiIncome, robots (World tab tiles, W8b-3).
+export const SCHEMA_REV = 125;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

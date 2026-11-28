@@ -451,7 +451,7 @@ function TheftRisk({ s }: { s: GameStateV2 }) {
       </Tip>
       <div className="ls-kv">
         <div className="row"><span>Who wants your weights</span><span><b>{s.china.lab.core.name}</b> <span className="dim">· China</span></span></div>
-        <div className="row"><Term id="theftIntent">Theft intent</Term><b className="num">{intent.toFixed(0)}</b></div>
+        <div className="row"><Term id="theftIntent">Theft intent</Term><Tip content={() => <TipCard title={<Term id="theftIntent">Theft intent</Term>} value={intent.toFixed(0)}>China's drive to steal weights, 0 to 100. It scales how likely a theft attempt is each day and how strong the attacker is.</TipCard>}><b className="num">{intent.toFixed(0)}</b></Tip></div>
         <Tip content={() => <TipCard title="Thefts detected" value={detected ? String(detected) : 'none'}>Thefts of your weights your security team has found.</TipCard>}>
           <div className="row"><span>Thefts detected</span><b className={detected ? 'tone-neg' : ''}>{detected ? detected : <span className="row-i"><ICON.check size={12} /> none</span>}</b></div>
         </Tip>
