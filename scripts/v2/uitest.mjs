@@ -121,7 +121,7 @@ await shot('01-setup');
 await clearTips(); // a start card's tooltip can lock while the mouse rests on it (slow machines)
 // Game A: defaults with tutorial ON (act locks, coach cards).
 for (const [k, v] of [['baseline', 'classic'], ['world', 'tl-central'], ['alignment', 'medium'], ['econ', 'ai2027'], ['governance', 'legacyNonprofit'], ['storyteller', 'rising'], ['gov', 'realistic'], ['public', 'realistic'], ['china', 'realistic'], ['tutorial', 'true']]) {
-  await page.click(`[data-picker=${k}] [data-opt="${v}"]`);
+  if (await page.$(`[data-picker=${k}] [data-opt="${v}"]`)) await page.click(`[data-picker=${k}] [data-opt="${v}"]`); // pickers the setup screen no longer has are skipped
 }
 await page.click('[data-test=start-game]');
 await wait(200);
@@ -895,7 +895,7 @@ async function b2Check(where) {
 // shows adoption in two quantities (W and U vs A, values equal to the state), the limits F / K / 1 − R with the binding
 // one, who pays (hours by payer, paid seat share → target) and the providers' cost of an AI work-hour vs the wage; every
 // row opens a tooltip; the work-type tooltip has the work data; a cell click selects the sector; every new term is reached.
-const B3_TERMS = ['workersUsingAI', 'hoursOfUse', 'savedPerHour', 'unseatedUse', 'seatShare', 'agentLeverage', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability'];
+const B3_TERMS = ['workersUsingAI', 'hoursOfUse', 'savedPerHour', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability'];
 const b3Seen = new Set();
 const b3Tip = async (sel) => {
   await clearTips();
@@ -907,36 +907,34 @@ const b3Tip = async (sel) => {
 };
 async function b3Check(where, shotName) {
   await nav('world');
-  await tabTo('sectors');
+  await tabTo('work');
   const card = async () => page.evaluate(() => {
     const c = document.querySelector('[data-test=ws-card]');
     const tx = (k) => c?.querySelector(`[data-test="${k}"]`)?.textContent ?? '';
     return {
       sid: c?.getAttribute('data-sector'), r: c?.getAttribute('data-region'),
-      W: tx('ws-W'), U: tx('ws-U'), A: tx('ws-A'), saved: tx('ws-saved-sector'), bind: tx('ws-binding'), wt: tx('ws-worktype'),
-      lims: ['capability', 'cost', 'friction'].map((k) => tx(`ws-lim-${k}`)), limBind: c?.querySelector('.ws-lim.bind')?.getAttribute('data-test') ?? '',
-      pay: tx('ws-pay'), seat: tx('ws-seat'), prov: [...(c?.querySelectorAll('[data-provider]') ?? [])].map((e) => ({ k: e.getAttribute('data-provider'), t: e.textContent })),
+      W: tx('ws-W'), U: tx('ws-U'), A: tx('ws-A'), bind: tx('ws-binding'), wt: tx('ws-worktype'),
+      lims: ['capability', 'cost', 'friction'].map((k) => tx(`ws-lim-${k}`)), limBind: c?.querySelector('.ws-chip.bind')?.getAttribute('data-test') ?? '',
       ref: !!c?.querySelector('[data-ref=customerStock]'),
-      strip: document.querySelector('[data-test=ws-strip]')?.textContent ?? '',
-      clipped: [...(c?.querySelectorAll('.ws-v, .ws-pr-s, .ws-pr-c, .ws-pr-v, .ws-lim-v, .ws-ttl') ?? [])].filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent),
+      tiles: [...document.querySelectorAll('[data-test^="wk-tile."]')].map((e) => e.textContent ?? ''), jobs: document.querySelector('[data-test=wk-jobs]')?.textContent ?? '', chart: !!document.querySelector('[data-test=wk-chart]'), macro: !!document.querySelector('[data-test=macro]'), relief: !!document.querySelector('[data-ref=lawRelief]'),
+      clipped: [...(c?.querySelectorAll('.ws-v, .ws-chip, .ws-ttl') ?? [])].filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent),
     };
   });
   const c = await card();
   for (const x of await page.$$eval('[data-test=world-sectors] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b3Seen.add(x);
-  ok(`B3 ${where}: strip shows workers, hours of use, hours saved, seats and agent-hours`, /Workers using AI\s*\d+%/.test(c.strip) && /Hours of use\s*[\d.]+%/.test(c.strip) && /saves\s*[\d.]+ h/.test(c.strip) && /Paid seats\s*[\d.]+[KMB]?/.test(c.strip) && /Agent-hours\s*[\d.]+[KMB]?/.test(c.strip), c.strip.slice(0, 140));
+  ok(`B3 ${where}: four economy tiles (unemployment, GDP growth, AI share of income, work done by AI), no macro strip`, c.tiles.length === 4 && /Unemployment/.test(c.tiles[0]) && /GDP/i.test(c.tiles[1]) && /AI share/i.test(c.tiles[2]) && /Work done/i.test(c.tiles[3]) && !c.macro, c.tiles.join(' | ').slice(0, 200));
   const st = JSON.parse(await get(`(() => { const x = s.world.sectors['${c.r}']['${c.sid}']; return { W: x.W, A: x.A, Astar: x.Astar, F: x.F, K: x.K, R: x.R, b: x.binding, seat: x.seat }; })()`));
   const p0 = (x) => { const v = x * 100; return `${v > 0 && v < 1 ? v.toFixed(1) : v.toFixed(0)}%`; };
   const p1 = (x) => `${(x * 100).toFixed(1)}%`;
   ok(`B3 ${where}: card values equal the state (${c.sid} ${c.r}: W ${p0(st.W)}, A ${p1(st.A)} → ${p1(st.Astar)}, F ${p0(st.F)}, K ${p0(st.K)}, 1 − R ${p0(1 - st.R)})`,
-    c.W.endsWith(p0(st.W)) && c.A.includes(`${p1(st.A)} → ${p1(st.Astar)}`) && c.lims[0].includes(p0(st.F)) && c.lims[1].includes(p0(st.K)) && c.lims[2].includes(p0(1 - st.R)) && c.seat.includes(p0(st.seat)) && c.bind.includes(st.b),
-    JSON.stringify({ W: c.W, A: c.A, lims: c.lims, seat: c.seat, bind: c.bind }).slice(0, 300));
-  ok(`B3 ${where}: hours of use, saved per hour and wage shown`, /[\d.]+% of hours/.test(c.U) && /Saves\s*[\d.]+ h.*wage \$[\d.]+/.test(c.saved), `${c.U} | ${c.saved}`);
+    c.W.endsWith(p0(st.W)) && c.A.includes(`${p1(st.A)} → ${p1(st.Astar)}`) && c.lims[0].includes(p0(st.F)) && c.lims[1].includes(p0(st.K)) && c.lims[2].includes(p0(1 - st.R)) && c.bind.includes(st.b),
+    JSON.stringify({ W: c.W, A: c.A, lims: c.lims, bind: c.bind }).slice(0, 300));
+  ok(`B3 ${where}: hours of use shown as a share of hours`, /[\d.]+% of hours/.test(c.U), c.U);
   ok(`B3 ${where}: binding limit highlighted (or diffusion)`, st.b === 'diffusion' ? c.limBind === '' : c.limBind === `ws-lim-${st.b}`, `${st.b} / ${c.limBind || 'none'}`);
-  ok(`B3 ${where}: who pays splits hours by payer, seats → target, agent-hours`, /per hour\s*\d+%/.test(c.pay) && /seats\s*\d+%/.test(c.pay) && /unseated\s*\d+%/.test(c.pay) && /agents\s*\+[\d.]+[KMB]? h/.test(c.pay) && /[\d.]+%\s*→\s*[\d.]+%/.test(c.seat), `${c.pay} | ${c.seat}`);
-  ok(`B3 ${where}: providers with share → target, coverage and cost vs wage; link to products`, c.prov.length >= 2 && c.prov.every((p) => /→/.test(p.t) && /\$[\d.]+$/.test(p.t.trim())) && c.ref, c.prov.map((p) => `${p.k}: ${p.t}`).join(' ; ').slice(0, 200));
+  ok(`B3 ${where}: no providers table; a link to Finance › Story instead`, c.ref && !(await page.$('[data-provider]')), '');
   ok(`B3 ${where}: no clipped numbers on the sector card`, c.clipped.length === 0, c.clipped.join(' | '));
   // Tooltips on every row.
-  const rows = ['ws-workers', 'ws-hours', 'ws-saved', 'ws-seats', 'ws-agents', 'ws-W', 'ws-U', 'ws-A', 'ws-saved-sector', 'ws-lim-capability', 'ws-lim-cost', 'ws-lim-friction', 'ws-pay', 'ws-seat', 'ws-binding', 'ws-worktype'];
+  const rows = ['ws-W', 'ws-U', 'ws-A', 'ws-lim-capability', 'ws-lim-cost', 'ws-lim-friction', 'ws-binding', 'ws-worktype'];
   let tipped = 0;
   const miss = [];
   const texts = {};
@@ -945,13 +943,7 @@ async function b3Check(where, shotName) {
     texts[r] = tx;
     if (tx.length > 20) tipped++; else miss.push(r);
   }
-  const pv = await page.$$eval('[data-test=ws-card] [data-provider]', (els) => els.map((e) => e.getAttribute('data-provider')));
-  for (const k of pv.slice(0, 2)) {
-    const tx = await b3Tip(`[data-test=ws-card] [data-provider="${k}"] .ws-pr-v`);
-    texts[`prov.${k}`] = tx;
-    if (/Cost of an AI work-hour/.test(tx) && /vs wage \$/.test(tx) && /review/.test(tx) && /Coverage/.test(tx)) tipped++; else miss.push(`prov.${k}`);
-  }
-  ok(`B3 ${where}: every sector-view row opens a tooltip (${rows.length + Math.min(2, pv.length)})`, tipped === rows.length + Math.min(2, pv.length), miss.join(', '));
+  ok(`B3 ${where}: every sector-view row opens a tooltip (${rows.length})`, tipped === rows.length, miss.join(', '));
   ok(`B3 ${where}: work-type tooltip has domain weights, task length, verifiability, θ vs fit, tokens`, /Typical task length/.test(texts['ws-worktype']) && /Verifiability/.test(texts['ws-worktype']) && /Median professional/.test(texts['ws-worktype']) && /Tokens per agent-hour/.test(texts['ws-worktype']), texts['ws-worktype'].replace(/\n/g, ' ').slice(0, 120));
   ok(`B3 ${where}: cost gate tooltip compares the AI work-hour with the wage`, /Wage/.test(texts['ws-lim-cost']) && /Cost of an AI work-hour/.test(texts['ws-lim-cost']), texts['ws-lim-cost'].replace(/\n/g, ' ').slice(0, 100));
   if (c.r === 'US' && c.sid === 'SOFT') ok(`B3 ${where}: US Software hours of use names its survey anchor`, /Survey: Information/.test(texts['ws-U']) && /Real-Time Population Survey/.test(texts['ws-U']), texts['ws-U'].replace(/\n/g, ' ').slice(0, 140));
@@ -1052,16 +1044,21 @@ async function b4Check(where) {
       await check(`B4 ${where}: Alt+↑ moves it back`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowUp'));
     }
   }
-  // World › Sectors: jobs under the heatmap.
+  // World › Work: jobs and the since-start chart sit under the sector card; the transition fund Set changes the policy.
   await nav('world');
-  await tabTo('sectors');
-  const wj = await page.evaluate(() => {
-    const left = document.querySelector('[data-test=world-sectors] .ws-left');
-    const card = document.querySelector('[data-test=ws-card]')?.getBoundingClientRect();
-    const lb = left?.getBoundingClientRect();
-    return { jobs: !!left && /Unemployment US/.test(left.textContent ?? ''), gap: card && lb ? Math.round(Math.abs(lb.bottom - card.bottom)) : -1 };
+  await tabTo('work');
+  const wj = await page.evaluate(() => ({ jobs: /Unemployment\s*·\s*US/.test(document.querySelector('[data-test=wk-jobs]')?.textContent ?? '') && /Displaced/.test(document.querySelector('[data-test=wk-jobs]')?.textContent ?? ''), chart: !!document.querySelector('[data-test=wk-chart]') }));
+  ok(`B4 ${where}: World › Work: jobs card present${wj.chart ? ' with the since-start chart' : ' (chart waits for a recorded year)'}`, wj.jobs, JSON.stringify(wj));
+  await check(`W8b-3 ${where}: Set on the transition fund changes the policy`, 's.player.policies.transitionFund', async () => {
+    await page.$eval('[data-test=wk-jobs] input[type=range]', (el) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '37'); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await page.click('[data-test=wk-jobs] [data-act="wfx.transitionFund"]');
   });
-  ok(`B4 ${where}: World › Sectors: jobs sit under the heatmap (columns end within 300 px of each other)`, wj.jobs && wj.gap >= 0 && wj.gap < 300, JSON.stringify(wj));
+  await tabTo('tech');
+  const wt = await page.evaluate(() => ({ tiles: document.querySelectorAll('[data-test=world-tech] [data-tech]').length, ctrl: document.querySelectorAll('[data-test^="wt-ctrl."]').length, sez: !!document.querySelector('[data-ref=lawSez]') }));
+  ok(`W8b-3 ${where}: Tech & control shows all 29 world techs, four control domains and the zones law chip`, wt.tiles === 29 && wt.ctrl === 4 && wt.sez, JSON.stringify(wt));
+  await page.click('[data-test=world-tech] [data-tech=W04]');
+  ok(`W8b-3 ${where}: clicking a tech tile aims the moonshot at it`, /Autonomous labs/.test(await page.$eval('[data-test=world-tech] .wt-moon', (e) => e.textContent ?? '')));
+  await tabTo('work');
   await shot(`82-${where.replace(' ', '')}-world-sectors-b4`);
   // Log routing: a capability project's result opens Research › Projects; a safety entry opens Safety.
   const cap = first;

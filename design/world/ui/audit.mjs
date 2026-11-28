@@ -19,7 +19,7 @@ for (const day of ['400', '900']) {
   await closeModals();
   await page.click('[data-nav=relations]'); await wait(200); await shot('relations');
   await page.click('[data-nav=world]'); await wait(200);
-  for (const t of ['sectors', 'risk', 'society']) { await page.click(`main.center [data-tabs] [data-tab="${t}"]`); await wait(250); await shot(`world-${t}`); }
+  for (const t of ['work', 'risk', 'tech']) { await page.click(`main.center [data-tabs] [data-tab="${t}"]`); await wait(250); await shot(`world-${t}`); }
   await page.click('[data-nav=overview]'); await wait(200); await shot('overview');
   const dump = await page.evaluate(() => { const s = window.ai27v2.state; return JSON.stringify({ day: s.time.day, concern: s.public.concern, approval: s.public.approval, usgov: s.usgov, chinagov: s.chinagov, brief: s.player.policies.govBriefing }); });
   console.log(day, dump);

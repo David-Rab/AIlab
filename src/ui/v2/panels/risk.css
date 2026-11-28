@@ -29,3 +29,6 @@
 .riskmap2 .edge-lbl { font: 600 10.5px var(--sans); paint-order: stroke; stroke: #151c26; stroke-width: 3px; }
 .riskmap2 .pulse { fill: none; stroke: var(--bad); stroke-width: 2; animation: rpulse 1.6s ease-out infinite; }
 @keyframes rpulse { 0% { opacity: .9; } 100% { opacity: 0; } }
+.rs2-nm { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.rs2-why { font-size: 11px; color: var(--text-3); }
+.rs2-lev .num { margin-left: 6px; }

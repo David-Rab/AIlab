@@ -2358,6 +2358,8 @@ export interface SeriesV2 {
   /** UB-2: Research speed (× the leading lab in July 2025, labSpeedRel) and the part of it the lab credits to AI staff
    *  (production.ts aiStaffSpeedPart), weekly; absent on saves before UB-2 (the history starts then). */
   speed?: number[]; speedAI?: number[];
+  /** W8b-3: US work done by AI (automationShare), AI companies' share of US income and robots built a month; weekly, aligned to day from the end. */
+  aiWork?: number[]; aiIncome?: number[]; robots?: number[];
 }
 
 export interface TutorialState { act: 1 | 2 | 3 | 4; unlocked: string[]; seen: string[]; }

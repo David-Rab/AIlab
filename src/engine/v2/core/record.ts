@@ -4,6 +4,7 @@ import { bestG, bestLg, internalVersion, measuredLOf, otherLabs } from '../model
 import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
 import { METHOD_BY_ID } from '../safety/methods';
+import { automationShare } from '../worldfx/readouts';
 import { recordCause, trimCauses } from './causes';
 import { aiStaffSpeedPart, labSpeedRel } from '../production/production';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
@@ -50,6 +51,9 @@ export function sampleSeries(s: GameStateV2) {
   S.compute.push(Math.round(s.player.computeOnline));
   S.gdpG.push(r3(s.world.macro.US.g));
   S.unemp.push(r3(s.world.unemployment.US));
+  (S.aiWork ??= []).push(r4(automationShare(s, 'US')));
+  (S.aiIncome ??= []).push(r4(s.world.aiIncomeShare));
+  (S.robots ??= []).push(Math.round(s.world.robots.prodPerYear / 12));
   S.misTrue.push(r3(v ? misalignment(v.traitsTrue, v.uModes) : 0));
   S.misEst.push(r3(v ? misalignmentEstimate(v) : 0));
 }
