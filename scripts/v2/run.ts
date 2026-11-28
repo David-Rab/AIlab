@@ -91,7 +91,8 @@ const JOBS: Job[] = [
   { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 30) } as Job,
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
   { id: 'safetyrates', script: 'safetyrates.ts', after: ['safety'], budget: { full: 120 }, ...S(['full'], 200) } as Job,
-  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, budget: { quick: 90, full: 420 }, ...S(ALL, 250) } as Job,
+  // Constructed mechanism checks only (no played game since the CRB move); full adds a year of ticks and the 6-year site wait.
+  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 70, full: 140 }, ...S(ALL, 140) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', budget: { quick: 20, full: 20 }, ...S(ALL, 20) } as Job,
   { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 20, full: 150 }, ...S(ALL, 120) } as Job,
   { id: 'products', script: 'products.ts', budget: { quick: 20, full: 30 }, ...S(ALL, 30) } as Job,
