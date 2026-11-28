@@ -70,7 +70,7 @@ export const CHINAGOV = {
    *  leading labs accept testing (the player, if Washington attends it, holds a pre-deploy-testing pledge; the frontier-
    *  holding NPC lab, or the best US NPC lab, shows outside access of at least treatyTestAccess in its public posture). */
   treatyConcern: 70,
-  treatyTestAccess: 0.5,
+  treatyTestAccess: 0.45, // the leader kind (0.45) and the safety, bigtech and open-weights kinds pass; upstart (0.3) and racer (0.1) do not (lead, 2026-11-28)
   /** War ending: the quarterly chance at war footing (the old rung-6 roll) [D]. */
   warPerQuarter: 0.25,
   /** US output shock while on war footing, growth a year (the old war term, worldfx/economy.ts) [D]. */
