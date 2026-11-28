@@ -70,14 +70,14 @@ const JOBS: Job[] = [
   { id: 'evals', script: 'evals.ts', budget: { quick: 140, full: 420 }, ...S(ALL, 30) } as Job,
   { id: 'safetyresearch', script: 'safetyresearch.ts', budget: { quick: 60, full: 180 }, ...S(ALL, 25) } as Job,
   { id: 'worktypes', script: 'worktypes.ts', budget: { quick: 300, full: 900 }, ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 10 }, budget: { quick: 50, full: 150 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
-  { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 120, full: 360 }, ...S(ALL, 120) } as Job,
+  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 3, cal: 3 }, budget: { quick: 30, full: 300 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
+  { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 5, full: 5 }, ...S(ALL, 120) } as Job,
   // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
   { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, budget: { quick: 500, full: 1500 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
   { id: 'lint-hidden', script: 'lint-hidden.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-ux', script: 'lint-ux.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 10) } as Job,
-  { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
+  { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 10) } as Job,
   // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
   // S5's played mechanism checks (180 RefBot games to SAR since M11: half staff 20, sabotage on / off 2 × 80), kept out of full to hold it ≲ 20 min wall.
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 half staff' }, shards: { full: 6, deep: 6 }, budget: { quick: 40, full: 800, deep: 300 }, ...S([...ALL, 'deep'], 1000) } as Job,
@@ -126,7 +126,7 @@ const JOBS: Job[] = [
   { id: 'safpool', script: 'safpool.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 4) } as Job,
   { id: 'linestart', script: 'linestart.ts', budget: { quick: 20, full: 60 }, ...S(ALL, 9) } as Job,
   { id: 'rdm01', script: 'rdm01.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 7) } as Job,
-  { id: 'rdm01b', script: 'rdm01b.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 6) } as Job,
+  { id: 'rdm01b', script: 'rdm01b.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 6) } as Job,
   { id: 'rdm02', script: 'rdm02.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 4) } as Job,
   { id: 'rdt08', script: 'rdt08.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 3) } as Job,
   { id: 'rdt09', script: 'rdt09.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 3) } as Job,
