@@ -27,7 +27,7 @@ Owner: the balance session. Its live list is [bal/RECAP-2026-11-27.md](bal/RECAP
 | M4: the 36 M3 games on the full tree, read against M3 | Later (next) | RECAP §3.1; bal/LABOUR-ROUND.md §11 |
 | Fit within source ranges what M4 leaves off (P24 strength; SC threshold only for a constant offset) | Later | RECAP §3.2 |
 | Fold the data-centre calibration note into the scenario checks | Later | dc/CALIBRATION-NOTE.md |
-| Re-derive ~100 quick-test expectations written for the old ai2027 world (+ ~20 UI failures); classify each | Later | RECAP §3.4 |
+| Calibration targets out of band, registered `KNOWN` by the 2026-11-28 test audit (each prints WARN until fixed): worldfx 2026 and 2027 revenue (player ≈ 5× under), late-2026 youth employment, Jul 2027 AI-friend share, tokens/day growth over 2026, exposed 22–25 vs counterfactual; finance FIN5a RefBot equity raised; serving C1 leader Chat users (620M vs 700M), A7 free message Wh (0.02 vs 0.24, since RD-P02), A8 day-1 revenue and Chat share; calib G path to 2026, METR h50 doubling (9.4 vs 4.2 months), rival gaps at start | Later | test-audit/G3, G4, G6 reports |
 | Stage 2: sourced realistic-lab policy in the coupled game (money → compute, hiring at market wages; finance and payroll calibrated here) | Later | RECAP §3.5 |
 | Stage 3: strong bot, gap to realistic, the five alignment difficulty levels, end-screen score weights (B5 §F6) | Later | RECAP §3.6; bal/SCENARIOS.md |
 | Labour market vs NPC labs: one simple rule for NPC staff and poaching | Check | RECAP §2.1; likely settled by the NPC merge (archive/npc/MERGE-MASTER.md: background demand, one shock per direction, no NPC stars) |
@@ -77,8 +77,8 @@ Spec [MARKET.md](MARKET.md); checkpoint report archive/MARKET-CP.md.
 
 | Item | Kind | Detail |
 |---|---|---|
-| Seat price readout is the last sector × region cell's, not the average (`a.seatPrice = o.seat`, src/engine/v2/worldfx/revenue.ts:575, verified 2026-11-27) | Bug | archive/MARKET-CP.md (b)1 |
-| Agent mode's row in Products › Add a tool shows no type and no effect | Check | archive/MARKET-CP.md (b)2 |
+| Seat price readout is the last sector × region cell's, not the average (`a.seatPrice = o.seat`, src/engine/v2/worldfx/revenue.ts:575, verified 2026-11-27; fix: seatDemand × 1e9 ÷ (seats × 12)) | Bug (KNOWN in serving B3) | archive/MARKET-CP.md (b)1 |
+| Agent mode's row in Products › Add a tool shows no type and no effect (data/v2/tools.ts agentMode fx empty; productView.featureView returns no kinds) | Bug (KNOWN in uitest B2) | archive/MARKET-CP.md (b)2; test-audit/G7-report.md |
 | μ elasticity has no source at market level | Later | MARKET.md |
 | Does a seller's own model set the scale its other models face? (as built: yes, trade-off shown truthfully; MK-6d alternative withdrawn) | Later (revisit when the designer says) | MARKET.md |
 | Vetted "Usage terms" link and an explicit Chat free-tier picker are not on the screen | Later | MARKET.md |
@@ -97,6 +97,7 @@ All of these go to one **dedicated safety session, started when the designer say
 | Safety programmes stop after a finished project; teams idle for the rest of the game (day 900: 0 of 18 staffed) | Bug → safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
 | Monitor stop rate vs SR-12 (a93a01ec may have fixed it) | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
 | Sandbagged discoveries should read "nothing found" (SABREAD) | Safety session | archive/V3-TASKS.md |
+| Safety line pacing: the first result at reference inputs comes at ≈ T₁/2, not the documented T₁ (`stepTest` adds the science and experiment rates); which one is right | Bug or spec fix → safety session (KNOWN in safetyresearch E1) | bal/SAFETY-UNIFY.md:37; test-audit/G2-report.md |
 
 ## UI
 
@@ -105,7 +106,10 @@ From the R&D UI phase follow-ups (archive/RD-AUDIT/UI-BUILD.md) unless noted.
 | Item | Kind | Detail |
 |---|---|---|
 | Evals tab still shows raw levels (OQ-6) | Check | UI-BUILD |
-| Three SAFETY › Cases limits missing (uitest R10) | Check | UI-BUILD |
+| Two registry limits have no readout where they bind: `research.rePerProject` (Research › Projects), `response.hardenFloor` (Safety › Cases, "diminishing fixes"; hardenLevel unused) | Bug (KNOWN in uitest R10) | UI-BUILD; test-audit/G7-report.md |
+| Retire version preview says ok for a version in a live lineup; the act then refuses it | Bug (small; KNOWN in uitest F6c) | test-audit/G7-report.md |
+| Action title over 4 words: `research.safReAlloc` "Safety research engineers by need" | Bug (KNOWN in lint-structure) | test-audit/G6-report.md |
+| Lab › People: each action click takes ≈ 1.2 s in the app (13 clicks ≈ 16 s of uitest) | Check (performance) | test-audit/G7-report.md |
 | SAFETY › Safeguards as the one home for monitors, safeguard level, KYC | Check | UI-BUILD |
 | Overview race "YOU · Atlas-2.10": which model the lead is measured on (the NPC merge rebuilt lead measurement) | Check | UI-BUILD |
 | Star Hire preview says "no project moves today" for a lasting taste gain | Bug | bal/RECAP-2026-11-27.md §2.6 |
@@ -136,26 +140,22 @@ From the R&D UI phase follow-ups (archive/RD-AUDIT/UI-BUILD.md) unless noted.
 
 | Item | Kind | Detail |
 |---|---|---|
-| ~100 one-off `scripts/v2/_*` check folders; some pin old save revisions and are likely dead | Parked | — |
+| `scripts/v2/_mk6/`, `_w1b/` stay tracked only because balance/params/market.ts and worldfx.ts name them as `fit.script`; re-point to a committed script, then delete (the other `_*` dirs were removed 2026-11-28) | Parked (balance session) | test-audit/P1b-report.md |
 | Untracked scratch in the main checkout: `scripts/v2/_sabtmp/`, `design/ux/mockups/_icons-compute.txt`, `_render-compute.html` | Parked | — |
 | Leftover folders (not worktrees): AI27-npc (locked at removal), AI27-compute, AI27-rd, AI27-rf-s2, two `AI27-agent120-*.log` folders | Parked | — |
 | Balance docs still link to `../AI27-vision/...` and to docs now in archive/; fix when that session ends | Parked | BAL-TASKS.md; bal/HANDOFF-CALIBRATION.md |
 | Remove `lab-*`, `cal*` worktrees after the balance session; perf worktrees with the speed-up decision | Parked | scripts/tools/clean-worktrees.sh |
 
-## Broken tests (triage 2026-11-28)
+## Tests
 
-`node scripts/v2/uitest.mjs`: 711 passed, 19 failed (every failure is Products / Models / Safety / Finance, outside the outside-world scope; none fixed or deleted). `scripts/v2/hygiene.ts` hit the 590 s timeout on a shared machine with no FAIL line printed before it was cut off (re-run alone to confirm).
+The 2026-11-28 test audit ([test-audit/TEST-AUDIT.md](test-audit/TEST-AUDIT.md)) classified every failing check; the
+19 uitest failures listed here before were fixed, re-derived, deleted as stale, or are the UI bugs above. Known
+deviations print WARN (`KNOWN` in scripts/v2/lib.ts and uitest.mjs) and point at a row in this file. Rules for new
+tests: [TESTING.md](TESTING.md).
 
 | Item | Kind | Detail |
 |---|---|---|
-| uitest "Products: locked tools name their idea" fails; the same symptom repeats as "B2 day 1/400/900: every tools-editor row shows its type and typed effect (locked: the idea)" (row text shows `agentMode:` with no idea) | Bug | scripts/v2/uitest.mjs |
-| uitest "D8 day 1/400/900: policy row shows gate, auto-evaluate, re-run rule and the cost per suite" fails; the row now shows RE and engineer team-weeks, the check expects H100e-days | Check | scripts/v2/uitest.mjs |
-| uitest "D8: every evals term has a tooltip in Models › Evals" fails on `evalGate` | Bug | scripts/v2/uitest.mjs |
-| uitest "D6 day 1: finished expansion matches its preview" (99% vs 114% realism) and "finished hardening matches its preview" (18% vs 12% loopholes) | Bug | scripts/v2/uitest.mjs |
-| uitest "E12 day 400: every trait shows its best guess and range or Unknown": 17 rows, 15 read | Check | scripts/v2/uitest.mjs |
-| uitest "E11 day 400 / 900: Remove's preview matches its effect": preview says days 14 with no off-time, effect switches AI staff off for 3 compute days | Bug | scripts/v2/uitest.mjs |
-| uitest "FIN3c: paying in stock shows the dilution; both show the obligations taken on and the antitrust cost" | Check | scripts/v2/uitest.mjs |
-| uitest "E6: under the control protocol the Safeguards grid shows its cell and the AI staff slowdown" | Check | scripts/v2/uitest.mjs |
-| uitest "IA: one home per datum": `safetyHeader` and `frameworkHold` appear on five Safety screens | Check | scripts/v2/uitest.mjs |
-| uitest "F6c: Retire version previews the version it retires" and "F6e: Targeted training previews the share apply removes" (dPen 0, before equals after) | Check | scripts/v2/uitest.mjs |
-| uitest "R10 limits: every registry limit is shown where it binds": `research.rePerProject`, `response.hardenFloor` not shown | Check | scripts/v2/uitest.mjs |
+| `idle.ts` and `hygiene.ts` not audited: branch `speed` has rewritten both (cached games, prefill shards, read-purity hashing); audit them after that merge (hygiene timed out at 590 s in quick on a loaded machine) | Later | test-audit/TASKS.md |
+| The day-400 fixture has no safety scientist staffed on a line (safetyideas F44 had to staff one) | Check | test-audit/G2-report.md |
+| One `cloneGame(setup)` helper in lib.ts to replace the local build-once-and-clone copies in ~10 scripts | Parked (cleanup) | test-audit/G1, G3 reports |
+| The reference-path lint (worktypes: no player mechanism reads frontierFlop, hRef, shareRefAt …) and the other rule-guard greps belong in a lint-* script | Parked (cleanup) | test-audit/P1c, G2 reports |
