@@ -77,9 +77,9 @@ export type BuyerGroupId = (typeof BUYER_GROUP_IDS)[number];
 /** MK-5: the ladder: a sector product's rung; buyer group g (BUYER_GROUP_IDS index) reaches the products of rung ≤ g
  *  (small → API; large → Enterprise, API; vetted → Vetted, Enterprise, API). Other providers reach every group. */
 export const BUYER_RUNG: Partial<Record<Deployment['channel'], number>> = { api: 0, enterprise: 1, vetted: 2 };
-/** MK-5 test switch (scripts/v2/_mk5/check.ts): every buyer group reaches every player product (the single choice of
+/** MK-5 test switch (scripts/v2/_mk5/check.ts @ af8ee983): every buyer group reaches every player product (the single choice of
  *  before the ladder); split: one choice per group even where groups reach the same products (tests the merge);
- *  bestOnly (MK-5b, scripts/v2/_mk5b/check.ts): the player's fit, coverage and G per sector its best product's main
+ *  bestOnly (MK-5b, scripts/v2/_mk5b/check.ts @ 826d6bb4): the player's fit, coverage and G per sector its best product's main
  *  model (before MK-5b). Never set by the game. */
 export const BUYER_LADDER_TEST = { allReach: false, split: false, bestOnly: false };
 

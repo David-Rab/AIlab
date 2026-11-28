@@ -2,7 +2,9 @@ node_modules
 dist
 .claude/
 research/_scratch/
-scripts/v2/_*.ts
+scripts/v2/_*
+!scripts/v2/_mk6/
+!scripts/v2/_w1b/
 scripts/shots/
 scripts/v2/shots/
 play/

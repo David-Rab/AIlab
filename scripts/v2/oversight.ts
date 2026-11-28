@@ -178,7 +178,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   setControl(internal, true); for (const a of Object.values(s.player.agents)) a.control = true;
   reset(s);
   // CP3: three controlLayer-era checks deleted (SR-13: control is a safeguard item with settings; its Slowdown and stop
-  // rates are _sr13/check.ts's): EXP ×0.97 / SWE ×0.93 labour, misses ×0.45, lane taxes 3% / 7%.
+  // rates are scripts/v2/_sr13/check.ts @ d212135c's): EXP ×0.97 / SWE ×0.93 labour, misses ×0.45, lane taxes 3% / 7%.
   // A weaker trusted monitor: the per-deferral loss grows with the gap.
   const mini = cloneVersion(s, v, 'VMINI', { baseId: 'B-mini' });
   mini.evals.measuredL = (v.evals.measuredL ?? v.Lg) - 1;
