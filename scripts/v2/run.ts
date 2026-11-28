@@ -230,10 +230,13 @@ mkdirSync(LOG_DIR, { recursive: true });
 const pruned = pruneCache(3);
 const LAST = join(CACHE_DIR, 'last-run.json');
 const prevTimes: Record<string, number> = {};
+/** Each job's lowest cpu s seen in this checkout (tier:id), for the machine slowdown below. */
+const bestCpu: Record<string, number> = {};
 if (existsSync(LAST)) {
   try {
-    const prev = JSON.parse(readFileSync(LAST, 'utf8')) as { history?: Record<string, number> };
+    const prev = JSON.parse(readFileSync(LAST, 'utf8')) as { history?: Record<string, number>; bestCpu?: Record<string, number> };
     Object.assign(prevTimes, prev.history ?? {});
+    Object.assign(bestCpu, prev.bestCpu ?? {});
   } catch { /* ignore */ }
 }
 const keyOf = (j: Job) => `${tier}:${j.id}`;
@@ -304,21 +307,6 @@ function runJob(j: Job): Promise<Result> {
   });
 }
 
-// ---------- machine slowdown (budgets are CPU seconds, and CPU seconds inflate when other sessions share the cores) ----------
-// A fixed pure-JS loop is timed before the jobs start and after they end (both without this run's own workers). Its CPU
-// against the fastest ever measured on this machine (kept in the OS temp dir, shared by every worktree) is the slowdown;
-// every budget is scaled by it. A quiet machine reads ×1.0.
-function refCpu(): number {
-  const u0 = process.cpuUsage();
-  let x = 1;
-  for (let i = 0; i < 1e7; i++) x = (x * 1.0000001 + (i & 7)) % 1e6;
-  const u = process.cpuUsage(u0);
-  if (x < 0) console.log(x); // keep the loop live
-  return (u.user + u.system) / 1e6;
-}
-const REF_FILE = join(os.tmpdir(), 'ai27-run-refcpu-1e7.json'); // the loop size is in the name: a new size starts a new baseline
-const refBefore = refCpu();
-
 // ---------- pool ----------
 const t0 = Date.now();
 const b0 = busy();
@@ -352,11 +340,6 @@ await new Promise<void>((allDone) => {
 const wall = (Date.now() - t0) / 1000;
 const b1 = busy();
 const load = (b1.b - b0.b) / Math.max(1, b1.t - b0.t);
-const refNow = (refBefore + refCpu()) / 2;
-let refBest = refNow;
-try { refBest = Math.min(refNow, (JSON.parse(readFileSync(REF_FILE, 'utf8')) as { best: number }).best); } catch { /* first run */ }
-try { writeFileSync(REF_FILE, JSON.stringify({ best: refBest })); } catch { /* ignore */ }
-const slowdown = Math.max(1, refNow / refBest);
 
 // ---------- summary ----------
 const order = new Map(JOBS.map((j, i) => [j.id, i]));
@@ -369,8 +352,13 @@ for (const r of results) {
   console.log(`${pad(r.id, 17)} ${pad(r.mode, 10)} ${pad(r.pass, 5, true)} ${pad(r.fail, 5, true)} ${pad(r.warn, 5, true)} ${pad(r.smoke, 5, true)} ${pad(r.hits + r.misses ? `${r.hits}/${r.hits + r.misses}` : '', 7, true)} ${pad(r.wall.toFixed(1), 7, true)} ${pad(r.cpu.toFixed(1), 7, true)}  ${ok ? 'ok' : `FAIL (exit ${r.status})`}`);
 }
 const baseJob = (id: string) => JOBS.find((j) => j.id === id.split('#')[0]);
+// Machine slowdown: CPU seconds inflate when other sessions share the cores (×2 seen at 80% load). The median, over the
+// jobs with a recorded best, of cpu ÷ that job's best cpu is the machine's factor (one job that alone grew doesn't move a
+// median); every budget is scaled by it. Needs ≥ 5 jobs with a best, else ×1.
+const ratios = results.filter((r) => (bestCpu[`${tier}:${r.id}`] ?? 0) > 1).map((r) => r.cpu / bestCpu[`${tier}:${r.id}`]).sort((a, b) => a - b);
+const slowdown = ratios.length >= 5 ? Math.max(1, ratios[ratios.length >> 1]) : 1;
 const budgetOf = (id: string) => (baseJob(id)?.budget?.[tier] ?? DEFAULT_BUDGET) * slowdown;
-if (slowdown > 1.05) console.log(`machine slowdown ×${slowdown.toFixed(2)} (reference loop ${refNow.toFixed(2)} s vs the best ${refBest.toFixed(2)} s): budgets scaled`);
+if (slowdown > 1.05) console.log(`machine slowdown ×${slowdown.toFixed(2)} (median job cpu vs its best over ${ratios.length} jobs): budgets scaled`);
 // TESTING.md §1: a job's cpu (its prefill shards included) over its budget warns; over twice its budget fails the run, so a
 // test that grows must be made cheaper or re-budgeted with a reason in the same change.
 const jobCpu = new Map<string, number>();
@@ -396,5 +384,6 @@ if (failed.length) console.log(`FAILED: ${failed.map((r) => r.id).join(', ')} (l
 
 const history = { ...prevTimes };
 for (const r of results) history[`${tier}:${r.id}`] = Math.round(r.wall);
-writeFileSync(LAST, JSON.stringify({ tier, date: new Date().toISOString(), workers, wall, load, simcache: process.env.SIMCACHE ?? 'on', results: results.map(({ failLines: _f, ...r }) => r), history }, null, 2));
+for (const r of results) if (r.status === 0) bestCpu[`${tier}:${r.id}`] = Math.min(bestCpu[`${tier}:${r.id}`] ?? Infinity, r.cpu);
+writeFileSync(LAST, JSON.stringify({ tier, date: new Date().toISOString(), workers, wall, load, simcache: process.env.SIMCACHE ?? 'on', results: results.map(({ failLines: _f, ...r }) => r), history, bestCpu }, null, 2));
 process.exit(failed.length ? 1 : 0);
