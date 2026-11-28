@@ -32,7 +32,6 @@ const R15 = 'research/15 §1.2 ("R15")';
 
 // ---------- src/engine/v2/compute/forecast.ts, power.ts, sites.ts, orders.ts ----------
 const CF = 'src/engine/v2/compute/forecast.ts';
-const CS = 'src/engine/v2/compute/sites.ts';
 const CO = 'src/engine/v2/compute/orders.ts';
 const CM = 'src/engine/v2/compute/market.ts';
 
