@@ -128,7 +128,14 @@ export function sectorValue(s: GameStateV2): SectorValue {
   const M = rateFactor(c.y10);
   const bust = c.busted && c.busted.recoverDay > s.time.day ? STORY.bust : 1;
   const mood = H * M * bust;
-  return { S: STORY.kappa * Math.pow(Math.max(1, R), STORY.alpha) * phi * mood, R, L, phi, H, M, bust, mood };
+  return { S: sectorValueOf(R, L, H, c.y10, bust), R, L, phi, H, M, bust, mood };
+}
+
+/** The sector value S as a formula alone (no state): κ·R^α·φ(L)·hype·M(y10)·bust, R the private-lab revenue run-rate, L the
+ *  public frontier level. `sectorValue` reads its terms from the state and calls this. */
+export function sectorValueOf(R: Money, L: number, hype: number, y10: number, bust: number): Money {
+  const phi = Math.pow(Math.max(1, L) / STORY.phiRef, STORY.phi);
+  return STORY.kappa * Math.pow(Math.max(1, R), STORY.alpha) * phi * (hype * rateFactor(y10) * bust);
 }
 
 /** 4-quarter revenue growth from a quarterly history (oldest first, last = last quarter's run-rate), R15's clamp; 1 for

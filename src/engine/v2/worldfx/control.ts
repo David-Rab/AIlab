@@ -198,7 +198,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix): v
     const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + 0.2 * v2LevelGate(w, 'REASON', Lr, 12, 0.5) - 0.03);
     const tgt = tierMix(a, cap);
     for (let k = 0; k < 4; k++) c.tiers[k] += (tgt[k] - c.tiers[k]) * 2 * dt;
-    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * v2LevelGate(w, 'REASON', Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers, 0.98);
+    const accStar = acceptTarget(w, Lr, topPers);
     c.accept += (accStar - c.accept) * ACCEPT.rate * dt;
     // Shares by lineage key.
     let sh: Record<LabId, number>;
@@ -216,3 +216,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix): v
 }
 
 const clampR01 = (x: number, hi: number) => (x < 0 ? 0 : x > hi ? hi : x);
+
+/** Equilibrium government acceptance of AI advice: ACCEPT.base + gain × the REASON level gate at `Lr` + 0.2 × the top persuasion, capped at 0.98. */
+export const acceptTarget = (w: Parameters<typeof v2LevelGate>[0], Lr: number, topPers: number) =>
+  clampR01(ACCEPT.base + ACCEPT.gain * v2LevelGate(w, 'REASON', Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers, 0.98);

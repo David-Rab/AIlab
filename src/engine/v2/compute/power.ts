@@ -12,6 +12,9 @@ export function initialPower(): PowerGrid {
   return { kWPerH100e: 0.93, waitHist: { grid: [], gas: [], rent: [] } };
 }
 
+/** kW per H100e `k` quarters on from `kW` (×0.944 a quarter, 1.26×/yr efficiency [R15, AI27]); sitesQ steps it with k = 1. */
+export const kWPerH100eAt = (kW: number, k: number) => kW * Math.pow(0.944, k);
+
 /** Facility H100e capacity of a site at today's kW/H100e (fleet refresh keeps sites full of current chips) [D]. */
 export const siteCapacityH = (s: GameStateV2, mw: number) => (mw * 1000) / s.power.kWPerH100e;
 

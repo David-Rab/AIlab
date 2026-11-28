@@ -87,6 +87,9 @@ export function mansfieldDq(v: number, v0: number): number {
  *  integrated RefBot play, whose consumer channel serves distilled minis (SOCIAL ≈ 0.5 L below the WS5 probe's
  *  "internal − 0.5 L" public model). */
 const FRIEND_SOCIAL_MID = 6.5;
+/** Equilibrium share of US adults with an AI friend: 0.03 + 0.18 × the SOCIAL level gate × US reach × the companion-law factor (1 = no law). */
+export const friendTarget = (w: Parameters<typeof v2LevelGate>[0], socialG: number, reachUS: number, companion: number) =>
+  0.03 + 0.18 * v2LevelGate(w, 'SOCIAL', socialG, FRIEND_SOCIAL_MID, 1) * reachUS * companion;
 
 /** Hiring-rate adjustment time (years) [D, M4]. */
 export const HIRE_TAU = 0.05;
@@ -371,7 +374,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * v2LevelGate(s.hidden.timeline, 'SOCIAL', cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (lawsInForce(s).sb243 ? USGOV.companionFactor : 1);
+    const friendStar = friendTarget(s.hidden.timeline, cons.socialG, fx.reach.US, lawsInForce(s).sb243 ? USGOV.companionFactor : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers
