@@ -49,6 +49,8 @@ import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
   Deployment, DomainId, EvalRecord, GameStateV2, LabourState, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild, Star,
+  Charter,
+  GovernancePresetId,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
 import { seedStreams, stream } from './rng';
@@ -241,6 +243,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
     finance: compute ? startFinance(def, compute) : initialFinance(setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
+    charter: initialCharter(setup.governance),
     sites: compute ? compute.sites : initialSites(startDate),
     orders: compute ? [] : initialOrders(),
     cloud: compute ? compute.cloud : initialCloud(startDate),
@@ -297,6 +300,12 @@ export function initialLabour(s: Pick<GameStateV2, 'rng' | 'hidden'>, player: Pi
     stars,
     teamTaste: Math.max(BASE_TASTE_FLOOR, b),
   };
+}
+
+/** The charter a governance preset starts with (design/corp/CORPORATE.md §2). */
+function initialCharter(g: GovernancePresetId): Charter {
+  const mission = g === 'legacyNonprofit' || g === 'nonprofitPBC' || g === 'pbcTrust';
+  return { missionBody: mission, profitCap: g === 'legacyNonprofit', goldenShare: false, stateControl: false };
 }
 
 export function newGame(setupIn: SetupV2): GameStateV2 {

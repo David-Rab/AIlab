@@ -1327,6 +1327,8 @@ export interface PlayerLab extends LabCore {
   actionDay: Record<string, Day>;
   finance: FinanceState;
   board: Board;
+  /** The company's own rules (design/corp/CORPORATE.md §2). Changed only by named decisions. */
+  charter: Charter;
   sites: Site[];
   orders: ChipOrder[];
   cloud: CloudContract[];
@@ -1570,6 +1572,8 @@ export interface FinanceState {
   promises: FinancePromise[];
   /** Listed with dual-class shares (§2.6): founder votes keep control after the IPO; governance factor ×0.95. */
   dualClass?: boolean;
+  /** Partners whose stake votes (absent = non-voting, Class N). design/corp/CORPORATE.md §2.1. */
+  stratVoting?: Record<string, true>;
   rounds: EquityRound[];
   tranches: Tranche[];
   debts: Debt[];
@@ -1582,6 +1586,9 @@ export interface FinanceState {
   /** WS3 working state (offers, inventory, tallies, runway bookkeeping). */
   ws3: FinanceWS3;
 }
+
+/** The company's own rules (design/corp/CORPORATE.md §2). Changed only by named decisions. */
+export interface Charter { missionBody: boolean; profitCap: boolean; goldenShare: boolean; stateControl: boolean }
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
 
