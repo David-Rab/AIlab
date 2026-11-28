@@ -17,6 +17,7 @@ import { ensureWs3, revenueShareRate, yearStats } from './ext';
 import { distributionCut } from './distribution';
 import { bookCash, ledgerPaying, notePaid } from './ledger';
 import { deploymentRevenue } from './observe';
+import { controlCheck } from './parent';
 import { runwayOf } from './runway';
 
 /** Insolvency grace: cash may sit below zero this many days (after the revolver) before the company fails [D]. */
@@ -41,11 +42,13 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
   }
 }
 
-/** opex (130, daily): revenue run-rate (from WS5), power and O&M, spot rentals, interest; solvency check. */
+/** opex (130, daily): who controls the company (parent.ts controlCheck), revenue run-rate (from WS5), power and O&M,
+ *  spot rentals, interest; solvency check. */
 export const opexSystem: EngineSystem = {
   id: 'opex', owner: 'WS3', cadence: 'daily', order: 130, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
+    controlCheck(s, ctx);
     expireRepriced(s, ctx);
     const f = s.player.finance;
     const fx = f.ws3;
@@ -69,7 +72,7 @@ export const opexSystem: EngineSystem = {
   },
 };
 
-const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', acquired: 'acquired contracts' };
+const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', merger: 'acquired contracts' };
 
 /** payroll (300, monthly): payroll, security spend, transition fund, revenue share, marketplace fee, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */

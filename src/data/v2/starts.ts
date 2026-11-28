@@ -286,9 +286,6 @@ export const positionOf = (s: SetupLike): PositionDef => {
   const k = s.setup.labKind ?? 'leader';
   return POSITION_BY_ID[k === 'custom' ? (s.setup.custom ?? CUSTOM_DEFAULT).position : LAB_KIND_BY_ID[k].position];
 };
-/** Transitional alias for finance/board.ts (owned by the C3 task), which still reads startOf(s).lagMonths: C3 or the
- *  cleanup task renames that call to positionOf and deletes this. */
-export const startOf = positionOf;
 
 /** Big-tech parent budget ($B per game year, Jul–Jun; research/18 §3.2): $16B in year one (the leader's 2025 compute
  *  spend in the AI 2027 compute forecast), growing with the parent's capex path — Alphabet 52.5 → 91.4 → ~180 in

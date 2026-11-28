@@ -15,14 +15,18 @@
 //    misses and overspend cut the budget, and results restore it;
 // 4. it sets the new year's goals: capability, scale and adoption on the division's trend at the base pitch (as a
 //    raise's base pitch), a third each (adoption is skipped while there is no revenue to extrapolate).
-// No outside equity, deals or debt (the parent's treasury borrows); no bankruptcy. No runway distress verdict (board.ts)
-// and no ouster vote: a division head answers to the parent, and low confidence costs budget, never the game.
+// No outside equity, deals or debt (the parent's treasury borrows); no bankruptcy. No runway distress verdict (board.ts).
+// The board's ouster vote is held as under any board (CORPORATE.md §3.3): the parent's seats vote it.
 // (Covering an overspend by writing it off would make overspending free money at a bounded confidence cost: the advance
 // is repaid from later budgets instead, and minded at every review while it is outstanding.)
+//
+// Control can change mid-game (CORPORATE.md §3.2, §4): controlCheck (daily, in opex) compares the controller with the
+// one last seen; a partner that takes control starts the owner budget at the company's last four quarters of spending.
 import { parentBudgetYear } from '../../../data/v2/starts';
-import { ownerFunded } from './control';
+import { controllerOf, holderName, ownerFunded } from './control';
 import { dayOfQuarter } from '../core/time';
 import type { Day, DivisionBudget, DivisionReview, FinancePromise, GameStateV2, Money, SystemCtx } from '../types';
+import { cumulativeCapex } from './ext';
 import { bookCash, qOf } from './ledger';
 import { boardMood, moodWeight } from './mood';
 import { livePromises, makeThesis, MILESTONES, promiseDeadline, promiseStatus, type PromiseStatus } from './promises';
@@ -45,10 +49,14 @@ export const budgetYearOf = (q: number) => Math.floor(q / 4);
 /** First day of budget year y (its review and first payment). */
 export const budgetYearStart = (s: GameStateV2, y: number): Day => dayOfQuarter(s.time.startDate, 4 * y);
 
-function newYear(year: number, confidence: number, carryIn: Money, paid: Money, reviews: DivisionReview[]): DivisionBudget {
-  const plan = parentBudgetYear(year);
+/** The owner's plan for budget year `y`: the parent path (data/v2/starts.ts), × the scale an owner that took control
+ *  mid-game set it to. */
+const planOf = (d: Pick<DivisionBudget, 'planScale'>, y: number): Money => parentBudgetYear(y) * (d.planScale ?? 1);
+
+function newYear(year: number, confidence: number, carryIn: Money, paid: Money, reviews: DivisionReview[], planScale = 1): DivisionBudget {
+  const plan = planOf({ planScale }, year);
   const factor = budgetFactor(confidence);
-  return { year, plan, budget: plan * factor, factor, confidence, carryIn, paid, reviews };
+  return { year, plan, budget: plan * factor, factor, confidence, carryIn, paid, reviews, ...(planScale !== 1 ? { planScale } : {}) };
 }
 
 /** The parent's goals for the year starting now: one per milestone type at the base pitch on the division's trend. */
@@ -77,14 +85,66 @@ export function startDivision(s: GameStateV2): void {
   setGoals(s, d.budget);
 }
 
+/** The company's spending over the last four quarters ($B): operating costs (the quarter tallies capitalQ rolls into
+ *  `opCost4q`) plus capex (`capex4q`). With fewer than four quarters on record: those and the quarter so far, scaled to
+ *  a year. */
+export function spendLastYear(s: GameStateV2): Money {
+  const fx = s.player.finance.ws3;
+  const op = fx.opCost4q ?? [];
+  const cx = fx.capex4q;
+  const n = Math.min(4, op.length, cx.length);
+  const last = (xs: Money[]) => xs.slice(xs.length - n).reduce((a, b) => a + b, 0);
+  if (n >= 4) return last(op) + last(cx);
+  const days = n * 91.25 + Math.max(0, s.time.day - dayOfQuarter(s.time.startDate, qOf(s)));
+  const total = last(op) + last(cx) + fx.accQ.opCosts + (cumulativeCapex(s) - fx.capexCumAtQ);
+  return days > 0 ? (total * 365) / days : 0;
+}
+
+/** A partner that took control mid-game starts the owner budget (CORPORATE.md §3.2): this budget year's plan is the
+ *  company's spending over the last four quarters, later years grow on the parent path from there; the cash on hand
+ *  carries in, the quarter payments start at the next quarter, and the parent sets its goals at the next review. */
+export function startOwnerBudget(s: GameStateV2, ctx: SystemCtx): void {
+  const y = budgetYearOf(qOf(s));
+  const spend = spendLastYear(s);
+  const d = newYear(y, s.player.board.confidence, s.player.finance.cash, 0, [], spend / parentBudgetYear(y));
+  s.player.finance.ws3.division = d;
+  ctx.log('finance', `The owner budget starts: $${d.budget.toFixed(1)}B this year (your last four quarters' spending, $${spend.toFixed(1)}B, × ${Math.round(d.factor * 100)}% at confidence ${d.confidence.toFixed(0)}), paid at each quarter start. Revenue now goes to the owner; it sets your goals at its review.`, 3);
+}
+
+/** Daily (opex): has the controller changed since last seen (a rescue, a tranche, a sale)? Log and headline it; a
+ *  partner that now controls and funds the company starts the owner budget; a company no longer owner-funded stops it.
+ *  The first look only records the controller (a new game, or a save made before this was stored). */
+export function controlCheck(s: GameStateV2, ctx: SystemCtx): void {
+  const fx = s.player.finance.ws3;
+  const c = controllerOf(s);
+  const id = c?.id ?? null;
+  if (fx.controllerId === undefined) {
+    fx.controllerId = id;
+    return;
+  }
+  if (fx.controllerId === id) return;
+  fx.controllerId = id;
+  if (c) {
+    const who = holderName(c);
+    const verb = c.kind === 'founders' ? 'control' : 'controls';
+    ctx.log('alert', `${who} now ${verb} ${s.player.name}: more than half of all votes.`, 4);
+    ctx.headline('control', `${who} now ${verb} ${s.player.name}`);
+  } else ctx.log('alert', `No single holder controls ${s.player.name} any more: the board runs by vote.`, 3);
+  if (c?.kind === 'partner' && ownerFunded(s)) startOwnerBudget(s, ctx);
+  else if (!ownerFunded(s) && fx.division) {
+    delete fx.division;
+    ctx.log('finance', 'The owner budget stops: the company funds itself again.', 2);
+  }
+}
+
 /** Payment ($B) at the start of quarter q: a quarter of that year's budget; later years at the plan × today's factor
  *  (an estimate: the parent sets them at their reviews). */
 export function parentPaymentQ(s: GameStateV2, q: number): Money {
   const d = divisionOf(s);
   if (!d || q < 0) return 0;
   const y = budgetYearOf(q);
-  if (y <= d.year) return (y === d.year ? d.budget : parentBudgetYear(y)) / 4;
-  return (parentBudgetYear(y) * budgetFactor(s.player.board.confidence)) / 4;
+  if (y <= d.year) return (y === d.year ? d.budget : planOf(d, y)) / 4;
+  return (planOf(d, y) * budgetFactor(s.player.board.confidence)) / 4;
 }
 
 export interface ParentPayment { q: number; day: Day; amount: Money; /** Set at a later review: an estimate today. */ estimate: boolean }
@@ -109,7 +169,7 @@ function review(s: GameStateV2, ctx: SystemCtx, d: DivisionBudget, year: number)
   const count = (o: 'met' | 'near' | 'missed') => judged.filter((p) => p.result!.outcome === o).length;
   const goals = { met: count('met'), near: count('near'), missed: count('missed') };
   const rv: DivisionReview = { year: d.year, day: s.time.day, budget: d.budget, spent, over, overConf, goals };
-  const next = newYear(year, s.player.board.confidence, 0, 0, [...d.reviews, rv].slice(-DIVISION.keep));
+  const next = newYear(year, s.player.board.confidence, 0, 0, [...d.reviews, rv].slice(-DIVISION.keep), d.planScale);
   next.carryIn = f.cash; // signed: an outstanding advance is repaid from this year's payments first
   f.ws3.division = next;
   ctx.log('finance', `Parent review: goals ${goals.met} met, ${goals.missed} missed${over > 0 ? `; it is covering $${over.toFixed(1)}B of overspend (confidence ${overConf.toFixed(0)}), repaid from this year's payments first` : ''}. This year's budget: $${next.budget.toFixed(1)}B (plan $${next.plan.toFixed(1)}B × ${Math.round(next.factor * 100)}% at confidence ${next.confidence.toFixed(0)}).`, goals.missed || over > 0 ? 2 : 1);
@@ -182,7 +242,7 @@ export function divisionView(s: GameStateV2): DivisionView | undefined {
   const coverAtReview = Math.max(0, -projectedEnd, over);
   const coverConf = -DIVISION.overConf * Math.min(1, coverAtReview / Math.max(1e-6, d.budget)) * moodWeight(s, 'setbacks');
   const confidence = s.player.board.confidence;
-  const plan = parentBudgetYear(d.year + 1);
+  const plan = planOf(d, d.year + 1);
   const factor = budgetFactor(confidence);
   const goals = livePromises(s).filter((p) => p.by === 'parent').map((p) => promiseStatus(s, p));
   return {

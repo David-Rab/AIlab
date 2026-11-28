@@ -6,10 +6,10 @@ import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx, Tranc
 import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
 import { publicFrontier } from './observe';
-import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
+import { cancelTrancheShares, closePendingRound, partnerEquityIn, partnerVotesAfter } from './equity';
 import { bustTarget, markRivals, RIVAL } from './rivalFinance';
 import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
-import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
+import { cumulativeCapex, defaultCapitalWS3, ensureWs3, yearStats } from './ext';
 import { commitmentsPerYear, bookCash, paidTo } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
 import { boardMood, MOOD_BASE } from './mood';
@@ -95,10 +95,11 @@ export function bubbleX(s: GameStateV2): number {
 }
 export const bustProbQ = (X: number) => Math.min(0.12, 0.005 + 0.02 * Math.max(0, X - 3));
 
-function cumulativeCapex(s: GameStateV2): Money {
-  let sum = 0;
-  for (const y of Object.values(s.player.finance.ws3.years)) sum += y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding;
-  return sum;
+/** A voting partner's tranche that would take it past half of all votes when no sale-of-control vote passed at signing
+ *  (CORPORATE.md §4: every path is judged at the votes it reaches). */
+export function trancheTakesControl(s: GameStateV2, t: Tranche): boolean {
+  if (!t.partner || t.controlVoted || !s.player.finance.stratVoting?.[t.partner]) return false;
+  return partnerVotesAfter(s, t.partner, [t.amount], { stakeCap: t.stakeCap, voting: true }) > 0.5;
 }
 
 /** Tranches: land when due and the condition holds; conditional tranches lapse at their deadline. */
@@ -108,6 +109,10 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   for (const t of f.tranches) {
     const met = !t.condition || trancheConditionMet(s, t.condition, t);
     if (t.dueDay <= s.time.day && met) {
+      if (trancheTakesControl(s, t)) {
+        ctx.log('finance', `${t.source}: it would give ${t.partner} more than half of all votes, a sale of control no vote approved at signing; $${t.amount.toFixed(1)}B lapses.`, 2);
+        continue;
+      }
       // A partner's tranche buys shares at today's valuation (FIN4a); a round's tranche was priced at the close.
       if (t.partner) partnerEquityIn(s, ctx, t.partner, t.amount, t.source, t.stakeCap);
       else {
@@ -166,6 +171,9 @@ export const capitalQSystem: EngineSystem = {
     const ocf = (fx.opCash4q ??= []);
     ocf.push(fx.opCashQ);
     if (ocf.length > 4) ocf.shift();
+    const opc = (fx.opCost4q ??= []);
+    opc.push(fx.accQ.opCosts);
+    if (opc.length > 4) opc.shift();
     fx.accQ = { revenue: 0, opCosts: 0 };
     const cum = cumulativeCapex(s);
     fx.capex4q.push(cum - fx.capexCumAtQ);

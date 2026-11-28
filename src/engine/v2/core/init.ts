@@ -354,7 +354,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 }, requests: [] },
     rivalIncidents: [],
-    endingProgress: { soldControl: false, retired: false, overtakenDays: {} },
+    endingProgress: { retired: false, overtakenDays: {} },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],
     causes: { byKey: {} },

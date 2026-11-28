@@ -37,7 +37,7 @@ export function boardReview(s: GameStateV2) {
   const bc = s.player.board.confidence;
   const warn = s.player.finance.ws3?.boardWarnDay;
   const live = bc < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
-  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s), division: ownerFunded(s) };
+  return { day, inDays: day - s.time.day, date: dateOf(s, day), bc, line: OUSTER_BC, live, vote: ousterVote(s), passesBelow: ousterPassesBelow(s) };
 }
 
 /** A big-tech division's budget year in words (jank F2, FIN5c): the top strip, the core loop and the Parent budget card

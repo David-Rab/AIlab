@@ -547,7 +547,7 @@ const V2: Record<string, Term> = {
   gdpChange: { title: 'GDP', body: 'US real GDP at the end against the start of the game.', src: 'research/16 §4.2' },
   unemployment: { title: 'Unemployment', body: 'US unemployment rate at the end; the change is in points since the start.', src: 'research/16 §1A.2' },
   taiwanStatus: { title: 'Taiwan', body: 'Calm, shipping disrupted (a quarantine or blockade under way), crisis passed, or war.', src: 'V2-SPEC §3.11' },
-  companyStatus: { title: 'Company status', body: 'Who controlled your company at the end: independent, under the government’s oversight committee, nationalized, acquired, or gone (retired, insolvent, ousted).' },
+  companyStatus: { title: 'Company status', body: 'Who controlled your company at the end: independent, under the government’s oversight committee, nationalized, a division of the company that controls it, or gone (retired, insolvent, ousted, or absorbed into its owner’s own lab).' },
   agendaEfficacy: { title: 'Efficacy', body: 'How well a safety programme really works in this world (0–100%). During play you saw a range that narrowed as results came in.', src: 'research/14' },
   alignDifficulty: { title: 'Alignment difficulty', body: 'How hard alignment was in this world compared with the average world: it scales how misaligned trained models start. Fixed and hidden at the start.' },
   worldFacts: { title: 'This world', body: 'Six hidden facts about how alignment works, drawn at the start of every game. They decided how well each safety method could work.' },

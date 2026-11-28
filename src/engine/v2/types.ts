@@ -1638,6 +1638,9 @@ export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadl
   /** A 'spent:<partner>:<$B>' condition counts payments to the partner above this tally of what had been paid to it at
    *  signing (`FinanceWS3.paidTo`). */
   spentBase?: Money;
+  /** The sale-of-control votes passed at signing (the deal was judged at the votes its tranches reach): a voting
+   *  partner's tranche may then take it past half of all votes; without them such a tranche lapses (investors.ts). */
+  controlVoted?: true;
   /** FIN4r (H3): a round's second tranche: the shares issued at the close for its unpaid money (fractions of the company
    *  then, by holder: 'fin' or a partner name) and the insiders' (founder + mission) share then, which later issues
    *  scale with everyone. A lapse cancels the shares of the money that did not come. */
@@ -1649,9 +1652,9 @@ export interface Debt { id: string; kind: 'revolver' | 'gpuTerm' | 'bond' | 'ass
 export interface Commitment$ {
   id: string;
   payee: string;
-  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4); 'acquired' = the
+  /** 'lease' = colocation rent; 'finLease' = a financing lease of site or chip capex (FIN1, spec §4); 'merger' = the
    *  contracts of a lab you bought, one firm entry over their remaining term (FIN3c, spec §9). */
-  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'power' | 'acquired';
+  kind: 'cloud' | 'lta' | 'lease' | 'finLease' | 'power' | 'merger';
   perQuarter: Money;
   /** Contract this entry belongs to: firm contracts priced on the expected market path pay one entry per quarter
    *  (FIN1, spec §5), grouped by this id in the contracts table. */
@@ -1686,8 +1689,6 @@ export interface DealStrings {
   /** Distribution (C7c): while the deal runs (to `until`) the partner resells your models to its cloud customers, `reach`
    *  more reach in the API and enterprise channels, and keeps `fee` of the revenue that extra reach brings. */
   distribution?: { reach: number; fee: number };
-  /** Votes of the board seat the partner holds (a rescue only: hyperscalers get no seat, spec §6.1). */
-  boardVotes?: number;
 }
 /** What a partner supplies against the take-or-pay commitment, as signed (priced on the expected market path). */
 export interface DealSupply {
@@ -1927,7 +1928,7 @@ export interface PartnerTerms {
   /** Supply against a take-or-pay commitment: per-quarter payments ($B) and prices on the expected path. */
   supply?: DealSupply & { perQ: Money[]; prices: number[]; startQ: number };
   strings: DealStrings;
-  /** A hyperscaler's stake cap (15%): tranches land only up to it. */
+  /** A partner's stake cap (15%, hyperscalers and chip vendors): tranches land only up to it. */
   stakeCap?: number;
   /** A rescue's price as a share of the valuation (distress): its shares = cash ÷ (priceMult × V + cash). */
   priceMult?: number;
@@ -2012,6 +2013,9 @@ export interface FinanceWS3 {
   /** Operating cash flow of the last four quarters (oldest first): the trailing year sizes bonds and is the rating's
    *  cash-flow test (FIN1, spec §3). */
   opCash4q: Money[];
+  /** Operating costs of the last four quarters (oldest first, `accQ.opCosts` at each quarter end): with `capex4q`, the
+   *  spending an owner that takes control mid-game budgets as year 0 (finance/parent.ts). Missing on older saves. */
+  opCost4q?: Money[];
   cashAtQStart: Money;
   /** Accumulators reset each quarter: revenue and operating costs ($B). */
   accQ: { revenue: Money; opCosts: Money };
@@ -2021,6 +2025,9 @@ export interface FinanceWS3 {
   years: Record<string, YearStats>;
   /** FIN5c: the big-tech division's budget year (finance/parent.ts); absent for every other company. */
   division?: DivisionBudget;
+  /** The controller's holder id last seen by the daily control check (finance/parent.ts controlCheck); null = no
+   *  controller; absent until first recorded. */
+  controllerId?: string | null;
 }
 
 /** A big-tech division's budget year (FINANCE-V3 §13, FIN5c). Budget years run Jul–Jun (0 = Jul 2025 – Jun 2026). At
@@ -2041,6 +2048,9 @@ export interface DivisionBudget {
   paid: Money;
   /** Last reviews (oldest first, at most 4). */
   reviews: DivisionReview[];
+  /** An owner that took control mid-game: its plan is the parent path × this (year 0 = your last four quarters of
+   *  spending). Absent = 1 (a division from the start). */
+  planScale?: number;
 }
 export interface DivisionReview {
   year: number; day: Day; budget: Money;
@@ -2446,7 +2456,7 @@ export type EndingId =
   | 'asiAligned' | 'asiContested' | 'asiTakeover' // player ASI
   | 'rivalAligned' | 'rivalTakeover' | 'chinaAligned' | 'chinaTakeover' // other ASI first
   | 'overtaken' | 'catastropheBio' | 'catastropheCyber' | 'war' | 'rogue'
-  | 'insolvent' | 'ousted' | 'nationalized' | 'acquired' | 'retired';
+  | 'insolvent' | 'ousted' | 'absorbed' | 'nationalized' | 'retired';
 
 export type PowerOutcome = 'treaty' | 'committee' | 'democratic' | 'corporate' | 'government' | 'multipolar' | 'beijing' | 'none';
 
@@ -2608,8 +2618,6 @@ export interface RivalIncident { lab: LabId; day: Day; severity: number; misuse:
 
 /** How far the ending conditions have progressed (endings/endings.ts, endings/retire.ts, events/catalog/rivals.ts). */
 export interface EndingProgress {
-  /** The holders of a stake bought the company (E32 sale): the 'acquired' ending. */
-  soldControl: boolean;
   /** The player retired (endings/retire.ts). */
   retired: boolean;
   /** Consecutive days each competitor has led the player by ≥ 365 d after its SC (overtaken rule). */

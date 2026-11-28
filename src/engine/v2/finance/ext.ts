@@ -49,6 +49,13 @@ export function yearStats(s: GameStateV2, day: Day = s.time.day): YearStats {
   return (ys[y] ??= emptyYear());
 }
 
+/** Capex booked since the start ($B): chips, sites (financed included) and supplier funding, over every year. */
+export function cumulativeCapex(s: GameStateV2): Money {
+  let sum = 0;
+  for (const y of Object.values(s.player.finance.ws3.years)) sum += y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding;
+  return sum;
+}
+
 /** Share of all revenue owed to partners now: the revenue-share strings of deals still running (C7c: the legacy
  *  Northwind stake; distribution's fee is on its own channel, finance/distribution.ts). */
 export function revenueShareRate(s: GameStateV2): number {

@@ -6,9 +6,18 @@ import { LAB_KIND_BY_ID, POSITION_BY_ID, parentBudgetYear } from '../../src/data
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import type { Charter, GameStateV2, LabKindId, Ownership } from '../../src/engine/v2/types';
-import { COMPANY_IDS, PARTNER_DEFS } from '../../src/data/v2/deals';
+import { COMPANY_IDS, PARTNER_DEFS, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { KINDS as NPC_KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';
-import { affiliatedLab } from '../../src/engine/v2/finance/deals';
+import { affiliatedLab, dealVotes, partnerBlocker, partnerTerms, partnerVotesAll, signPartner } from '../../src/engine/v2/finance/deals';
+import { makeCtx } from '../../src/engine/v2/core/loop';
+import { leadDays } from '../../src/engine/v2/actors/intel';
+import { boardQSystem, ousterVote } from '../../src/engine/v2/finance/board';
+import { opexSystem } from '../../src/engine/v2/finance/cashflow';
+import { capitalQSystem } from '../../src/engine/v2/finance/investors';
+import { FINANCE_ACTIONS } from '../../src/engine/v2/finance/actions';
+import { budgetFactor, budgetYearOf, DIVISION_REASON, divisionBlock } from '../../src/engine/v2/finance/parent';
+import { qOf } from '../../src/engine/v2/finance/ledger';
+import { absorbingLab, endingsSystem } from '../../src/engine/v2/endings/endings';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol = 1e-3) => Math.abs(a - b) <= tol;
@@ -121,4 +130,96 @@ check(affiliatedLab(games.leader, 'Azimuth')?.npc.kind === 'bigtech' && !affilia
 check(!PARTNER_DEFS.some((x) => x.id === 'Lattice') && affiliatedLab(games.leader, 'Lattice')?.npc.kind === 'openweights', 'C5b Lattice is not a partner (no terms), and owns the open-weights lab');
 const rs = games.racer.player.sites;
 check(rs.length > 0 && rs.every((x) => x.path === 'grid' && x.capexPaid === x.capex && x.capex > 0) && !games.racer.player.finance.ledger?.some((c) => c.kind === 'lease'), 'C5b racer: sites are owned grid campuses, capex paid, no rent', rs.map((x) => x.name + ' ' + x.mw + ' MW').join(', '));
+
+// C3: what happens when control changes, and how the player loses it.
+const bigLab = (s: GameStateV2) => s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === 'bigtech')!;
+/** Move the in-house (big-tech) lab so that the player's estimated lead over it is `days`. */
+const setLead = (s: GameStateV2, days: number) => { const lab = bigLab(s); lab.npc.d -= days - leadDays(s, lab.core.id).est; return lab; };
+/** Azimuth owns the company outright (voting): an owner-funded division; confidence 15 and a warning 61 days old. */
+function lowDivision(): GameStateV2 {
+  const s = mk({}, { strat: { Azimuth: 1 } }, { voting: ['Azimuth'] });
+  s.player.board.confidence = 15;
+  s.player.finance.ws3.boardWarnDay = s.time.day - 61;
+  return s;
+}
+
+// (a) An owner-funded division's board can oust: the parent's seats vote it.
+{
+  const s = lowDivision();
+  const ov = ousterVote(s);
+  boardQSystem.run(s, makeCtx(s));
+  endingsSystem.run(s, makeCtx(s));
+  check(ownerFunded(s) && ov.live && ov.passes && ov.seats.filter((x) => x.holder === 'Azimuth').every((x) => x.yes) && s.flags['ws3.ousterDay'] !== undefined && s.ending?.id === 'ousted', 'C3a an owner-funded division below 25 with a 60-day warning is ousted: the vote passes on the parent\'s seats', `vote ${ov.yes}/${ov.total} · lead over ${bigLab(s).core.name} ${leadDays(s, bigLab(s).core.id).est} d · ending ${s.ending?.id}`);
+}
+
+// (b) The same with the controller's in-house lab ahead: absorbed, the lab named.
+{
+  const s = lowDivision();
+  const lab = setLead(s, -90);
+  boardQSystem.run(s, makeCtx(s));
+  endingsSystem.run(s, makeCtx(s));
+  check(absorbingLab(s)?.core.id === lab.core.id && s.ending?.id === 'absorbed' && s.ending.text.includes(lab.core.name) && /folds your lab into its own/.test(s.ending.text), 'C3b the same ouster with the controller\'s in-house lab ahead is the absorbed ending, naming the lab', `${s.ending?.id}: ${s.ending?.text}`);
+}
+
+// (c) A voting partner crossing 50% mid-game: the controller changes, the owner budget starts at the last four
+// quarters' spending, and raises are blocked.
+{
+  const s = mk({}, { founder: 0.5, fin: 0.2, strat: { 'Northwind Cloud': 0.3 } }, { voting: ['Northwind Cloud'] });
+  const fx = s.player.finance.ws3;
+  fx.opCost4q = [3, 3, 4, 4];
+  fx.capex4q = [1, 1, 2, 2];
+  opexSystem.run(s, makeCtx(s)); // first look: records "no controller"
+  const before = fx.controllerId;
+  const free = divisionBlock(s);
+  s.player.finance.ownership = { founder: 0.3, mission: 0, fin: 0.15, public: 0, strat: { 'Northwind Cloud': 0.55 } };
+  const log0 = s.log.length;
+  const cashAt = s.player.finance.cash; // the check runs first in opex: this is the cash it carries in
+  opexSystem.run(s, makeCtx(s));
+  const d = fx.division;
+  const y = budgetYearOf(qOf(s));
+  const raise = FINANCE_ACTIONS.find((a) => a.id === 'fin.raise')!.available(s);
+  const said = s.log.slice(log0).some((e) => /Northwind Cloud now controls/.test(e.text));
+  check(before === null && free === undefined && fx.controllerId === 'Northwind Cloud' && ownerFunded(s) && said && !!d && d.year === y && near(d.plan, 20, 1e-9) && near(d.budget, 20 * budgetFactor(s.player.board.confidence), 1e-9) && d.paid === 0 && near(d.carryIn, cashAt, 1e-9) && near(d.plan / parentBudgetYear(y), d.planScale ?? 1, 1e-9),
+    'C3c a voting partner past 50% mid-game: the controller changes (logged), the owner budget starts with year 0 = the last four quarters\' spending ($20B), the cash carries in', `controller ${before} → ${fx.controllerId} · plan ${d?.plan.toFixed(1)} · budget ${d?.budget.toFixed(1)}`);
+  check(raise === DIVISION_REASON && partnerBlocker(s, 'Azimuth') === DIVISION_REASON, 'C3c raises and partner deals are blocked once owner-funded', String(raise));
+}
+
+// (d) A rescue is judged at the votes it reaches, every tranche included; a failed control vote stops it with no side
+// effects.
+{
+  const s = mk({}, { founder: 0.3, fin: 0.21, strat: { 'Northwind Cloud': 0.49 } });
+  s.player.board.confidence = 20; // the board's mood turns every seat but the CEO's against a sale of control
+  const t = partnerTerms(s, 'Northwind Cloud', { rescue: true });
+  const vs = dealVotes(s, t);
+  const own0 = JSON.stringify(s.player.finance.ownership);
+  const cash0 = s.player.finance.cash;
+  const deals0 = s.player.finance.deals.length;
+  const tr0 = s.player.finance.tranches.length;
+  const err = signPartner(s, makeCtx(s), 'Northwind Cloud', { rescue: true }); // not forced (founders hold the override)
+  check(partnerVotesAll(s, t) > 0.5 && vs[0]?.decision === 'saleOfControl' && !vs[0].passes && typeof err === 'string' && /sale of control/.test(err) && JSON.stringify(s.player.finance.ownership) === own0 && s.player.finance.cash === cash0 && s.player.finance.deals.length === deals0 && s.player.finance.tranches.length === tr0 && !s.player.finance.stratVoting?.['Northwind Cloud'],
+    'C3d a rescue whose votes pass half needs the sale-of-control vote; a failed vote stops it with no side effects', `${vs.map((v) => `${v.decision} ${v.yes}/${v.total}`).join(', ')} · ${err}`);
+  // Tranches count: a stake the equity now leaves under half passes it once a tranche is added.
+  const u = mk({}, { founder: 0.6, fin: 0.3, strat: { 'Northwind Cloud': 0.1 } });
+  const tu = partnerTerms(u, 'Northwind Cloud', { rescue: true });
+  const withTranche = { ...tu, tranches: [{ amount: 50 * Math.max(10, u.player.finance.valuation), condition: 'ipo', dueDay: u.time.day, deadline: u.time.day + 365 }] };
+  check(partnerVotesAll(u, tu) < 0.5 && !dealVotes(u, tu).some((v) => v.decision === 'saleOfControl') && partnerVotesAll(u, withTranche) > 0.5 && dealVotes(u, withTranche).some((v) => v.decision === 'saleOfControl'), 'C3d the votes a deal reaches include every tranche', `now ${(partnerVotesAll(u, tu) * 100).toFixed(0)}% · with the tranche ${(partnerVotesAll(u, withTranche) * 100).toFixed(0)}%`);
+}
+
+// (e) A chip vendor's stake is capped at 15%: its tranche stops at the cap. (f) A voting partner's tranche that would
+// pass half of all votes without a control vote at signing lapses.
+{
+  const s = mk({}, { founder: 0.6, fin: 0.26, strat: { 'Silica Systems': 0.14 } });
+  const t = partnerTerms(s, 'Silica Systems');
+  s.player.finance.tranches.push({ amount: 10, dueDay: s.time.day, source: 'Silica Systems equity per GW', partner: 'Silica Systems', stakeCap: t.stakeCap });
+  const trS = s.player.finance.tranches.length;
+  capitalQSystem.run(s, makeCtx(s));
+  const st = s.player.finance.ownership.strat['Silica Systems'];
+  check(t.stakeCap === PARTNER_TERMS.chipVendor.stakeCap && t.stakeCap === 0.15 && t.tranches.length > 0 && near(st, 0.15, 1e-9) && !s.player.finance.tranches.some((x) => x.partner === 'Silica Systems') && s.player.finance.tranches.length < trS && typeof partnerBlocker(s, 'Silica Systems') === 'string', 'C3e a chip vendor\'s tranche stops at its 15% stake cap (and no new deal past it)', `stake ${(st * 100).toFixed(2)}% · ${partnerBlocker(s, 'Silica Systems')}`);
+  const v = mk({}, { founder: 0.55, fin: 0.05, strat: { 'Northwind Cloud': 0.4 } }, { voting: ['Northwind Cloud'] });
+  v.player.finance.tranches.push({ amount: 1000, dueDay: v.time.day, source: 'Northwind Cloud tranche 2', partner: 'Northwind Cloud' });
+  const own0 = JSON.stringify(v.player.finance.ownership);
+  capitalQSystem.run(v, makeCtx(v));
+  check(JSON.stringify(v.player.finance.ownership) === own0 && !v.player.finance.tranches.some((x) => x.partner === 'Northwind Cloud') && v.log.some((e) => /more than half of all votes/.test(e.text)), 'C3f a voting partner\'s tranche past half of all votes, never voted at signing, lapses with a log line');
+}
+
 finish('corp');

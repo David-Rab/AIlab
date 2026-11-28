@@ -96,8 +96,9 @@ export function watchItems(s: GameStateV2): WatchItem[] {
   // 6. board
   const bc = p.board.confidence;
   const dv = divisionView(s);
-  if (dv && bc < 40) {
-    // FIN5c: a division head is never voted out; low parent confidence cuts the next budget.
+  if (dv && bc < 40 && bc >= 35) {
+    // FIN5c: low parent confidence cuts the next budget; below the warning line the ouster item below takes over (the
+    // parent's seats vote on removing you like any board's, C3).
     out.push({
       id: 'board', sphere: 'company', sev: 2.5,
       chain: [{ label: 'parent confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (the full budget needs 60)` }, { label: `next budget ${F.pct(dv.next.factor)} of plan`, icon: ICON.cash, kind: 'bad', detail: `≈ ${F.money(dv.next.budget)} of the ${F.money(dv.next.plan)} plan` }],

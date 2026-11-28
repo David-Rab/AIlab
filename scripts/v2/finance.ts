@@ -31,7 +31,7 @@ import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { affiliatedLab, dealVotes, dealWith, exclusiveBlocker, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
+import { affiliatedLab, dealVotes, dealWith, exclusiveBlocker, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, partnerVotesAll, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, leadEstimate, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
 import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
@@ -778,16 +778,15 @@ for (const a of FINANCE_ACTIONS) {
     const gp = deployGate(s, plain, 'open');
     const cv = controlVote(s, 'Test partner', 0.6);
     check(typeof g === 'string' && /mission body votes no/.test(g) && tv.body === 'trust' && !tv.canForce && tv.seats.length > 0 && tv.seats.every((x) => x.kind === 'mission') && !(typeof gp === 'string' && /trust/.test(gp)) && !!cv && !cv.passes && !controlVote(s, 'Test partner', 0.4), 'FIN3b a mission body votes no on open weights of a capability-threshold model and on a sale of control (mission seats only, no force); no vote below 50% or without a threshold flag', `${g} · control: ${cv?.yes}/${cv?.total}`);
-    // A deal that would hand a partner control stops at the mission body before anything is booked. FIN4a: offers are
-    // computed live, so the partner already holds 49% and its cheque would take it past half.
+    // C3: control is judged by votes. Under a mission body (⅔ of the votes) a rescuer past half the stake stays below
+    // half the votes, so no sale of control is voted: the mission body keeps control.
     {
       const partner = 'Azimuth';
       s.player.finance.ownership = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
-      const cash0 = s.player.finance.cash;
-      const own0 = JSON.stringify(s.player.finance.ownership);
-      const after = partnerStakeAfter(s, partnerTerms(s, partner, { rescue: true }));
-      const err = signPartner(s, makeCtx(s), partner, { rescue: true, force: true });
-      check(typeof err === 'string' && /mission body votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && after > 0.5 && !dealWith(s, partner), 'FIN3b a deal past 50% under a mission body stops at its vote (no cash, no shares, force does not help)', `${String(err)} · stake after ${F1pct(after)}`);
+      const t = partnerTerms(s, partner, { rescue: true });
+      const after = partnerStakeAfter(s, t);
+      const votes = partnerVotesAll(s, t);
+      check(after > 0.5 && votes < 0.5 && !dealVotes(s, t).some((x) => x.decision === 'saleOfControl'), 'C3 under a mission body a rescue past half the stake is not a sale of control (its votes stay under half)', `stake after ${F1pct(after)} · votes ${F1pct(votes)}`);
     }
     const o = shape(fx(), 'boardRun');
     check(!controlVote(o, 'Test partner', 0.6) && !transferVote(o, v, 'open'), 'FIN3b only a mission body has the trust approval votes');
@@ -928,7 +927,7 @@ for (const a of FINANCE_ACTIONS) {
     const n0 = f.ledger.length;
     const heads = Math.round(r.core.staff.cap * 0.7) + Math.round(r.core.staff.saf * 0.7);
     const err = resolve(s, 'E32@t', i);
-    const e = f.ledger.find((c) => c.kind === 'acquired');
+    const e = f.ledger.find((c) => c.kind === 'merger');
     const debt = f.debts.find((x) => x.kind === 'assumed');
     const priceLine = pv.costs.find((c) => c.currency === 'cash')!;
     const obl = pv.exposure.filter((c) => c.currency === 'cash').map((c) => -c.amount);
@@ -948,7 +947,7 @@ for (const a of FINANCE_ACTIONS) {
     const founder0 = f.ownership.founder;
     const err = resolve(s, 'E32@t', i);
     const dil = pv.costs.find((c) => c.currency === 'dilution')!;
-    check(!err && f.cash === cash0 && Math.abs(f.ownership.fin - (fin0 * (1 - t.stockFrac) + t.stockFrac)) < 1e-9 && Math.abs(f.ownership.founder - founder0 * (1 - t.stockFrac)) < 1e-9 && Math.abs(dil.amount - Math.round(t.stockFrac * 1000) / 10) < 1e-9 && f.ledger.some((c) => c.kind === 'acquired') && f.debts.some((x) => x.kind === 'assumed'), 'FIN3c paying in stock: its holders get price ÷ (your valuation + price) of the company (the preview\'s dilution), no cash moves, the obligations come all the same', `${(t.stockFrac * 100).toFixed(2)}% · preview ${dil.amount}%`);
+    check(!err && f.cash === cash0 && Math.abs(f.ownership.fin - (fin0 * (1 - t.stockFrac) + t.stockFrac)) < 1e-9 && Math.abs(f.ownership.founder - founder0 * (1 - t.stockFrac)) < 1e-9 && Math.abs(dil.amount - Math.round(t.stockFrac * 1000) / 10) < 1e-9 && f.ledger.some((c) => c.kind === 'merger') && f.debts.some((x) => x.kind === 'assumed'), 'FIN3c paying in stock: its holders get price ÷ (your valuation + price) of the company (the preview\'s dilution), no cash moves, the obligations come all the same', `${(t.stockFrac * 100).toFixed(2)}% · preview ${dil.amount}%`);
   }
   // The board votes on the merger, judged on the company after the deal (can it carry the contracts and debt?).
   {
@@ -978,23 +977,27 @@ for (const a of FINANCE_ACTIONS) {
     const ferr = resolve(fo.s, 'E32@t', ic);
     check(typeof why === 'string' && /votes no on merger/.test(why) && typeof err === 'string' && no.s.player.finance.cash === cash0 && no.r.core.status === 'active' && !fv.passes && fv.canForce && fpv.costs.some((c) => c.currency === 'boardConf' && c.amount === VOTE.forceCost) && !ferr && fo.s.player.board.confidence <= bc0 - VOTE.forceCost + 1e-9 && fo.r.core.status === 'merged', 'FIN3c a failed merger vote blocks the choice (nothing booked); under founder control the choice forces it at the confidence cost its preview shows', `${why} · founder: ${fv.yes}/${fv.total}, confidence ${bc0.toFixed(0)} → ${fo.s.player.board.confidence.toFixed(0)}`);
   }
-  // Sale of control: only stock past 50% (the trust, then the board); never cash. If it goes through you lose the company.
+  // Sale of control: only stock whose holders, as one block, would pass half of all votes (the board's vote); never cash.
+  // C3: under a mission body (⅔ of the votes) no block ever does; the shares are booked to investors, a crowd that never
+  // controls, so a sale that goes through ends nothing.
   {
-    const { s, r, d } = offer({ shape: 'mission', rivalV: 1e6 });
+    const { s, r, d } = offer({ shape: 'founders', rivalV: 1e6 });
     const t = acquireTerms(s, r);
     const vs = acquireVotes(s, t, 'stock');
     const cashVs = acquireVotes(s, t, 'cash');
     const ist = idx(E32, 'Pay in stock');
-    const why = E32.choices[ist].available!(s, d);
     const pv = E32.choices[ist].preview(s, d);
-    const small = offer({ shape: 'mission' });
+    const small = offer({ shape: 'founders' });
     const smallVs = acquireVotes(small.s, acquireTerms(small.s, small.r), 'stock');
-    check(t.stockFrac > 0.5 && vs[0].body === 'trust' && vs[0].decision === 'saleOfControl' && vs[1].decision === 'saleOfControl' && vs[1].body !== 'trust' && vs[vs.length - 1].decision === 'merger' && cashVs.every((v) => v.decision === 'merger') && smallVs.every((v) => v.decision === 'merger') && typeof why === 'string' && /mission body votes no/.test(why) && pv.costs.some((c) => c.currency === 'freedom' && /ends the game/.test(String(c.target))), 'FIN3c a stock payment that hands its holders more than half the company is a sale of control: the mission body votes first (under one), then the board; buying for cash, or for a small stake, is only a merger', `${(t.stockFrac * 100).toFixed(0)}%: ${vs.map((v) => `${v.body ?? 'board'} ${v.decision} ${v.yes}/${v.total}`).join(', ')} · ${why}`);
-    // A founder majority (votes forced if they fail): the lab's holders end up in control, the 'acquired' ending.
+    const mi = offer({ shape: 'mission', rivalV: 1e6 });
+    const miVs = acquireVotes(mi.s, acquireTerms(mi.s, mi.r), 'stock');
+    const line = pv.costs.find((c) => c.currency === 'freedom' && /sale of control/.test(String(c.target)));
+    check(t.stockFrac > 0.5 && vs[0].decision === 'saleOfControl' && vs[0].body !== 'trust' && vs[vs.length - 1].decision === 'merger' && cashVs.every((v) => v.decision === 'merger') && smallVs.every((v) => v.decision === 'merger') && miVs.every((v) => v.decision === 'merger') && !!line && !/ends the game/.test(String(line.target)), 'FIN3c a stock payment whose holders would pass half of all votes is a sale of control the board votes on (its preview never says it ends the game); under a mission body, for cash or for a small stake it is only a merger', `${(t.stockFrac * 100).toFixed(0)}%: ${vs.map((v) => `${v.body ?? 'board'} ${v.decision} ${v.yes}/${v.total}`).join(', ')}`);
+    // A founder majority (votes forced if they fail): the lab's holders join the investors; the company plays on.
     const fo = offer({ shape: 'founders', bc: 90, rivalV: 1e6 });
     const err = resolve(fo.s, 'E32@t', ist);
     tick(fo.s);
-    check(!err && fo.s.ending?.id === 'acquired', 'FIN3c a sale of control by stock that goes through ends the game (acquired)', `${err ?? ''} ending ${fo.s.ending?.id}`);
+    check(!err && fo.s.ending === undefined && fo.r.core.status === 'merged', 'C3 a sale of control by stock that goes through books its holders as investors: no ending', `${err ?? ''} ending ${fo.s.ending?.id}`);
   }
   // Deals: a partner past 50% now meets the board's own sale-of-control vote after the trust's (FIN3b wired the trust).
   {
@@ -1006,8 +1009,8 @@ for (const a of FINANCE_ACTIONS) {
     const vs = dealVotes(s, t);
     const o = shape(fx(), 'boardRun');
     o.player.finance.ownership = structuredClone(own);
-    const ov = dealVotes(o, t);
-    check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the mission body\'s, under one)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
+    const ov = dealVotes(o, partnerTerms(o, partner, { rescue: true }));
+    check(!!t && !vs.some((v) => v.decision === 'saleOfControl') && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a rescue whose votes pass half needs the board\'s sale-of-control vote; under a mission body its votes never do (C3: judged by votes)', ov.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
   }
 }
 
@@ -1269,7 +1272,8 @@ for (const a of FINANCE_ACTIONS) {
     s.player.board.confidence = 5;
     s.player.finance.ws3.boardWarnDay = -200;
     const v = divisionView(s)!;
-    check(s.player.finance.state === 'healthy' && !causes(s, 'financial distress').length && !ousterVote(s).live && ousterVote(s).seats.length === 0 && criticsAvailable(s) !== true, 'FIN5c a division has no runway verdict (healthy at −$40B, no distress source) and no ouster vote or critics\' seat: low confidence costs budget, never the game', `state ${s.player.finance.state} · ${criticsAvailable(s)}`);
+    const ov = ousterVote(s);
+    check(s.player.finance.state === 'healthy' && !causes(s, 'financial distress').length && ov.live && ov.passes && ov.seats.some((x) => x.holder === 'Azimuth' && x.yes) && criticsAvailable(s) === true, 'FIN5c a division has no runway verdict (healthy at −$40B, no distress source); C3: its board holds the ouster vote like any board (the parent\'s seats vote it) and can seat the critics', `state ${s.player.finance.state} · ouster ${ov.yes}/${ov.total} · ${criticsAvailable(s)}`);
     check(v.status === 'over' && near(v.over, 40 + d!.paid - d!.budget) && near(v.spent, d!.carryIn + d!.paid + 40) && v.coverConf === -DIVISION.overConf * moodWeight(s, 'setbacks') && v.next.factor === budgetFactor(5), 'FIN5c readout: spent so far = carried in + paid − cash; over budget = spent past this year\'s budget and savings ("over budget by $X; parent covers"); the confidence it would cost at the review and next year\'s budget at today\'s confidence', `spent ${f1(v.spent)} · over ${f1(v.over)} · cost ${f1(v.coverConf)} · next ${f1(v.next.budget)}`);
     s.player.finance.cash = 20;
     const w = divisionView(s)!;
