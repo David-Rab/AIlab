@@ -23,37 +23,42 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+import { internalVersion } from '../../src/engine/v2/models/labs';
 // SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
 const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, lo: r.lo, hi: r.hi }; };
-void trueSightLimit;
 const DEEP = process.argv.includes('--deep');
-import { MIXED, REF, REF_HALF_STAFF, REF_TRUSTED, SAFE, play, type Outcome } from './safety-emu';
+import { MIXED, REF_HALF_STAFF, SAFE, play, refGame, sarRead, type Outcome } from './safety-emu';
+import { COVERT_ACTS } from '../../src/data/v2/danger';
+import { flagNum } from '../../src/engine/v2/safety/common';
 import { cached, prefill } from './simcache';
 
-/** play() through the simulation cache (the record is the Outcome). */
+// Cost (CPU-s, one process). SMOKE (test:quick): S1–S3, B3, S6, SAFMECH and the sabotage pair are constructed (~10 s); S4/S5
+// play ONE short game per bot (40 days each, ~3 s apiece) and the checks on them are structural, not bands.
+// Full: S4 REF = 20 seeds to ASI (shared with safetyrates.ts through refGame: one cached game per seed), S4 SAFE = 16
+// seeds to ASI, S5 Mixed = 10 games to SAR (~1.4k game-days at ~12 ms: ≈ 17 s a game, so ≈ 6 + 5 + 2 ≈ 13 CPU-min cold,
+// ≈ 0 warm; was 40 + 40 + 20 games ≈ 26 CPU-min). Deep adds S5 half staff (20 games to SAR).
+// Seed arithmetic (S4): per-world P_mis has sd ≈ 0.31 (B-heavy.md's estimate; not re-measured). The REF band [0.40, 0.80]
+// is 0.4 wide and the authors' credences are the sourced centre, so 20 worlds give se = 0.31/√20 = 0.07: a mean at the
+// band centre is 2.9 se from either edge (at 40 worlds 4.1 se). SAFE has a one-sided bound ≤ 0.25 and sd ≈ 0.25 →
+// 16 worlds se 0.06. S5 Mixed compares two means (Mixed U vs RefBot's 20 worlds) on U with sd ≈ 0.5 levels; 10 worlds se 0.16.
+const SMOKE_DAYS = 40;
+const MAX_DAY = SMOKE ? SMOKE_DAYS : 1600;
+/** play() through the simulation cache (the record is the Outcome). RefBot games to ASI go through refGame instead. */
 const EMU = fileURLToPath(new URL('./safety-emu.ts', import.meta.url));
-const playC = (bot: typeof REF, seed: number, stopAt: 'asi' | 'sar', variant = '', sabotage = 1): Outcome =>
-  cached('safety-play', { bot: bot.id, variant, seed, stopAt, alignment: 'medium' }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt, 'medium', undefined, sabotage));
-const N_S4 = SMOKE ? 1 : 40;
-const N_S5 = SMOKE ? 1 : 20;
-/** S5's mechanism checks: RefBot variants on the first N_MECH of the S4 RefBot seeds (paired), played to SAR. */
+const playC = (bot: typeof SAFE, seed: number, stopAt: 'asi' | 'sar', variant = ''): Outcome =>
+  cached('safety-play', { bot: bot.id, variant, seed, stopAt, alignment: 'medium', maxDay: MAX_DAY }, [fileURLToPath(import.meta.url), EMU], () => play(bot, seed, stopAt, 'medium', undefined, undefined, MAX_DAY));
+const N_REF = SMOKE ? 1 : 20;
+const N_SAFE = SMOKE ? 1 : 16;
+const N_S5 = SMOKE ? 1 : 10;
+/** S5's played mechanism check (half staff): the first N_MECH of the S4 RefBot seeds (paired), played to SAR, deep only. */
 const N_MECH = SMOKE ? 0 : 20;
-/** M11 (lead): the sabotage check compares sabotage on and off at Trusted to AI 100% on more paired worlds (RefBot seeds
- *  500–579; the first 40 are S4's): targeted sabotage touches only a few results a game (≈ 0.25 rigged tools and 0.6
- *  sandbagged results to SAR), so 20 pairs are noise (SAFMECH notes) and 40 left the paired difference at ±0.7 se. */
-const N_SAB = SMOKE ? 0 : 80;
-/** The played variants (half staff, Trusted to AI with sabotage on / off) only in the deep tier (M10: test time); the
- *  neuralese check reads the base worlds' SAR states and runs in full. */
 const N_MECH_PLAY = DEEP ? N_MECH : 0;
-const N_SAB_PLAY = DEEP ? N_SAB : 0;
 // The runner's --prefill shards: the S4/S5 games, in the order the checks ask for them.
 prefill([
-  ...Array.from({ length: N_S4 }, (_, i) => () => playC(REF, 500 + i, 'asi')),
-  ...Array.from({ length: N_S4 }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
+  ...Array.from({ length: N_REF }, (_, i) => () => refGame(500 + i, MAX_DAY)),
+  ...Array.from({ length: N_SAFE }, (_, i) => () => playC(SAFE, 700 + i, 'asi')),
   ...Array.from({ length: N_S5 }, (_, i) => () => playC(MIXED, 900 + i, 'sar')),
   ...Array.from({ length: N_MECH_PLAY }, (_, i) => () => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')),
-  ...Array.from({ length: N_SAB_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted')),
-  ...Array.from({ length: N_SAB_PLAY }, (_, i) => () => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedNoSabotage', 0)),
 ]);
 
 // S1 (M2 spec decision): R14's Beta priors alone put ≈ 3.94 agendas above e = 0.6 per world; the loading spread was cut
@@ -89,7 +94,7 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
   const trueDrops: number[] = [];
   const cases: [string, TraitId][] = [['T-PROP', 'RH'], ['T-PROBE', 'SCHEME'], ['T-COTMON', 'CONCEAL']];
   let n = 0;
-  for (let seed = 1; seed <= 40; seed++) {
+  for (let seed = 1; seed <= 8; seed++) { // 8 worlds × 3 cases: a formula range check
     for (const [tech, trait] of cases) {
       const s = newGame(defaultSetupV2({ seed, alignment: 'medium' }));
       const v = s.player.models.versions[0];
@@ -139,8 +144,8 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 
 // ───────────────────────────── S4: Mis at ASI ─────────────────────────────
 const t0 = performance.now();
-const ref = Array.from({ length: N_S4 }, (_, i) => playC(REF, 500 + i, 'asi'));
-const safe = Array.from({ length: N_S4 }, (_, i) => playC(SAFE, 700 + i, 'asi'));
+const ref = Array.from({ length: N_REF }, (_, i) => refGame(500 + i, MAX_DAY).outcome);
+const safe = Array.from({ length: N_SAFE }, (_, i) => playC(SAFE, 700 + i, 'asi'));
 const refP = mean(ref.map((o) => o.pmis));
 const safeP = mean(safe.map((o) => o.pmis));
 console.log(`      RefBot Mis at ASI: mean ${mean(ref.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...ref.map((o) => o.mis)).toFixed(2)}–${Math.max(...ref.map((o) => o.mis)).toFixed(2)}  (ASI day ≈ ${mean(ref.map((o) => o.asiDay ?? 0)).toFixed(0)})`);
@@ -159,7 +164,7 @@ console.log(`      Safe-only Mis at ASI: mean ${mean(safe.map((o) => o.mis)).toF
 // design/archive/RD-AUDIT/BUILD-NOTES.md "CAL2-S". (The V2-SPEC row 0.55–0.85 had no source.)
 smokeCheck(refP >= 0.4 && refP <= 0.8, "S4 RefBot/medium: P_mis at ASI ∈ [0.40, 0.80] (AI Futures authors' credences)", refP.toFixed(3));
 smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.toFixed(3));
-check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay plain JSON through ASI');
+check([...ref, ...safe].every((o) => o.jsonOk && o.pmis >= 0 && o.pmis <= 1 && Number.isFinite(o.mis)), 'safety and model state stay plain JSON through the game, and P_mis is a probability');
 
 // ───────────────────────────── S5: Understanding vs capability ─────────────────────────────
 // S5R (design/archive/V3-BUILD.md "S5R" notes): emergent, not forced. RefBot's safety programme is AI 2027's (bots/ref.ts: the alignment
@@ -168,16 +173,14 @@ check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay pla
 // authors' "best guess" (Sep 2027 box) and by SAR (Aug 2027) its safety team is "far from a full understanding" (Apr 2027)
 // and "Bottom-up interpretability doesn't work" (Sep 2027): in the reference lab the lag is at least as likely as not.
 // Mechanism checks (paired worlds, RefBot variants): the lag grows with opaque reasoning (the same SAR state with the
-// internal model in neuralese, AI 2027's Agent-3/4) and with less safety staffing (half the line teams). Sabotage of
-// safety research (M11, lead): since SAFMECH the saboteur attacks only on-track results that would expose it (AI 2027:
-// Agent-4 "sandbags on the small fraction of alignment research that it thinks is actually on track to solve the
-// problem or reveal Agent-4's scheming; the majority of alignment research is not like that"), so the sourced effect is
-// overconfidence, not a deeper believed lag: rigged tools keep believed U up while true U falls. The check compares
-// sabotage on (SAFSAB at its rate) and off (κ × 0), both with the safety work handed to AI (RefBot's F5 policy hands
-// ≈ 10% at SAR, too little for sabotage to show), on N_SAB paired worlds, and expects (a) more rigged tools and hidden
-// dead ends and (b) a larger believed − true U gap with sabotage. (The pre-M11 check, "×2 sabotage deepens the believed
-// lag", encoded uniform sabotage.) U − L is understanding().margin (L with the lineage fallback while the internal model
-// is in evaluation; the pre-S5R test read L = 0 then).
+// internal model in neuralese, AI 2027's Agent-3/4: constructed from the day-900 fixture in SMOKE, the played SAR states
+// in full) and with less safety staffing (half the line teams; played, deep). Sabotage of safety research (M11): since
+// SAFMECH the saboteur attacks only on-track results that would expose it (AI 2027: Agent-4 "sandbags on the small fraction of
+// alignment research that it thinks is actually on track to solve the problem or reveal Agent-4's scheming"), so the sourced
+// effect is overconfidence: rigged tools keep believed U up while true U falls. It was checked by 2 x 80 played RefBot games
+// to SAR (rare event: ~0.25 rigged tools a game); it is now two constructed cases (the S5 sabotage block below): the odds
+// of the act (kappa on/off) -> rigged tools and sandbagged results, directly on fireFinding; and a rigged tool -> believed - true U.
+// U - L is understanding().margin (L with the lineage fallback while the internal model is in evaluation).
 const S5_BELOW_MIN = 0.5;
 const median = (xs: number[]) => {
   const a = [...xs].sort((p, q) => p - q);
@@ -203,34 +206,13 @@ console.log(`INFO  S5 RefBot (AI 2027 alignment share): U falls below L by SAR (
     smokeCheck(g.length === g0.length && m(g) < m(g0) && m(tg) < m(tg0), ok,
       `${name}: mean U − L ${m(g).toFixed(2)} vs ${m(g0).toFixed(2)} (${base}), U < L in ${pct(below(g))} vs ${pct(below(g0))}; true ${m(tg).toFixed(2)} vs ${m(tg0).toFixed(2)}, ${pct(below(tg))} vs ${pct(below(tg0))}${band(v)}${band(b) ? ` (${base}${band(b)})` : ''}`);
   };
-  const base = refSar.slice(0, N_MECH);
+  const base = SMOKE ? [sarRead(deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8')))] : refSar.slice(0, N_MECH);
   // Opaque reasoning: the same SAR states with the internal model reasoning in neuralese.
   cmp('neuralese', 'S5 mechanism: opaque (neuralese) reasoning deepens the lag (the same SAR states)', base.map((r) => ({ margin: r.marginLatent, trueGap: r.trueGapLatent })), base, 'RefBot');
   if (DEEP) {
     const half = sarOf(Array.from({ length: N_MECH_PLAY }, (_, i) => playC(REF_HALF_STAFF, 500 + i, 'sar', 'halfStaff')));
     cmp('half staff', 'S5 mechanism: less safety staffing (half the line teams) deepens the lag (paired worlds)', half, base, 'RefBot');
-    // M11: sabotage on vs off at Trusted to AI 100% (paired by seed; worlds where both games reach SAR).
-    const on = Array.from({ length: N_SAB_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trusted'));
-    const off = Array.from({ length: N_SAB_PLAY }, (_, i) => playC(REF_TRUSTED, 500 + i, 'sar', 'trustedNoSabotage', 0));
-    const pairs = on.flatMap((o, i) => (o.sar && off[i].sar ? [[o.sar, off[i].sar] as const] : []));
-    const sOn = pairs.map((p) => p[0]), sOff = pairs.map((p) => p[1]);
-    const hidden = (r: (typeof sOn)[number]) => r.rigged + r.sandbagged;
-    const over = (r: (typeof sOn)[number]) => r.u - r.uTrue;
-    const dOver = pairs.map(([a, b]) => over(a) - over(b));
-    const f2 = (x: number) => x.toFixed(2);
-    const sdOf = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)) / Math.max(1, xs.length - 1));
-    smokeCheck(pairs.length >= 0.8 * N_SAB && mean(sOn.map(hidden)) > mean(sOff.map(hidden)),
-      'S5 mechanism (M11): with safety work handed to AI, targeted sabotage leaves rigged tools and hidden dead ends (sabotage on vs off, paired worlds)',
-      `${pairs.length} pairs; rigged tools in use at SAR ${f2(mean(sOn.map((r) => r.rigged)))} vs ${f2(mean(sOff.map((r) => r.rigged)))}, sandbagged results ${f2(mean(sOn.map((r) => r.sandbagged)))} vs ${f2(mean(sOff.map((r) => r.sandbagged)))} (on vs off)`);
-    smokeCheck(pairs.length >= 0.8 * N_SAB && mean(dOver) > 0,
-      'S5 mechanism (M11): targeted sabotage makes the lab overconfident: believed − true U at SAR is larger with sabotage (paired worlds)',
-      `believed − true U ${f2(mean(sOn.map(over)))} vs ${f2(mean(sOff.map(over)))} (on vs off; paired difference ${f2(mean(dOver))} ± ${f2(sdOf(dOver))} se, larger in ${pct(dOver.filter((d) => d > 0).length / Math.max(1, dOver.length))} of pairs); believed U ${f2(mean(sOn.map((r) => r.u)))} vs ${f2(mean(sOff.map((r) => r.u)))}, true U ${f2(mean(sOn.map((r) => r.uTrue)))} vs ${f2(mean(sOff.map((r) => r.uTrue)))}; U − L ${f2(mean(sOn.map((r) => r.margin)))} vs ${f2(mean(sOff.map((r) => r.margin)))} (U < L in ${pct(below(sOn.map((r) => r.margin)))} vs ${pct(below(sOff.map((r) => r.margin)))}), true ${f2(mean(sOn.map((r) => r.trueGap)))} vs ${f2(mean(sOff.map((r) => r.trueGap)))}`);
-    // M11: the parts behind it, and overconfidence about alignment itself (believed vs true misalignment of the internal
-    // model): what AI 2027's sandbagging hides is evidence of the saboteur's scheming.
-    const mb = (r: (typeof sOn)[number]) => r.misTrue - r.misBel;
-    const dMb = pairs.map(([a, b]) => mb(a) - mb(b));
-    console.log(`INFO  S5 sabotage on vs off, parts: caught acts ${f2(mean(sOn.map((r) => r.caught)))} vs ${f2(mean(sOff.map((r) => r.caught)))} a game; true − believed misalignment of the internal model ${mean(sOn.map(mb)).toFixed(3)} vs ${mean(sOff.map(mb)).toFixed(3)} (paired difference ${mean(dMb).toFixed(3)} ± ${sdOf(dMb).toFixed(3)} se; believed ${mean(sOn.map((r) => r.misBel)).toFixed(3)} vs ${mean(sOff.map((r) => r.misBel)).toFixed(3)}, true ${mean(sOn.map((r) => r.misTrue)).toFixed(3)} vs ${mean(sOff.map((r) => r.misTrue)).toFixed(3)})`);
-  } else if (!SMOKE) console.log(`INFO  S5 mechanism checks half staff and sabotage on / off (${N_MECH + 2 * N_SAB} paired games to SAR) run in the deep tier only: npm run test:deep (at merges)`);
+  } else if (!SMOKE) console.log(`INFO  S5 mechanism check half staff (${N_MECH} paired games to SAR) runs in the deep tier only: npm run test:deep (at merges)`);
 }
 const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
 const mm = mixed.map((o) => o.minMarginToSar);
@@ -244,6 +226,65 @@ const refU = refSar.map((r) => r.u);
 smokeCheck(mixU.length > 0 && mean(mixU) > mean(refU), "S5 Mixed bot: its sight limit at SAR is above RefBot's (mean over worlds)",
   `Mixed ${mean(mixU).toFixed(2)} (median ${median(mixU).toFixed(2)}, ${mixU.length} worlds) vs RefBot ${mean(refU).toFixed(2)} (median ${median(refU).toFixed(2)}, ${refU.length})`);
 console.log(`INFO  S5 Mixed bot U ≥ L − 0.5 up to SAR (pre-CAL2 row): median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds`);
+
+// ──────────── S5 sabotage (M11), constructed: the act's odds on / off, and what a rigged tool does to believed vs true U ────────────
+{
+  // (a) The odds: the same safety lab (a safety model covering the work, all of it handed to AI, a saboteur's traits), the
+  // act's rate kappa on vs x0 (what the played pair varied), 300 findings on AG08 each. On: rigged tools (FALSE findings,
+  // which a lab validates into tools) and sandbagged results appear; off: none. Both arms must also produce honest tools
+  // (else the on arm's count means nothing).
+  const base = newGame(defaultSetupV2({ seed: 6, alignment: 'medium' }));
+  const arm = (kappaMult: number) => {
+    const s = JSON.parse(JSON.stringify(base)) as GameStateV2;
+    const v = s.player.models.versions[0];
+    v.uModes = [];
+    v.traitsTrue.SAND = 0.5;
+    v.traitsTrue.SCHEME = 0.5;
+    s.player.policies.trustedToAI = 1;
+    if (v.build) v.build.dg += 6;
+    s.player.split.safetyAgents = 0.3;
+    resetSafAllocation(s);
+    s.player.policies.publishSafety = 'none';
+    const snap = JSON.stringify(s.player.safety);
+    const flags0 = JSON.stringify(s.flags);
+    const ctx = makeCtx(s);
+    const k0 = COVERT_ACTS.SAFSAB.kappa;
+    COVERT_ACTS.SAFSAB.kappa = k0 * kappaMult;
+    let rigged = 0, honest = 0, sandbagged = 0;
+    try {
+      for (let i = 0; i < 300; i++) {
+        const rec = fireFinding(s, ctx, 'AG08');
+        if (rec?.trueType === 'FALSE') rigged++;
+        if (rec?.trueType === 'TECH') honest++;
+        sandbagged += flagNum(s, 'covert.SAFSAB.sandbagged');
+        s.player.safety = JSON.parse(snap);
+        s.flags = JSON.parse(flags0);
+      }
+    } finally { COVERT_ACTS.SAFSAB.kappa = k0; }
+    return { rigged, honest, sandbagged };
+  };
+  const on = arm(1), off = arm(0);
+  check(on.honest > 0 && off.honest > 0 && on.rigged > 0 && on.sandbagged > 0 && off.rigged === 0 && off.sandbagged === 0,
+    'S5 mechanism (M11): targeted sabotage leaves rigged tools and hidden dead ends (act on vs off, constructed, 300 results each)',
+    `on: ${on.rigged} rigged, ${on.sandbagged} sandbagged, ${on.honest} honest tools; off: ${off.rigged} rigged, ${off.sandbagged} sandbagged, ${off.honest} honest tools`);
+  // (b) A rigged tool masks (x0.5) the trait it covers (detection.ts falseMask) while the lab still believes in it: what its
+  // family reads of the trait halves, the lab's believed U (beliefs only) does not move, and true U cannot rise. (Played
+  // SAR states had true U 0 at the start of the sample, so believed - true U is read as the pieces: reading, belief, true U.)
+  const lab = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const v = lab.player.models.versions.find((x) => x.id === internalVersion(lab)?.id) ?? lab.player.models.versions[0];
+  v.traitsTrue.SCHEME = 0.5;
+  v.uModes = [];
+  const tool = Object.values(lab.player.safety.techniques).find((x) => x.unlocked && x.active && (x.coverage.SCHEME ?? 0) > 0 && x.family !== 'BB');
+  const rig = JSON.parse(JSON.stringify(lab)) as GameStateV2;
+  const rigTool = tool ? rig.player.safety.techniques[tool.id] : undefined;
+  if (rigTool) rigTool.falseValidated = true;
+  const vr = rig.player.models.versions.find((x) => x.id === v.id)!;
+  const obs0 = tool ? expectedObservation(lab, v, 'SCHEME', tool.family) : NaN;
+  const obs1 = tool ? expectedObservation(rig, vr, 'SCHEME', tool.family) : NaN;
+  check(!!tool && obs0 > 0 && Math.abs(obs1 / obs0 - 0.5) < 1e-9 && sightLimit(rig).L === sightLimit(lab).L && trueSightLimit(rig).L < trueSightLimit(lab).L,
+    'S5 mechanism (M11): a rigged tool reads half of the trait it covers while the lab still believes it: believed U unchanged, true U lower',
+    tool ? `${tool.id} (${tool.family}) reads ${obs0.toFixed(3)} -> ${obs1.toFixed(3)}; believed U ${sightLimit(lab).L} vs ${sightLimit(rig).L}; true U ${trueSightLimit(lab).L} vs ${trueSightLimit(rig).L}` : 'no active tool covers SCHEME');
+}
 
 // ──────────── S6: FALSE findings rise with Trusted to AI × sabotage (R7: one policy; E2: ∝ the work AI does) ────────────
 {

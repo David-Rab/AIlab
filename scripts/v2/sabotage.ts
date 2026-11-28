@@ -1,4 +1,5 @@
 // Model v3 E7: research sabotage and steering (design/MODEL-V3.md §11.3; src/engine/v2/safety/covert.ts). Owner: WS2.
+// Guards: E7 covert-act rates, SAFMECH sabotage of safety research, steering, internal scale. Cost: ~600 + 30 sim-days of rolls at forced odds (kappa x 1000), 4 newGame + fixtures, ~20 CPU-s. Tier: quick, full.
 //   Covert acts against the lab's own work run through E5's danger formula at the internal site, judged against E6's
 //   internal oversight: attempts a = κ · D · C · O, then blocked / caught (an internal incident) / uncaught (the
 //   consequence lands). Checks: no disposition, no acts; the MacDiarmid anchor; ≈ 0 at the 2025 start; rates rise with
@@ -356,7 +357,11 @@ const f3 = (x: number) => x.toFixed(3);
   const ctx = makeCtx(s);
   const inc0 = s.player.safety.incidents.length;
   const u0 = Number(s.flags['ws2.uncaughtInternal'] ?? 0);
-  const D = 20000;
+  // The odds are forced for the test (20000 days at the real rate gave 5 acts: a rare event): kappa x 1000, 600 days.
+  const D = 600;
+  const k0 = [COVERT_ACTS.BACKDOOR.kappa, COVERT_ACTS.HIDCOMP.kappa];
+  COVERT_ACTS.BACKDOOR.kappa *= 1000;
+  COVERT_ACTS.HIDCOMP.kappa *= 1000;
   // CAL-S2: the expectation sums each day's own terms. Uncaught backdoors (E8) lower block and catch on their lineage's
   // later acts, and the regenerated fixture's internal deployment runs the framework's control (RF-S13: block ≈ 0.7),
   // so the start-of-loop terms (23.5 acts) understate the rolled days (block ≈ 0.07 once two footholds stand: ≈ 65).
@@ -366,6 +371,7 @@ const f3 = (x: number) => x.toFixed(3);
     want += fleetCovertTerms(s).reduce((x, t) => x + t.attempts * (1 - t.block), 0);
     rollFleetCovert(s, ctx);
   }
+  [COVERT_ACTS.BACKDOOR.kappa, COVERT_ACTS.HIDCOMP.kappa] = k0;
   const recs = (['BACKDOOR', 'HIDCOMP'] as CovertActId[]).map((a) => ({ a, ...covertRecord(s, a) }));
   const incs = s.player.safety.incidents.slice(inc0);
   const caught = recs.reduce((x, r) => x + r.caught, 0);

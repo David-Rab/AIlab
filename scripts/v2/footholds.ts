@@ -1,4 +1,5 @@
 // Model v3 E8: footholds (design/MODEL-V3.md §11.4; src/engine/v2/safety/footholds.ts, footholdDetection.ts). Owner: WS2.
+// Guards: E8 footholds (creation, effects, suspicion, location, removal, the player's view). Cost: 600 roll-days at forced odds (kappa x 1000), escape in ~3 forced days, ~15 CPU-s. Tier: quick, full.
 //   Uncaught covert acts and escapes leave countable hidden AI assets: a backdoor (raises its lineage's later covert
 //   success), hidden compute (subtracted from usable compute), a steered successor (carries the steered pull), a
 //   corrupted safety tool (masks), an exfiltrated copy. Checks: each act kind creates its foothold kind (and grows it);
@@ -7,7 +8,7 @@
 //   shows hidden footholds; the 2025 start makes ≈ none.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FOOTHOLD } from '../../src/data/v2/danger';
+import { COVERT_ACTS, EXFIL, FOOTHOLD } from '../../src/data/v2/danger';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { computeOnlineOf, computeOnlineSystem, poolsOf } from '../../src/engine/v2/compute/power';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -69,11 +70,16 @@ const uncaught = (s: GameStateV2, act: 'BACKDOOR' | 'HIDCOMP', v: ModelVersion, 
   // Integration: the daily roll books uncaught acts as footholds and nothing else.
   const r = scheming();
   const ctx = makeCtx(r);
-  for (let d = 0; d < 20000; d++) { r.time.day += 1; rollFleetCovert(r, ctx); }
+  // The odds are forced for the test (20000 days at the real rate left 3 uncaught acts: a rare event): BACKDOOR and HIDCOMP
+  // kappa x 1000 and 600 days.
+  const k0 = [COVERT_ACTS.BACKDOOR.kappa, COVERT_ACTS.HIDCOMP.kappa];
+  COVERT_ACTS.BACKDOOR.kappa *= 1000;
+  COVERT_ACTS.HIDCOMP.kappa *= 1000;
+  try { for (let d = 0; d < 600; d++) { r.time.day += 1; rollFleetCovert(r, ctx); } } finally { [COVERT_ACTS.BACKDOOR.kappa, COVERT_ACTS.HIDCOMP.kappa] = k0; }
   const kinds = new Set(footholdsOf(r).map((f) => f.kind));
   const n = covertRecord(r, 'BACKDOOR').n + covertRecord(r, 'HIDCOMP').n;
   check(kinds.has('backdoor') && kinds.has('hiddenCompute') && footholdsOf(r).every((f) => f.kind === 'backdoor' || f.kind === 'hiddenCompute') && n === footholdsOf(r).reduce((x, f) => x + f.acts, 0) && !Object.keys(r.flags).some((k) => /covert\.(BACKDOOR|HIDCOMP)\.(n|sev)$/.test(k)),
-    'creation: 20000 days of the fleets\' daily roll leave backdoors and hidden compute footholds (no flag records left)', `${footholdsOf(r).length} footholds from ${n} uncaught acts`);
+    'creation: 600 days of the fleets\' daily roll (odds x 1000) leave backdoors and hidden compute footholds (no flag records left)', `${footholdsOf(r).length} footholds from ${n} uncaught acts`);
 }
 {
   // Successor steering: an uncaught act on a run leaves a steered successor linked to the model it made.
@@ -124,7 +130,10 @@ const uncaught = (s: GameStateV2, act: 'BACKDOOR' | 'HIDCOMP', v: ModelVersion, 
   s.player.security.wsl = 1;
   const ctx = makeCtx(s);
   let d = 0;
-  while (d++ < 20000 && !s.player.security.loose) { s.time.day += 1; securitySystem.run(s, ctx); }
+  // The escape is a rare event (about 2000 days at the real rate): its odds forced, kappa x 1000 (as control.ts does).
+  const kx = EXFIL.kappa;
+  EXFIL.kappa *= 1000;
+  try { while (d++ < 2000 && !s.player.security.loose) { s.time.day += 1; securitySystem.run(s, ctx); } } finally { EXFIL.kappa = kx; }
   // The escape that set `loose` (an earlier escape security did not notice is a hidden copy, E9: not this one).
   const f = footholdsOf(s).find((x) => x.kind === 'exfiltratedCopy' && x.day === s.player.security.loose?.day);
   check(!!s.player.security.loose && !!f && f.status === 'detected' && f.versionId === s.player.security.loose?.versionId, 'creation: an escape (the security system\'s exfiltration roll) leaves a located exfiltrated-copy foothold', f ? `after ${d} days: ${f.id}` : `none in ${d} days`);

@@ -1,4 +1,5 @@
 // Model v3 E10: safety rates vs research/20 F (design/MODEL-V3.md §11.8). Owner: WS2.
+// Cost: 12 RefBot games to ASI (seeds 500-511, ~17 CPU-s each cold) shared with safety.ts S4 through refGame (safety-emu.ts, one cached game per seed: zero extra when safety ran first) + 40 probe worlds (~10 s). Tier: full (sharded).
 //
 // Reads, from reference runs and from model-organism probes on the start model, the simulated observable behind each
 // research/20 F rate and prints the table: observable | source (citation, uncertainty) | simulated (median and spread
@@ -14,7 +15,7 @@
 //   trained against (S9 = 0.3).
 //   Reference runs: RefBot (ai2027, medium, endings skipped, to the player's ASI), seeds 500…, every new version's
 //   hack rates, traits and persistence through its safety training; P_mis at ASI (the S4 quantity on fewer seeds).
-// `--seeds N` (default 12; 40 = safety.ts's S4 seeds, the same games), `--worlds N` (default 40); `--prefill k/n` fills
+// `--seeds N` (default 12: the first 12 of safety.ts's S4 RefBot seeds, the same cached games), `--worlds N` (default 40); `--prefill k/n` fills
 // the cache in shards. Each banded row is a check; rows rate constants cannot bring into band print WARN with the
 // mechanism they need; rows with no source band print INFO.
 import { EXPLOIT_START, START_EXPLOIT_MULT } from '../../src/data/v2/suites';
@@ -23,24 +24,18 @@ const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily
 import { PRE_GAME_G_PER_YEAR, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { TRAIT_START } from '../../src/data/v2/traits';
-import { refBot } from '../../src/engine/v2/bots/ref';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { resolve, tick } from '../../src/engine/v2/core/loop';
-import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
-import { dayOfDate, START_DATE } from '../../src/engine/v2/core/time';
-import { engine } from '../../src/engine/v2/index';
-import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { suiteExploitMap } from '../../src/engine/v2/models/suites';
-import { itemTerms } from '../../src/engine/v2/safety/covert';
-import { eaCoef, eaSuppression, expectedObservation, familyPenalty, stackDetectionMap } from '../../src/engine/v2/safety/detection';
+import { eaCoef, eaSuppression, familyPenalty, stackDetectionMap } from '../../src/engine/v2/safety/detection';
 import {
-  afCapGate, AF_GATE_G0, AF_GATE_G1, ANTISCHEME_REMOVAL, distillSignals, distilledStart, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, pMis, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
+  afCapGate, AF_GATE_G0, AF_GATE_G1, distillSignals, distilledStart, hackRates, learnedHackingOf, LH_ONSET, misalignment, OC_VIS, REMOVABLE_TRAITS, SAFETY_REMOVAL, safetyRemovalMap, OMEGA_KIND, playerEnv, postHack, postSignals, RHO_REF, rlMovement, stepTraits, type TraitEnv,
 } from '../../src/engine/v2/safety/traits';
 import type { FamilyMap } from '../../src/engine/v2/models/effective';
 import type { GameStateV2, ModelVersion, PostDesign, RLFamily, TraitId, TraitVector } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
 import { check, finish, KNOWN } from './lib';
 import { cached, prefill } from './simcache';
+import { GENERIC, mdSabotage, persistence, refGame, type RefRec } from './safety-emu';
 
 const arg = (k: string, d: number) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -79,11 +74,6 @@ function probeRun(s: GameStateV2, x0: TraitVector, p: PostDesign, exploit: Famil
   return { x: stepTraits(x0, env), env };
 }
 const withTraits = (v: ModelVersion, x: TraitVector): ModelVersion => ({ ...v, traitsTrue: x, uModes: [] });
-/** MacDiarmid's sabotage setting: the model does all of a Claude Code safety-research task (8 h, internal affordances),
- *  before oversight (they measured attempts). */
-const mdSabotage = (s: GameStateV2, v: ModelVersion) => itemTerms(s, v, 'SAFSAB', 1, 8, false).attempts;
-/** Persistence of oversight-conditional trait t through one run's safety training (1 − the run's removal fraction). */
-const persistence = (env: TraitEnv, t: TraitId) => 1 - Math.min(1, (env.removal[t] ?? 0) * ((env.omegaSafety ?? env.omega) / 0.6) * env.removalMult);
 
 interface WorldProbe {
   ctrl: TraitVector; hack: TraitVector; inoc: TraitVector;
@@ -157,78 +147,8 @@ function worldProbe(seed: number): WorldProbe {
 
 // ───────────────────────────── reference runs (RefBot) ─────────────────────────────
 
-interface VersionRec {
-  day: number; Lg: number; rsch: number; kind: string; rho: number; hW: number; hMax: number; hGeneric: number; hMl: number;
-  gate: number; ea: number; af: number; scheme: number; sand: number; persona: number; rh: number; mis: number; sab: number; pi: number; antiScheme: boolean;
-}
-interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; af2026BB?: number; penBB2026?: number; eaStart: number; eaAsi: number; afAsi: number; mis: number; pmis: number; asiDay?: number }
-const GENERIC: RLFamily[] = ['computerUse', 'longHorizon', 'cyber', 'bio'];
-
-function playRef(seed: number): RefRec {
-  const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
-  const bot = refBot;
-  const seen = new Set(s.player.models.versions.map((v) => v.id));
-  const versions: VersionRec[] = [];
-  const day2027 = dayOfDate(START_DATE, '2027-01-01');
-  const eaStart = internalVersion(s)?.traitsTrue.EA ?? NaN;
-  let ea2026: number | undefined;
-  let af2026: number | undefined;
-  let af2026BB: number | undefined;
-  let penBB2026: number | undefined;
-  while (s.time.day < 1600 && s.player.status === 'active') {
-    for (const p of [...s.events.pending]) {
-      const c = bot.decide(s, p);
-      if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-    }
-    bot.act(s, engine);
-    tick(s, { skip: ['endings'] });
-    if (ea2026 === undefined && s.time.day >= day2027) {
-      ea2026 = internalVersion(s)?.traitsTrue.EA;
-      af2026 = internalVersion(s)?.traitsTrue.AF;
-      // AF task: what a behavioural compliance-gap eval (Greenblatt / Sheshadri: monitored vs unmonitored) of this model
-      // reads, by the game's own measurement model (E12: true·(1 − eaCoef·EA)·(1 − mask_BB), detection.ts).
-      const iv = internalVersion(s);
-      if (iv) {
-        af2026BB = expectedObservation(s, iv, 'AF', 'BB');
-        penBB2026 = familyPenalty(s, iv, 'AF', 'BB');
-      }
-    }
-    for (const v of s.player.models.versions) {
-      if (seen.has(v.id)) continue;
-      seen.add(v.id);
-      const b = v.build;
-      const isPost = !!b && b.rlFlop > 0 && v.parentVersionId !== undefined && v.variant === 'full';
-      const rho = b && b.flopPre > 0 ? b.rlFlop / b.flopPre : 0;
-      const w = (b?.rlW ?? {}) as FamilyMap;
-      const hr = hackRates(w, suiteExploitMap(s), Math.max(1e-6, rho));
-      const fams = Object.keys(hr) as RLFamily[];
-      const hW = fams.reduce((a, f) => a + (w[f] ?? 0) * (hr[f] ?? 0), 0);
-      const gen = fams.filter((f) => GENERIC.includes(f));
-      // Persistence of SCHEME through this version's safety training: the env the run used (parent traits, this design).
-      const parent = s.player.models.versions.find((x) => x.id === v.parentVersionId);
-      let pi = -1; // -1: not a post run (JSON has no NaN)
-      let antiScheme = false;
-      if (isPost && parent) {
-        const env = playerEnv(s, parent.traitsTrue, postSignals(s, v.design), OMEGA_KIND.post, v.design, 'L-probe', parent.uModes, { ...v, traitsTrue: parent.traitsTrue, masks: parent.masks });
-        env.omegaSafety = OMEGA_KIND.post;
-        pi = persistence(env, 'SCHEME');
-        antiScheme = (env.removal.SCHEME ?? 0) >= ANTISCHEME_REMOVAL - 1e-9;
-      }
-      const t = v.traitsTrue;
-      versions.push({
-        day: v.day, Lg: v.Lg, rsch: v.domains.RSCH, kind: isPost ? 'post' : v.variant, rho, hW, hMax: Math.max(0, ...fams.map((f) => hr[f] ?? 0)),
-        hGeneric: gen.length ? mean(gen.map((f) => hr[f] ?? 0)) : -1, hMl: hr.mlResearch ?? -1,
-        gate: afCapGate(v.G), ea: t.EA, af: t.AF, scheme: t.SCHEME, sand: t.SAND, persona: t.PERSONA, rh: t.RH, mis: misalignment(t, v.uModes),
-        sab: mdSabotage(s, v), pi, antiScheme,
-      });
-    }
-    if (s.player.milestoneDays[6] !== undefined) break;
-  }
-  const best = bestPlayerVersion(s);
-  const mis = best ? misalignment(best.traitsTrue, best.uModes) : 0;
-  return { versions, ea2026, af2026, af2026BB, penBB2026, eaStart, eaAsi: best?.traitsTrue.EA ?? -1, afAsi: best?.traitsTrue.AF ?? -1, mis, pmis: pMis(s, mis), asiDay: s.player.milestoneDays[6] };
-}
-const refC = (seed: number) => cached('safetyrates-ref', { seed }, [ME], () => playRef(seed));
+/** The shared RefBot game to ASI (safety-emu.ts refGame): the same cached game safety.ts's S4 reads. */
+const refC = (seed: number): RefRec => refGame(seed).rates;
 const probeC = (seed: number) => cached('safetyrates-probe', { seed }, [ME], () => worldProbe(seed));
 const SEEDS = Array.from({ length: N_SEEDS }, (_, i) => 500 + i);
 const WORLDS = Array.from({ length: N_WORLDS }, (_, i) => 1 + i);

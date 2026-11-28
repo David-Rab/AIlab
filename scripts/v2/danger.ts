@@ -1,4 +1,5 @@
 // E5: the danger formula for incidents (MODEL-V3 §11.3): rate_k = κ_k · disposition_k · capability_k · opportunity_k ·
+// Guards: the danger formula (unit checks) and the start rates. Cost: 8 newGame, no sim-days, ~10 CPU-s. Tier: quick, full.
 // (1 − oversight_k). Unit checks on the formula's terms, the start-rate table, misuse and exfiltration continuity.
 import { DANGER_ACTS, MISUSE } from '../../src/data/v2/danger';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';

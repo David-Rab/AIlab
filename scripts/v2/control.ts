@@ -1,4 +1,5 @@
 // Model v3 E9: loss of control as a process (design/MODEL-V3.md §11.4; src/engine/v2/safety/control.ts). Owner: WS2.
+// Guards: E9 control (falls with footholds and the gap, recovery, E15 believed control reads no hidden truth, endings resolve). Cost: ~30 ticks, 2 fixtures x few, ~25 CPU-s (endings: ~7 newGame). Tier: quick, full.
 //   Effective control C = 1 − E, exposure E = Mis · (1 − O_eff) · (1 + F): it falls with undetected footholds and the
 //   capability gap and recovers with removal and oversight; footholds grow once control is low (escaped copies acquire
 //   compute, hidden compute launches more jobs, a backdoor raises exfiltration odds, an escape can go unnoticed); loss of
@@ -125,10 +126,13 @@ for (const fx of ['day400.json', 'day900.json']) {
   const s = fixture(fx);
   strongOversight(s); // the control layer on, so containment counts
   resetWorkContext(s);
+  // Both arms take one more daily step from the same state: footholds grow once control is low (control.ts controlStep),
+  // so comparing a stepped perturbed copy with the unstepped original differs at the 1e-9 level (that was the old
+  // FAIL: a TEST-BUG, not a leak; the per-perturbation readouts are identical to the last bit).
+  const p = clone(s);
   controlStep(s, makeCtx(s));
   const before = controlView(s);
   const r0 = controlReadout(s);
-  const p = clone(s);
   // Hidden truth only: true tool strengths (efficacy, false validation), true masks, undiscovered U-modes, true traits
   // and true levels of every model.
   for (const a of Object.keys(p.hidden.agendaEfficacy)) p.hidden.agendaEfficacy[a as keyof typeof p.hidden.agendaEfficacy] = 0.05;
