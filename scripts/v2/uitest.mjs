@@ -2,14 +2,39 @@
 // action button and checks the game state changes; opens and resolves a decision; runs fast-forward; screenshots
 // every panel and tab to scripts/v2/shots/ (gitignored). IA checks (design/ux/IA.md): every datum has one home
 // (data-home unique across screens), every Term resolves (no data-term-missing), no raw floats in rendered text.
-// Run: npm run build && node scripts/v2/uitest.mjs
+// Run: npm run test:ui (builds only when dist/ is stale); node scripts/v2/uitest.mjs [--only B2,D8] [--shots] [--no-build]
 import { chromium } from 'playwright-core';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 const SHOTS = path.resolve('scripts/v2/shots');
-mkdirSync(SHOTS, { recursive: true });
+mkdirSync(SHOTS, { recursive: true }); // (written only with --shots, or a fail-N.png on a failing check)
 const url = 'file:///' + path.resolve('dist/index.html').split(path.sep).join('/');
+// Flags: --only a,b  run only the groups whose name contains a (case-insensitive); groups: start gameB B1 B2 B3 B4 D4 D6 D8 E11 E12
+//        day400 day900 sweep speed4 r9 r10 end (day400/day900 also import the fixture; setup is cheap and always runs).
+//        --shots  save screenshots to scripts/v2/shots (default: only a failing check saves fail-N.png)
+//        --no-build  never build; by default dist/ is rebuilt only when it is older than src/.
+const T0 = Date.now();
+const ARGS = process.argv.slice(2);
+const ONLY = (ARGS.includes('--only') ? (ARGS[ARGS.indexOf('--only') + 1] ?? '') : '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const SHOTS_ON = ARGS.includes('--shots');
+const GROUPS = ['start', 'gameB', 'B1', 'B2', 'B3', 'B4', 'D4', 'D6', 'D8', 'E11', 'E12', 'day400', 'day900', 'sweep', 'speed4', 'r9', 'r10', 'end'];
+const want = (g) => !ONLY.length || ONLY.some((o) => g.toLowerCase().includes(o) || o === g.toLowerCase());
+if (ONLY.length && !GROUPS.some(want)) { console.log(`--only ${ONLY.join(',')} matches no group; groups: ${GROUPS.join(' ')}`); process.exit(2); }
+{
+  const newest = (d) => readdirSync(d, { withFileTypes: true }).reduce((m, e) => Math.max(m, e.isDirectory() ? newest(path.join(d, e.name)) : statSync(path.join(d, e.name)).mtimeMs), 0);
+  const dist = existsSync('dist/index.html') ? statSync('dist/index.html').mtimeMs : 0;
+  const src = Math.max(newest('src'), statSync('index.html').mtimeMs);
+  if (!ARGS.includes('--no-build') && dist < src) {
+    console.log('dist/ is stale: building');
+    const r = spawnSync('npm run build', { shell: true, stdio: 'inherit' });
+    if (r.status) process.exit(r.status);
+  }
+}
+const timings = [];
+async function G(g, label, fn) { if (!want(g)) return; const t = Date.now(); await fn(); timings.push([`${g} ${label}`, Date.now() - t]); }
+
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1680, height: 1000 } });
 const errors = [];
@@ -19,6 +44,7 @@ await page.goto(url);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 
+const pendingShots = [];
 let pass = 0;
 let fail = 0;
 const fails = [];
@@ -27,6 +53,7 @@ const ok = (name, cond, detail = '') => {
   else {
     fail++;
     fails.push(name);
+    if (!SHOTS_ON) pendingShots.push(page.screenshot({ path: path.join(SHOTS, `fail-${fail}.png`) }).catch(() => {}));
   }
   console.log(`${cond ? 'OK  ' : 'FAIL'} ${name}${detail ? `  ${detail}` : ''}`);
 };
@@ -64,7 +91,7 @@ const setSlider = (loc, v) => loc.evaluate((node, val) => {
   setter.call(node, String(val));
   node.dispatchEvent(new Event('input', { bubbles: true }));
 }, v);
-const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+const shot = (name) => (SHOTS_ON ? page.screenshot({ path: path.join(SHOTS, `${name}.png`) }) : Promise.resolve());
 const clearTips = async () => { await page.mouse.move(1, 1); await page.keyboard.press('Escape'); };
 // D6: Models has tabs (Versions, Suites); nav opens it on Versions so the model-card checks find the card.
 const nav = async (id) => { await closeModals(); await clearTips(); if (id === 'models') await page.evaluate(() => window.ai27v2.setTab('models', 'versions')); await page.click(`[data-nav=${id}]`); await wait(100); };
@@ -92,7 +119,30 @@ async function iaScan(screen) {
 const tabsOf = () => page.$$eval('main.center [data-tabs] [data-tab]', (els) => els.map((e) => e.getAttribute('data-tab')));
 const tabTo = async (t) => { await clearTips(); await page.click(`main.center [data-tabs] [data-tab="${t}"]`); await wait(80); };
 
+const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'powers', 'world', 'codex'];
+// J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
+// (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
+const tipCov = { tipped: 0, n: 0, miss: [] };
+const coverage = async (where) => {
+  if (where.includes('codex')) return;
+  const r = await page.evaluate(() => {
+    const m = document.querySelector('main.center');
+    if (!m) return { n: 0, tipped: 0, miss: [] };
+    const els = [...m.querySelectorAll('*')].filter((e) => {
+      if (e.children.length) return false;
+      const tx = (e.textContent ?? '').trim();
+      if (!/\d/.test(tx) || tx.length > 40) return false;
+      const b = e.getBoundingClientRect();
+      return b.width > 4 && b.height > 4 && e.closest('svg') === null && !e.closest('button') && !e.closest('[data-tabs]') && !e.closest('select');
+    });
+    const miss = els.filter((e) => !e.closest('[data-tip]')).map((e) => (e.textContent ?? '').trim().slice(0, 24));
+    return { n: els.length, tipped: els.length - miss.length, miss };
+  });
+  tipCov.n += r.n; tipCov.tipped += r.tipped; tipCov.miss.push(...r.miss.map((x) => `${where}: ${x}`));
+};
+
 // ───────────────────────── start + setup ─────────────────────────
+if (want('start')) {
 ok('Start screen', !!(await page.$('[data-test=start]')));
 ok('Other campaigns greyed', (await page.$$('.campaign.locked')).length === 3);
 await shot('00-start');
@@ -243,18 +293,19 @@ await check('Load slot 1', 's.time.day', async () => {
 await page.click('[data-test=menu]');
 await check('Save & quit', 'store.screen', () => page.click('[data-test=quit]'));
 await check('Continue from autosave', 'store.screen', () => page.click('[data-test=continue]'));
+}
 
 // ───────────────────────── Game B: tutorial off, every panel and action ─────────────────────────
+if (want('gameB')) {
 await page.evaluate(() => { const st = window.ai27v2; st.draftSetup = { ...st.draftSetup, tutorial: false, seed: 4242, companyName: 'OpenBrain' }; st.start(st.draftSetup); });
 await wait(150);
 ok('Tutorial off unlocks compute', !(await page.$eval('[data-nav=compute]', (b) => b.disabled)));
 // Model v3 E11 at day 1 (footholds, control, danger), then advance a little so deployments/finance have content.
 await page.evaluate(() => window.ai27v2.step(1));
 await closeModals();
-await e11Check('day 1');
+await G('E11', 'day 1', () => e11Check('day 1'));
 await page.evaluate(() => window.ai27v2.step(19));
 await closeModals();
-const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'powers', 'world', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -804,6 +855,7 @@ ok('Lead track lanes', (await page.$$('[data-lane]')).length >= 3);
 ok('Overview: no Watch card (the bottom bar is the alert channel)', !(await page.$('[data-test=watch]')));
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
 await check('Loss-of-control risk click opens Safety', 'store.panel', () => page.click('[data-test=risk]'));
+}
 
 // ───────────────────────── B1: product economics (MK-13 cards; day 1 here; day 400 and day 900 below) ─────────────────────────
 // Every live card leads with profit and margin, a revenue bar (profit / serving cost) with a tooltip, the Users or Work
@@ -1561,14 +1613,14 @@ await wait(150);
 await page.evaluate(() => window.ai27v2.step(1));
 await closeModals();
 await pause();
-await b1Check('day 1');
-await b2Check('day 1');
-await b3Check('day 1', '29-day1-world-sectors');
-await b4Check('day 1');
-await d8Check('day 1', true, 'basic');
-await d6Check('day 1', true);
-await e12Check('day 1');
-{
+await G('B1', 'day 1', () => b1Check('day 1'));
+await G('B2', 'day 1', () => b2Check('day 1'));
+await G('B3', 'day 1', () => b3Check('day 1', '29-day1-world-sectors'));
+await G('B4', 'day 1', () => b4Check('day 1'));
+await G('D8', 'day 1', () => d8Check('day 1', true, 'basic'));
+await G('D6', 'day 1', () => d6Check('day 1', true));
+await G('E12', 'day 1', () => e12Check('day 1'));
+if (want('D6')) {
   // D6: the post-training plan's Environments row opens Training › Environments with this design as the planned run.
   await nav('blueprint');
   await tabTo('next');
@@ -1580,9 +1632,9 @@ await e12Check('day 1');
   ok('D6: the Environments row opens Training › Environments with the plan as the planned run', JSON.parse(await get(`store.panel === 'blueprint' && store.tab.blueprint === 'suites'`)) && /budget/.test(sub) && !/standard plan/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
   await page.evaluate(() => window.ai27v2.setTab('blueprint', 'next'));
 }
-await d4Check('day 1', true);
+await G('D4', 'day 1', () => d4Check('day 1', true));
 await nav('products');
-{
+if (want('B2')) {
   // MK-13: the stance switch previews Win share by its next-day cost only (buyers move later: said in words, no number).
   const api = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
   if (api) {
@@ -1595,7 +1647,7 @@ await nav('products');
   }
 }
 await shot('25-day1-products');
-{
+if (want('B1')) {
   // MK-9: Chat's plan is priced by competition, never above what people pay ($22 a month); the Price tile shows it.
   const chat = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'consumer' && d.status === 'live') || {}).id || ''`));
   if (chat) {
@@ -1616,6 +1668,7 @@ const fx = readFileSync(path.resolve('scripts/v2/fixtures/day400.json'), 'utf8')
 const err = await page.evaluate((j) => window.ai27v2.importJson(j) ?? '', fx);
 ok('Import day-400 fixture', err === '', err);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
+if (want('day400')) {
 // DC-9: the Sites tab is gone; its rows sit under the chart on Overview, one per site, and the header's live figure is the
 // sum of the live buildings' power.
 {
@@ -1690,39 +1743,10 @@ await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.a
   ok("DC-10b: the rush toggle's saving is the engine's", before.rush.includes(eng.saves === 0 ? '0 q' : `−${eng.saves} q`), `${before.rush} vs ${eng.saves}`);
   await page.click(`${P} [data-lever=rush] button`);
 }
-// J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
-// (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
-const tipCov = { tipped: 0, n: 0, miss: [] };
-const coverage = async (where) => {
-  if (where.includes('codex')) return;
-  const r = await page.evaluate(() => {
-    const m = document.querySelector('main.center');
-    if (!m) return { n: 0, tipped: 0, miss: [] };
-    const els = [...m.querySelectorAll('*')].filter((e) => {
-      if (e.children.length) return false;
-      const tx = (e.textContent ?? '').trim();
-      if (!/\d/.test(tx) || tx.length > 40) return false;
-      const b = e.getBoundingClientRect();
-      return b.width > 4 && b.height > 4 && e.closest('svg') === null && !e.closest('button') && !e.closest('[data-tabs]') && !e.closest('select');
-    });
-    const miss = els.filter((e) => !e.closest('[data-tip]')).map((e) => (e.textContent ?? '').trim().slice(0, 24));
-    return { n: els.length, tipped: els.length - miss.length, miss };
-  });
-  tipCov.n += r.n; tipCov.tipped += r.tipped; tipCov.miss.push(...r.miss.map((x) => `${where}: ${x}`));
-};
-for (const p of PANELS) {
-  await nav(p);
-  const tabs = await tabsOf();
-  for (const t of tabs.length ? tabs : ['']) {
-    if (t) await tabTo(t);
-    await wait(80);
-    await iaScan(`day400:${p}${t ? '.' + t : ''}`);
-    await coverage(`day400:${p}${t ? '.' + t : ''}`);
-    await shot(`20-day400-${p}${t ? '-' + t : ''}`);
-  }
 }
-await b1Check('day 400');
-await b2Check('day 400');
+await G('B1', 'day 400', () => b1Check('day 400'));
+await G('B2', 'day 400', () => b2Check('day 400'));
+if (want('day400')) {
 // MK-13 (M13): the lineup popover on the day-400 fixture (more ready models than the young game B): add a model, swap
 // one, remove one, each through product.update; the popover rows carry the change a year and close after applying.
 {
@@ -1764,50 +1788,51 @@ await b2Check('day 400');
   }
   ok('MK-13 day 400: some lineup slot has a model to swap in', swapped);
 }
-await b3Check('day 400', '29-day400-world-sectors');
-await b4Check('day 400');
-await d6Check('day 400', true);
-await d4Check('day 400', true);
-await e12Check('day 400');
-await d8Check('day 400', true, 'full');
-await e11Check('day 400', true);
+}
+await G('B3', 'day 400', () => b3Check('day 400', '29-day400-world-sectors'));
+await G('B4', 'day 400', () => b4Check('day 400'));
+await G('D6', 'day 400', () => d6Check('day 400', true));
+await G('D4', 'day 400', () => d4Check('day 400', true));
+await G('E12', 'day 400', () => e12Check('day 400'));
+await G('D8', 'day 400', () => d8Check('day 400', true, 'full'));
+await G('E11', 'day 400', () => e11Check('day 400', true));
 await shot('27-day400-products-b2');
 const fx9 = readFileSync(path.resolve('scripts/v2/fixtures/day900.json'), 'utf8');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
-await b1Check('day 900');
-await b2Check('day 900');
-await b3Check('day 900', '29-day900-world-sectors');
-await b4Check('day 900');
-await d6Check('day 900', false);
-await e12Check('day 900');
-await d8Check('day 900', false, 'deep');
-{
+await G('B1', 'day 900', () => b1Check('day 900'));
+await G('B2', 'day 900', () => b2Check('day 900'));
+await G('B3', 'day 900', () => b3Check('day 900', '29-day900-world-sectors'));
+await G('B4', 'day 900', () => b4Check('day 900'));
+await G('D6', 'day 900', () => d6Check('day 900', false));
+await G('E12', 'day 900', () => e12Check('day 900'));
+await G('D8', 'day 900', () => d8Check('day 900', false, 'deep'));
+if (want('D8')) {
   const miss = D8_TERMS.filter((x) => !d8Seen.has(x));
   ok(`D8: every evals term has a tooltip in Models › Evals (${D8_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
-await e11Check('day 900', true);
-{
+await G('E11', 'day 900', () => e11Check('day 900', true));
+if (want('D6')) {
   const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
   ok(`D6: every new suites term has a tooltip in Training › Environments (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
-await d4Check('day 900', true, false);
-{
+await G('D4', 'day 900', () => d4Check('day 900', true, false));
+if (want('E12')) {
   const miss = E12_TERMS.filter((x) => !e12Seen.has(x));
   ok(`E12: every new term is a Term link on Safety, the Blueprint or the model card (${E12_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
 await shot('28-day900-products-b2');
-{
+if (want('B1')) {
   const miss = B1_TERMS.filter((t) => !b1Seen.has(t));
-  ok(`B1: every new term has a tooltip on the product cards (${B1_TERMS.length})`, miss.length === 0, miss.join(', '));
+  if (want('B1')) ok(`B1: every new term has a tooltip on the product cards (${B1_TERMS.length})`, miss.length === 0, miss.join(', '));
   const miss2 = B2_TERMS.filter((t) => !b2Seen.has(t));
-  ok(`B2: every new term has a tooltip on the product cards (${B2_TERMS.length})`, miss2.length === 0, miss2.join(', '));
+  if (want('B2')) ok(`B2: every new term has a tooltip on the product cards (${B2_TERMS.length})`, miss2.length === 0, miss2.join(', '));
   const miss4 = D4_TERMS.filter((t) => !d4Seen.has(t));
-  ok(`D4: every data term has a tooltip on Training › Data or Next run (${D4_TERMS.length})`, miss4.length === 0, miss4.join(', '));
+  if (want('D4')) ok(`D4: every data term has a tooltip on Training › Data or Next run (${D4_TERMS.length})`, miss4.length === 0, miss4.join(', '));
   const miss3 = B3_TERMS.filter((t) => !b3Seen.has(t));
-  ok(`B3: every new term has a tooltip in World › Sectors (${B3_TERMS.length})`, miss3.length === 0, miss3.join(', '));
+  if (want('B3')) ok(`B3: every new term has a tooltip in World › Sectors (${B3_TERMS.length})`, miss3.length === 0, miss3.join(', '));
 }
-for (const p of PANELS) {
+if (want('sweep')) for (const p of PANELS) {
   await nav(p);
   const tabs = await tabsOf();
   for (const t of tabs.length ? tabs : ['']) {
@@ -1818,10 +1843,11 @@ for (const p of PANELS) {
     await shot(`30-day900-${p}${t ? '-' + t : ''}`);
   }
 }
-{
+if (want('sweep')) {
   const pctCov = tipCov.n ? tipCov.tipped / tipCov.n : 1;
   ok(`J1 O1: rendered tooltip coverage ≥ 85% (day 400 + day 900, every panel and tab)`, pctCov >= 0.85, `${tipCov.tipped}/${tipCov.n} = ${(pctCov * 100).toFixed(1)}% · e.g. ${tipCov.miss.slice(0, 6).join(' ; ')}`);
 }
+if (want('day900')) {
 // J1: jank fixes on the day-900 fixture.
 await nav('blueprint');
 await tabTo('next');
@@ -2385,7 +2411,9 @@ for (const x of iaIssues.slice(8, 30)) console.log('     ' + x);
   const share = f6e.g && f6e.est > 0 ? f6e.g.amount / f6e.est : NaN;
   ok('F6e: Targeted training previews the share apply removes (believed est → est × (1 − share); true level × (1 − share)) and its run penalty', f6e.before > 0 && Math.abs(1 - f6e.after / f6e.before - share) < 1e-9 && f6e.g.target.includes(`→ ${(f6e.est * (1 - share)).toFixed(2)}`) && Math.abs(f6e.dPen + f6e.pen.amount) < 1e-12 && !f6e.bad.length, JSON.stringify(f6e));
 }
+}
 
+if (want('speed4')) {
 // Speed-4 run for 2 s from the day-400 fixture (the day-900 fixture can end within days, e.g. another lab's ASI):
 // no errors, alerts appear. Then back to day 900 for the end screen.
 await page.evaluate((j) => window.ai27v2.importJson(j), fx);
@@ -2399,9 +2427,11 @@ await pause();
 await closeModals();
 ok('Alerts/decisions shown in queue', (await page.$$('.queue-row .alert-chip2, .queue-row .dec-chip2')).length > 0);
 await shot('31-day400-running');
+}
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── R9: start types (big-tech Finance variant; spinout and challenger fixtures) ─────────────────────────
+if (want('r9')) {
 const ia9 = iaIssues.length;
 await closeModals();
 await page.evaluate(() => { const st = window.ai27v2; st.start({ ...st.draftSetup, tutorial: false, seed: 4244, companyName: 'OpenBrain', start: 'bigtech', governance: 'parent' }); });
@@ -2452,8 +2482,10 @@ for (const start of ['spinout', 'challenger']) {
   await shot(`61-${start}-day400`);
 }
 ok('R9 IA: start screens keep one home per datum, terms resolve, no raw floats', iaIssues.length === ia9, iaIssues.slice(ia9, ia9 + 6).join(' | '));
+}
 
 // ───────────────────────── R10: limits registry (data-limit), top strip revenue, Overview core loop, codex ─────────────────────────
+if (want('r10')) {
 // Every limit of src/data/v2/limits.ts must show (data-limit) on its home screen, or in the codex's Limits category when
 // its home is the codex. Conditional limits get the state that makes them bind (pause, a public timer, a case).
 const LIMIT_DEFS = [...readFileSync('src/data/v2/limits.ts', 'utf8').matchAll(/\{ id: '([^']+)', title: [^\n]*?home: \{ panel: '(\w+)'(?:, tab: '(\w+)')? \}/g)].map((m) => ({ id: m[1], panel: m[2], tab: m[3] }));
@@ -2550,9 +2582,11 @@ await check('UB-A Overview: the World box opens World › Risk', 'store.panel + 
 await nav('overview');
 await iaScan('overview:r10');
 await shot('74-overview-loop');
+}
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
 
 // ───────────────────────── end screen ─────────────────────────
+if (want('end')) {
 await closeModals();
 await page.evaluate(() => window.ai27v2.act('RETIRE'));
 await page.evaluate(() => window.ai27v2.step(2));
@@ -2583,7 +2617,11 @@ await page.click('[data-test=back-to-ending]');
 await wait(200);
 ok('End: Back to ending shows the end screen again', !!(await page.$('[data-test=endscreen]')));
 await check('End: new game', 'store.screen', () => page.click('[data-test=end-new]'));
+}
 
+await Promise.all(pendingShots);
+console.log(`
+wall ${((Date.now() - T0) / 1000).toFixed(0)} s; slowest: ${timings.sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`).join(', ')}`);
 console.log(`\n${pass} passed, ${fail} failed${fails.length ? `\nFAILED: ${fails.join(' | ')}` : ''}${errors.length ? `\nPAGE ERRORS (${errors.length}):\n${[...new Set(errors)].slice(0, 20).join('\n')}` : ''}`);
 await browser.close();
 process.exit(fail || errors.length ? 1 : 0);
