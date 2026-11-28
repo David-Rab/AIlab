@@ -2,9 +2,10 @@
 // powers, on constructed cap tables. Run alone: `node --import tsx scripts/v2/corp.ts`.
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { boardSeats, controllerOf, holdingsOf, investorAppeal, missionPowers, overrideAvailable, ownerFunded, PARENT_STANCE, seatsOf, securityPowers, startControl, structureLabel } from '../../src/engine/v2/finance/control';
-import { START_BY_ID } from '../../src/data/v2/starts';
-import type { StartType } from '../../src/engine/v2/types';
-import type { Charter, GameStateV2, Ownership } from '../../src/engine/v2/types';
+import { LAB_KIND_BY_ID, POSITION_BY_ID, parentBudgetYear } from '../../src/data/v2/starts';
+import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
+import { gV0 } from '../../src/engine/v2/models/capability';
+import type { Charter, GameStateV2, LabKindId, Ownership } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol = 1e-3) => Math.abs(a - b) <= tol;
@@ -78,14 +79,34 @@ check(investorAppeal(mk({}, { founder: 1 })) === 1 && near(investorAppeal(mk({ m
 check([s1, s2, s3, s4, s5, s6, s6n, s7, s9].every((s) => total(s)) && total(s8, 2), '11 seat count is 1 + 6 (+2 golden) in cases 1-9');
 check(seatsOf(s2, [{ kind: 'independent', holder: 'Critics', stance: [0, 0, 0, 0], weight: 1 }]).length === 8, '11 extras are appended');
 
-// Init (C2): each start's charter, cap table and label; the board is the seats by votes.
-const LABEL: Record<StartType, string> = { leader: 'Mission-controlled', challenger: 'Board-run', spinout: 'Founder-led', bigtech: 'Division of Azimuth' };
-const games = Object.fromEntries((Object.keys(LABEL) as StartType[]).map((st) => [st, newGame({ ...defaultSetupV2({ seed: 1 }), start: st })])) as Record<StartType, GameStateV2>;
-check((Object.keys(LABEL) as StartType[]).every((st) => structureLabel(games[st]) === LABEL[st] && structureLabel(startControl(START_BY_ID[st])) === LABEL[st]), 'init label by start: leader Mission-controlled, challenger Board-run, spinout Founder-led, bigtech Division of Azimuth', (Object.keys(LABEL) as StartType[]).map((st) => `${st} ${structureLabel(games[st])}`).join(' · '));
-const ch = games.challenger.player.finance.ownership;
-check(near(ch.founder, 0.4) && near(ch.fin, 0.45) && near(ch.strat.Azimuth ?? 0, 0.15), 'init challenger: founders 40%, investors 45%, Azimuth 15%');
-check(games.leader.player.charter.missionBody && games.leader.player.charter.profitCap && !games.spinout.player.charter.missionBody && !games.challenger.player.charter.profitCap, 'init charter by start: leader mission body + profit cap; others none');
-check(ownerFunded(games.bigtech) && !ownerFunded(games.leader) && overrideAvailable(games.spinout) && !overrideAvailable(games.challenger) && missionPowers(games.leader), 'init powers: bigtech owner-funded, spinout override, challenger none, leader mission powers');
+// Init (C2, C5a): each lab kind's charter, cap table and label; the board is the seats by votes.
+const LABEL: Record<LabKindId, string> = { leader: 'Mission-controlled', safety: 'Mission-controlled', racer: 'Founder-led', bigtech: 'Division of Azimuth', breakaway: 'Founder-led', newcomer: 'Founder-led' };
+const KINDS = Object.keys(LABEL) as LabKindId[];
+const games = Object.fromEntries(KINDS.map((k) => [k, newGame({ ...defaultSetupV2({ seed: 1 }), labKind: k })])) as Record<LabKindId, GameStateV2>;
+check(KINDS.every((k) => structureLabel(games[k]) === LABEL[k] && structureLabel(startControl(LAB_KIND_BY_ID[k])) === LABEL[k]), 'init label by kind: leader/safety Mission-controlled, racer/breakaway/newcomer Founder-led, bigtech Division of Azimuth', KINDS.map((k) => `${k} ${structureLabel(games[k])}`).join(' · '));
+const sf = games.safety.player.finance.ownership;
+check(near(sf.founder, 0.3) && near(sf.mission, 0.1) && near(sf.fin, 0.46) && near(sf.strat.Azimuth ?? 0, 0.14) && games.safety.player.finance.deals.some((d) => d.partner === 'Azimuth' && d.legacy), 'init safety: founders 30%, mission body 10%, investors 46%, Azimuth 14% non-voting legacy');
+check(games.leader.player.finance.deals.some((d) => d.id === 'DL-northwind0' && d.legacy) && !games.racer.player.finance.deals.length && near(games.racer.player.finance.ownership.founder, 0.6) && near(games.newcomer.player.finance.ownership.founder, 0.85), 'init partners: leader Northwind legacy deal, racer none; racer founders 60%, newcomer 85%');
+check(games.leader.player.charter.missionBody && games.leader.player.charter.profitCap && games.safety.player.charter.missionBody && !games.safety.player.charter.profitCap && KINDS.filter((k) => k !== 'leader' && k !== 'safety').every((k) => !games[k].player.charter.missionBody && !games[k].player.charter.profitCap), 'init charter by kind: leader mission body + profit cap, safety mission body, others none');
+check(ownerFunded(games.bigtech) && !ownerFunded(games.leader) && overrideAvailable(games.breakaway) && overrideAvailable(games.racer) && !overrideAvailable(games.safety) && missionPowers(games.leader) && missionPowers(games.safety), 'init powers: bigtech owner-funded, breakaway and racer override, safety none, leader and safety mission powers');
 check(boardSeats(games.leader).length === 7 && boardSeats(games.leader).filter((x) => x.kind === 'mission').length === 4 && games.leader.player.board.extraSeats.length === 0, 'init leader board: CEO + 6 elected, 4 mission seats, no extras');
+// Each kind's position: its cash, compute and model lag; the kind's NPC lab is absent from the cast.
+const posOk = KINDS.map((k) => {
+  const g = games[k], p = POSITION_BY_ID[LAB_KIND_BY_ID[k].position], want = p.cash + (k === 'bigtech' ? parentBudgetYear(0) / 4 : 0);
+  const lag = (gV0(g.hidden.timeline) - g.player.models.versions[0].G) / PRE_GAME_G_PER_YEAR * 12;
+  return { k, ok: near(g.player.finance.cash, want, 1e-6) && g.player.computeOnline === p.owned + p.rented && Math.abs(lag - p.lagMonths) < 0.05 };
+});
+check(posOk.every((x) => x.ok), 'init position by kind: cash, compute (owned + rented) and start-model lag are the position row\'s', posOk.filter((x) => !x.ok).map((x) => x.k).join(',') || 'all six');
+const absent = KINDS.map((k) => ({ k, gone: LAB_KIND_BY_ID[k].replacesNpc, g: games[k] }));
+check(absent.every((x) => !x.gone || !x.g.rivals.some((r) => r.npc.kind === x.gone)) && absent.filter((x) => x.gone).every((x) => x.g.rivals.length === 5) && games.newcomer.rivals.length === 6 && games.newcomer.rivals.some((r) => r.npc.kind === 'leader'), 'init cast: the kind\'s NPC lab is absent (leader, safety, racer, bigtech, upstart), five rivals left; newcomer replaces none (six)');
+check(!games.bigtech.rivals.some((r) => r.npc.kind === 'bigtech') && ownerFunded(games.bigtech), 'init bigtech: Azimuth\'s in-house NPC lab is the player');
+// Custom: any position, a charter and a cap-table preset; it replaces no NPC lab.
+const cu = (capTable: 'founderMajority' | 'investorHeavy' | 'wholly', charter: { missionBody?: boolean; profitCap?: boolean } = {}, position: 'frontier' | 'contender' | 'talent' | 'capital' | 'scratch' = 'contender') =>
+  newGame({ ...defaultSetupV2({ seed: 1 }), labKind: 'custom', custom: { position, charter, capTable } });
+const cf = cu('founderMajority'), ci = cu('investorHeavy'), cw = cu('wholly'), cm = cu('founderMajority', { missionBody: true, profitCap: true });
+check(structureLabel(cf) === 'Founder-led' && structureLabel(ci) === 'Board-run' && structureLabel(cw) === 'Division of Azimuth' && structureLabel(cm) === 'Mission-controlled', 'custom labels: founderMajority Founder-led, investorHeavy Board-run, wholly Division of Azimuth, mission body Mission-controlled', [cf, ci, cw, cm].map(structureLabel).join(' · '));
+check(near(ci.player.finance.ownership.founder, 0.35) && near(ci.player.finance.ownership.fin, 0.65) && ownerFunded(cw) && cf.rivals.length === 6 && cf.player.finance.cash === POSITION_BY_ID.contender.cash && cm.player.charter.profitCap, 'custom: investorHeavy 35/65, wholly owner-funded, no NPC lab replaced (six rivals), cash from the chosen position');
+const cfr = cu('founderMajority', {}, 'frontier');
+check(cfr.player.finance.cash === POSITION_BY_ID.frontier.cash && cfr.player.finance.ownership.founder === 0.6 && !cfr.player.finance.deals.length, 'custom frontier: the frontier row\'s cash with the custom cap table and no Northwind stake');
 
 finish('corp');

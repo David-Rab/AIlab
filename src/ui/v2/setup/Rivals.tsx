@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { KINDS, REALISTIC_CAST, type FocusChannel, type NpcKindId, type OpennessRule, type Personality } from '../../../data/v2/npcLabs';
 import type { NpcSetupLab, SetupV2 } from '../../../engine/v2';
+import { kindOf } from '../../../data/v2/starts';
 import { useV2 } from '../store';
 import { Term, Tip, TipCard } from '../ui';
 
@@ -28,8 +29,8 @@ const OPEN_LABEL: Record<'closed' | 'open' | 'partial', string> = { closed: 'Clo
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
 /** Realistic: the cast, one line each. */
-function CastList({ leaderGone }: { leaderGone: boolean }) {
-  const rows = REALISTIC_CAST.filter((e) => !(e.kind === 'leader' && leaderGone));
+function CastList({ replaced }: { replaced?: NpcKindId }) {
+  const rows = REALISTIC_CAST.filter((e) => e.kind !== replaced);
   return (
     <div className="cast-list" data-test="cast-list">
       {rows.map((e) => {
@@ -77,14 +78,14 @@ function PersonalityEditor({ lab, set }: { lab: NpcSetupLab; set: (p: Partial<Pe
   );
 }
 
-function LabRow({ i, lab, leaderGone, update, remove }: { i: number; lab: NpcSetupLab; leaderGone: boolean; update: (l: NpcSetupLab) => void; remove: () => void }) {
+function LabRow({ i, lab, replaced, update, remove }: { i: number; lab: NpcSetupLab; replaced?: NpcKindId; update: (l: NpcSetupLab) => void; remove: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="lab-row" data-lab={i}>
       <div className="lab-row-head">
         <span className="dim small lab-n">{i + 1}</span>
         <span className="picker-opts" data-picker={`lab-kind-${i}`}>
-          {US_KINDS.filter((k) => !(k.id === 'leader' && leaderGone)).map((k) => (
+          {US_KINDS.filter((k) => k.id !== replaced).map((k) => (
             <Tip key={k.id} content={() => <TipCard title={<Term id={k.term}>{k.label}</Term>}>{k.line}</TipCard>}>
               <button className={`chip chip-sm ${lab.kind === k.id ? 'active' : ''}`} data-opt={k.id} onClick={() => update({ kind: k.id, lagMonths: typicalLag(k.id) })}>{k.label}</button>
             </Tip>
@@ -104,15 +105,15 @@ export function RivalsSection() {
   const st = useV2();
   const d = st.draftSetup;
   const custom = d.cast !== 'realistic';
-  const leaderGone = (d.start ?? 'leader') === 'leader';
+  const replaced = kindOf({ setup: d }).replacesNpc; // the NPC lab the player's kind takes the place of
   const set = (p: Partial<SetupV2>) => { st.draftSetup = { ...st.draftSetup, ...p }; st.notify(); };
   const labs: NpcSetupLab[] = d.cast === 'realistic' ? [] : d.cast;
-  const seed = (): NpcSetupLab[] => REALISTIC_CAST.filter((e) => e.kind !== 'china' && !(e.kind === 'leader' && leaderGone)).map((e) => ({ kind: e.kind, lagMonths: typicalLag(e.kind) }));
+  const seed = (): NpcSetupLab[] => REALISTIC_CAST.filter((e) => e.kind !== 'china' && e.kind !== replaced).map((e) => ({ kind: e.kind, lagMonths: typicalLag(e.kind) }));
   const setCount = (n: number) => {
     const next = labs.slice(0, n);
     const used = new Set(next.map((l) => l.kind));
     while (next.length < n) {
-      const kind = US_KINDS.find((k) => !used.has(k.id) && !(k.id === 'leader' && leaderGone))?.id ?? 'safety';
+      const kind = US_KINDS.find((k) => !used.has(k.id) && k.id !== replaced)?.id ?? 'safety';
       used.add(kind);
       next.push({ kind, lagMonths: typicalLag(kind) });
     }
@@ -125,13 +126,13 @@ export function RivalsSection() {
         <button className={`chip ${!custom ? 'active' : ''}`} data-opt="realistic" onClick={() => set({ cast: 'realistic' })}>Realistic</button>
         <button className={`chip ${custom ? 'active' : ''}`} data-opt="custom" data-test="create-rivals" onClick={() => !custom && set({ cast: seed() })}>Create rivals</button>
       </div>
-      {!custom && <CastList leaderGone={leaderGone} />}
+      {!custom && <CastList replaced={replaced} />}
       {custom && (
         <div className="rivals-custom" data-test="rivals-custom">
           <div className="lab-count"><span className="dim small">US labs</span>
             <span className="picker-opts" data-picker="lab-count">{Array.from({ length: MAX_LABS + 1 }, (_, n) => <button key={n} className={`chip chip-sm ${labs.length === n ? 'active' : ''}`} data-opt={n} onClick={() => setCount(n)}>{n}</button>)}</span>
           </div>
-          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} leaderGone={leaderGone} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
+          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} replaced={replaced} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
           {labs.length === 0 && <div className="dim small">No US rivals: only China's lab races you.</div>}
         </div>
       )}

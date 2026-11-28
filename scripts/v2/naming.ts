@@ -31,7 +31,7 @@ check(setNaming(s, 'nope', undefined) !== undefined, 'unknown theme refused');
 setNaming(s, 'agent', 'generic');
 
 // Spinout: the imported family keeps its own name.
-const sp = newGame(defaultSetupV2({ start: 'spinout' } as never));
+const sp = newGame(defaultSetupV2({ labKind: 'breakaway' } as never));
 const imp = sp.player.models.versions.find((v) => v.variant === 'imported');
 console.log('spinout:', sp.player.models.bases.map((b) => b.name).join(', '), '|', names(sp).join(', '));
 check(!imp || imp.name.startsWith('Import-1.'), 'imported family', imp?.name ?? 'no import');

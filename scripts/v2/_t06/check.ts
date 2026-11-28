@@ -10,7 +10,7 @@ import { DATA_ACTIONS } from '../../../src/engine/v2/production/dataActions';
 import type { OwnedDataAsset } from '../../../src/engine/v2/types';
 import { check, finish } from '../lib';
 
-const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start: 'leader', tutorial: false }));
+const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind: 'leader', tutorial: false }));
 const near = (a: number, b: number, e = 1e-9) => Math.abs(a - b) <= e;
 
 const s = game();

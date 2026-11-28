@@ -8,7 +8,7 @@
 // margin, a credibility rung from their revenue growth and a governance factor by kind; their valuations are marked from
 // it (finance/rivalFinance.ts), at most their cap (team value + a multiple of run-rate).
 import { DEBT_SIZING } from '../../../data/v2/deals';
-import { startOf } from '../../../data/v2/starts';
+import { positionOf } from '../../../data/v2/starts';
 import { investorAppeal, ownerFunded } from './control';
 import { PLAYER_ID } from '../models/labs';
 import type { GameStateV2, LabId, Money } from '../types';
@@ -273,7 +273,7 @@ export function startStory(s: GameStateV2): void {
   if (st.me) {
     f.valuation = st.V;
     f.ws3.mark = { S: st.sector.S, share: st.share };
-    if (startOf(s).id !== 'leader') for (const d of f.debts) if (d.kind === 'revolver') d.principal = Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * st.V);
+    if (positionOf(s).creditLine) for (const d of f.debts) if (d.kind === 'revolver') d.principal = Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * st.V);
   }
   c.poolAnnual = poolAnnualOf(s, st.sector.S);
   c.ws3.playerShare = st.share;

@@ -589,7 +589,7 @@ if (process.argv.includes('--rd-a03')) {
 
   // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
   // change of the stacks' G at the latest base) reads far faster.
-  const ch = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
+  const ch = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', alignment: 'medium', seed: 2027, tutorial: false }));
   let pubMax = 0;
   let pubSum = 0;
   let pub0 = diffusedLift(ch);

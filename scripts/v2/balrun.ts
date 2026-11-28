@@ -38,7 +38,7 @@ import { POLICY_IDS } from './policies';
 import { AIFM_CSV, FORCED_KINDS, HARNESS_EXCEPTIONS } from './forcedInputs';
 import { CAL_SEEDS, quantOf } from './calseeds';
 import { cached, codeHash } from './simcache';
-import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, GameStateV2, MilestoneIdx, LabKindId, WorldPresetId } from '../../src/engine/v2/types';
 
 const ME = fileURLToPath(import.meta.url);
 const HERE = dirname(ME);
@@ -51,7 +51,7 @@ const PRELOAD = pathToFileURL(join(HERE, 'overridePreload.ts')).href;
 const ROOT = join(HERE, '..', '..');
 
 // ───────────────────────────── Types ─────────────────────────────
-export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType; forced?: string; observer?: boolean }
+export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: LabKindId; forced?: string; observer?: boolean }
 export interface GameRecord {
   run: string; seed: number;
   world: string; alignment: string; start: string; policy: string;
@@ -88,7 +88,7 @@ interface OSet { name: string; set: Record<string, number | string | boolean | n
 
 const WORLDS: WorldPresetId[] = ['tl-fast', 'tl-central', 'tl-slow'];
 const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
-const STARTS: StartType[] = ['spinout', 'challenger', 'bigtech', 'leader'];
+const STARTS: LabKindId[] = ['breakaway', 'safety', 'bigtech', 'leader'];
 
 // The game modules (the whole engine, ~1 s of tsx transpiling and ~0.4 GB) are loaded by the worker only: the parent never plays.
 let lagDays: typeof import('../../src/engine/v2/models/capability').lagDays;
@@ -293,7 +293,7 @@ async function parent() {
   const worlds = list<WorldPresetId>('world', WORLDS, 'tl-central');
   const aligns = list<AlignDiffId>('align', ALIGNS, 'medium');
   const observer = flag('observer') >= 0;
-  const starts = list<StartType>('start', STARTS, observer ? 'spinout' : 'leader');
+  const starts = list<LabKindId>('start', STARTS, observer ? 'breakaway' : 'leader');
   const nSeeds = Math.max(1, Number(arg('seeds', '20')));
   const workers = Math.max(1, Number(arg('workers', '8')));
   const noCache = flag('no-cache') >= 0;

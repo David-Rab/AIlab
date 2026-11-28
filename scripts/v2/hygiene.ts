@@ -13,7 +13,7 @@ import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue } from '../../src/engine/v2/core/time';
 import { gV0 } from '../../src/engine/v2/models/capability';
-import { START_BY_ID } from '../../src/data/v2/starts';
+import { kindOf, positionOf } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
@@ -169,15 +169,17 @@ const setups: SetupV2[] = [
   defaultSetupV2({ seed: 5, world: 'tl-fast', tutorial: false }),
   defaultSetupV2({ seed: 6 }), // the default cast
   defaultSetupV2({ seed: 7, world: 'tl-fast' }),
-  // R9: every start type (the leader lab follows the start, D1).
-  defaultSetupV2({ seed: 12, start: 'challenger' }),
-  defaultSetupV2({ seed: 13, start: 'bigtech', world: 'tl-central', alignment: 'sampled' }),
-  defaultSetupV2({ seed: 14, start: 'spinout' }),
+  // Every lab kind (the NPC lab of the player's kind is replaced, CORPORATE.md §6.2).
+  defaultSetupV2({ seed: 12, labKind: 'safety' }),
+  defaultSetupV2({ seed: 13, labKind: 'bigtech', world: 'tl-central', alignment: 'sampled' }),
+  defaultSetupV2({ seed: 14, labKind: 'breakaway' }),
+  defaultSetupV2({ seed: 15, labKind: 'racer' }),
+  defaultSetupV2({ seed: 16, labKind: 'newcomer' }),
 ];
 for (const setup of setups) {
   const s = newGame(setup);
   const errs = validateJson(s);
-  const tag = `newGame ${setup.start}/${setup.world}/${setup.alignment}`;
+  const tag = `newGame ${setup.labKind}/${setup.world}/${setup.alignment}`;
   const nRivals = s.rivals.length; // N10: the cast (setup.cast) sets the count
   check(errs.length === 0, `${tag}: plain JSON`, errs.slice(0, 3).join('; '));
   check(STREAMS.every((k) => typeof s.rng[k] === 'number' && s.rng[k] > 0), `${tag}: all RNG streams seeded`);
@@ -185,17 +187,18 @@ for (const setup of setups) {
   check(AGENDA_IDS.every((a) => s.player.safety.agendas[a]) && AGENDA_IDS.every((a) => s.hidden.agendaEfficacy[a] >= 0 && s.hidden.agendaEfficacy[a] <= 1), `${tag}: agendas + efficacy`);
   const v0 = s.player.models.versions[0];
   check(TRAIT_IDS.every((t) => v0.traitsTrue[t] !== undefined && v0.beliefs[t] && v0.masks[t]), `${tag}: V0 traits/beliefs/masks`);
-  const def = START_BY_ID[setup.start];
+  const def = positionOf(s);
+  const kind = kindOf(s);
   const division = ownerFunded(s);
   check(s.player.computeOnline > 0 && s.player.finance.cash > 0 && (division ? s.player.finance.valuation === 0 : s.player.finance.valuation > 0), `${tag}: finance/compute start`, `cash ${s.player.finance.cash} V ${s.player.finance.valuation.toFixed(0)} C ${s.player.computeOnline}`);
-  if (setup.start !== 'leader') {
-    // R9 start data: teams, owned/rented compute, known nodes, products and features, charter, lag.
+  if (def.id !== 'frontier') {
+    // Position data: teams, owned/rented compute, known nodes, products and features; the kind's charter; lag.
     const ref = gV0(s.hidden.timeline);
     const nTeams = Object.values(def.teams).reduce((a, b) => a + b, 0);
     check(s.player.teams.length === nTeams && Math.abs(ownedOnline(s) - def.owned) < 1 && Math.abs(rentedOnline(s) - def.rented) < 1, `${tag}: teams and compute owned / rented`, `${s.player.teams.length} teams, ${ownedOnline(s)} / ${rentedOnline(s)}`);
     check(def.known.every((id) => nodeKnown(s, id)) && def.features.every((f) => s.player.features.includes(f)), `${tag}: known nodes and built features`);
     const prods = s.player.deployments.filter((d) => d.channel !== 'internal').map((d) => d.channel).join(',');
-    check(prods === def.products.map((x) => x.channel).join(',') && s.player.charter.missionBody === !!def.charter.missionBody && s.player.charter.profitCap === !!def.charter.profitCap, `${tag}: products and charter`, `${prods} · ${JSON.stringify(s.player.charter)}`);
+    check(prods === def.products.map((x) => x.channel).join(',') && s.player.charter.missionBody === !!kind.charter.missionBody && s.player.charter.profitCap === !!kind.charter.profitCap, `${tag}: products and charter`, `${prods} · ${JSON.stringify(s.player.charter)}`);
     const v = s.player.models.versions[0];
     check(v.G < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `G ${v.G.toFixed(3)} < ${ref.toFixed(3)}`);
   }

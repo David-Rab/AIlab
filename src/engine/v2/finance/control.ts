@@ -1,7 +1,7 @@
 // Control: holders, share classes, votes, the controller, the board's seats and the structure label
 // (design/corp/CORPORATE.md §2–§3). Pure functions of the cap table and the charter; nothing here is stored. The board's
 // seats (boardSeats), the override, the charter's powers and investor appeal all read these.
-import type { StartDef } from '../../../data/v2/starts';
+import type { LabKindDef } from '../../../data/v2/starts';
 import type { BoardSeat, Charter, FinanceState, GameStateV2 } from '../types';
 
 type Vec4 = [number, number, number, number];
@@ -20,7 +20,7 @@ export const SEAT_STANCE: Record<BoardSeat['kind'], Vec4> = {
 export const PARENT_STANCE: Vec4 = [0.5, 1, 0.2, 0];
 
 /** What the control rules read: the cap table, the share classes and the charter. A game state is one; so is a start's
- *  definition (startControl), which the setup screen labels before a game exists. */
+ *  definition (startControl on a lab kind), which the setup screen labels before a game exists. */
 export interface ControlView { player: { finance: Pick<FinanceState, 'ownership' | 'dualClass' | 'stratVoting'>; charter: Charter } }
 
 export type ShareClass = 'common' | 'superVoting' | 'nonVoting' | 'mission' | 'state';
@@ -136,11 +136,11 @@ export function appealOf(c: { missionBody?: boolean; profitCap?: boolean; dualCl
 
 export const investorAppeal = (s: ControlView): number => appealOf({ ...s.player.charter, dualClass: s.player.finance.dualClass });
 
-/** The charter a start begins with (StartDef.charter). */
-export const startCharter = (def: StartDef): Charter => ({ missionBody: !!def.charter.missionBody, profitCap: !!def.charter.profitCap, goldenShare: false, stateControl: false });
+/** The charter a start begins with (LabKindDef.charter). */
+export const startCharter = (def: LabKindDef): Charter => ({ missionBody: !!def.charter.missionBody, profitCap: !!def.charter.profitCap, goldenShare: false, stateControl: false });
 
-/** A start's cap table and charter as the control rules read them (the setup screen's label, the start builders). */
-export const startControl = (def: StartDef): ControlView => ({
+/** A lab kind's cap table and charter as the control rules read them (the setup screen's label, the start builders). */
+export const startControl = (def: LabKindDef): ControlView => ({
   player: {
     finance: { ownership: { founder: def.ownership.founder, mission: def.ownership.mission ?? 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 }, ...(def.ownership.stratVoting ? { stratVoting: { ...def.ownership.stratVoting } } : {}) },
     charter: startCharter(def),

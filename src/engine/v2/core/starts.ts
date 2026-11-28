@@ -1,11 +1,11 @@
 // Start-state builders for the non-leader start types (BUILD-PLAN R9; data/v2/starts.ts). Owner: WS1 (composes WS3's
 // finance and compute shapes the way their initialisers do). The frontier-leader start never comes here: buildPlayer
 // keeps the owners' initialisers (initialFinance, initialSites, initialCloud, initialOrders) for it.
-import { parentBudgetYear, type StartDef } from '../../../data/v2/starts';
+import { parentBudgetYear, type LabKindDef, type PositionDef } from '../../../data/v2/starts';
 import { ownerFunded, startControl } from '../finance/control';
 import { defaultFinanceWS3 } from '../finance/ext';
-import { START_CREDIBILITY } from '../finance/promises';
-import { partnerDef, RENT } from '../../../data/v2/deals';
+import { legacyDealsOf } from '../finance/ledger';
+import { RENT } from '../../../data/v2/deals';
 import type { CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
 
@@ -19,19 +19,16 @@ const SITE_HEADROOM = 1.2;
 const GRID_CAPEX_PER_GW = 14.2;
 const SITE_MAX_MW = 1000;
 
-/** Cloud provider of a start's rented compute (the challenger's strategic investor; a neocloud for a spinout). */
-const PROVIDER: Partial<Record<StartDef['id'], string>> = { spinout: 'Vantage Neocloud', challenger: 'Azimuth' };
-
 export interface StartCompute { sites: Site[]; cloud: CloudContract[]; ledger: Commitment$[] }
 
 /** Owned compute in live sites, rented compute as one cloud contract, and their ledger payments. A division's
  *  campuses are the parent's (capex paid, no rent); a challenger's owned racks sit in a rented hall. */
-export function startCompute(def: StartDef, startDate: string): StartCompute {
+export function startCompute(def: PositionDef, kind: LabKindDef, startDate: string): StartCompute {
   const sites: Site[] = [];
   const ledger: Commitment$[] = [];
   const base = { crash: false, communityPackage: false, spvFunded: 0, stage: 'live' as const, stageEndDay: 0 };
   if (def.owned > 0) {
-    const parent = ownerFunded(startControl(def));
+    const parent = ownerFunded(startControl(kind));
     const campuses = parent ? 2 : 1;
     const startDay = -500;
     for (let i = 0; i < campuses; i++) {
@@ -54,8 +51,8 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
   }
   const cloud: CloudContract[] = [];
   if (def.rented > 0) {
-    const provider = PROVIDER[def.id] ?? 'Northwind Cloud';
-    const end = dayOfDate(startDate, def.id === 'spinout' ? '2027-07-01' : '2028-07-01');
+    const provider = def.provider;
+    const end = dayOfDate(startDate, def.cloudEnd);
     const perYear = (def.rented * CLOUD_PER_H) / 1e9;
     cloud.push({ id: 'C1', provider, h100e: def.rented, costPerYear: perYear, startDay: -365, endDay: end, cancellableNoticeQ: null });
     ledger.unshift({ id: 'L-cloud0', payee: provider, kind: 'cloud', perQuarter: perYear / 4, endDay: end, cancellableNoticeQ: null, penalty: 0 });
@@ -66,8 +63,8 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
 /** Finance at a non-leader start: cash, revenue, ownership, a credit line (none for a division: the parent's treasury
  *  borrows), the start compute's ledger. The valuation is marked from the story split once the rivals exist, and the
  *  line sized as banks size it, 3% of it, cap $15B (finance/story.ts startStory, FIN5a). */
-export function startFinance(def: StartDef, c: StartCompute): FinanceState {
-  const division = ownerFunded(startControl(def));
+export function startFinance(def: PositionDef, kind: LabKindDef, c: StartCompute): FinanceState {
+  const division = ownerFunded(startControl(kind));
   // A division's first quarterly budget payment (Q3 2025) is in the starting cash (finance/parent.ts).
   const cash = def.cash + (division ? parentBudgetYear(0) / 4 : 0);
   const f: FinanceState = {
@@ -75,9 +72,9 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     revenueRun: def.revenueRun,
     revenueHistory: [...def.revenueHistory],
     valuation: 0,
-    ownership: { founder: def.ownership.founder, mission: def.ownership.mission ?? 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
-    ...(def.ownership.stratVoting ? { stratVoting: { ...def.ownership.stratVoting } } : {}),
-    credibility: START_CREDIBILITY[def.id],
+    ownership: { founder: kind.ownership.founder, mission: kind.ownership.mission ?? 0, fin: kind.ownership.fin, strat: { ...(kind.ownership.strat ?? {}) }, public: 0 },
+    ...(kind.ownership.stratVoting ? { stratVoting: { ...kind.ownership.stratVoting } } : {}),
+    credibility: def.credibility,
     promises: [],
     rounds: [],
     tranches: [],
@@ -86,9 +83,9 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     rating: division ? 'BBB' : def.revenueRun > 0 ? 'BB' : 'B',
     runwayQ: 8,
     state: 'healthy',
-    // The challenger's strategic investor (an Amazon/Google-like stake from before the start): a holder with no running
-    // terms and no board seat (hyperscaler stakes are non-voting and seatless [R21 B2]). A division's owner is no deal.
-    deals: Object.keys(def.ownership.strat ?? {}).filter((p) => !def.ownership.stratVoting?.[p]).map((partner, i) => ({ id: `DL-start${i}`, partner, kind: partnerDef(partner)?.kind ?? 'hyperscaler', day: -400, equityNow: 0, equityLater: 0, strings: {}, until: -400, legacy: true })),
+    // The kind's legacy partner stakes (a hyperscaler's, from before the start): holders with no running terms and no board
+    // seat. A division's voting owner is no deal.
+    deals: legacyDealsOf(kind),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;

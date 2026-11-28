@@ -17,7 +17,7 @@ import { idleTrainingShare } from '../../src/engine/v2/models/runs';
 import { expPoolH100e } from '../../src/engine/v2/models/research';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { IDLE_ALERT, navBadges, watchItems } from '../../src/ui/v2/shell/watch';
-import type { BotPolicy, GameStateV2, StartType } from '../../src/engine/v2/types';
+import type { BotPolicy, GameStateV2, LabKindId } from '../../src/engine/v2/types';
 
 const arg = (k: string, d: string) => {
   const i = process.argv.indexOf(`--${k}`);
@@ -27,7 +27,7 @@ const SEEDS = Number(arg('seeds', '2'));
 const DAYS = Number(arg('days', '1100'));
 const IDLE_DAYS = 30;
 const BOTS: Record<string, BotPolicy> = { ref: refBot, mixed: mixedBot, safe: safeBot, race: raceBot };
-const STARTS: StartType[] = ['leader', 'challenger'];
+const KINDS: LabKindId[] = ['leader', 'safety'];
 
 let fails = 0;
 const ok = (name: string, cond: boolean, detail = '') => {
@@ -52,7 +52,7 @@ const misses: string[] = [];
 let samples = 0;
 let spareChecked = 0;
 let spareLost = 0;
-for (const start of STARTS) {
+for (const start of KINDS) {
   for (const [name, bot] of Object.entries(BOTS)) {
     for (let k = 0; k < SEEDS; k++) {
       const seed = 9100 + k;

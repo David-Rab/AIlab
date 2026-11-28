@@ -24,7 +24,7 @@ import { H50_V0_MIN, H80_OVER_H50 } from '../../src/data/v2/workTypes';
 import { cashFloorStub, refComputeStub } from './lib';
 import { matchedSpeedup } from './matched';
 import type { PolicyId } from './policies';
-import type { AlignDiffId, BotPolicy, GameStateV2, StartType, TeamKey, TeamRole, TickOptions, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, BotPolicy, GameStateV2, LabKindId, TeamKey, TeamRole, TickOptions, WorldPresetId } from '../../src/engine/v2/types';
 
 /** The named bot policies. */
 /** 'refwide' (Stage 1): RefBot's settings plus the research ideas the rival labs pursue (balance/scans/refbot-a.json, set research-rivals-all). */
@@ -35,8 +35,8 @@ const POLICIES = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex
 export const ALL: Record<string, BotPolicy> = POLICIES;
 
 /** A fresh bot game: Realistic actors, no tutorial. */
-export function newBotGame(seed: number, combo: { world: WorldPresetId; alignment: AlignDiffId }, start: StartType): GameStateV2 {
-  return newGame(defaultSetupV2({ seed, ...combo, tutorial: false, start }));
+export function newBotGame(seed: number, combo: { world: WorldPresetId; alignment: AlignDiffId }, start: LabKindId): GameStateV2 {
+  return newGame(defaultSetupV2({ seed, ...combo, tutorial: false, labKind: start }));
 }
 
 /** Play one game with a bot until it ends (the endings system caps it at 2050-12-31). `onTick` (optional) sees the state after every tick. */

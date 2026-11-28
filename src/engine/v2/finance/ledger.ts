@@ -3,16 +3,23 @@ import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
 import { defaultFinanceWS3, yearStats } from './ext';
 import { RENT } from '../../../data/v2/deals';
-import { START_CREDIBILITY } from './promises';
-import { START_BY_ID } from '../../../data/v2/starts';
 
-/** Player finance at Jul 2025 (§3.7.2): the leader start's row (data/v2/starts.ts). */
-export function initialFinance(startDate: string): FinanceState {
-  const { cash, revenueRun, revenueHistory, ownership: o, charter } = START_BY_ID.leader;
-  const cloudEnd = dayOfDate(startDate, '2028-07-01');
+import { POSITION_BY_ID, type LabKindDef } from '../../../data/v2/starts';
+import { partnerDef } from '../../../data/v2/deals';
+
+/** The partner stakes a lab kind holds from before the start: holders with no running terms and no board seat (hyperscaler
+ *  stakes are non-voting and seatless [R21 B2]; a division's voting owner is no deal). */
+export const legacyDealsOf = (kind: LabKindDef): FinanceState['deals'] => (kind.legacyDeals ?? []).map((d) => ({ id: d.id, partner: d.partner, kind: partnerDef(d.partner)?.kind ?? 'hyperscaler', day: d.day, equityNow: 0, equityLater: 0, strings: {}, until: d.day, legacy: true }));
+
+/** Player finance at Jul 2025 (§3.7.2): the frontier position's row (cash, revenue, credibility) with the lab kind's cap
+ *  table, charter and partner stakes (data/v2/starts.ts). */
+export function initialFinance(startDate: string, kind: LabKindDef): FinanceState {
+  const { cash, revenueRun, revenueHistory, credibility, provider, cloudEnd: cloudEndDate } = POSITION_BY_ID.frontier;
+  const { ownership: o, charter } = kind;
+  const cloudEnd = dayOfDate(startDate, cloudEndDate);
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
-    { id: 'L-cloud0', payee: 'Northwind Cloud', kind: 'cloud', perQuarter: 2.275, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
+    { id: 'L-cloud0', payee: provider, kind: 'cloud', perQuarter: 2.275, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
     // S1 Abilene North is a rented hall: 0.3 GW at the rent price (DC-TASKS [D-12]).
     { id: 'L-rent-S1', payee: 'Data-centre rent', kind: 'lease', perQuarter: (0.3 * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 },
   ];
@@ -22,7 +29,8 @@ export function initialFinance(startDate: string): FinanceState {
     revenueHistory: [...revenueHistory],
     valuation: 0, // FIN5a: marked from the story split once the rivals exist (startStory in newGame)
     ownership: { founder: o.founder, mission: o.mission ?? 0, fin: o.fin, strat: { ...(o.strat ?? {}) }, public: 0 },
-    credibility: START_CREDIBILITY.leader,
+    ...(o.stratVoting ? { stratVoting: { ...o.stratVoting } } : {}),
+    credibility,
     promises: [],
     rounds: [],
     // A profit cap: SoftBank-style $30B growth tranche conditional on lifting it (cut to $10B if refused) [R15 §1.6].
@@ -34,10 +42,10 @@ export function initialFinance(startDate: string): FinanceState {
     rating: 'BB',
     runwayQ: 8,
     state: 'healthy',
-    // The legacy Northwind stake (Microsoft-like, ~27%), a holder from before the start: no exclusivity after the 2025
+    // The kind's legacy partner stakes (the leader's Northwind: Microsoft-like, ~27%, no exclusivity after the 2025
     // renegotiation [R15], no board seat (Microsoft gave up its observer seat in Jul 2024 [R21 B3]); its cloud contract is
     // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a).
-    deals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', kind: 'hyperscaler', day: -2000, equityNow: 0, equityLater: 0, strings: {}, until: -2000, legacy: true }],
+    deals: legacyDealsOf(kind),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = 0.5e6 * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]

@@ -6,6 +6,7 @@
 //   internal model G = G_ref(t − d);  public model = the internal one a release lag ago, refreshed every
 //   RELEASE_CADENCE_DAYS (the labs' release days staggered by cast order).
 // The outward contract (Appendix A: core, internal, publicModel, lineup, tools, finance, ...) is kept.
+import { kindOf } from '../../../data/v2/starts';
 import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS, type NpcCastEntry, type NpcKindId, type Personality } from '../../../data/v2/npcLabs';
 import { DIFFUSION_TAU_DAYS } from '../../../data/v2/calibration';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
@@ -234,9 +235,9 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   return lab;
 }
 
-/** The US NPC labs of the Realistic cast for a game: every cast entry but China's, without the leader-kind lab when the
- *  player starts as the frontier leader (the player takes its place). */
-export const usCast = (start: string | undefined) => REALISTIC_CAST.filter((e) => e.kind !== 'china' && !(e.kind === 'leader' && (start ?? 'leader') === 'leader'));
+/** The US NPC labs of the Realistic cast for a game: every cast entry but China's, without the NPC lab the player's kind
+ *  replaces (LabKindDef.replacesNpc: the player takes its place; a custom kind replaces none). */
+export const usCast = (replaces: NpcKindId | undefined) => REALISTIC_CAST.filter((e) => e.kind !== 'china' && e.kind !== replaces);
 
 /** Roman suffix of the n-th lab of a kind (n >= 2): "II", "III", ... */
 const ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI'];
@@ -247,14 +248,14 @@ export interface CastLab { e: NpcCastEntry; p?: Personality }
  *  item: the kind's cast entry (compute, money, tools, staff: one typical start per kind) with the item's start lag, and
  *  the item's overrides on the kind's seven values. Names: the first lab of a kind keeps the kind's invented name and
  *  family; the n-th later one adds a Roman numeral ("Lanternworks II" / "Ouvril II", id "lanternworks2"). The
- *  leader-kind lab is left out when the player starts as the frontier leader (the player takes its place). */
-export function castOf(setup: Pick<SetupV2, 'cast' | 'start'>): CastLab[] {
-  const start = setup.start ?? 'leader';
-  if (!setup.cast || setup.cast === 'realistic') return usCast(start).map((e) => ({ e }));
+ *  NPC lab of the player's kind is left out (the player takes its place). */
+export function castOf(setup: Pick<SetupV2, 'cast' | 'labKind' | 'custom'>): CastLab[] {
+  const replaces = kindOf({ setup }).replacesNpc;
+  if (!setup.cast || setup.cast === 'realistic') return usCast(replaces).map((e) => ({ e }));
   const seen: Partial<Record<NpcKindId, number>> = {};
   const out: CastLab[] = [];
   for (const c of setup.cast) {
-    if (c.kind === 'china' || (c.kind === 'leader' && start === 'leader')) continue;
+    if (c.kind === 'china' || c.kind === replaces) continue;
     const base = REALISTIC_CAST.find((x) => x.kind === c.kind)!;
     const nth = (seen[c.kind] = (seen[c.kind] ?? 0) + 1);
     const m = Math.max(0, Math.min(36, c.lagMonths));

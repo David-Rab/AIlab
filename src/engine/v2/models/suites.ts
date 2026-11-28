@@ -21,17 +21,18 @@
 //   upkeep          every suite keeps engineers busy (build.ts upkeepLines, the 'upkeep' need); short of it, it decays
 // A post-training run freezes its suites' fidelity and exploitability at launch (TrainingRun.recipe), like its RL recipe.
 import {
-  DEMO_BUILD, EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_PER_EXPLOIT, START_EXPLOIT_MULT, START_TASKS,
+  DEMO_BUILD, EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_PER_EXPLOIT, START_TASKS,
   SUITE_BUILD, SUITE_DECAY, SUITE_HARDEN, SUITE_UPKEEP, TASK_TOKENS_T,
 } from '../../../data/v2/suites';
 import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
 import { RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
+import { POSITION_BY_ID, positionOf, type PositionDef } from '../../../data/v2/starts';
 import { rlWeights, type FamilyMap } from './effective';
 import { nodeKnown } from './tree';
 import { aiOversight } from '../safety/ideas';
 import { queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
-import type { ActionDef, CostLine, DomainId, EnvSuite, GameStateV2, OwnedDataAsset, PostDesign, RLFamily, StartType, SystemCtx } from '../types';
+import type { ActionDef, CostLine, DomainId, EnvSuite, GameStateV2, OwnedDataAsset, PostDesign, RLFamily, SystemCtx } from '../types';
 
 export type SuiteWork = 'build' | 'harden';
 
@@ -40,13 +41,14 @@ export const START_SUITE_FAMILIES: RLFamily[] = RL_FAMILY_IDS.filter((f) => !RL_
 /** A family's environments can exist: no paradigm needed, or the paradigm is known (computer use: P06). */
 export const familyUnlocked = (s: GameStateV2, f: RLFamily) => !RL_FAMILY_NEEDS[f] || nodeKnown(s, RL_FAMILY_NEEDS[f] as string);
 
-const startMult = (s: Pick<GameStateV2, 'setup'>) => START_EXPLOIT_MULT[(s.setup.start ?? 'leader') as StartType] ?? 1;
+/** The start suites' exploitability multiplier of the player's position (data/v2/starts.ts exploitMult). */
+const startMult = (s: Pick<GameStateV2, 'setup'>) => positionOf(s).exploitMult;
 const startExploit = (f: RLFamily, mult: number) => Math.min(1, EXPLOIT_START[f] * mult);
 const startSuite = (f: RLFamily, mult: number, tasks = START_TASKS): EnvSuite => ({ exploit: startExploit(f, mult), tasks, builds: 0, hardenings: 0 });
 
-/** Start suites of a start type: the six start families, start exploitability × the start type's multiplier. */
-export function startSuites(start: StartType = 'leader'): Partial<Record<RLFamily, EnvSuite>> {
-  const m = START_EXPLOIT_MULT[start] ?? 1;
+/** Start suites of a start position: the six start families, start exploitability × the position's multiplier. */
+export function startSuites(position: Pick<PositionDef, 'exploitMult'> = POSITION_BY_ID.frontier): Partial<Record<RLFamily, EnvSuite>> {
+  const m = position.exploitMult;
   return Object.fromEntries(START_SUITE_FAMILIES.map((f) => [f, startSuite(f, m)])) as Partial<Record<RLFamily, EnvSuite>>;
 }
 

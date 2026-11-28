@@ -22,7 +22,7 @@ let fails = 0;
 const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e * Math.max(1, Math.abs(b));
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
-const fresh = () => newGame(defaultSetupV2({ world: 'tl-central', start: 'leader', seed: 7, tutorial: false }));
+const fresh = () => newGame(defaultSetupV2({ world: 'tl-central', labKind: 'leader', seed: 7, tutorial: false }));
 const labsOf = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab].filter((r) => r.core.status === 'active');
 const dOf = (s: GameStateV2) => new Map(labsOf(s).map((r) => [r.core.id, r.npc!.d]));
 const y0 = (s: GameStateV2) => decimalYear(s);

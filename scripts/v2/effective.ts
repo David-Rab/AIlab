@@ -12,7 +12,7 @@ import {
   REF_RL_PROFILE, continueGPre, distillGap, effectiveTokens, fData, fOver, flopOfDesign, rlCeiling, rlFamiliesAvailable, rlGains, rlWeights, trainFlop,
 } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
-import { START_BY_ID } from '../../src/data/v2/starts';
+import { positionOf } from '../../src/data/v2/starts';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 import { check, finish, runTo } from './lib';
 
@@ -85,9 +85,9 @@ check(near(gV0(w0), 28.0 - 0.307, 0.1) && near(gOfBuild(V0.build!), gV0(w0), 1e-
 check(V0.G === gOfBuild(V0.build!), 'start: G(V0) is its build\'s G (the reference start)');
 const v0Off = Object.fromEntries(DOMAIN_IDS.map((d) => [d, V0.domains[d] - Math.min(15, Math.max(0, levelOfG(w0, V0.G - domainRefShift(w0, d))))]));
 check(Object.values(v0Off).every((x) => Math.abs(x) < 0.25), 'start: the reference recipe reproduces the reference-point domain profile (|L_d − λ(G − shift_d)| < 0.25 L, RD-U05)', JSON.stringify(Object.fromEntries(Object.entries(v0Off).map(([k, v]) => [k, +v.toFixed(2)]))));
-for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
-  const t = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
-  const want = gV0(t.hidden.timeline) - (START_BY_ID[start].lagMonths / 12) * PRE_GAME_G_PER_YEAR;
+for (const start of ['safety', 'bigtech', 'breakaway'] as const) {
+  const t = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind: start, tutorial: false }));
+  const want = gV0(t.hidden.timeline) - (positionOf(t).lagMonths / 12) * PRE_GAME_G_PER_YEAR;
   check(near(t.player.models.versions[0].G, want, 1e-6), `start: ${start} V0 lags by its start lag (G ${want.toFixed(3)})`, t.player.models.versions[0].G.toFixed(4));
 }
 
