@@ -9,18 +9,18 @@
 //   without the cap a lab whose revenue collapsed kept a few percent of a sector the leader's revenue built (FIN5a: ≈ 54×
 //   run-rate for trailing labs, 80–190× for dead ones in 2027). The cap is shown on the Story card's lab bars.
 // - Credibility (one rule, from whether it keeps growing): revenue up over four quarters (or pre-revenue) Credible ×1,
-//   down Unproven ×0.9, halved Doubted ×0.7. Governance by kind (the player's GOV_FACTOR table).
+//   down Unproven ×0.9, halved Doubted ×0.7. Governance by kind: the charter appeal of its kind's charter (control.ts).
 // - Money is display (N8b): revenue (the market's) and valuation (the story) are shown and feed the sector story; an
 //   NPC lab keeps no cash flow, raises nothing and never runs out of money. It fails only through the bust (below).
 // - Exit: a private lab the bust pushed into distress, still there a quarter later (E32 offers it to you first), is license-and-hired by
 //   the largest big-tech rival (team, licence and compute to the buyer; its investors get about 1.25× their money back,
 //   R21 C1–C5); it goes bankrupt only when no big-tech rival exists.
-import { GOV_FACTOR } from '../../../data/v2/deals';
 import { deactivateRival } from '../actors/rivals';
 import { absorb } from '../npc/shocks';
 import { request } from '../events/request';
 import { persOf } from '../npc/lab';
 import type { GameStateV2, Money, RivalLab, SystemCtx } from '../types';
+import { appealOf } from './control';
 import { revenueRun } from './observe';
 import { growthOf, privateRivals, STORY, type StoryNow } from './story';
 
@@ -44,11 +44,13 @@ export const RIVAL = {
   overhead: 0.4,
 } as const;
 
-/** Board preset whose governance factor a private rival carries [D]: the safety lab is a PBC with a trust (Anthropic),
- *  the racer and the boutique upstart are founder-controlled (xAI, SSI / Thinking Machines), the simulated leader
- *  lab a nonprofit-controlled PBC (OpenAI after its Oct 2025 recapitalisation). */
-export const RIVAL_GOV: Record<string, keyof typeof GOV_FACTOR> = { safety: 'pbcTrust', racer: 'founder', upstart: 'founder', leader: 'nonprofitPBC' };
-export const rivalGov = (r: RivalLab): number => GOV_FACTOR[RIVAL_GOV[r.npc.kind] ?? 'pbcTrust'];
+/** The charter a private rival carries, by kind [D]: the safety lab has a mission body (Anthropic's trust), so does the
+ *  simulated leader lab (OpenAI after its Oct 2025 recapitalisation: the profit cap lifted, the foundation in control);
+ *  the racer and the boutique upstart are founder-led (xAI, SSI / Thinking Machines). */
+export const RIVAL_CHARTER: Record<string, { missionBody?: boolean; profitCap?: boolean }> = { safety: { missionBody: true }, leader: { missionBody: true }, racer: {}, upstart: {} };
+export const rivalGov = (r: RivalLab): number => appealOf(RIVAL_CHARTER[r.npc.kind] ?? {});
+/** A rival's structure label (the Story card): its kind's charter, or a big-tech division. */
+export const rivalStructure = (kind: string): string => (kind === 'bigtech' ? 'Division' : RIVAL_CHARTER[kind]?.missionBody ? 'Mission-controlled' : 'Founder-led');
 
 /** A rival's credibility rung from its revenue growth over four quarters (one rule). */
 export function rivalCred(s: GameStateV2, r: RivalLab): { id: 'Credible' | 'Unproven' | 'Doubted'; mult: number; growth: number } {

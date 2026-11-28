@@ -1,28 +1,29 @@
-// Charter rights (FINANCE-V3 §7.2, FIN3b): the few hard rights a governance preset gives its board, each visible before
-// you act. Owner: WS3. Finance reaches the rest of the game only through cash, this release block and the ouster
-// (spec §0.3): the deployment gate (models/deployments.ts) asks `charterReleaseBlock` before any external release.
+// Charter rights (FINANCE-V3 §7.2, FIN3b; design/corp/CORPORATE.md §2.3): the few hard powers on a class's seats, each
+// visible before you act. Owner: WS3. Finance reaches the rest of the game only through cash, this release block and
+// the ouster (spec §0.3): the deployment gate (models/deployments.ts) asks `charterReleaseBlock` before any external
+// release.
 //
-// | Right                                            | Preset            | Where it bites                                 |
-// |--------------------------------------------------|-------------------|------------------------------------------------|
-// | Safety committee halts a red-flagged release     | nonprofit PBC     | every external launch or model swap            |
-// | Trust approval: sale of control, threshold model | PBC + trust       | a deal past 50%; open weights; IP access        |
-// | Founder super-voting forces a major decision      | founder, dual-class | board votes (board.ts voteGate)               |
-// | Nonprofit board removes the CEO more easily       | legacy nonprofit  | the ouster vote's reluctance ×0.5 (board.ts)    |
+// | Power                                            | Who holds it (control.ts)  | Where it bites                          |
+// |--------------------------------------------------|----------------------------|-----------------------------------------|
+// | Safety committee halts a red-flagged release     | a mission body             | every external launch or model swap     |
+// | Trust approval: sale of control, threshold model | a mission body             | a deal past 50%; open weights; IP access |
+// | Override forces a major decision                 | a holder with > 50% of votes | board votes (board.ts voteGate)       |
+// | Security approval (can't be forced)              | golden share, state control | threshold models (open weights, IP)    |
 import type { BoardVote, Channel, GameStateV2, ModelVersion } from '../types';
-import { boardVote, founderControl, OUSTER, trustVote } from './board';
+import { boardVote, securityVote, trustVote } from './board';
+import { missionPowers, overrideAvailable, securityPowers } from './control';
 import { capabilityThresholds, licensedModel, safetyRedFlags } from './observe';
 
-export type CharterRightId = 'safetyCommittee' | 'trust' | 'founderControl' | 'nonprofitRemoval';
+export type CharterRightId = 'safetyCommittee' | 'trust' | 'override' | 'security';
 export interface CharterRight { id: CharterRightId; label: string; /** What it blocks, in 2–4 words (the Board card row). */ short: string; blocks: string; source: string }
 
-/** The charter rights this company's governance gives its board now (Board card). */
+/** The powers on this company's board now (Board card). */
 export function charterRights(s: GameStateV2): CharterRight[] {
-  const b = s.player.board;
   const out: CharterRight[] = [];
-  if (b.safetyCommitteeVeto) out.push({ id: 'safetyCommittee', label: 'Safety committee', short: 'halts red-flagged releases', blocks: `Halts the release of any model your own safety evals red-flag: scheming, alignment faking or sandbagging believed above ${Math.round(COMMITTEE_EST * 100)}%`, source: 'Delaware AG conditions, Oct 2025 [R15]' });
-  if (b.preset === 'pbcTrust') out.push({ id: 'trust', label: 'Trust approval', short: 'sale of control · open weights · IP access', blocks: "The trust votes on any sale of control (a holder past 50%) and on handing out a capability-threshold model (bio, cyber or replication flag): releasing its weights, or a partner's IP access to it (without its yes, a rescue's licence stops below the thresholds)", source: 'Anthropic LTBT charter [R15]' });
-  if (founderControl(s)) out.push({ id: 'founderControl', label: 'Founder control', short: 'force a failed vote', blocks: 'Lets you force a major decision the board votes down, at board confidence −20', source: s.player.finance.dualClass ? 'dual-class shares [R15]' : 'founder super-voting [R15]' });
-  if (b.preset === 'legacyNonprofit') out.push({ id: 'nonprofitRemoval', label: 'Nonprofit removal', short: 'ouster ×2 as easy', blocks: `The nonprofit board removes a CEO more easily: half the usual reluctance in an ouster vote (×${OUSTER.legacyMult})`, source: 'Nov 2023 [R15]' });
+  if (missionPowers(s)) out.push({ id: 'safetyCommittee', label: 'Safety committee', short: 'halts red-flagged releases', blocks: `Halts the release of any model your own safety evals red-flag: scheming, alignment faking or sandbagging believed above ${Math.round(COMMITTEE_EST * 100)}%`, source: 'Delaware AG conditions, Oct 2025 [R15]' });
+  if (missionPowers(s)) out.push({ id: 'trust', label: 'Trust approval', short: 'sale of control · open weights · IP access', blocks: "The mission body's seats vote on any sale of control (a holder past 50%) and on handing out a capability-threshold model (bio, cyber or replication flag): releasing its weights, or a partner's IP access to it (without its yes, a rescue's licence stops below the thresholds)", source: 'Anthropic LTBT charter [R15]' });
+  if (overrideAvailable(s)) out.push({ id: 'override', label: 'Override', short: 'force a failed vote', blocks: 'Your founders hold more than half of the votes: you can force a major decision the board votes down, at board confidence −20', source: s.player.finance.dualClass ? 'dual-class shares [R15]' : 'a founder majority [R15]' });
+  if (securityPowers(s)) out.push({ id: 'security', label: 'Security approval', short: 'threshold models · foreign holders', blocks: "The government's directors approve handing out a capability-threshold model and any foreign or competitor holder gaining votes", source: 'design/corp/CORPORATE.md §2.3 [D]' });
   return out;
 }
 
@@ -34,57 +35,67 @@ const external = (c: Channel) => c !== 'internal';
  *  race bot's and almost none of the careful bots'; at 30% it held 70% of the reference bot's (FIN3b notes). */
 export const COMMITTEE_EST = 0.5;
 
-/** The trust's vote on releasing a capability-threshold model's weights (PBC + trust), or undefined if none is needed. */
-export function transferVote(s: GameStateV2, v: ModelVersion, channel: Channel): BoardVote | undefined {
-  if (s.player.board.preset !== 'pbcTrust' || channel !== 'open') return undefined;
-  const t = capabilityThresholds(v);
-  if (!t.length) return undefined;
-  return trustVote(s, 'transferModel', `${v.name} crossed ${t.join(', ')}: open weights hand it to everyone`);
+/** Handing out a capability-threshold model needs two bodies' approval where they exist: the mission body's seats (trust
+ *  approval) and the government's directors (security approval). Neither can be forced. This is the vote that stops it
+ *  (a failed one, the mission body's first), else the vote that passes; undefined when no body holds the power. */
+function approvals(s: GameStateV2, decision: 'transferModel', trigger: string): BoardVote | undefined {
+  const votes = [missionPowers(s) ? trustVote(s, decision, trigger) : undefined, securityPowers(s) ? securityVote(s, decision, trigger) : undefined].filter((x): x is BoardVote => !!x);
+  return votes.find((x) => !x.passes) ?? votes[0];
 }
 
-/** The trust's vote on IP access that would license a capability-threshold model (PBC + trust, FIN4b): a licence to a
- *  partner's lab (`to`) transfers the model as surely as open weights do. Undefined when no vote is needed (another
- *  preset, or the best model the licence would reach crosses no threshold). */
+/** The approval vote on releasing a capability-threshold model's weights, or undefined if none is needed. */
+export function transferVote(s: GameStateV2, v: ModelVersion, channel: Channel): BoardVote | undefined {
+  if (channel !== 'open') return undefined;
+  const t = capabilityThresholds(v);
+  if (!t.length) return undefined;
+  return approvals(s, 'transferModel', `${v.name} crossed ${t.join(', ')}: open weights hand it to everyone`);
+}
+
+/** The approval vote on IP access that would license a capability-threshold model (FIN4b): a licence to a partner's lab
+ *  (`to`) transfers the model as surely as open weights do. Undefined when no vote is needed (no body holds the power, or
+ *  the best model the licence would reach crosses no threshold). */
 export function ipTransferVote(s: GameStateV2, to: string): BoardVote | undefined {
-  if (s.player.board.preset !== 'pbcTrust') return undefined;
   const v = licensedModel(s);
   const t = v ? capabilityThresholds(v) : [];
   if (!v || !t.length) return undefined;
-  return trustVote(s, 'transferModel', `IP access licenses ${v.name} (${t.join(', ')}) to ${to}`);
+  return approvals(s, 'transferModel', `IP access licenses ${v.name} (${t.join(', ')}) to ${to}`);
 }
 
 /** Why the charter stops this release, or undefined (models/deployments.ts deployGate). Internal use is never a
  *  release. */
 export function charterReleaseBlock(s: GameStateV2, v: ModelVersion, channel: Channel): string | undefined {
   if (!external(channel)) return undefined;
-  if (s.player.board.safetyCommitteeVeto) {
+  if (missionPowers(s)) {
     const f = safetyRedFlags(v, COMMITTEE_EST);
     if (f.length) return `Safety committee halts the release: your evals red-flag ${v.name} (${f.map((x) => `${x.name.toLowerCase()} ${Math.round(x.est * 100)}%`).join(', ')}). It releases once every estimate is ${Math.round(COMMITTEE_EST * 100)}% or less (investigate, patch, retrain)`;
   }
   const tv = transferVote(s, v, channel);
-  if (tv && !tv.passes) return `The trust votes no on releasing ${v.name}'s weights, a capability-threshold model (${tv.yes} of ${tv.total} trust votes)`;
+  if (tv && !tv.passes) return `${tv.body === 'security' ? "The government's directors vote" : 'The mission body votes'} no on releasing ${v.name}'s weights, a capability-threshold model (${tv.yes} of ${tv.total} ${tv.body === 'security' ? 'security' : 'trust'} votes)`;
   return undefined;
 }
 
-/** The trust's vote on a sale of control (PBC + trust): when a deal would leave one holder above half the equity. */
-export function controlVote(s: GameStateV2, partner: string, stakeAfter: number): BoardVote | undefined {
-  if (s.player.board.preset !== 'pbcTrust' || stakeAfter <= 0.5) return undefined;
-  return trustVote(s, 'saleOfControl', `${partner} would hold ${Math.round(stakeAfter * 100)}% of the company`);
+const controlTrigger = (holder: string, votesAfter: number) => `${holder} would hold ${Math.round(votesAfter * 100)}% of all votes`;
+
+/** The mission body's vote on a sale of control: when a deal would leave one holder above half of all votes
+ *  (`votesAfter`, the votes it reaches: CORPORATE.md §4). */
+export function controlVote(s: GameStateV2, partner: string, votesAfter: number): BoardVote | undefined {
+  if (!missionPowers(s) || votesAfter <= 0.5) return undefined;
+  return trustVote(s, 'saleOfControl', controlTrigger(partner, votesAfter));
 }
 
-/** Every vote a sale of control needs (FIN3c), in the order they are held: under PBC + trust the trust's (it cannot be
- *  forced, so it goes first), then the board's own (spec §7.3). Empty when no holder would pass 50%. A deal, a rescue,
- *  or a lab bought with your stock (its holders as one block) can sell control; buying a lab for cash never does. */
-export function controlVotes(s: GameStateV2, holder: string, stakeAfter: number): BoardVote[] {
-  if (stakeAfter <= 0.5) return [];
-  const trigger = `${holder} would hold ${Math.round(stakeAfter * 100)}% of the company`;
-  return [controlVote(s, holder, stakeAfter), boardVote(s, 'saleOfControl', trigger)].filter((v): v is BoardVote => !!v);
+/** Every vote a sale of control needs (FIN3c), in the order they are held: under a mission body its seats' (it cannot
+ *  be forced, so it goes first), then the board's own (spec §7.3). Empty when the holder would not pass half of all
+ *  votes. A deal or rescue (judged once every tranche lands), or a lab bought with your stock (its holders as one
+ *  block), can sell control; buying a lab for cash never does. Only a voting stake can control. */
+export function controlVotes(s: GameStateV2, holder: string, votesAfter: number): BoardVote[] {
+  if (votesAfter <= 0.5) return [];
+  return [controlVote(s, holder, votesAfter), boardVote(s, 'saleOfControl', controlTrigger(holder, votesAfter))].filter((v): v is BoardVote => !!v);
 }
 
 /** Models the charter holds back now (Board card, Products link): versions ready to release that the safety committee
  *  would stop, with the reason. Only the newest few. */
 export function charterHolds(s: GameStateV2): { versionId: string; name: string; reason: string }[] {
-  if (!s.player.board.safetyCommitteeVeto) return [];
+  if (!missionPowers(s)) return [];
   const out: { versionId: string; name: string; reason: string }[] = [];
   for (const v of [...s.player.models.versions].reverse()) {
     if (v.status !== 'ready') continue;

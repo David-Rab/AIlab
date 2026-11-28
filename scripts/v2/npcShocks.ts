@@ -23,7 +23,7 @@ import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 import { SMOKE, check, finish } from './lib';
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e * Math.max(1, Math.abs(b));
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
-const fresh = () => newGame(defaultSetupV2({ world: 'tl-central', start: 'leader', seed: 7, tutorial: false }));
+const fresh = () => newGame(defaultSetupV2({ world: 'tl-central', labKind: 'leader', seed: 7, tutorial: false }));
 const labsOf = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab].filter((r) => r.core.status === 'active');
 const dOf = (s: GameStateV2) => new Map(labsOf(s).map((r) => [r.core.id, r.npc!.d]));
 const y0 = (s: GameStateV2) => decimalYear(s);

@@ -16,10 +16,13 @@ import { unemploymentChange12m } from '../worldfx/readouts';
 import { worldMix } from '../worldfx/mix';
 import { COND_LAWS, lawIdsInForce } from '../../../data/v2/laws';
 import { MILESTONES } from '../../../data/world';
+import { addWholeTeams, keyOf, roleOfKey } from '../departments/teams';
+import { TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
+import { leadDays } from '../actors/intel';
 import { hasCommitment } from '../actors/commitments';
 import { attention, frontier, govMilestones, incidentHeat, OBSERVE, publicMilestones, type MilestoneBoard, type PublicMilestone } from './observe';
 import { provokeChina } from './chinagov';
-import type { ActionDef, CondLawId, EngineSystem, GameStateV2, ModelVersion, SystemCtx, UsGovState } from '../types';
+import type { ActionDef, CondLawId, EngineSystem, GameStateV2, LabId, ModelVersion, SystemCtx, TeamKey, UsGovState } from '../types';
 
 /** The US government's constants. [D] designer stand-ins unless marked. Registered in balance/params/worldfx.ts. */
 export const USGOV = {
@@ -166,34 +169,89 @@ function reach(s: GameStateV2, ctx: SystemCtx, stage: 1 | 2 | 3 | 4) {
   ctx.headline(`usgovStage${stage}`, text);
 }
 
-/** The hard path: the player's lab is taken (the 'nationalized' ending). */
-function nationalize(s: GameStateV2, ctx: SystemCtx) {
+/** The labs the DPA reaches: the active US NPC labs (China's is not pooled). */
+const usLabs = (s: GameStateV2) => s.rivals.filter((r) => r.core.status === 'active' && r.core.id !== CHINA_ID);
+
+/** The staff E22 would pool [D]: USGOV.dpaShare of each US NPC lab's staff (the NPC labs track `staff.cap/saf`), split
+ *  across the player's team kinds in its current proportions and rounded to whole teams (100 / 50 / 20). `scale` is the
+ *  share of the pooled heads the rounded teams carry: the NPC labs lose exactly the heads that arrive as teams. */
+export function dpaStaffPlan(s: GameStateV2): { teams: Partial<Record<TeamKey, number>>; heads: number; scale: number } {
+  const pool = usLabs(s).reduce((a, r) => a + (r.core.staff.cap + r.core.staff.saf) * USGOV.dpaShare, 0);
+  const mine: Partial<Record<TeamKey, number>> = {};
+  let mineTotal = 0;
+  for (const t of s.player.teams) { mine[keyOf(t)] = (mine[keyOf(t)] ?? 0) + t.heads; mineTotal += t.heads; }
+  const teams: Partial<Record<TeamKey, number>> = {};
+  let heads = 0;
+  if (pool > 0 && mineTotal > 0) {
+    for (const k of TEAM_KEYS) {
+      const n = Math.round((pool * (mine[k] ?? 0)) / mineTotal / TEAM_SIZE[roleOfKey(k)]);
+      if (n > 0) { teams[k] = n; heads += n * TEAM_SIZE[roleOfKey(k)]; }
+    }
+  }
+  return { teams, heads, scale: pool > 0 ? Math.min(1, heads / pool) : 0 };
+}
+
+/** The lab a hard-path takeover folds the player into when it is behind: the frontier lab, or (if that is China's, which
+ *  the US government does not fold labs into) the US lab the player's estimate puts furthest ahead. */
+function nationalProjectLab(s: GameStateV2): LabId | undefined {
+  const f = frontier(s).lab;
+  if (f && f !== PLAYER_ID && f !== CHINA_ID) return f;
+  return usLabs(s).map((r) => r.core.id).sort((a, b) => leadDays(s, a).est - leadDays(s, b).est)[0];
+}
+
+/** Board confidence the board starts at once the government takes control: on probation [D, CORPORATE.md §4.3]. */
+export const STATE_CONTROL_CONFIDENCE = 40;
+
+/** The hard path (CORPORATE.md §4.3). While the player leads, the government takes the state-control class (⅔ of the
+ *  votes) and becomes the controller; confidence starts at 40, on probation, and the game goes on. When the player is
+ *  behind, its lab is folded into the national project under the leading lab (the 'absorbed' ending, endings.ts). */
+export function nationalize(s: GameStateV2, ctx: SystemCtx) {
   const g = s.usgov;
   if (g.stage < 4) reach(s, ctx, 4);
   g.consolidated = 'nationalized';
-  ctx.log('gov', 'The government takes control of your lab.', 5);
+  if (frontier(s).lab === PLAYER_ID) {
+    s.player.charter.stateControl = true;
+    s.player.charter.goldenShare = false; // the state-control class has its own seats; the golden share is the soft path's
+    ctx.bump('board.confidence', STATE_CONTROL_CONFIDENCE - s.player.board.confidence, 'the government takes control', 'on probation');
+    ctx.log('gov', `The government takes control of your lab: it holds two thirds of the votes, funds the company and sets its goals. Board confidence starts at ${STATE_CONTROL_CONFIDENCE}.`, 5);
+    ctx.headline('usgovStateControl', 'The government takes control of the lab');
+  } else {
+    const lab = nationalProjectLab(s);
+    if (lab) s.flags['usgov.absorbedBy'] = lab;
+    ctx.log('gov', 'The government folds your lab into the national project.', 5);
+  }
 }
 
+/** The lab the national project folds the player into (hard path while behind), or undefined. */
+export const nationalProjectAbsorber = (s: GameStateV2): LabId | undefined =>
+  s.usgov.consolidated === 'nationalized' && !s.player.charter.stateControl ? ((s.flags['usgov.absorbedBy'] as LabId | undefined) ?? nationalProjectLab(s)) : undefined;
+
 /** E22 Accept: the US NPC labs' compute is pooled into the player as rent-free cloud capacity (USGOV.dpaShare of each
- *  lab's online compute, for as long as consolidation holds). */
-export function acceptDpa(s: GameStateV2, ctx: SystemCtx): number {
+ *  lab's online compute, for as long as consolidation holds), their staff join as whole teams, and the government takes
+ *  a golden share (2 directors with security approval, no votes: the controller stays). */
+export function acceptDpa(s: GameStateV2, ctx: SystemCtx): { pooled: number; teams: number } {
   const g = s.usgov;
+  const plan = dpaStaffPlan(s);
   let pooled = 0;
-  for (const r of s.rivals) {
-    if (r.core.status !== 'active' || r.core.id === CHINA_ID) continue;
+  for (const r of usLabs(s)) {
     const x = r.core.computeOnline * USGOV.dpaShare;
     r.core.computeOnline -= x;
     pooled += x;
+    r.core.staff.cap -= r.core.staff.cap * USGOV.dpaShare * plan.scale;
+    r.core.staff.saf -= r.core.staff.saf * USGOV.dpaShare * plan.scale;
   }
+  let teams = 0;
+  for (const k of TEAM_KEYS) { const n = plan.teams[k] ?? 0; if (n) { addWholeTeams(s, k, n); teams += n; } }
   g.consolidated = 'dpa';
   g.dpaAccepted = true;
+  s.player.charter.goldenShare = true;
   if (pooled > 0) s.player.cloud.push({ id: `DPA-${ctx.day}`, provider: 'DPA pool', h100e: pooled, costPerYear: 0, startDay: ctx.day, endDay: ctx.day + 36500, cancellableNoticeQ: null });
-  ctx.log('gov', 'Under the Defense Production Act, the American labs pool their compute into your lab.', 4);
-  return pooled;
+  ctx.log('gov', `Under the Defense Production Act, the American labs pool their compute and ${plan.heads.toLocaleString('en-US')} staff (${teams} teams) into your lab, and two government directors join your board.`, 4);
+  return { pooled, teams };
 }
 
 /** The compute E22 would pool today (preview). */
-export const dpaPoolPreview = (s: GameStateV2) => s.rivals.filter((r) => r.core.status === 'active' && r.core.id !== CHINA_ID).reduce((a, r) => a + r.core.computeOnline * USGOV.dpaShare, 0);
+export const dpaPoolPreview = (s: GameStateV2) => usLabs(s).reduce((a, r) => a + r.core.computeOnline * USGOV.dpaShare, 0);
 
 /** Monthly: switch the conditional laws by their on and off rules (hysteresis; COND_LAWS). */
 function lawRules(s: GameStateV2, ctx: SystemCtx, sarSeen: boolean) {

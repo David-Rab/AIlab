@@ -7,19 +7,22 @@ import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, 
 import { addCommunityPackage, campusMW, newSite, oppositionOdds, siteBuildingLiveInQ, siteCapex, siteSchedule, siteSizeError, type SiteOpts } from '../compute/sites';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, PartnerTerms, Pitch, Site, SystemCtx } from '../types';
-import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, founderControl, giveCriticsSeat, voteCost, voteGate } from './board';
+import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, giveCriticsSeat, voteCost, voteGate } from './board';
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { anchorPartners, dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { dealControlAfter, dealVote as firstVote, dealVotes, dealWith, partnerBlocker, followOnBlocker, followOnTerms, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signFollowOn, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
-import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
+import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, issueControlAfter, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
 import { ensureWs3 } from './ext';
 import { deferFirm, qOf, bookCash, RENEGOTIATE } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
-import { DUAL_CLASS_GOV, supplierTerms } from './story';
+import { distributionProjection } from './distribution';
+import { supplierTerms } from './story';
+import { CHARTER_APPEAL, missionPowers, seatsOf, type ControlChange, type ControlView } from './control';
+import { issue } from './equity';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -48,9 +51,9 @@ export function raiseTerms(s: GameStateV2, p: P): { type: MilestoneType; pitch: 
 
 /** What a raise of `ask` at a pitch would look like (Raise card, previews): ceiling, pre-money, dilution, closing odds,
  *  down round. */
-export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean; pitch?: Pitch; ipo?: boolean } = {}) {
+export function raiseQuote(s: GameStateV2, ask: number, opts: { pitch?: Pitch; ipo?: boolean } = {}) {
   const k = opts.ipo ? 1 : PITCH[opts.pitch ?? 'base'].price;
-  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo, priceMult: k });
+  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { ipo: !!opts.ipo, priceMult: k });
   const over = Number.isFinite(ask) ? Math.max(0, ask / Math.max(0.01, c.max) - 1) : 0;
   const pre = Math.max(1, s.player.finance.valuation) * k * (1 - Math.min(0.6, 0.5 * over));
   const a = Number.isFinite(ask) ? ask : c.max;
@@ -58,22 +61,12 @@ export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean
   return { ceiling: c, priceMult: k, pre, dilution: a / (pre + a), pClose: Math.exp(-over), down: last > 0 && pre < last, lastPost: last };
 }
 
-/** The anchor a raise names, if it may anchor (FIN4r, L5: only the partners `anchorPartners` offers; anything else is
- *  an error, never a silent 14% limit). */
-function anchorOf(s: GameStateV2, p: P): { anchor: string } | string {
-  const anchor = str(p, 'anchor', '');
-  if (!anchor || anchorPartners(s).includes(anchor)) return { anchor };
-  return `${anchor} cannot anchor a round now (anchors: ${anchorPartners(s).join(', ') || 'none'})`;
-}
-
-/** The raise a set of params describes: ask (default the ceiling), anchor, pitch and the quote at that ask. */
+/** The raise a set of params describes: ask (default the ceiling), pitch and the quote at that ask. */
 function raiseOf(s: GameStateV2, p: P) {
-  const a = anchorOf(s, p);
-  const anchor = typeof a === 'string' ? '' : a.anchor;
   const { type, pitch } = raiseTerms(s, p);
-  const q = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const q = raiseQuote(s, Number.POSITIVE_INFINITY, { pitch });
   const ask = num(p, 'ask', q.ceiling.max);
-  return { anchor, type, pitch, ask, r: raiseQuote(s, ask, { anchor: !!anchor, pitch }) };
+  return { type, pitch, ask, r: raiseQuote(s, ask, { pitch }) };
 }
 
 /** FIN3a (spec §7.3): no dilution vote; a round priced below the last post-money is a down round and needs the board. */
@@ -90,7 +83,7 @@ const raise: ActionDef = {
     const { type, pitch, ask, r } = raiseOf(s, p);
     const th = makeThesis(s, type, pitch);
     const exposure: CostLine[] = [];
-    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }];
+    const costs: CostLine[] = [{ currency: 'dilution', amount: Math.round(r.dilution * 1000) / 10 }, ...controlLine(issueControlAfter(s, r.dilution, 'fin'))];
     if (r.down) costs.push({ currency: 'boardConf', amount: downRoundHit(s), target: 'down round: priced below the last round' }, ...voteCost(raiseVote(s, p), bool(p, 'force')));
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
     if (typeof th !== 'string') {
@@ -103,18 +96,15 @@ const raise: ActionDef = {
     return { costs, gains: roundCashLines(s, ask, s.time.day + nextQDays(s)), exposure };
   },
   apply(s, ctx, p) {
-    const a = anchorOf(s, p);
-    if (typeof a === 'string') return a;
-    const { anchor } = a;
     const { type, pitch } = raiseTerms(s, p);
     const th = makeThesis(s, type, pitch);
     if (typeof th === 'string') return th;
     const k = PITCH[pitch].price;
-    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, priceMult: k });
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { priceMult: k });
     const ask = Math.max(0.1, num(p, 'ask', c.max));
     const no = voteGate(ctx, raiseVote(s, { ...p, ask }), bool(p, 'force'));
     if (no) return no;
-    startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), thesis: th, priceMult: k });
+    startRaise(s, ctx, ask, { thesis: th, priceMult: k });
   },
 };
 
@@ -132,14 +122,22 @@ const ipo: ActionDef = {
     const gains: CostLine[] = roundCashLines(s, ask, s.time.day + nextQDays(s), true);
     const exposure: CostLine[] = [];
     if (dual) {
-      gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder votes keep control (you can force board decisions)' });
+      gains.push({ currency: 'freedom', amount: 1, target: 'dual-class: founder shares carry ×10 votes' });
       // FIN4r (L4): a discount on the valuation mark, not cash. FIN5a: the factor is on the lab's weight in the story
       // share, so the valuation falls by 1 − k / (k·share + 1 − share) at today's share.
       const sh = s.capital.ws3?.playerShare ?? 0;
-      const drop = 1 - DUAL_CLASS_GOV / (DUAL_CLASS_GOV * sh + 1 - sh);
-      exposure.push({ currency: 'valuation', amount: -Math.round(drop * s.player.finance.valuation), target: `governance ×${DUAL_CLASS_GOV} on your share at every mark (−${(drop * 100).toFixed(1)}% of the valuation at today's share; no cash moves)` });
-    } else if (founderControl(s)) costs.push({ currency: 'freedom', amount: -1, target: 'founder control ends: no more forcing board decisions' });
-    costs.push({ currency: 'freedom', amount: -1, target: 'a listing independent joins the board' });
+      const k = CHARTER_APPEAL.dualClass;
+      const drop = 1 - k / (k * sh + 1 - sh);
+      exposure.push({ currency: 'valuation', amount: -Math.round(drop * s.player.finance.valuation), target: `governance ×${k} on your share at every mark (−${(drop * 100).toFixed(1)}% of the valuation at today's share; no cash moves)` });
+    }
+    // The board after the listing: public holders elect seats by their votes (control.ts seatsOf).
+    const f0 = s.player.finance;
+    const own = { ...f0.ownership, strat: { ...f0.ownership.strat } };
+    issue(own, r.dilution, { kind: 'public' });
+    const after: ControlView = { player: { finance: { ownership: own, stratVoting: f0.stratVoting, dualClass: dual || f0.dualClass }, charter: s.player.charter } };
+    costs.push(...controlLine(issueControlAfter(s, r.dilution, 'public', dual || f0.dualClass)));
+    const pub = seatsOf(after).filter((x) => x.kind === 'independent').length;
+    if (pub > 0) costs.push({ currency: 'freedom', amount: -pub, target: `public holders elect ${pub} independent director${pub > 1 ? 's' : ''}` });
     if (r.pClose < 1) exposure.push({ currency: 'cash', amount: -ask, probability: Math.round((1 - r.pClose) * 100) / 100, lagDays: nextQDays(s) });
     return { costs, gains, exposure };
   },
@@ -213,7 +211,7 @@ const downRound: ActionDef = {
       exposure.push({ currency: 'dilution', amount: Math.round(anti * 1000) / 10, target: `anti-dilution shares to prior investors, up to (priced below the last round's $${last.toFixed(0)}B post-money)` });
     }
     return {
-      costs: [{ currency: 'dilution', amount: dil(DOWN_PRICE.lo), target: `priced at ${Math.round(DOWN_PRICE.lo * 100)}–${Math.round(DOWN_PRICE.hi * 100)}% of the valuation ($${(V * DOWN_PRICE.lo).toFixed(0)}–${(V * DOWN_PRICE.hi).toFixed(0)}B pre-money): ${dil(DOWN_PRICE.hi)}–${dil(DOWN_PRICE.lo)}% dilution` }, { currency: 'boardConf', amount: downRoundHit(s), target: 'down round' }, ...voteCost(downRoundVote(s, ''), bool(p, 'force'))],
+      costs: [...controlLine(issueControlAfter(s, amt / (V * DOWN_PRICE.lo + amt), 'fin')), { currency: 'dilution', amount: dil(DOWN_PRICE.lo), target: `priced at ${Math.round(DOWN_PRICE.lo * 100)}–${Math.round(DOWN_PRICE.hi * 100)}% of the valuation ($${(V * DOWN_PRICE.lo).toFixed(0)}–${(V * DOWN_PRICE.hi).toFixed(0)}B pre-money): ${dil(DOWN_PRICE.hi)}–${dil(DOWN_PRICE.lo)}% dilution` }, { currency: 'boardConf', amount: downRoundHit(s), target: 'down round' }, ...voteCost(downRoundVote(s, ''), bool(p, 'force'))],
       gains: [{ currency: 'cash', amount: amt, target: 'now, in full (no tranche)' }],
       exposure,
     };
@@ -227,6 +225,9 @@ const downRound: ActionDef = {
   },
 };
 /** The distress down round's price: the valuation × 0.5–0.7, drawn at the close [R15]. */
+/** The one preview line of what a change does to control (control.ts controlAfter): none when nothing changes. */
+export const controlLine = (c: ControlChange | undefined): CostLine[] => (c ? [{ currency: 'freedom', amount: -1, target: c.line }] : []);
+
 export const DOWN_PRICE = { lo: 0.5, hi: 0.7 } as const;
 function downRoundSize(s: GameStateV2) {
   return Math.max(10, Math.min(0.15 * s.player.finance.valuation * 0.6, 3 * Math.max(0, runwayOf(s).burnQ)));
@@ -250,16 +251,20 @@ export function roundCashLines(s: GameStateV2, amount: number, closeDay: number,
 
 // ───────────────────────────── Partners (FINANCE-V3 §6; FIN4a) ─────────────────────────────
 
+const SUPPLY_NOUN: Record<PartnerSupply, string> = { cloud: 'cloud', asic: 'custom chips', chips: 'chips' };
 const qName = (s: GameStateV2, day: number) => {
   const d = dateOfDay(s.time.startDate, day);
   return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
 };
-/** A tranche condition in words ('gw:1.7' → '1.7 GW online'). */
-export function conditionWords(cond: string): string {
-  const [k, v] = cond.split(':');
-  if (k === 'gw') return `${Number(v).toFixed(1)} GW online in your own sites`;
+/** A tranche condition in words ('spent:Azimuth:12' → "you've spent $12B on Azimuth's cloud"); `supply`: what the
+ *  partner sells you, for the noun (default: its first supply). */
+export function conditionWords(cond: string, supply?: PartnerSupply): string {
+  const [k, v, w] = cond.split(':');
+  if (k === 'spent') {
+    const what = SUPPLY_NOUN[supply ?? partnerDef(v)?.supply[0] ?? 'cloud'];
+    return `you've spent $${Number(w).toFixed(Number(w) < 10 ? 1 : 0)}B on ${v}'s ${what}`;
+  }
   if (k === 'revenue') return `$${Number(v).toFixed(0)}B/yr revenue run-rate`;
-  if (cond === 'ipo') return 'an IPO';
   if (cond === 'recapitalisation') return 'the recapitalisation';
   return cond;
 }
@@ -272,26 +277,36 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
   const exposure: CostLine[] = [];
   const eq = termsEquity(t);
   const stake0 = s.player.finance.ownership.strat[t.partner] ?? 0;
-  const dil = t.rescue ? partnerStakeAfter(s, t) - stake0 : eq / (V + eq);
-  if (dil > 0) costs.push({ currency: 'dilution', amount: Math.round(dil * 1000) / 10, target: t.rescue ? `${t.partner} topped up to ${Math.round((t.stake ?? 0) * 100)}%` : t.tranches.length ? 'now and in tranches, at today\'s valuation' : 'at today\'s valuation', ...(t.equityNow <= 0 && t.tranches.length ? { lagDays: Math.max(0, t.tranches[0].dueDay - s.time.day) } : {}) });
+  const after = partnerStakeAfter(s, t);
+  const dil = t.rescue ? after - stake0 : eq / (V + eq);
+  if (dil > 0) costs.push({ currency: 'dilution', amount: Math.round(dil * 1000) / 10, target: t.rescue ? `${t.partner} holds ${Math.round(after * 100)}% after signing: its shares are priced at ${Math.round((t.priceMult ?? 1) * 100)}% of the valuation, like a distressed round` : t.tranches.length ? `now and in tranches, at today's valuation; ${t.partner} holds ${(after * 100).toFixed(1)}% after signing, up to ${(partnerStakeAll(s, t) * 100).toFixed(1)}% if every tranche lands` : "at today's valuation", ...(t.equityNow <= 0 && t.tranches.length ? { lagDays: Math.max(0, t.tranches[0].dueDay - s.time.day) } : {}) });
   if (t.equityNow > 0) gains.push({ currency: 'cash', amount: t.equityNow, target: 'now' });
-  for (const x of t.tranches) gains.push({ currency: 'cash', amount: x.amount, lagDays: Math.max(0, x.dueDay - s.time.day), target: `tranche: if ${conditionWords(x.condition)} by ${qName(s, x.deadline)}, else it lapses` });
+  for (const x of t.tranches) gains.push({ currency: 'cash', amount: x.amount, lagDays: Math.max(0, x.dueDay - s.time.day), target: `tranche: after ${conditionWords(x.condition, t.supply?.kind)} (by ${qName(s, x.deadline)}, else it lapses)` });
   const sp = t.supply;
   if (sp) {
     const lag = Math.max(0, dayOfQuarter(s.time.startDate, sp.startQ) - s.time.day);
     const cuts = `path −${Math.round(sp.firmDiscount * 100)}% firm${sp.partnerDiscount > 0 ? ` −${Math.round(sp.partnerDiscount * 100)}% partner` : ''}${sp.costMult !== undefined ? `, custom chips at ${Math.round(sp.costMult * 100)}% of an H100e` : ''}`;
-    if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, served first in a shortage` });
-    else gains.push({ currency: 'compute', amount: sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters} quarters, a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
+    if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, one contract a year: ${(sp.h100e / 1e6).toFixed(2)}M H100e in year 1${sp.yearly && sp.yearly.length > 1 ? `, ${(sp.yearly[sp.yearly.length - 1] / 1e6).toFixed(2)}M in year ${sp.yearly.length} as prices fall` : ''} (${t.supply ? `$${(sp.total / (sp.yearly?.length ?? 1)).toFixed(1)}B a year` : ''})` });
+    else gains.push({ currency: 'compute', amount: sp.yearly ? 4 * sp.yearly.reduce((a, b) => a + b, 0) : sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters / 4} years, one order a year (${(sp.h100e / 1e6).toFixed(2)}M H100e a quarter in year 1${sp.yearly && sp.yearly.length > 1 ? `, ${(sp.yearly[sp.yearly.length - 1] / 1e6).toFixed(2)}M in year ${sp.yearly.length} as prices fall` : ''}), a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
     // FIN5a: a doubted buyer prepays part of the first delivery (supplier terms, spec §5).
     if (sp.prepaid) costs.push({ currency: 'cash', amount: -sp.prepaid, target: `prepaid now: ${Math.round(supplierTerms(s).firstDelivery * 100)}% of the first delivery (supplier terms: your share of investor money and runway)` });
     costs.push({ currency: 'cash', amount: -sp.perQ[0], lagDays: lag, target: `first of ${sp.quarters} quarterly payments (take-or-pay; ${cuts})` });
     costs.push({ currency: 'cash', amount: -sp.perQ[sp.perQ.length - 1], lagDays: lag + (sp.quarters - 1) * 91, target: `last payment (expected path); $${sp.total.toFixed(1)}B in all` });
     if (sp.kind === 'asic') costs.push({ currency: 'progress', amount: -Math.round((1 - PARTNER_TERMS.asic.researchMult) * 100), unit: '%', lagDays: 0, target: `research speed for ~${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters while you migrate` });
   }
-  if (t.strings.revenueShare) costs.push({ currency: 'revenue', amount: -t.strings.revenueShare * s.player.finance.revenueRun, target: `${Math.round(t.strings.revenueShare * 100)}% revenue share per year for ${t.years} y` });
+  // C7c: distribution: the channel it adds and the cut of that channel, projected over the deal at your growth.
+  const dist = t.strings.distribution;
+  if (dist) {
+    const pj = distributionProjection(s, dist, t.years);
+    gains.push({ currency: 'revenue', amount: pj.base, target: `${t.partner} resells your models to its cloud customers: about +$${pj.base.toFixed(1)}B a year of API and enterprise revenue now` });
+    costs.push({ currency: 'revenue', amount: -pj.rate * pj.base, target: `of which it keeps ${Math.round(pj.rate * 100)}% (≈$${pj.over.toFixed(1)}B over the deal at your current growth, ×${pj.growth.toFixed(1)} a year)` });
+  }
   if (t.strings.exclusivity) {
     const rivals = partnerDef(t.partner)?.competitors ?? [];
-    exposure.push({ currency: 'freedom', amount: -1, target: `exclusivity: no deals with ${rivals.length ? rivals.join(', ') : 'its competitors'}` });
+    // What it shuts out: the competitor's own offer today, in the money it would give.
+    const open = rivals.filter((x) => !partnerBlocker(s, x));
+    const offer = open.map((x) => `${x} would give $${termsEquity(partnerTerms(s, x)).toFixed(1)}B of equity today`).join('; ');
+    exposure.push({ currency: 'freedom', amount: -1, target: `exclusivity while the deal runs: no deals with ${rivals.length ? rivals.join(', ') : 'its competitors'}${offer ? ` (${offer})` : ''}` });
   }
   // FIN4b: what IP access costs, in plain words (the money each string adds is in the cash lines and on its option).
   const ip = t.strings.ipAccess;
@@ -299,10 +314,13 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const lead = leadEstimate(s, ip.lab);
     const name = t.options.ipAccess.labName ?? ip.lab;
     const days = PARTNER_TERMS.strings.ipCloseYr * Math.max(0, lead);
-    const below = s.player.board.preset === 'pbcTrust' && !ip.trust ? "; capability-threshold models stay out without the trust's yes" : '';
-    costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
+    // Over the deal its lab ends up this many months closer (at most the whole lead).
+    const months = Math.min(Math.max(0, lead), days * t.years) / 30.4;
+    const below = missionPowers(s) && !ip.trust ? "; capability-threshold models stay out without the mission body's yes" : '';
+    costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y: its lab ends about ${months < 1 ? 'a month' : `${Math.round(months)} months`} closer over the deal (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
-  if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
+  costs.push(...controlLine(dealControlAfter(s, t)));
+  if (t.rescue) costs.push({ currency: 'freedom', amount: -1, target: `${t.partner}'s stake votes: ${Math.round(partnerVotesAll(s, t) * 100)}% of all votes, and its seats follow them; and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }
@@ -330,12 +348,36 @@ const partner: ActionDef = {
   vote: partnerVote,
   preview(s, p) {
     const v = dealPreview(s, termsOf(s, p));
-    // FIN4r (L2): every failing vote founder control forces costs its −20 (signPartner forces each in turn).
+    // FIN4r (L2): every failing vote the override forces costs its −20 (signPartner forces each in turn).
     return { ...v, costs: [...v.costs, ...dealVotes(s, termsOf(s, p)).flatMap((x) => voteCost(x, bool(p, 'force')))] };
   },
   apply(s, ctx, p) {
     const { partner: who, ...c } = partnerOf(s, p);
     const err = signPartner(s, ctx, who, { ...c, force: bool(p, 'force') });
+    if (err) {
+      ctx.log('finance', err, 2);
+      return err;
+    }
+  },
+};
+
+/** The partner a follow-on is asked of (params `partner`; default: the first that offers one, else the first with a deal). */
+const followOnPartner = (s: GameStateV2, p: P) => {
+  const want = str(p, 'partner', '');
+  if (want) return want;
+  const mine = PARTNER_DEFS.map((x) => x.id);
+  return mine.find((x) => !followOnBlocker(s, x)) ?? mine.find((x) => dealWith(s, x)) ?? mine[0];
+};
+
+/** A follow-on (C7b, CORPORATE.md §5.4): while a deal runs and the partner values you highly (interest 1.2 or more), one
+ *  more tranche of equity for 4× it of the same supply; once a year per partner. An action on the partner's row, not an event. */
+const followOn: ActionDef = {
+  id: 'fin.followOn', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Take follow-on',
+  available: (s) => divisionBlock(s) ?? (PARTNER_DEFS.some((x) => !followOnBlocker(s, x.id)) ? true : 'No partner offers a follow-on now'),
+  vote: (s, p) => firstVote(dealVotes(s, followOnTerms(s, followOnPartner(s, p)))),
+  preview: (s, p) => dealPreview(s, followOnTerms(s, followOnPartner(s, p))),
+  apply(s, ctx, p) {
+    const err = signFollowOn(s, ctx, followOnPartner(s, p), { force: bool(p, 'force') });
     if (err) {
       ctx.log('finance', err, 2);
       return err;
@@ -365,7 +407,7 @@ const rescue: ActionDef = {
     if (div) return div;
     if (f.state !== 'distress') return 'Only in distress';
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
-    return rescuePartner(s) ? true : 'No partner will rescue you (blocked by exclusivity or anchoring another lab)';
+    return rescuePartner(s) ? true : "No partner will rescue you (blocked by another partner's exclusivity)";
   },
   vote: rescueVote,
   preview(s, p) {
@@ -437,9 +479,9 @@ const recap: ActionDef = {
   id: 'fin.recap', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Recapitalise',
   available: (s) => {
     const f = s.player.finance;
-    if (s.player.board.preset !== 'legacyNonprofit') return 'Only for the capped-profit nonprofit';
+    if (!s.player.charter.profitCap) return 'Only under a profit cap';
     if (f.ws3?.recap.startDay !== undefined || f.ws3?.recap.refused) return 'Already decided';
-    if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025 (E02)';
+    if (s.time.day < 92) return 'The recapitalisation question comes up in Q4 2025';
     return true;
   },
   preview(s) {
@@ -720,7 +762,7 @@ const community: ActionDef = {
   },
 };
 
-// ───────────────────────────── Distress menu (E26) ─────────────────────────────
+// ───────────────────────────── Distress menu ─────────────────────────────
 
 const renegotiate: ActionDef = {
   id: 'fin.renegotiate', verb: 'deal', system: 'finance', sphere: 'finance', owner: 'WS3', title: 'Renegotiate',
@@ -751,16 +793,10 @@ const renegotiate: ActionDef = {
     ensureWs3(s);
     const ds = deferFirm(s, RENEGOTIATE.defer, RENEGOTIATE.quarters, true);
     f.ws3.lastRenegotiationDay = s.time.day;
-    issueWarrants(s, RENEGOTIATE.warrants);
+    issue(f.ownership, RENEGOTIATE.warrants, { kind: 'fin' });
     ctx.log('finance', `Suppliers accept a ${Math.round(RENEGOTIATE.defer * 100)}% deferral of the next ${RENEGOTIATE.quarters} quarters' firm payments ($${ds.reduce((a, d) => a + d.deferred, 0).toFixed(1)}B, paid back at each contract's end) for warrants.`);
   },
 };
-function issueWarrants(s: GameStateV2, frac: number) {
-  const o = s.player.finance.ownership;
-  const k = 1 - frac;
-  o.founder *= k; o.mission *= k; o.public *= k; o.fin = o.fin * k + frac;
-  for (const n of Object.keys(o.strat)) o.strat[n] *= k;
-}
 
 /** Resale/sublease value of chips: ~1.5 years of spot rental [D]. */
 const chipSaleValue = (s: GameStateV2, h: number) => (h * s.market.rental * 8760 * 1.5) / 1e9;
@@ -846,7 +882,7 @@ const pickCancellable = (s: GameStateV2, id: string) => {
 };
 
 export const FINANCE_ACTIONS: ActionDef[] = [
-  raise, ipo, partner, draw, repay, recap, refuseRecap, critics,
+  raise, ipo, partner, followOn, draw, repay, recap, refuseRecap, critics,
   buyChips, rentCompute, site, community,
   downRound, rescue, renegotiate, sell, cancel, acceptRound, pullRound,
 ];

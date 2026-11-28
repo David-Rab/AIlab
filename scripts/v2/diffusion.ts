@@ -19,7 +19,7 @@ let fails = 0;
 const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
 const near = (a: number, b: number, e = 1e-9) => Math.abs(a - b) <= e * Math.max(1, Math.abs(b));
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
-const base = newGame(defaultSetupV2({ world: 'tl-central', start: 'leader', seed: 7, tutorial: false }));
+const base = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'leader', seed: 7, tutorial: false }));
 const npcs = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab].filter((r) => r.core.status === 'active' && r.npc);
 const f = (x: number) => x.toFixed(4);
 const pubLag = (r: RivalLab) => persOf(r.npc).releaseLagDays;

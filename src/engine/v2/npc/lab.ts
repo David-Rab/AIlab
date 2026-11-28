@@ -6,6 +6,7 @@
 //   internal model G = G_ref(t − d);  public model = the internal one a release lag ago, refreshed every
 //   RELEASE_CADENCE_DAYS (the labs' release days staggered by cast order).
 // The outward contract (Appendix A: core, internal, publicModel, lineup, tools, finance, ...) is kept.
+import { kindOf } from '../../../data/v2/starts';
 import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS, type NpcCastEntry, type NpcKindId, type Personality } from '../../../data/v2/npcLabs';
 import { DIFFUSION_TAU_DAYS } from '../../../data/v2/calibration';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
@@ -189,7 +190,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const d0 = startLagDays(e);
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
-  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), hist: [], m: 0, p: 0 };
+  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), ...(e.owner ? { owner: e.owner } : {}), ...(e.backers ? { backers: { ...e.backers } } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), hist: [], m: 0, p: 0 };
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], isPublic, openWeights: false,
   });
@@ -234,9 +235,9 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   return lab;
 }
 
-/** The US NPC labs of the Realistic cast for a game: every cast entry but China's, without the leader-kind lab when the
- *  player starts as the frontier leader (the player takes its place). */
-export const usCast = (start: string | undefined) => REALISTIC_CAST.filter((e) => e.kind !== 'china' && !(e.kind === 'leader' && (start ?? 'leader') === 'leader'));
+/** The US NPC labs of the Realistic cast for a game: every cast entry but China's, without the NPC lab the player's kind
+ *  replaces (LabKindDef.replacesNpc: the player takes its place; a custom kind replaces none). */
+export const usCast = (replaces: NpcKindId | undefined) => REALISTIC_CAST.filter((e) => e.kind !== 'china' && e.kind !== replaces);
 
 /** Roman suffix of the n-th lab of a kind (n >= 2): "II", "III", ... */
 const ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI'];
@@ -247,23 +248,30 @@ export interface CastLab { e: NpcCastEntry; p?: Personality }
  *  item: the kind's cast entry (compute, money, tools, staff: one typical start per kind) with the item's start lag, and
  *  the item's overrides on the kind's seven values. Names: the first lab of a kind keeps the kind's invented name and
  *  family; the n-th later one adds a Roman numeral ("Lanternworks II" / "Ouvril II", id "lanternworks2"). The
- *  leader-kind lab is left out when the player starts as the frontier leader (the player takes its place). */
-export function castOf(setup: Pick<SetupV2, 'cast' | 'start'>): CastLab[] {
-  const start = setup.start ?? 'leader';
-  if (!setup.cast || setup.cast === 'realistic') return usCast(start).map((e) => ({ e }));
+ *  NPC lab of the player's kind is left out (the player takes its place). */
+export function castOf(setup: Pick<SetupV2, 'cast' | 'labKind' | 'custom'>): CastLab[] {
+  const replaces = kindOf({ setup }).replacesNpc;
+  if (!setup.cast || setup.cast === 'realistic') return usCast(replaces).map((e) => ({ e }));
   const seen: Partial<Record<NpcKindId, number>> = {};
   const out: CastLab[] = [];
   for (const c of setup.cast) {
-    if (c.kind === 'china' || (c.kind === 'leader' && start === 'leader')) continue;
+    if (c.kind === 'china' || c.kind === replaces) continue;
     const base = REALISTIC_CAST.find((x) => x.kind === c.kind)!;
     const nth = (seen[c.kind] = (seen[c.kind] ?? 0) + 1);
     const m = Math.max(0, Math.min(36, c.lagMonths));
     const sfx = nth > 1 ? ' ' + (ROMAN[nth] ?? String(nth)) : '';
+    // `backers` present: the item sets its own ties (an absent owner means none); absent: the kind's (the cast entry's).
+    const owner = c.backers ? c.owner : c.owner ?? base.owner;
+    const backers = c.backers ?? base.backers;
     const e: NpcCastEntry = {
       ...base, id: nth > 1 ? base.id + nth : base.id, name: base.name + sfx, family: base.family + sfx,
       start: { ...base.start, ...(base.start.publicLagMonths === null ? { publicLagBandMonths: m } : { publicLagMonths: m }) },
+      owner, backers: backers && Object.keys(backers).length ? { ...backers } : undefined,
     };
-    out.push({ e, ...(c.personality ? { p: { ...KINDS[c.kind], ...c.personality } } : {}) });
+    // An owner pays the bills (funding follows it); a lab with its own ties and no owner raises its own money.
+    const funding = owner ? 'parent' : c.backers ? 'private' : KINDS[c.kind].funding;
+    const p = c.personality || funding !== KINDS[c.kind].funding ? { ...KINDS[c.kind], ...c.personality, funding } : undefined;
+    out.push({ e, ...(p ? { p } : {}) });
   }
   return out;
 }

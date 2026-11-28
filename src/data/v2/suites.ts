@@ -7,7 +7,7 @@
 //                   compute share × exploitability (× the RL budget's pressure, safety/traits.ts postSignals)
 // Engineers build (more tasks: fidelity up) and harden (red-teaming, held-out tests, cheat detectors: exploitability
 // down, grader quality up) on the build queue, and keep every suite running (upkeep). Tags as runDesign.ts.
-import type { RLFamily, StartType } from '../../engine/v2/types';
+import type { RLFamily } from '../../engine/v2/types';
 
 /** Start exploitability per family (a red-teamed suite, the leader's start) [D, sourced per family]: research/20 F1's
  *  2025 hack rates on bought or unhardened environments — ≈ 30% on optimisation tasks with exploitable scorers (METR o3:
@@ -18,11 +18,10 @@ import type { RLFamily, StartType } from '../../engine/v2/types';
 export const EXPLOIT_START: Record<RLFamily, number> = {
   math: 0.06, swe: 0.18, computerUse: 0.01, mlResearch: 0.12, longHorizon: 0.01, cyber: 0.01, bio: 0.01,
 };
-/** Start exploitability per start type, × EXPLOIT_START [D]: the leader, the challenger (Anthropic, xAI) and big tech
- *  (Google DeepMind, Meta) start red-teamed; the spinout starts on bought environments without red-teaming, at the raw
+/** Start exploitability per position (data/v2/starts.ts exploitMult), × EXPLOIT_START [D]: the frontier, the contender (Anthropic, xAI) and capital-heavy
+ *  (Google DeepMind, Meta) start red-teamed; the talent breakaway and the newcomer start on bought environments without red-teaming, at the raw
  *  2025 hack rates above (× 2.5: SWE 0.45, ML research 0.30). Fidelity starts at 1 for every start: a follower's lag
  *  lives in know-how (V3-BUILD V1 notes, start state), and a lower start fidelity would count the lag twice. */
-export const START_EXPLOIT_MULT: Record<StartType, number> = { leader: 1, challenger: 1, bigtech: 1, spinout: 2.5 };
 
 /** S2 per unit of exploitable RL share (RD-T07, stated directly) [D]: S2 = S2_PER_EXPLOIT · Σ_f share_f · x_f (× the RL
  *  budget's optimisation pressure, safety/traits.ts), where share_f is the RL compute share on family f and x_f its

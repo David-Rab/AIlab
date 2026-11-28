@@ -28,7 +28,7 @@ for (const st of stages) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   if (st === 'd0') {
-    await page.evaluate(() => { const s = window.ai27v2; s.draftSetup = { ...s.draftSetup, start: 'leader', tutorial: false, seed: 4242, companyName: 'OpenBrain' }; s.start(s.draftSetup); });
+    await page.evaluate(() => { const s = window.ai27v2; s.draftSetup = { ...s.draftSetup, labKind: 'leader', tutorial: false, seed: 4242, companyName: 'OpenBrain' }; s.start(s.draftSetup); });
   } else {
     const json = readFileSync(path.join(ROOT, `scripts/v2/fixtures/day${st.slice(1).replace('run', '')}.json`), 'utf8');
     const err = await page.evaluate((j) => window.ai27v2.importJson(j), json);

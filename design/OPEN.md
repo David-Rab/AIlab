@@ -24,6 +24,9 @@ Owner: the balance session. Its live list is [bal/RECAP-2026-11-27.md](bal/RECAP
 
 | Item | Kind | Detail |
 |---|---|---|
+| RefBot revenue collapses from ≈ $15B (Oct 2025) to ≈ $7B (Jan 2026) and the leader falls into distress (seed 1, refPlay + REF_AUTOPILOT; the same on master 5f3fb8cb and on corp, so not from the corporate redesign). It fails finance.ts F7/F8/F9/F11 and FIN3a (board confidence median 6). Designer takes it in a new session after the corp merge | Bug | probe C:/tmp/corp-probe/rev.mts; corp/CORP-TASKS.md notes |
+| The big-tech division starts with $20B of its own cash plus the parent's $16B budget: the capital-heavy position's cash (sized for the market-funded founder racer) also goes to the division (was $4B). Decide per kind or per controller | Later (calibration) | data/v2/starts.ts POSITIONS capital; corp/CORPORATE.md §6 |
+| The reference bot builds 3 sites in its first five quarters after the corp redesign (5 on master): less cash from Northwind's legacy 20% revenue share and 4× partner commitments. sites.ts now prints it as INFO (calibration, not a test); judge it in the calibration report with the revenue fix | Later (calibration) | scripts/v2/sites.ts ~471; corp/CORP-TASKS.md notes |
 | M4: the 36 M3 games on the full tree, read against M3 | Later (next) | RECAP §3.1; bal/LABOUR-ROUND.md §11 |
 | Fit within source ranges what M4 leaves off (P24 strength; SC threshold only for a constant offset) | Later | RECAP §3.2 |
 | Fold the data-centre calibration note into the scenario checks | Later | dc/CALIBRATION-NOTE.md |
@@ -71,6 +74,7 @@ Spec [DATACENTERS.md](DATACENTERS.md); calibration [dc/CALIBRATION-NOTE.md](dc/C
 | Bot competence and spend size (≈ $300B of gas campuses by mid-2027 in seed 1) | Later (calibration) | dc/CALIBRATION-NOTE.md "Bots" |
 | Design values with no per-project data: rush power, fast-track price, crash premium, community package, opposition odds | Parked | dc/CALIBRATION-NOTE.md; research/23 §8 |
 | Grid-wait and turbine-wait easing 2027–30 | Parked | dc/CALIBRATION-NOTE.md |
+| Sites abroad (Gulf-style): sovereign money paired with an overseas campus; cheap power and fast builds against export-control and security risk (the US government's trust). Replaces the dropped sovereign partner | Later | corp/CORPORATE.md §5.6 |
 
 ## Market and revenue
 

@@ -5,8 +5,8 @@
 // collateral, bonds by trailing operating cash flow. The rating comes from cash flow, liquidity cover, leverage (debt
 // and firm commitments against revenue) and distress, never from the valuation.
 import { CHIP_LOAN_SPREAD_BP, DEBT_SIZING, DEBT_TERMS, RATING_SPREAD_BP, REVOLVER_SPREAD_BP } from '../../../data/v2/deals';
-import { isDivision } from '../../../data/v2/starts';
 import type { Debt, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
+import { ownerFunded } from './control';
 import { yearStats } from './ext';
 import { commitmentsRemaining, bookCash, ledgerDue, qOf } from './ledger';
 import { revenueRun } from './observe';
@@ -45,7 +45,7 @@ const drawnOf = (f: FinanceState, kind: Debt['kind']) => f.debts.filter((d) => d
 /** Credit line a bank will size today: 3% of valuation, cap $15B (spec §3 [fit]). FIN5 replaces the valuation it reads
  *  (today: the formula mark). A division has none: the parent's treasury borrows. */
 export function creditLineCapacity(s: GameStateV2, valuation = s.player.finance.valuation): Money {
-  if (isDivision(s)) return 0;
+  if (ownerFunded(s)) return 0;
   return Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * Math.max(0, valuation));
 }
 
@@ -154,7 +154,6 @@ export function drawDebt(s: GameStateV2, ctx: SystemCtx, kind: Debt['kind'], amo
   }
   bookCash(s, ctx, amt, 'financing', `${kind} draw`);
   yearStats(s).debtDrawn += amt;
-  if (s.player.board.preset === 'pbcTrust' && kind !== 'revolver') ctx.log('finance', 'Trust notified of new debt (5-day notice).');
   return amt;
 }
 

@@ -23,7 +23,7 @@ export function attackerLevel(s: GameStateV2): number {
   return Math.min(5, 4 + (s.chinagov.tension >= 3 ? 1 : 0) + 0.5 * Math.min(1, theftIntent(s) / 50));
 }
 
-/** Share of the player's compute hosted at Gulf sites (sovereign strings lower effective WSL by 0.3 there). */
+/** Share of the player's compute hosted at Gulf sites (Gulf hosting lowers effective WSL by 0.3 there). */
 function gulfShare(s: GameStateV2): number {
   const live = s.player.sites.filter((x) => x.stage === 'live');
   const tot = live.reduce((a, x) => a + x.installed, 0);

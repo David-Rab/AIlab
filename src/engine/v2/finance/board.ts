@@ -6,10 +6,11 @@
 // when the weighted yes is more than half. Operating decisions (compute orders, releases, research, pricing) are never
 // voted on. Board confidence moves only on named sources, each weighted by the kinds of seat on the board, and drifts
 // back toward 60.
-import { isDivision, startOf } from '../../../data/v2/starts';
+import { positionOf } from '../../../data/v2/starts';
 import { leadDays } from '../actors/intel';
 import { activeRivals } from '../models/labs';
-import type { Board, BoardSeat, BoardVote, EngineSystem, GameStateV2, GovernancePresetId, MajorDecision, OusterSeatVote, OusterVote, SeatVote, SystemCtx } from '../types';
+import type { BoardSeat, BoardVote, EngineSystem, GameStateV2, MajorDecision, OusterSeatVote, OusterVote, SeatVote, SystemCtx } from '../types';
+import { boardSeats, overrideAvailable, ownerFunded, SEAT_STANCE } from './control';
 import { ensureWs3, yearStats } from './ext';
 import { outsideShare } from './equity';
 import { commitmentsPerYear } from './ledger';
@@ -17,16 +18,6 @@ import { runwayOf } from './runway';
 import { boardMood, incidentHit, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_SOURCE_OF } from './mood';
 
 type Vec4 = [number, number, number, number];
-
-/** Stance vectors (speed, fin, safety, mission) from R15 §1.6. The founder/CEO seat votes the player's way [D]. */
-export const SEAT_STANCE: Record<BoardSeat['kind'], Vec4> = {
-  founder: [1, 0.3, 0.2, 0.3],
-  mission: [-0.5, 0.3, 1, 1],
-  financial: [1, 0.6, -0.2, 0],
-  strategic: [0.5, 0, 0, 0],
-  independent: [0, 0.5, 0.3, 0.3],
-  gov: [0.2, 0.3, 0.6, 0.4],
-};
 
 // ───────────────────────────── Major decisions (spec §7.3) ─────────────────────────────
 
@@ -50,8 +41,8 @@ export const MAJOR_DECISIONS: Record<MajorDecision, { label: string; v: Vec4; ne
   rescue: { label: 'Strategic rescue', v: [0, 0.3, 0, -0.6], need: 'funding' }, // [D]: cash for control strings
   commitments: { label: 'Firm commitments above 3× revenue', v: [0.5, -1, 0, 0], need: 'obligations' }, // R15 (kept)
   debt: { label: 'Debt above 3× revenue', v: [0.3, -1, 0, 0], need: 'obligations' }, // R15 newDebt (kept)
-  // FIN3b (spec §7.2): a charter decision only the PBC + trust's trust votes on; R15's "releasing a model flagged by
-  // safety" vector.
+  // FIN3b (spec §7.2): a charter decision only the mission body's seats vote on (trust approval); R15's "releasing a model
+  // flagged by safety" vector.
   transferModel: { label: 'Transfer of a capability-threshold model', v: [1, 0.3, -1, -0.5], need: 'control' }, // R15
 };
 
@@ -76,19 +67,13 @@ export function voteNeed(s: GameStateV2, need: Need): { v: number; label: string
   return { v, label: `runway ${q.toFixed(1)} q: ${v >= 0 ? 'the company can carry it' : 'too little cash to carry it'}` };
 }
 
-/** Founder control (spec §7.2 founder super-voting, §2.6 dual-class): the founder preset before listing, or any
- *  company listed with dual-class shares. It lets the CEO force a major decision past the board at a confidence cost. */
-export function founderControl(s: GameStateV2): boolean {
-  const f = s.player.finance;
-  if (f.dualClass) return true;
-  return s.player.board.preset === 'founder' && f.ownership.public <= 0;
-}
-
 /**
  * The board's vote on a major decision, seat by seat (FIN3a, spec §7.3). Each voting seat's lean = its stance · the
  * decision vector + the outside-ownership drift (+0.1 to speed and fin per 10 points outside, R15 §1.6) + the board's
- * mood (BC − 50)/50 + the situation term; it votes yes when its lean is above 0. The CEO's seat votes yes. Observers
- * (weight 0) do not vote. Passes when the yes weight is more than half of the voting weight. No dice.
+ * mood (BC − 50)/50 + the situation term; it votes yes when its lean is above 0. The CEO's seat votes yes; the founder
+ * directors vote their lean (the CEO's stance), so a founders' board can still turn a decision down, and the founders'
+ * majority is what lets you force it (control.ts overrideAvailable). Observers (weight 0) do not vote. Passes when the
+ * yes weight is more than half of the voting weight. No dice.
  */
 export function boardVote(s: GameStateV2, decision: MajorDecision, trigger: string): BoardVote {
   const b = s.player.board;
@@ -98,27 +83,37 @@ export function boardVote(s: GameStateV2, decision: MajorDecision, trigger: stri
   const mood = (b.confidence - 50) / VOTE.moodSpan;
   const need = voteNeed(s, d.need);
   const seats: SeatVote[] = [];
-  for (const x of b.seats) {
+  for (const x of boardSeats(s)) {
     if (x.weight <= 0) continue;
     const stance = x.stance[0] * v[0] + x.stance[1] * v[1] + x.stance[2] * v[2] + x.stance[3] * v[3];
-    const ceo = x.kind === 'founder';
+    const ceo = x.kind === 'founder' && x.holder === 'CEO';
     const lean = stance + drift + mood + need.v;
     seats.push({ holder: x.holder, kind: x.kind, weight: x.weight, yes: ceo || lean > 0, lean, parts: { stance, drift, mood, need: need.v } });
   }
   const total = seats.reduce((a, x) => a + x.weight, 0);
   const yes = seats.reduce((a, x) => a + (x.yes ? x.weight : 0), 0);
-  return { decision, label: d.label, trigger, needLabel: need.label, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: founderControl(s) };
+  return { decision, label: d.label, trigger, needLabel: need.label, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: overrideAvailable(s) };
 }
 
-/** A charter vote of the PBC + trust's trust (spec §7.2, FIN3b): the same seat-by-seat lean as a board vote, cast only
- *  by the trust's (mission) seats; it passes with more than half of their votes and can never be forced (founder
- *  control is not a right over the trust). */
+/** A vote of the mission body (trust approval, CORPORATE.md §2.3): the same seat-by-seat lean as a board vote, cast
+ *  only by the mission seats; it passes with more than half of their votes and can never be forced (the override is
+ *  not a right over the mission body). */
 export function trustVote(s: GameStateV2, decision: MajorDecision, trigger: string): BoardVote {
+  return bodyVote(s, decision, trigger, 'mission', 'trust');
+}
+
+/** A vote of the government's directors (security approval, CORPORATE.md §2.3: a golden share's 2 directors, or the
+ *  state-control seats): the same as the trust's, cast only by the 'gov' seats; it can never be forced. */
+export function securityVote(s: GameStateV2, decision: MajorDecision, trigger: string): BoardVote {
+  return bodyVote(s, decision, trigger, 'gov', 'security');
+}
+
+function bodyVote(s: GameStateV2, decision: MajorDecision, trigger: string, kind: BoardSeat['kind'], body: 'trust' | 'security'): BoardVote {
   const v = boardVote(s, decision, trigger);
-  const seats = v.seats.filter((x) => x.kind === 'mission');
+  const seats = v.seats.filter((x) => x.kind === kind);
   const total = seats.reduce((a, x) => a + x.weight, 0);
   const yes = seats.reduce((a, x) => a + (x.yes ? x.weight : 0), 0);
-  return { ...v, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: false, body: 'trust' };
+  return { ...v, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: false, body };
 }
 
 /** The vote new firm commitments need: when payments due in the next four quarters would exceed 3× revenue. */
@@ -137,69 +132,32 @@ export function debtVote(s: GameStateV2, amount: number): BoardVote | undefined 
   return boardVote(s, 'debt', `debt $${after.toFixed(0)}B vs 3× revenue $${(OBLIGATION_X_REVENUE * R).toFixed(0)}B`);
 }
 
-/** Undefined when the decision may go ahead (no vote needed, the vote passes, or founder control forces it at −20
+/** Undefined when the decision may go ahead (no vote needed, the vote passes, or the override forces it at −20
  *  confidence); otherwise why the board stopped it. A failed vote has no side effects (no dice to re-roll, no block). */
 export function voteGate(ctx: SystemCtx, vote: BoardVote | undefined, force: boolean): string | undefined {
   if (!vote || vote.passes) return undefined;
   if (force && vote.canForce) {
     ctx.bump('board.confidence', -VOTE.forceCost, 'forced past the board', vote.label);
-    ctx.log('finance', `Founder control forced "${vote.label}" past the board (${vote.yes} of ${vote.total} votes): board confidence −${VOTE.forceCost}.`, 2);
+    ctx.log('finance', `You forced "${vote.label}" past the board (${vote.yes} of ${vote.total} votes): board confidence −${VOTE.forceCost}.`, 2);
     return undefined;
   }
   return voteNo(vote);
 }
 
-/** Why a failed vote stops a decision (and whether founder control could force it). */
+/** Why a failed vote stops a decision (and whether the override could force it). */
 export function voteNo(vote: BoardVote): string {
-  return `The ${vote.body === 'trust' ? 'trust' : 'board'} votes no on ${vote.label.toLowerCase()} (${vote.yes} of ${vote.total} votes for, needs more than half)${vote.canForce ? `; founder control can force it (confidence −${VOTE.forceCost})` : ''}`;
+  const who = vote.body === 'trust' ? 'The mission body votes' : vote.body === 'security' ? "The government's directors vote" : 'The board votes';
+  return `${who} no on ${vote.label.toLowerCase()} (${vote.yes} of ${vote.total} votes for, needs more than half)${vote.canForce ? `; your majority can force it (confidence −${VOTE.forceCost})` : ''}`;
 }
 
 /** Preview line for a vote: the force cost when forcing a vote that fails. */
 export function voteCost(vote: BoardVote | undefined, force: boolean): { currency: 'boardConf'; amount: number; target: string }[] {
-  return vote && !vote.passes && force && vote.canForce ? [{ currency: 'boardConf', amount: -VOTE.forceCost, target: 'forced past the board (founder control)' }] : [];
+  return vote && !vote.passes && force && vote.canForce ? [{ currency: 'boardConf', amount: -VOTE.forceCost, target: 'forced past the board (your majority)' }] : [];
 }
 
 // ───────────────────────────── Seats ─────────────────────────────
 
 const seat = (kind: BoardSeat['kind'], holder: string, weight = 1): BoardSeat => ({ kind, holder, stance: [...SEAT_STANCE[kind]], weight });
-
-/** The big-tech parent's seat (research/18 §3.2): votes speed +0.5, finance +1.0, safety +0.2, mission 0 [Design]. */
-export const PARENT_STANCE: Vec4 = [0.5, 1, 0.2, 0];
-
-export function initialBoard(preset: GovernancePresetId): Board {
-  const seats: BoardSeat[] =
-    preset === 'parent'
-      ? [seat('founder', 'Division head'), { kind: 'strategic', holder: 'Parent company', stance: [...PARENT_STANCE], weight: 2 }]
-      : preset === 'founder'
-      ? [seat('founder', 'CEO', 2), seat('financial', 'Lead investor'), seat('independent', 'Independent')]
-      : preset === 'legacyNonprofit'
-        ? [seat('founder', 'CEO'), seat('mission', 'Nonprofit board'), seat('mission', 'Nonprofit board'), seat('independent', 'Independent'), seat('independent', 'Independent')]
-        : preset === 'pbcTrust'
-          ? [seat('founder', 'CEO'), seat('mission', 'Trust appointee'), seat('mission', 'Trust appointee'), seat('financial', 'Lead investor'), seat('independent', 'Independent')]
-          : [seat('founder', 'CEO'), seat('mission', 'Foundation board'), seat('mission', 'Foundation board'), seat('financial', 'Lead investor'), seat('independent', 'Independent')];
-  return { preset, seats, confidence: 70, safetyCommitteeVeto: preset === 'nonprofitPBC' };
-}
-
-/** Add (or upgrade) a partner's seat. */
-export function addSeat(s: GameStateV2, kind: BoardSeat['kind'], holder: string, weight: number): void {
-  const b = s.player.board;
-  const ex = b.seats.find((x) => x.holder.startsWith(holder));
-  if (ex) {
-    ex.weight = Math.max(ex.weight, weight);
-    if (weight > 0) ex.holder = holder;
-    return;
-  }
-  b.seats.push(seat(kind, holder, weight));
-}
-
-/** Founder preset: one financial seat each time own_fin crosses 15/30/45% (R15). The critics' investor director is not
- *  one of these ownership seats (FIN4r, L8: it used to take the place of the next one). */
-export function syncFinancialSeats(s: GameStateV2) {
-  if (s.player.board.preset !== 'founder') return;
-  const want = 1 + [0.15, 0.3, 0.45].filter((t) => s.player.finance.ownership.fin >= t).length;
-  const have = s.player.board.seats.filter((x) => x.kind === 'financial' && !x.holder.startsWith(CRITICS_INVESTOR)).length;
-  for (let i = have; i < want; i++) s.player.board.seats.push(seat('financial', `Investor ${i + 1}`));
-}
 
 // ───────────────────────────── Runway state ─────────────────────────────
 
@@ -211,7 +169,7 @@ export function updateRunwayState(s: GameStateV2, ctx: SystemCtx): void {
   f.runwayQ = Math.round(r.q * 10) / 10;
   // FIN5c (spec §13): a division has no runway verdict: the parent covers its overspend at the year's review, at a cost
   // in parent confidence (finance/parent.ts), so it is never tight or in distress.
-  if (isDivision(s)) {
+  if (ownerFunded(s)) {
     f.state = 'healthy';
     delete f.ws3.distressSinceDay;
     return;
@@ -250,20 +208,16 @@ export const BC_CLEAR = 45;
 export const OUSTER_BC = 25;
 export const OUSTER_NOTICE_D = 60;
 /** The ouster vote's terms [D, FIN3b]: a seat's lean = its grievance + depth − reluctance, depth = (25 − confidence) /
- *  OUSTER.span (0 at the line, 1 at zero confidence), reluctance 1.5; the legacy nonprofit's board removes a CEO more
- *  easily (spec §7.2 "ouster odds ×2"): its reluctance is halved (0.75). So a seat turns once confidence falls below
- *  25 − 25 × (reluctance − grievance): a grievance under 0.5 never turns a seat (0.75 less on the legacy board).
+ *  OUSTER.span (0 at the line, 1 at zero confidence), reluctance 1.5 under every board. So a seat turns once confidence
+ *  falls below 25 − 25 × (reluctance − grievance): a grievance under 0.5 never turns a seat.
  *  Calibrated on the bots (FIN3b notes: reluctance 1 ousted a third more of them). No dice: FIN3b replaced the
  *  15%-a-quarter roll and the staff-revolt reinstatement. */
-export const OUSTER = { span: 25, reluctance: 1.5, legacyMult: 0.5 } as const;
-
-/** A division head answers to the parent, which has no confidence vote (STRUCTURE §4.8, R9). */
-const noOuster = (s: GameStateV2) => s.player.board.preset === 'parent';
+export const OUSTER = { span: 25, reluctance: 1.5 } as const;
 
 /** Whether an ouster vote is held at the next quarterly review (confidence below the line, warning old enough). */
 export function ousterLive(s: GameStateV2, day = s.time.day): boolean {
   const warn = s.player.finance.ws3?.boardWarnDay;
-  return !noOuster(s) && s.player.board.confidence < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
+  return s.player.board.confidence < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
 }
 
 /**
@@ -296,26 +250,27 @@ export function boardGrievance(s: GameStateV2): { slow: number; reckless: number
  * The ouster vote, seat by seat (FIN3b, spec §7.5): each voting seat other than the CEO's leans grievance + depth −
  * reluctance, grievance = stance' · v (stance' = stance + the outside-ownership drift on speed and fin, as before),
  * and votes yes above 0; the vote passes when the weighted yes is more than half. A mission board shields a cautious
- * CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite. `bc` previews the vote at
- * another confidence (the Board card shows where each seat turns).
+ * CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite. The CEO does not vote; the
+ * founder directors always vote no (founders back their CEO). Under every board (CORPORATE.md §3.3): a parent's or the
+ * government's seats vote like any seat, on their stance (PARENT_STANCE) and the grievance. `bc` previews the vote at another confidence (the Board
+ * card shows where each seat turns).
  */
 export function ousterVote(s: GameStateV2, bc = s.player.board.confidence): OusterVote {
   const g = boardGrievance(s);
   const v = g.v;
   const drift = outsideShare(s.player.finance.ownership);
-  const R = OUSTER.reluctance * (s.player.board.preset === 'legacyNonprofit' ? OUSTER.legacyMult : 1);
+  const R = OUSTER.reluctance;
   const depth = (OUSTER_BC - bc) / OUSTER.span;
   const seats: OusterSeatVote[] = [];
-  if (!noOuster(s)) {
-    for (const x of s.player.board.seats) {
-      if (x.weight <= 0 || x.kind === 'founder') continue;
-      const grievance = (x.stance[0] + drift) * v[0] + (x.stance[1] + drift) * v[1] + x.stance[2] * v[2] + x.stance[3] * v[3];
-      const lean = grievance + depth - R;
-      // depth needed = R − grievance: the seat turns below 25 − span × that (never if that needs confidence below 0).
-      const need = R - grievance;
-      const turns = OUSTER_BC - OUSTER.span * Math.max(0, need);
-      seats.push({ holder: x.holder, kind: x.kind, weight: x.weight, yes: lean > 0, lean, parts: { grievance, depth, reluctance: R }, ...(turns > 0 ? { turnsBelow: turns } : {}) });
-    }
+  for (const x of boardSeats(s)) {
+    if (x.weight <= 0 || (x.kind === 'founder' && x.holder === 'CEO')) continue;
+    const ally = x.kind === 'founder';
+    const grievance = (x.stance[0] + drift) * v[0] + (x.stance[1] + drift) * v[1] + x.stance[2] * v[2] + x.stance[3] * v[3];
+    const lean = grievance + depth - R;
+    // depth needed = R − grievance: the seat turns below 25 − span × that (never if that needs confidence below 0).
+    const need = R - grievance;
+    const turns = ally ? 0 : OUSTER_BC - OUSTER.span * Math.max(0, need);
+    seats.push({ holder: x.holder, kind: x.kind, weight: x.weight, yes: !ally && lean > 0, lean, parts: { grievance, depth, reluctance: R }, ...(turns > 0 ? { turnsBelow: turns } : {}) });
   }
   const total = seats.reduce((a, x) => a + x.weight, 0);
   const yes = seats.reduce((a, x) => a + (x.yes ? x.weight : 0), 0);
@@ -355,12 +310,11 @@ export function criticsSide(s: GameStateV2): { side: 'investors' | 'mission'; ki
 
 export function criticsAvailable(s: GameStateV2): true | string {
   const b = s.player.board;
-  if (noOuster(s)) return 'A division answers to its parent, not a board';
   if (s.player.finance.state === 'insolvent') return 'Insolvent';
   if (b.confidence >= CRITICS.below) return `Only when board confidence is below ${CRITICS.below}`;
   const last = s.player.finance.ws3?.criticsDay;
   if (last !== undefined && s.time.day - last < CRITICS.cooldownD) return `Once a year: critics last joined on day ${last}`;
-  if (b.seats.filter((x) => x.weight > 0).length >= CRITICS.maxVoting) return `The board is full (${CRITICS.maxVoting} voting seats)`;
+  if (boardSeats(s).filter((x) => x.weight > 0).length >= CRITICS.maxVoting) return `The board is full (${CRITICS.maxVoting} voting seats)`;
   return true;
 }
 
@@ -373,7 +327,7 @@ export function criticsSeat(s: GameStateV2): BoardSeat {
 
 /** The board with the critics' seat added (pure; previews). */
 export function withCriticsSeat(s: GameStateV2): GameStateV2 {
-  return { ...s, player: { ...s.player, board: { ...s.player.board, seats: [...s.player.board.seats, criticsSeat(s)] } } };
+  return { ...s, player: { ...s.player, board: { ...s.player.board, extraSeats: [...s.player.board.extraSeats, criticsSeat(s)] } } };
 }
 
 /** What the critics' seat does to the ouster vote on today's grievance: the confidence it would pass below, before and
@@ -392,7 +346,7 @@ export function giveCriticsSeat(s: GameStateV2, ctx: SystemCtx): string | undefi
   ensureWs3(s);
   const c = criticsSide(s);
   const x = criticsSeat(s);
-  s.player.board.seats.push(x);
+  s.player.board.extraSeats.push(x);
   s.player.finance.ws3.criticsDay = s.time.day;
   ctx.bump('board.confidence', CRITICS.gain, 'critics given a seat', x.holder);
   ctx.log('finance', `${x.holder} joins the board: ${c.why}. Board confidence +${CRITICS.gain}; the board now leans ${c.side === 'mission' ? 'toward caution' : 'toward speed'} for good.`, 3);
@@ -403,7 +357,7 @@ export function giveCriticsSeat(s: GameStateV2, ctx: SystemCtx): string | undefi
 /** Behind the best rival this quarter (intel estimate, never truth): more than the start type's expected lag. */
 export function behindRival(s: GameStateV2): boolean {
   const rivals = activeRivals(s);
-  const expected = (startOf(s).lagMonths * 365) / 12;
+  const expected = (positionOf(s).lagMonths * 365) / 12;
   return rivals.length > 0 && Math.min(...rivals.map((r) => leadDays(s, r.core.id).est)) < -expected;
 }
 
@@ -415,7 +369,6 @@ export const boardQSystem: EngineSystem = {
     const f = s.player.finance;
     const fx = f.ws3;
     const b = s.player.board;
-    syncFinancialSeats(s);
     // Reversion toward the anchor (applied first: this quarter's news lands on top).
     const rev = BC_REVERT_Q * (BC_ANCHOR - b.confidence);
     if (Math.abs(rev) >= 0.5) ctx.bump('board.confidence', rev, 'board memory fades');
@@ -424,8 +377,8 @@ export const boardQSystem: EngineSystem = {
     // safety-grade bonus.
     // Behind the best rival: a board that backed a follower (R9 start types) expects its start lag and minds only
     // falling further behind than that.
-    // FIN5c: a division's parent judges capability through its yearly goals (finance/parent.ts), not quarter by quarter.
-    if (behindRival(s) && !isDivision(s)) boardMood(s, ctx, 'behind', MOOD_BASE.behindQ, 'behind a rival');
+    // FIN5c: an owner judges capability through its yearly goals (finance/parent.ts), not quarter by quarter.
+    if (behindRival(s) && !ownerFunded(s)) boardMood(s, ctx, 'behind', MOOD_BASE.behindQ, 'behind a rival');
     // Public incidents last quarter, by severity, capped per quarter, then × the board's incident multiplier.
     let incHit = 0;
     for (const inc of s.player.safety.incidents) {
@@ -438,7 +391,7 @@ export const boardQSystem: EngineSystem = {
     }
     updateRunwayState(s, ctx);
     // Telegraph: the board warns below BC_WARN; the warning clears once confidence recovers.
-    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined && b.preset !== 'parent') {
+    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined) {
       fx.boardWarnDay = s.time.day;
       ctx.log('alert', `The board is losing confidence (${b.confidence.toFixed(0)}). Below ${OUSTER_BC} directors vote on removing you at quarterly reviews. Results restore it; below ${CRITICS.below} you can give the critics a seat (Finance › Board).`, 4);
     } else if (b.confidence >= BC_CLEAR && fx.boardWarnDay !== undefined) {
@@ -446,7 +399,8 @@ export const boardQSystem: EngineSystem = {
       ctx.log('finance', 'The board has steadied: no more talk of a leadership change.');
     }
     // The ouster vote (FIN3b, spec §7.5): at a review below 25 with a warning at least 60 days old, the board votes seat
-    // by seat (no dice; the Board card shows the vote beforehand). WS4 endings read flags['ws3.ousterDay'].
+    // by seat (no dice; the Board card shows the vote beforehand). WS4 endings read flags['ws3.ousterDay']: ousted, or
+    // absorbed when the controller's own lab leads you (endings.ts).
     if (ousterLive(s) && s.flags['ws3.ousterDay'] === undefined) {
       const ov = ousterVote(s);
       if (ov.passes) {

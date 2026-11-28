@@ -13,7 +13,7 @@ import { theftIntent } from '../../../engine/v2/world/chinagov';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
 import { P0, PREMIUM_STEPS, W0 } from '../../../data/v2/labourMarket';
-import { startOf } from '../../../data/v2/starts';
+import { positionOf } from '../../../data/v2/starts';
 import { humanTasteMean } from '../../../engine/v2/departments/workfit';
 import { nextKeyOf, offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf, teamGap } from '../../../engine/v2/departments/market';
 import { hirableStars, humanTasteWith, playerStars, starTopShare } from '../../../engine/v2/departments/stars';
@@ -220,7 +220,7 @@ function LabourRow({ s, k }: { s: GameStateV2; k: TeamRole }) {
     <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} value={V > 0 ? `${t1(hires)} people a week` : 'no open positions'} rows={[
       { label: 'Open positions', value: F.count(V) },
       { label: `Next team of ${TEAM_SIZE[k]}`, value: Number.isFinite(wk) ? `about ${wk} weeks` : 'none open' },
-      { label: <Term id="talentPull">Talent pull</Term>, value: F.num(startOf(s).mods.talentPull, 0, true) },
+      { label: <Term id="talentPull">Talent pull</Term>, value: F.num(positionOf(s).mods.talentPull, 0, true) },
       { label: <Term id="premiumPay">Pay premium</Term>, value: premLabel(pi) },
     ]}>
       People you hire this week for your open positions. More openings, talent pull, morale and a premium raise it; a thinner pool slows it. Hires add up and a team arrives whole, when it is full.

@@ -1,6 +1,6 @@
 // Fixture GameStates for UI and unit work (V2-SPEC §8.4 M0 gate). Owner: WS1.
 // Guards: the committed fixtures in scripts/v2/fixtures/ (day 0 / 400 / 900 of the tl-central RefBot game and the R9
-// challenger and spinout day-400 starts, which the other tests and the UI test read) are plain JSON, load with the current
+// safety and breakaway day-400 starts, which the other tests and the UI test read) are plain JSON, load with the current
 // schema (deserialize refuses an old one, so a fixture not regenerated after a schema change fails here) and round-trip
 // through serialize. They are NOT diffed against a fresh run: fixtures are regenerated in most engine commits.
 // Cost: check mode reads 5 files, no sim (a few CPU-s); --write plays 900 + 2 x 400 RefBot days (≈ 0.4 CPU-min). Tier: quick, full.
@@ -29,14 +29,14 @@ const ME = fileURLToPath(import.meta.url);
 if (!WRITE) {
   // Check mode: read the committed files only.
   const files = [...FIXTURE_DAYS.map((d) => ({ file: join(FIXTURE_DIR, `day${d}.json`), label: `fixture day ${d}`, start: undefined as string | undefined })),
-    ...(['challenger', 'spinout'] as const).map((st) => ({ file: join(FIXTURE_DIR, `start-${st}-day400.json`), label: `fixture ${st} day 400`, start: st as string | undefined }))];
+    ...(['safety', 'breakaway'] as const).map((st) => ({ file: join(FIXTURE_DIR, `start-${st}-day400.json`), label: `fixture ${st} day 400`, start: st as string | undefined }))];
   for (const { file, label, start } of files) {
     let s;
     try { s = deserialize(readFileSync(file, 'utf8')); } catch (e) { check(false, `${label} loads`, `${(e as Error).message}: run npm run fixtures:v2 and commit the fixtures`); continue; }
     const errs = validateJson(s);
     check(errs.length === 0, `${label} is plain JSON`, errs.slice(0, 3).join('; '));
     check(stateHash(deserialize(serialize(s))) === stateHash(s), `${label} round-trips`);
-    if (start) check(s.setup.start === start && s.rivals.length > 0, `${label} is the ${start} start with the leader lab`);
+    if (start) check(s.setup.labKind === start && s.rivals.length > 0, `${label} is the ${start} start with the leader lab`);
   }
   finish('fixtures');
 }
@@ -60,10 +60,10 @@ for (const sn of main.snaps) {
   console.log(`      wrote ${file} (${(sn.json.length / 1024).toFixed(0)} KB, internal ${sn.version}, measured L ${sn.measuredL}, M ${sn.M?.toFixed(2)})`);
 }
 
-// R9: day-400 fixtures for the challenger and spinout starts (RefBot with real finance and compute; endings skipped so
-// the fixture exists whatever the run's fate). Written as start-<type>-day400.json.
-for (const start of ['challenger', 'spinout'] as const) {
-  const setup = defaultSetupV2({ ...FIXTURE_SETUP, start });
+// R9: day-400 fixtures for the safety-first contender and talent breakaway lab kinds (RefBot with real finance and compute; endings skipped so
+// the fixture exists whatever the run's fate). Written as start-<kind>-day400.json.
+for (const start of ['safety', 'breakaway'] as const) {
+  const setup = defaultSetupV2({ ...FIXTURE_SETUP, labKind: start });
   const r = cached('fixtures-start', { setup, days: 400 }, [ME], () => {
     const t = newGame(setup);
     while (t.time.day < 400) {
@@ -73,7 +73,7 @@ for (const start of ['challenger', 'spinout'] as const) {
     }
     const back = deserialize(serialize(t));
     const v = internalVersion(t);
-    return { json: serialize(t), errs: validateJson(t), start: t.setup.start, leaderLab: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
+    return { json: serialize(t), errs: validateJson(t), start: t.setup.labKind, hasRivals: t.rivals.length > 0, roundTrip: stateHash(back) === stateHash(t), version: v?.name, measuredL: v?.evals.measuredL, cash: t.player.finance.cash };
   });
   const file = join(FIXTURE_DIR, `start-${start}-day400.json`);
   writeFileSync(file, r.json);

@@ -1,8 +1,10 @@
 // Setup: the Rivals section (design/npc/NPC-LABS.md §10). Realistic (default): the July 2025 cast, one line each.
 // Create rivals (advanced): how many US labs (0-6), per lab a kind, a start lag and, optionally, its seven values.
 import { useState, type ReactNode } from 'react';
+import { tiesLabel, type CompanyId } from '../../../data/v2/deals';
 import { KINDS, REALISTIC_CAST, type FocusChannel, type NpcKindId, type OpennessRule, type Personality } from '../../../data/v2/npcLabs';
 import type { NpcSetupLab, SetupV2 } from '../../../engine/v2';
+import { kindOf } from '../../../data/v2/starts';
 import { useV2 } from '../store';
 import { Term, Tip, TipCard } from '../ui';
 
@@ -20,6 +22,11 @@ const MAX_LABS = 6;
 const entryOf = (kind: NpcKindId) => REALISTIC_CAST.find((e) => e.kind === kind)!;
 /** A kind's typical start lag in months behind the frontier (the Realistic cast's). */
 const typicalLag = (kind: NpcKindId) => entryOf(kind).start.publicLagMonths ?? entryOf(kind).start.publicLagBandMonths ?? 0;
+/** A new lab of a kind: its typical lag and the kind's own ties (the Realistic cast's), written out so the pickers edit them. */
+const newLab = (kind: NpcKindId): NpcSetupLab => ({ kind, lagMonths: typicalLag(kind), ...(entryOf(kind).owner ? { owner: entryOf(kind).owner } : {}), backers: { ...entryOf(kind).backers } });
+const OWNER_OPTS: CompanyId[] = ['Azimuth', 'Northwind Cloud', 'Lattice'];
+const BACKER_OPTS: CompanyId[] = ['Northwind Cloud', 'Azimuth', 'Silica Systems'];
+const STAKES = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 const kindDef = (id: string) => US_KINDS.find((k) => k.id === id);
 const fmtLag = (m: number) => (m === 0 ? 'at the frontier' : `${Math.round(m * 10) / 10} mo behind`);
 const dominant = (f: Personality['focus']): FocusChannel => Object.entries(f.channels).sort((a, b) => b[1] - a[1])[0][0] as FocusChannel;
@@ -28,8 +35,8 @@ const OPEN_LABEL: Record<'closed' | 'open' | 'partial', string> = { closed: 'Clo
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
 /** Realistic: the cast, one line each. */
-function CastList({ leaderGone }: { leaderGone: boolean }) {
-  const rows = REALISTIC_CAST.filter((e) => !(e.kind === 'leader' && leaderGone));
+function CastList({ replaced }: { replaced?: NpcKindId }) {
+  const rows = REALISTIC_CAST.filter((e) => e.kind !== replaced);
   return (
     <div className="cast-list" data-test="cast-list">
       {rows.map((e) => {
@@ -38,6 +45,7 @@ function CastList({ leaderGone }: { leaderGone: boolean }) {
         return (
           <div className="cast-row" key={e.id} data-cast={e.id}>
             <b className="cast-name">{e.name}</b>
+            {(e.owner || e.backers) && <Tip content={() => <TipCard title={<Term id={e.owner ? 'ownedBy' : 'backedBy'}>Company ties</Term>}>{e.owner ? `${e.owner} owns this lab: it is its in-house lab.` : 'A company holds a stake in this lab and values you less while its money is on a competitor.'}</TipCard>}><span className="cast-ties dim small">{tiesLabel(e.owner, e.backers)}</span></Tip>}
             <span className="cast-kind">{k ? <Term id={k.term}>{k.label}</Term> : 'State lab'}</span>
             <Tip content={() => <TipCard title={<Term id="npcStartLag">Months behind</Term>}>{e.start.publicLagMonths === null ? 'No public model yet; its level is a guess.' : `Its best public model matches the leading lab's from ${fmtLag(lag).replace(' behind', '')} earlier.`}</TipCard>}>
               <span className="cast-lag mono">{e.start.publicLagMonths === null ? `~${lag} mo, no model` : fmtLag(lag)}</span>
@@ -65,7 +73,6 @@ function PersonalityEditor({ lab, set }: { lab: NpcSetupLab; set: (p: Partial<Pe
   const open = cur.openness.mode === 'chinaRung' ? 'open' : cur.openness.mode;
   return (
     <div className="pers" data-test="personality">
-      {row('npcFunding', 'Funding', <Chips cur={cur.funding} opts={[{ v: 'parent', label: 'Parent' }, { v: 'private', label: 'Private' }]} onPick={(v) => patch({ funding: v })} />)}
       {row('npcReleaseLag', 'Release lag', <span><Num label="Release lag in days" value={cur.releaseLagDays} min={0} max={180} onChange={(v) => patch({ releaseLagDays: v })} /> <span className="dim small">days</span></span>)}
       {row('npcOpenness', 'Openness', <Chips cur={open} opts={(['closed', 'open', 'partial'] as const).map((v) => ({ v, label: OPEN_LABEL[v] }))} onPick={(v) => patch({ openness: { mode: v } as OpennessRule })} />)}
       {row('npcFocus', 'Market focus', <Chips cur={dominant(cur.focus)} opts={(['consumer', 'api', 'enterprise'] as const).map((v) => ({ v, label: FOCUS_LABEL[v] }))}
@@ -77,16 +84,57 @@ function PersonalityEditor({ lab, set }: { lab: NpcSetupLab; set: (p: Partial<Pe
   );
 }
 
-function LabRow({ i, lab, leaderGone, update, remove }: { i: number; lab: NpcSetupLab; leaderGone: boolean; update: (l: NpcSetupLab) => void; remove: () => void }) {
+/** One option of an owner or backer picker; a blocked one stays visible, disabled, with its reason in the tooltip. */
+function TieChip({ opt, active, reason, label, onPick }: { opt: string; active: boolean; reason?: string; label: string; onPick: () => void }) {
+  const chip = <button className={`chip chip-sm ${active ? 'active' : ''}`} data-opt={opt} disabled={!!reason && !active} onClick={onPick}>{label}</button>;
+  return reason && !active ? <Tip content={() => <TipCard title={label}>{reason}</TipCard>}>{chip}</Tip> : chip;
+}
+
+/** The owner and backer pickers of one lab. Rules (CORPORATE.md §5.8): a lab has one owner or none, and an owned lab has
+ *  no outside backers; the company whose lab you take the place of cannot own another. A company may own one lab and back
+ *  others (Google owns DeepMind and backs Anthropic). */
+function TiesRow({ i, lab, replaced, update }: { i: number; lab: NpcSetupLab; replaced?: NpcKindId; update: (l: NpcSetupLab) => void }) {
+  const owner = lab.owner;
+  const backers = lab.backers ?? {};
+  const backer = (Object.keys(backers) as CompanyId[])[0];
+  const taken = replaced ? entryOf(replaced).owner : undefined;
+  const ownerBlock = (c: CompanyId) => (c === taken ? `You take the place of ${c}'s own lab, so ${c} cannot own another.` : undefined);
+  const backerBlock = (_c: CompanyId) => (owner ? 'An owned lab has no outside backers.' : undefined);
+  const stake = backer ? Math.round((backers[backer] ?? 0.1) * 100) : 10;
+  const setOwner = (c?: CompanyId) => update({ kind: lab.kind, lagMonths: lab.lagMonths, ...(lab.personality ? { personality: lab.personality } : {}), ...(c ? { owner: c } : {}), backers: {} });
+  const setBacker = (c?: CompanyId, pct = stake) => update({ ...lab, backers: c ? { [c]: pct / 100 } : {} });
+  return (
+    <div className="lab-ties" data-test={`ties-${i}`}>
+      <span className="ties-group" data-picker={`lab-owner-${i}`}>
+        <span className="dim"><Term id="ownedBy">Owner</Term></span>
+        <TieChip opt="none" active={!owner} label="None" onPick={() => setOwner(undefined)} />
+        {OWNER_OPTS.map((c) => <TieChip key={c} opt={c} active={owner === c} reason={ownerBlock(c)} label={c} onPick={() => setOwner(c)} />)}
+      </span>
+      <span className="ties-group" data-picker={`lab-backer-${i}`}>
+        <span className="dim"><Term id="backer">Backer</Term></span>
+        <TieChip opt="none" active={!backer} label="None" onPick={() => setBacker(undefined)} />
+        {BACKER_OPTS.map((c) => <TieChip key={c} opt={c} active={backer === c} reason={backerBlock(c)} label={c} onPick={() => setBacker(c)} />)}
+        {backer && (
+          <select aria-label={`Lab ${i + 1} backer stake`} value={stake} onChange={(e) => setBacker(backer, Number(e.target.value))}>
+            {(STAKES.includes(stake) ? STAKES : [...STAKES, stake].sort((a, b) => a - b)).map((n) => <option key={n} value={n}>{n}%</option>)}
+          </select>
+        )}
+      </span>
+      <span className="dim small"><Term id="npcFunding">{owner ? 'Parent-funded' : 'Funds itself'}</Term></span>
+    </div>
+  );
+}
+
+function LabRow({ i, lab, replaced, update, remove }: { i: number; lab: NpcSetupLab; replaced?: NpcKindId; update: (l: NpcSetupLab) => void; remove: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="lab-row" data-lab={i}>
       <div className="lab-row-head">
         <span className="dim small lab-n">{i + 1}</span>
         <span className="picker-opts" data-picker={`lab-kind-${i}`}>
-          {US_KINDS.filter((k) => !(k.id === 'leader' && leaderGone)).map((k) => (
+          {US_KINDS.filter((k) => k.id !== replaced).map((k) => (
             <Tip key={k.id} content={() => <TipCard title={<Term id={k.term}>{k.label}</Term>}>{k.line}</TipCard>}>
-              <button className={`chip chip-sm ${lab.kind === k.id ? 'active' : ''}`} data-opt={k.id} onClick={() => update({ kind: k.id, lagMonths: typicalLag(k.id) })}>{k.label}</button>
+              <button className={`chip chip-sm ${lab.kind === k.id ? 'active' : ''}`} data-opt={k.id} onClick={() => update(newLab(k.id))}>{k.label}</button>
             </Tip>
           ))}
         </span>
@@ -94,7 +142,8 @@ function LabRow({ i, lab, leaderGone, update, remove }: { i: number; lab: NpcSet
         <button className={`btn btn-sm ${open ? 'active' : ''}`} data-test={`adjust-${i}`} onClick={() => setOpen(!open)}>{lab.personality ? 'Personality: adjusted' : 'Adjust personality'}</button>
         <button className="btn btn-sm" aria-label={`Remove lab ${i + 1}`} onClick={remove}>Remove</button>
       </div>
-      {open && <PersonalityEditor lab={lab} set={(p) => update({ kind: lab.kind, lagMonths: lab.lagMonths, ...(p ? { personality: p } : {}) })} />}
+      <TiesRow i={i} lab={lab} replaced={replaced} update={update} />
+      {open && <PersonalityEditor lab={lab} set={(p) => update({ kind: lab.kind, lagMonths: lab.lagMonths, ...(lab.owner ? { owner: lab.owner } : {}), ...(lab.backers ? { backers: lab.backers } : {}), ...(p ? { personality: p } : {}) })} />}
     </div>
   );
 }
@@ -104,17 +153,17 @@ export function RivalsSection() {
   const st = useV2();
   const d = st.draftSetup;
   const custom = d.cast !== 'realistic';
-  const leaderGone = (d.start ?? 'leader') === 'leader';
+  const replaced = kindOf({ setup: d }).replacesNpc; // the NPC lab the player's kind takes the place of
   const set = (p: Partial<SetupV2>) => { st.draftSetup = { ...st.draftSetup, ...p }; st.notify(); };
   const labs: NpcSetupLab[] = d.cast === 'realistic' ? [] : d.cast;
-  const seed = (): NpcSetupLab[] => REALISTIC_CAST.filter((e) => e.kind !== 'china' && !(e.kind === 'leader' && leaderGone)).map((e) => ({ kind: e.kind, lagMonths: typicalLag(e.kind) }));
+  const seed = (): NpcSetupLab[] => REALISTIC_CAST.filter((e) => e.kind !== 'china' && e.kind !== replaced).map((e) => newLab(e.kind));
   const setCount = (n: number) => {
     const next = labs.slice(0, n);
     const used = new Set(next.map((l) => l.kind));
     while (next.length < n) {
-      const kind = US_KINDS.find((k) => !used.has(k.id) && !(k.id === 'leader' && leaderGone))?.id ?? 'safety';
+      const kind = US_KINDS.find((k) => !used.has(k.id) && k.id !== replaced)?.id ?? 'safety';
       used.add(kind);
-      next.push({ kind, lagMonths: typicalLag(kind) });
+      next.push(newLab(kind));
     }
     set({ cast: next });
   };
@@ -125,13 +174,13 @@ export function RivalsSection() {
         <button className={`chip ${!custom ? 'active' : ''}`} data-opt="realistic" onClick={() => set({ cast: 'realistic' })}>Realistic</button>
         <button className={`chip ${custom ? 'active' : ''}`} data-opt="custom" data-test="create-rivals" onClick={() => !custom && set({ cast: seed() })}>Create rivals</button>
       </div>
-      {!custom && <CastList leaderGone={leaderGone} />}
+      {!custom && <CastList replaced={replaced} />}
       {custom && (
         <div className="rivals-custom" data-test="rivals-custom">
           <div className="lab-count"><span className="dim small">US labs</span>
             <span className="picker-opts" data-picker="lab-count">{Array.from({ length: MAX_LABS + 1 }, (_, n) => <button key={n} className={`chip chip-sm ${labs.length === n ? 'active' : ''}`} data-opt={n} onClick={() => setCount(n)}>{n}</button>)}</span>
           </div>
-          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} leaderGone={leaderGone} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
+          {labs.map((l, i) => <LabRow key={i} i={i} lab={l} replaced={replaced} update={(nl) => set({ cast: labs.map((x, j) => (j === i ? nl : x)) })} remove={() => set({ cast: labs.filter((_, j) => j !== i) })} />)}
           {labs.length === 0 && <div className="dim small">No US rivals: only China's lab races you.</div>}
         </div>
       )}

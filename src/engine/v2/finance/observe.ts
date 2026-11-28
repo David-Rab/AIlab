@@ -120,7 +120,7 @@ export function safetyRedFlags(v: ModelVersion, minEst?: number): { trait: strin
 
 /** Dangerous-capability thresholds a version's measured evals have crossed (bio uplift, cyber offense, autonomous
  *  replication: the dangerous benchmarks above 60, §3.3.4; persuasion is not a threshold). A "capability-threshold
- *  model" in the PBC + trust charter (FINANCE-V3 §7.2) is one with any of them. */
+ *  model" for a mission body's trust approval (FINANCE-V3 §7.2) is one with any of them. */
 export const THRESHOLD_FLAGS = { bioUplift: 'bio uplift', cyberOffense: 'cyber offense', replication: 'autonomous replication' } as const;
 export function capabilityThresholds(v: ModelVersion): string[] {
   return (Object.keys(THRESHOLD_FLAGS) as (keyof typeof THRESHOLD_FLAGS)[]).filter((k) => v.flags[k]).map((k) => THRESHOLD_FLAGS[k]);
@@ -136,7 +136,7 @@ export function copyrightExposure(s: GameStateV2): { tokensT: number; settlement
 }
 
 /** The model a partner's IP licence reaches (FIN4b, spec §6.1 IP access): the player's best live version, leaving out
- *  capability-threshold versions when `noThreshold` (a PBC + trust licence the trust did not approve, §7.2). */
+ *  capability-threshold versions when `noThreshold` (a licence the mission body did not approve, §7.2). */
 export function licensedModel(s: GameStateV2, noThreshold = false): ModelVersion | undefined {
   let best: ModelVersion | undefined;
   for (const v of s.player.models.versions) {

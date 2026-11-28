@@ -1581,9 +1581,9 @@ export const TARGETS = defineTargets([
   },
   {
     id: 'FIN4b.dealStrings',
-    statement: 'The reference bot\'s hyperscaler deal has exclusivity and no IP access, and it never has more than the maximum number of partners.',
+    statement: 'The reference bot\'s hyperscaler deal has no IP access (exclusivity only when a competitor could offer something, since corp), and it never has more than the maximum number of partners.',
     type: 'invariant',
-    metric: 'scripts/v2/calreport/finance.ts: fin4b.deal row: every deal strings.exclusivity and not ipAccess; partnersNow ≤ PARTNER_TERMS.strings.maxPartners',
+    metric: 'scripts/v2/calreport/finance.ts: fin4b.deal row: every deal not ipAccess; partnersNow ≤ PARTNER_TERMS.strings.maxPartners',
     presets: ['tl-central'],
     policy: 'ref',
     value: { unit: 'boolean' },

@@ -119,15 +119,17 @@ export function measuredDomains(v: ModelVersion): Partial<Record<DomainId, numbe
 }
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
-export { parentSchedule, parentPaymentQ, divisionView, budgetFactor, budgetYearStart, DIVISION, DIVISION_REASON } from './finance/parent';
+export { parentSchedule, parentPaymentQ, divisionView, budgetFactor, budgetYearStart, divisionOf, DIVISION, DIVISION_REASON, govGoalCheck, GOV_GOALS } from './finance/parent';
 export type { DivisionView, ParentPayment } from './finance/parent';
 export { debtHeadroom, totalDebt, interestPerYear, debtRatePct, newDebtRatePct, ratingTerms, creditLineCapacity, chipCollateral, trailingOpCash, lineUndrawn } from './finance/debt';
 export type { Headroom, RatingTerms } from './finance/debt';
 export { payOptions, leaseRate, leaseAvailable, leaseGuarantor, contingentLiabilities, siteRVG, leaseBalance } from './finance/capex';
 export type { PayOption } from './finance/capex';
-export { conditionWords, dealPreview } from './finance/actions';
-export { affiliatedLab, anchorPartners, dealWith, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
+export { conditionWords, controlLine, dealPreview } from './finance/actions';
+export { affiliatedLab, dealControlAfter, dealWith, partnerOwed, followOnBlocker, followOnTerms, partnerBlocker, partnerCosts, partnerStakeAfter, partnerStakeAll, partnerOffers, partnersNow, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
 export type { PartnerChoice } from './finance/deals';
+export { dependence, interestWord, interestWords, partnerInterest, PARTNER_INTEREST } from './finance/partnerInterest';
+export { dealCutProjections, distributionProjection, type CutProjection } from './finance/distribution';
 export { leadEstimate } from './finance/observe';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';
@@ -177,14 +179,16 @@ export type { Owe, OweCovenant, OweContingent, OweTranche } from './finance/owe'
 export { promiseStatus, trendOf, makeThesis, pitchAvailable, credRung, CRED_RUNGS, PITCH, PITCHES, MILESTONES, PROMISE_RESULT, fmtMetric, describeTarget, promiseDeadline, neededBy } from './finance/promises';
 export type { PromiseStatus, Trend } from './finance/promises';
 export { raiseQuote, raiseTerms } from './finance/actions';
-export { canIpo, isListed, LARGE_ROUND, roundSplit } from './finance/equity';
+export { canIpo, isListed, issueControlAfter, LARGE_ROUND, roundSplit } from './finance/equity';
 // FIN5a: the story (sector value × share), the investor pool and supplier terms.
-export { storyNow, sectorValue, STORY, SUPPLIER, DRIVERS, DUAL_CLASS_GOV, supplierTerms, poolAnnualOf } from './finance/story';
+export { storyNow, sectorValue, STORY, SUPPLIER, DRIVERS, supplierTerms, poolAnnualOf } from './finance/story';
 export type { StoryNow, LabStory, SectorValue, Driver, SupplierTerms } from './finance/story';
-export { RIVAL, RIVAL_GOV, capMultiple, valueCap } from './finance/rivalFinance';
+export { RIVAL, RIVAL_CHARTER, rivalStructure, capMultiple, valueCap } from './finance/rivalFinance';
 export { raceResponseOf } from './npc/lab';
 // FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
-export { boardVote, founderControl, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
+export type { ControlChange, Holding } from './finance/control';
+export { boardSeats, CLASS_RULE, controlAfter, controllerOf, holdingsOf, seatsOf, missionPowers, overrideAvailable, ownerFunded, startControl, structureLabel } from './finance/control';
+export { boardVote, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
 export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';
 export type { MoodSource } from './finance/mood';
 /** The board vote an action needs with these params (FIN3a), or undefined (never throws). */

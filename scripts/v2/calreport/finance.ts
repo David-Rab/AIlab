@@ -16,6 +16,7 @@ import { cadencesDue, dayOfDate, decimalYear } from '../../../src/engine/v2/core
 import { demandShock, impliedMargin, rentalBase, spotRental } from '../../../src/engine/v2/compute/market';
 import { siteLiveMW } from '../../../src/engine/v2/compute/sites';
 import { charterReleaseBlock } from '../../../src/engine/v2/finance/charter';
+import { missionPowers } from '../../../src/engine/v2/finance/control';
 import { parentFunded } from '../../../src/engine/v2/finance/rivalFinance';
 import { storyNow } from '../../../src/engine/v2/finance/story';
 import { commitmentsRemaining } from '../../../src/engine/v2/finance/ledger';
@@ -76,7 +77,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number, st
   let rivals2026: RivalRow[] = [];
   const private0 = s.rivals.filter((r) => r.finance.valuation > 0 && !parentFunded(r)).map((r) => r.core.id);
   while (s.time.day < until) {
-    if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
+    if (missionPowers(s) && s.time.day % 7 === 0) {
       pbcDays += 7;
       const hs = s.player.models.versions.filter((v) => v.status === 'ready' && (v.variant === 'full' || v.variant === 'mini') && charterReleaseBlock(s, v, 'api'));
       for (const v of hs) held.add(v.id);
@@ -254,7 +255,7 @@ export function targets(): Target[] {
     const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r / mA(q.r)))); // band-lint: ok measured years
     const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R)); // band-lint: ok x2.5 growth class of the F9 definition
     R('F9.fc2.trailingRivals', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`, trA.length > 0 ? median(trA) / median(hiA) : NaN);
-    const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
+    const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.down).map((x) => x.dilution));
     R('F9.dilution', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`, dil.length > 0 ? Math.max(...dil) : NaN);
   }
 
@@ -276,15 +277,15 @@ export function targets(): Target[] {
     const bc = median(ref.map((r) => r.s.player.board.confidence));
     R('FIN3a.boardConfidence', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`, bc);
   }
-  // ───────────── FIN3b: the safety committee under the nonprofit PBC ─────────────
+  // ───────────── FIN3b: the safety committee under a mission body ─────────────
   {
-    // How often the committee bites on the reference bot: leader start (legacy nonprofit), recapitalised into a nonprofit PBC
-    // around Q4 2026; ready models it held back, through 2027.
+    // How often the committee bites on the reference bot: the leader start's mission body holds it from day 0; ready
+    // models it held back, through 2027.
     const pbc = ref.filter((r) => r.pbcDays > 0);
     const games = pbc.filter((r) => r.held.length > 0).length;
     const versions = pbc.reduce((a, r) => a + r.held.length, 0);
     const sh = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
-    R('FIN3b.committeeShare', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`, pbc.length > 0 ? sh : NaN);
+    R('FIN3b.committeeShare', `${pbc.length} of ${ref.length} games under a mission body · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`, pbc.length > 0 ? sh : NaN);
   }
   // ───────────── FIN4a / FIN4b: the reference bot's partner deal ─────────────
   {
@@ -295,7 +296,7 @@ export function targets(): Target[] {
     { const v = `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`; R('FIN4a.dealShare', v, deals.length / Math.max(1, ref.length)); R('FIN4a.dealShape', v, deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0)); };
     const n = ref.map((r) => partnersNow(r.s).length);
     const ST = PARTNER_TERMS.strings;
-    R('FIN4b.dealStrings', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`, deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners));
+    R('FIN4b.dealStrings', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`, deals.length > 0 && deals.every((d) => !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners));
   }
   // ───────────── FIN5a: the story on the reference path ─────────────
   {
@@ -330,7 +331,7 @@ export function targets(): Target[] {
     // One seed, a year and a half: it keeps to the budget room, the state is never distress, the first review judges three
     // goals and sets the budget by the rule (the rule itself is checked constructed in finance.ts).
     const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
-    const s = newGame(defaultSetupV2({ seed: 30000, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'bigtech' }));
+    const s = newGame(defaultSetupV2({ seed: 30000, world: 'tl-central', alignment: 'medium', tutorial: false, labKind: 'bigtech' }));
     let distress = 0;
     while (s.time.day < 550 && !s.ending) { // band-lint: ok game length
       for (const p of [...s.events.pending]) if (resolve(s, p.instance, mixedBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);

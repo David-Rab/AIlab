@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param, Target } from '../../balance/schema';
 import type { AlignmentLevel, Checkpoint, Timeline } from '../../balance/scenarios';
 import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
-import { STARTS } from '../../src/data/v2/starts';
+import { LAB_KINDS } from '../../src/data/v2/starts';
 import { loadLive, type LiveOpts } from './baldash-live';
 import { calibrateRun, parseMap, readRecs, type RunCalib } from './calibscore';
 
@@ -132,7 +132,7 @@ async function main() {
   // Player-facing names, read from the game at build time (ids without an entry show as the id).
   const names = {
     ending: Object.fromEntries(Object.entries(ENDING_TEXT).map(([id, t]) => [id, t[0]])),
-    start: Object.fromEntries(STARTS.map((x) => [x.id, x.name])),
+    start: Object.fromEntries(LAB_KINDS.map((x) => [x.id, x.name])),
     world: { 'tl-fast': 'Fast', 'tl-central': 'Central', 'tl-slow': 'Slow' },
   };
   const scen = await loadScenarios(scenarios);

@@ -50,6 +50,7 @@ import { COMMITMENT_ACTIONS } from '../actors/commitmentActions';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
+import { PARTNER_EVENTS } from '../events/catalog/partners';
 import { GOV_EVENTS } from '../events/catalog/gov';
 // WS5
 import { revenueSystem } from '../worldfx/revenue';
@@ -104,7 +105,7 @@ export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, PO
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...GOV_EVENTS,
+  ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...PARTNER_EVENTS, ...GOV_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));

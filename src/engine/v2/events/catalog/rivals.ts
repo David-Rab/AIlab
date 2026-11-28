@@ -12,7 +12,7 @@ import { morale } from '../../actors/fx';
 import { deactivateRival, postureOf } from '../../actors/rivals';
 import { exitBuyer } from '../../finance/rivalFinance';
 import { changeHeads } from '../../departments/teams';
-import { acquireBlock, acquireTerms, acquireVotes, forceLines, obligationLines, payForRival, paymentLines, sellsControl, shownVote, type PayWith } from '../../finance/acquire';
+import { acquireBlock, acquireTerms, acquireVotes, forceLines, obligationLines, payForRival, paymentLines, shownVote, type PayWith } from '../../finance/acquire';
 import { L, activeLab, ch, ev, labName, requestOnly } from '../kit';
 
 /** Share of a bought lab's staff that joins (kept from E32). */
@@ -45,13 +45,11 @@ function buyApply(pay: PayWith) {
     const r = target(s, d);
     if (!r) return;
     const t = acquireTerms(s, r);
-    const sold = sellsControl(t, pay);
     const no = payForRival(s, ctx, t, pay);
     if (no) {
       ctx.log('finance', `The ${r.core.name} deal did not go through: ${no}.`, 2);
       return;
     }
-    if (sold) s.endingProgress.soldControl = true; // its holders now control the company (the 'acquired' ending)
     const st = staffOf(r);
     changeHeads(s, 'cap', st.cap);
     changeHeads(s, 'saf', st.saf);
