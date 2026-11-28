@@ -31,7 +31,7 @@ export function defaultMarketWS3(): MarketWS3 {
 }
 
 export function defaultCapitalWS3(hype: number): CapitalWS3 {
-  return { hypeBase: hype, rSectorHist: [], playerPoolQ: 0, playerTakenQ: 0, playerShare: 0.3, anchors: { 'Northwind Cloud': 'player' }, lastFrontierL: 0, spreadAddBp: 0 };
+  return { hypeBase: hype, rSectorHist: [], playerPoolQ: 0, playerTakenQ: 0, playerShare: 0.3, lastFrontierL: 0, spreadAddBp: 0 };
 }
 
 /** Fill any missing WS3 block (saves and fixtures made before the blocks existed). Cheap; called by every system. */

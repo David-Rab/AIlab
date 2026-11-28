@@ -123,7 +123,7 @@ export function globalRefQ(q: number): number {
 export const RIVAL_GROWTH = 2.25;
 export const RIVAL_GROWTH_Q = Math.pow(RIVAL_GROWTH, 0.25) - 1;
 
-/** Exogenous demand (hyperscalers, enterprise, sovereign buyers not modelled as labs) for quarter q (§3.8). The
+/** Exogenous demand (hyperscalers, enterprise, state buyers not modelled as labs) for quarter q (§3.8). The
  *  reference player and default rivals are netted out, so with reference labs total demand ≈ globalRefQ.
  *  With the leader lab (setup.leaderLab, R2) active, the reference lab's growth is the leader's: it stays in the
  *  exogenous demand (the leader places no orders) and the player's orders are extra demand. */

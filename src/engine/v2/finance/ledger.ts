@@ -170,6 +170,16 @@ export function commitmentsRemaining(s: GameStateV2, firmOnly = false): Money {
   return sum;
 }
 
+/** Record a payment to `payee` ($B): the running tally partner tranche conditions count (entries leave the ledger as they
+ *  end, so the tally is kept as they pay). */
+export function notePaid(s: GameStateV2, payee: string, amount: Money): void {
+  const w = s.player.finance.ws3;
+  const m = (w.paidTo ??= {});
+  m[payee] = (m[payee] ?? 0) + amount;
+}
+/** Everything paid to `payee` so far ($B). */
+export const paidTo = (s: GameStateV2, payee: string): Money => s.player.finance.ws3.paidTo?.[payee] ?? 0;
+
 /** Add a ledger entry (returns it). */
 export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: string }): Commitment$ {
   const c: Commitment$ = { id: e.id ?? `L${s.time.day}-${s.player.finance.ledger.length}`, payee: e.payee, kind: e.kind, perQuarter: e.perQuarter, ...(e.startDay !== undefined ? { startDay: e.startDay } : {}), endDay: e.endDay, cancellableNoticeQ: e.cancellableNoticeQ, penalty: e.penalty, ...(e.contract ? { contract: e.contract } : {}), ...(e.rate !== undefined ? { rate: e.rate } : {}) };
