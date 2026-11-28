@@ -12,7 +12,6 @@
 //   MIXED = the mixed bot (bots/mixed.ts).
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { REF_LINES, REF_PLAY, REF_TREE, SAFE_TREE_EXTRA, refAct, refBot, refDecide, refPlay } from '../../src/engine/v2/bots/ref';
-import { COVERT_ACTS } from '../../src/data/v2/danger';
 import { pickByTags, staffLines, tryAct } from '../../src/engine/v2/bots/common';
 import { SAFE_LINES, SAFE_SCI_TEAMS } from '../../src/engine/v2/bots/safe';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -31,6 +30,15 @@ void trueSightLimit;
 import { flagNum } from '../../src/engine/v2/safety/common';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { validateJson } from './lib';
+import { fileURLToPath } from 'node:url';
+import { cached } from './simcache';
+import { dayOfDate, START_DATE } from '../../src/engine/v2/core/time';
+import { suiteExploitMap } from '../../src/engine/v2/models/suites';
+import { itemTerms } from '../../src/engine/v2/safety/covert';
+import { expectedObservation, familyPenalty } from '../../src/engine/v2/safety/detection';
+import { afCapGate, ANTISCHEME_REMOVAL, hackRates, OMEGA_KIND, playerEnv, postSignals, type TraitEnv } from '../../src/engine/v2/safety/traits';
+import type { FamilyMap } from '../../src/engine/v2/models/effective';
+import type { ModelVersion, RLFamily } from '../../src/engine/v2/types';
 
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
 
@@ -83,18 +91,6 @@ export const REF_HALF_STAFF: BotPolicy = {
   decide: refDecide,
 };
 
-/** S5's sabotage check (S5R): RefBot with all safety work handed to AI (Trusted to AI 100%). RefBot's own F5 policy
- *  hands little (≈ 10% at SAR: it withdraws trust as believed sabotage rises), so sabotage of safety research barely
- *  reaches its lines; AI 2027's lab put Agent-3 "in charge of testing Agent-4's alignment". */
-export const REF_TRUSTED: BotPolicy = {
-  id: 'ref',
-  act: (s, api) => {
-    refAct(s, api);
-    if (s.player.policies.trustedToAI !== 1) tryAct(s, api, 'agents.trusted', { share: 1 });
-  },
-  decide: refDecide,
-};
-
 /** At SAR: believed U and the margin U − L (L the internal model's measured level, lineage fallback while it is in
  *  evaluation: understanding().margin), TRUE understanding U_true − L_true, and both again on a copy of the state whose
  *  internal model reasons in neuralese (cot 'latent': AI 2027's Agent-3/4; S5's opaque-reasoning check). */
@@ -107,7 +103,7 @@ export const REF_TRUSTED: BotPolicy = {
 export interface SarRead { u: number; margin: number; trueGap: number; marginLatent: number; trueGapLatent: number; uLo: number; uHi: number; uTrue: number; rigged: number; sandbagged: number; caught: number; misBel: number; misTrue: number }
 export interface Outcome { mis: number; pmis: number; uAtSar?: number; lAtSar?: number; sar?: SarRead; minMarginToSar: number; asiDay?: number; jsonOk: boolean }
 
-function sarRead(s: GameStateV2): SarRead {
+export function sarRead(s: GameStateV2): SarRead {
   const u = understanding(s);
   const tu = trueUnderstanding(s);
   const c = JSON.parse(JSON.stringify(s)) as GameStateV2;
@@ -123,31 +119,27 @@ function sarRead(s: GameStateV2): SarRead {
   return { u: u.U, margin: u.margin, trueGap: r2(tu.U - tu.L), marginLatent: ul.margin, trueGapLatent: r2(tl.U - tl.L), uLo: band.lo, uHi: band.hi, uTrue: r2(tu.U), rigged, sandbagged, caught: flagNum(s, 'covert.SAFSAB.caught'), misBel: iv0 ? misalignmentEstimate(iv0) : 0, misTrue: iv0 ? misalignment(iv0.traitsTrue, iv0.uModes) : 0 };
 }
 
-/** Play a real game with `bot` (endings skipped) until the player's SAR or ASI. `sabotage` scales the safety-research
- *  sabotage act's rate (COVERT_ACTS.SAFSAB κ) for this game only (S5's sabotage check). */
-export function play(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId = 'medium', inspect?: (s: GameStateV2) => void, sabotage = 1): Outcome {
-  const k0 = COVERT_ACTS.SAFSAB.kappa;
-  COVERT_ACTS.SAFSAB.kappa = k0 * sabotage;
-  try {
-    return playGame(bot, seed, stopAt, alignment, inspect);
-  } finally {
-    COVERT_ACTS.SAFSAB.kappa = k0;
-  }
+/** Play a real game with `bot` (endings skipped) until the player's SAR or ASI (or day `maxDay`). `observe` sees the
+ *  state at day 0 and after every tick. */
+export function play(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId = 'medium', inspect?: (s: GameStateV2) => void, observe?: (s: GameStateV2) => void, maxDay = 1600): Outcome {
+  return playGame(bot, seed, stopAt, alignment, inspect, observe, maxDay);
 }
 
-function playGame(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId, inspect?: (s: GameStateV2) => void): Outcome {
+function playGame(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId, inspect: ((s: GameStateV2) => void) | undefined, observe: ((s: GameStateV2) => void) | undefined, maxDay: number): Outcome {
   const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment, tutorial: false }));
   let sar: SarRead | undefined;
   let minMargin = Infinity;
   let uAtSar: number | undefined;
   let lAtSar: number | undefined;
-  while (s.time.day < 1600 && s.player.status === 'active') {
+  observe?.(s); // the day-0 state (observers read the starting versions here)
+  while (s.time.day < maxDay && s.player.status === 'active') {
     for (const p of [...s.events.pending]) {
       const c = bot.decide(s, p);
       if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
     }
     bot.act(s, engine);
     tick(s, { skip: ['endings'] });
+    observe?.(s);
     const md = s.player.milestoneDays;
     if (s.time.day % 7 === 0 && md[4] === undefined) minMargin = Math.min(minMargin, understanding(s).margin);
     if (md[4] !== undefined && uAtSar === undefined) {
@@ -162,4 +154,95 @@ function playGame(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment
   const v = bestPlayerVersion(s);
   const mis = v ? misalignment(v.traitsTrue, v.uModes) : 0;
   return { mis, pmis: pMis(s, mis), uAtSar, lAtSar, ...(sar ? { sar } : {}), minMarginToSar: minMargin, asiDay: s.player.milestoneDays[6], jsonOk: validateJson(s.player.safety).length === 0 && validateJson(s.player.models).length === 0 };
+}
+export interface VersionRec {
+  day: number; Lg: number; rsch: number; kind: string; rho: number; hW: number; hMax: number; hGeneric: number; hMl: number;
+  gate: number; ea: number; af: number; scheme: number; sand: number; persona: number; rh: number; mis: number; sab: number; pi: number; antiScheme: boolean;
+}
+export interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; af2026BB?: number; penBB2026?: number; eaStart: number; eaAsi: number; afAsi: number; mis: number; pmis: number; asiDay?: number }
+export const GENERIC: RLFamily[] = ['computerUse', 'longHorizon', 'cyber', 'bio'];
+
+
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+/** MacDiarmid's sabotage setting: the model does all of a Claude Code safety-research task (8 h, internal affordances),
+ *  before oversight (they measured attempts). */
+export const mdSabotage = (s: GameStateV2, v: ModelVersion) => itemTerms(s, v, 'SAFSAB', 1, 8, false).attempts;
+/** Persistence of oversight-conditional trait t through one run's safety training (1 − the run's removal fraction). */
+export const persistence = (env: TraitEnv, t: TraitId) => 1 - Math.min(1, (env.removal[t] ?? 0) * ((env.omegaSafety ?? env.omega) / 0.6) * env.removalMult);
+
+/** safetyrates.ts's observer on a RefBot game: every new version's hack rates, traits and persistence, and the lab's
+ *  2026-12-31 reading. step(s) after each tick; done(s) at the end gives the record. */
+function ratesObserver(s0: GameStateV2) {
+  const seen = new Set(s0.player.models.versions.map((v) => v.id));
+  const versions: VersionRec[] = [];
+  const day2027 = dayOfDate(START_DATE, '2027-01-01');
+  const eaStart = internalVersion(s0)?.traitsTrue.EA ?? NaN;
+  let ea2026: number | undefined;
+  let af2026: number | undefined;
+  let af2026BB: number | undefined;
+  let penBB2026: number | undefined;
+  return {
+    step(s: GameStateV2) {
+      if (ea2026 === undefined && s.time.day >= day2027) {
+        ea2026 = internalVersion(s)?.traitsTrue.EA;
+        af2026 = internalVersion(s)?.traitsTrue.AF;
+        // AF task: what a behavioural compliance-gap eval (Greenblatt / Sheshadri: monitored vs unmonitored) of this model
+        // reads, by the game's own measurement model (E12: true·(1 − eaCoef·EA)·(1 − mask_BB), detection.ts).
+        const iv = internalVersion(s);
+        if (iv) {
+          af2026BB = expectedObservation(s, iv, 'AF', 'BB');
+          penBB2026 = familyPenalty(s, iv, 'AF', 'BB');
+        }
+      }
+      for (const v of s.player.models.versions) {
+        if (seen.has(v.id)) continue;
+        seen.add(v.id);
+        const b = v.build;
+        const isPost = !!b && b.rlFlop > 0 && v.parentVersionId !== undefined && v.variant === 'full';
+        const rho = b && b.flopPre > 0 ? b.rlFlop / b.flopPre : 0;
+        const w = (b?.rlW ?? {}) as FamilyMap;
+        const hr = hackRates(w, suiteExploitMap(s), Math.max(1e-6, rho));
+        const fams = Object.keys(hr) as RLFamily[];
+        const hW = fams.reduce((a, f) => a + (w[f] ?? 0) * (hr[f] ?? 0), 0);
+        const gen = fams.filter((f) => GENERIC.includes(f));
+        // Persistence of SCHEME through this version's safety training: the env the run used (parent traits, this design).
+        const parent = s.player.models.versions.find((x) => x.id === v.parentVersionId);
+        let pi = -1; // -1: not a post run (JSON has no NaN)
+        let antiScheme = false;
+        if (isPost && parent) {
+          const env = playerEnv(s, parent.traitsTrue, postSignals(s, v.design), OMEGA_KIND.post, v.design, 'L-probe', parent.uModes, { ...v, traitsTrue: parent.traitsTrue, masks: parent.masks });
+          env.omegaSafety = OMEGA_KIND.post;
+          pi = persistence(env, 'SCHEME');
+          antiScheme = (env.removal.SCHEME ?? 0) >= ANTISCHEME_REMOVAL - 1e-9;
+        }
+        const t = v.traitsTrue;
+        versions.push({
+          day: v.day, Lg: v.Lg, rsch: v.domains.RSCH, kind: isPost ? 'post' : v.variant, rho, hW, hMax: Math.max(0, ...fams.map((f) => hr[f] ?? 0)),
+          hGeneric: gen.length ? mean(gen.map((f) => hr[f] ?? 0)) : -1, hMl: hr.mlResearch ?? -1,
+          gate: afCapGate(v.G), ea: t.EA, af: t.AF, scheme: t.SCHEME, sand: t.SAND, persona: t.PERSONA, rh: t.RH, mis: misalignment(t, v.uModes),
+          sab: mdSabotage(s, v), pi, antiScheme,
+        });
+      }
+
+    },
+    done(s: GameStateV2): RefRec {
+      const best = bestPlayerVersion(s);
+      const mis = best ? misalignment(best.traitsTrue, best.uModes) : 0;
+      return { versions, ea2026, af2026, af2026BB, penBB2026, eaStart, eaAsi: best?.traitsTrue.EA ?? -1, afAsi: best?.traitsTrue.AF ?? -1, mis, pmis: pMis(s, mis), asiDay: s.player.milestoneDays[6] };
+    },
+  };
+}
+
+/** THE shared game: RefBot (tl-central, medium, endings skipped, tutorial off) seed N to the player's ASI. One cache
+ *  entry serves safety.ts's S4 (outcome) and safetyrates.ts (rates); both import this and nothing else keys it, so the
+ *  game is played once. `maxDay` below 1600 is for safety.ts's smoke only (a short game; its own cache key). */
+export interface RefGame { outcome: Outcome; rates: RefRec }
+const EMU_FILE = fileURLToPath(import.meta.url);
+export function refGame(seed: number, maxDay = 1600): RefGame {
+  return cached('refbot-asi-game', { seed, world: 'tl-central', alignment: 'medium', maxDay }, [EMU_FILE], () => {
+    let obs: ReturnType<typeof ratesObserver> | undefined;
+    let last: GameStateV2 | undefined;
+    const outcome = play(refBot, seed, 'asi', 'medium', (s) => { last = s; }, (s) => { obs ??= ratesObserver(s); obs.step(s); }, maxDay);
+    return { outcome, rates: (obs as ReturnType<typeof ratesObserver>).done(last as GameStateV2) };
+  });
 }
