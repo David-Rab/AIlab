@@ -1,5 +1,6 @@
 // RD-M01b check: MEDIA and PHYS measured levels come from their benchmark rows (MMMU, EmbodiedBench), not from the
 // measured general level + the true offset; sandbagging (dangerous evals only) leaves them unchanged. Run alone: npx tsx scripts/v2/rdm01b.ts
+// Cost: 12 newGame + 12 eval suites per arm, 2 arms, no sim days (≈ 10 CPU-s). Tier: quick, full.
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { runEvalSuite } from '../../src/engine/v2/models/benchmarks';
@@ -17,6 +18,9 @@ function read(sand: number, n = 12) {
     const v = s.player.models.versions[0] as ModelVersion;
     for (const d of DS) v.domains[d] = TRUE[d];
     v.traitsTrue.SAND = sand;
+    // The set levels are not a new build (changedSinceSuite stays false), so the readings newGame already pooled for the old levels
+    // would be averaged in: clear them, as a changed version's first suite does.
+    v.evals.bench = {};
     runEvalSuite(s, makeCtx(s), v.id, 'self', 'full');
     for (const d of DS) {
       const fit = v.evals.measuredDom?.[d];
