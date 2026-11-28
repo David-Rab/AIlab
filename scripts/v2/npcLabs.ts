@@ -1,5 +1,5 @@
 // N2b-1 test: the NPC lab's capability core (engine/v2/npc/lab.ts; design/npc/NPC-LABS.md §3, §4). One tl-central game,
-// challenger start, 900 days (endings skipped so it runs the whole span), plus pure checks on copies of its state.
+// breakaway start, 900 days (endings skipped so it runs the whole span), plus pure checks on copies of its state.
 // Run: npx tsx scripts/v2/npcLabs.ts
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
@@ -13,10 +13,10 @@ import { check, finish } from './lib';
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const labs = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab];
 
-const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'breakaway', seed: 7, tutorial: false }));
 const y0 = decimalYear(s);
 
-// (c) start lags match the cast within a day; the leader-kind lab is present (challenger start) and absent in a leader start.
+// (c) start lags match the cast within a day; the leader-kind lab is present (breakaway start) and absent in a leader start.
 const cast = new Map(REALISTIC_CAST.map((e) => [e.kind === 'china' ? 'china' : e.id, e]));
 for (const r of labs(s)) {
   const e = cast.get(r.core.id)!;
@@ -24,7 +24,7 @@ for (const r of labs(s)) {
   check(!!r.npc && Math.abs(r.npc.d - want) <= 1 && Math.abs(startLagDays(e) - want) <= 1, `(c) ${r.core.name} start lag ${r.npc?.d.toFixed(1)} d = cast ${want.toFixed(1)} d`);
   check(Math.abs(r.internal.G - refGAt(s, y0 - r.npc!.d / 365.25)) < 1e-9, `(c) ${r.core.name} start internal G on the reference at its lag`);
 }
-check(s.rivals.some((r) => r.npc?.kind === 'leader'), '(c) the leader-kind lab is in a challenger game');
+check(s.rivals.some((r) => r.npc?.kind === 'leader'), '(c) the leader-kind lab is in a breakaway game');
 const sl = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'leader', seed: 7, tutorial: false }));
 check(!sl.rivals.some((r) => r.npc?.kind === 'leader') && sl.rivals.length === 5, '(c) no leader-kind lab in a leader start', `${sl.rivals.length} US labs`);
 

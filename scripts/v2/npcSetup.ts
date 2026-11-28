@@ -9,37 +9,37 @@ const mk = (over: Parameters<typeof defaultSetupV2>[0]) => newGame(defaultSetupV
 
 // default: the realistic cast
 check(defaultSetupV2().cast === 'realistic', 'default setup.cast is realistic');
-const d = mk({ labKind: 'safety' });
-const want = REALISTIC_CAST.filter((e) => e.kind !== 'china').map((e) => e.id);
-check(JSON.stringify(d.rivals.map((r) => r.core.id)) === JSON.stringify(want), 'default (challenger start): the realistic cast, in order', d.rivals.map((r) => r.core.id).join(','));
+const d = mk({ labKind: 'breakaway' });
+const want = REALISTIC_CAST.filter((e) => e.kind !== 'china' && e.kind !== 'upstart').map((e) => e.id);
+check(JSON.stringify(d.rivals.map((r) => r.core.id)) === JSON.stringify(want), 'default (breakaway start): the realistic cast, in order', d.rivals.map((r) => r.core.id).join(','));
 check(d.rivals.every((r) => !r.npc!.pers), 'default labs carry no adjusted values');
 
 // leader start drops the leader kind (realistic and custom)
 const l = mk({ labKind: 'leader' });
-check(!l.rivals.some((r) => r.npc!.kind === 'leader') && l.rivals.length === want.length - 1, 'leader start: no leader-kind NPC lab');
+check(!l.rivals.some((r) => r.npc!.kind === 'leader') && l.rivals.length === want.length, 'leader start: no leader-kind NPC lab');
 const lc = mk({ labKind: 'leader', cast: [{ kind: 'leader', lagMonths: 0 }, { kind: 'safety', lagMonths: 2 }] });
 check(lc.rivals.length === 1 && lc.rivals[0].npc!.kind === 'safety', 'leader start, custom: the leader kind is left out too');
 
 // custom cast of 2 labs: exactly those kinds and lags
-const c = mk({ labKind: 'safety', cast: [{ kind: 'racer', lagMonths: 4 }, { kind: 'bigtech', lagMonths: 1.5 }] });
+const c = mk({ labKind: 'breakaway', cast: [{ kind: 'racer', lagMonths: 4 }, { kind: 'bigtech', lagMonths: 1.5 }] });
 check(c.rivals.length === 2, 'custom 2 labs: two US labs', String(c.rivals.length));
 check(c.rivals[0].npc!.kind === 'racer' && c.rivals[1].npc!.kind === 'bigtech', 'custom: kinds in order');
 check(Math.abs(c.rivals[0].npc!.d0 - 4 * DAYS_PER_MONTH) < 1e-9 && Math.abs(c.rivals[1].npc!.d0 - 1.5 * DAYS_PER_MONTH) < 1e-9, 'custom: start lags', c.rivals.map((r) => r.npc!.d0.toFixed(1)).join(','));
 check(c.rivals[0].core.computeOnline === REALISTIC_CAST.find((e) => e.kind === 'racer')!.start.computeH100e, 'custom: compute from the kind\'s entry');
 
 // names: the second lab of a kind is numbered
-const dup = mk({ labKind: 'safety', cast: [{ kind: 'safety', lagMonths: 3 }, { kind: 'safety', lagMonths: 5 }, { kind: 'safety', lagMonths: 5 }] });
+const dup = mk({ labKind: 'breakaway', cast: [{ kind: 'safety', lagMonths: 3 }, { kind: 'safety', lagMonths: 5 }, { kind: 'safety', lagMonths: 5 }] });
 const names = dup.rivals.map((r) => r.core.name);
 check(new Set(names).size === 3 && new Set(dup.rivals.map((r) => r.core.id)).size === 3 && names[1].endsWith(' II') && names[2].endsWith(' III'), 'same-kind labs get numbered names and unique ids', names.join(' / '));
 
 // overrides: the adjusted values are used, the others stay the kind's
-const o = mk({ labKind: 'safety', cast: [{ kind: 'safety', lagMonths: 3, personality: { safetyEmphasis: 0.1 } }] });
+const o = mk({ labKind: 'breakaway', cast: [{ kind: 'safety', lagMonths: 3, personality: { safetyEmphasis: 0.1 } }] });
 const p = o.rivals[0].npc!.pers!;
 check(p.safetyEmphasis === 0.1 && p.raceResponse === KINDS.safety.raceResponse, 'overrides applied over the kind\'s values');
 check(o.hidden.rivalPostures[o.rivals[0].core.id].safetyInvestment === 0.1, 'the override reaches the lab\'s posture');
 
 // zero US labs, and a few ticks of each custom game run
-const z = mk({ labKind: 'safety', cast: [] });
+const z = mk({ labKind: 'breakaway', cast: [] });
 check(z.rivals.length === 0 && !!z.china.lab, 'zero US labs: China only');
 for (const [name, s] of [['custom 2', c], ['overrides', o], ['zero labs', z], ['numbered', dup]] as const) {
   let ok = true;
