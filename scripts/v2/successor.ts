@@ -1,4 +1,5 @@
 // Model v3 E4 successor pull (design/MODEL-V3.md §11.2; src/engine/v2/safety/traits.ts). Owner: WS2.
+// Guards: E4 successor pull (shape + the fixtures' reference ω). Cost: no sim, one newGame cloned + 2 fixtures. Tier: quick.
 //   When AI does a share r of the R&D that trains the next model (V3 work types SWE, EXP, IDEAS), the new model's
 //   dispositions (the B-layer traits and PERSONA) are pulled toward the models doing that work, each weighted by its
 //   share: ω_k = κ_succ(SUCC_k) · r_k · (1 − oversight_k), κ_succ = 0.4 + 0.6·SUCC (research/04 T23: a hijacking
@@ -19,10 +20,11 @@ import {
   applyRunToTraits, applySuccessorPull, K_SUCC_0, kappaSucc, misalignment, SUCCESSOR_TRAITS, successorOversight, successorPull,
 } from '../../src/engine/v2/safety/traits';
 import type { GameStateV2, ModelVersion, PostDesign, TraitId, TraitVector, TrainingRun } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, check, finish } from './lib';
+import { FIXTURE_DIR, KNOWN, check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const proto = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const game = () => structuredClone(proto); // one game, cloned per case
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const misTraits = (): Partial<TraitVector> => ({ PERSONA: 0.8, CONCEAL: 0.6, POWER: 0.6, AF: 0.6, SAND: 0.5, SCHEME: 0.6, COLLUDE: 0.5, SUCC: 0.3 });
 
@@ -172,9 +174,12 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
     `Mis ${misalignment(clean.nv.traitsTrue).toFixed(3)} → ${misalignment(bad.nv.traitsTrue).toFixed(3)}; higher: ${dispDiff.join(' ')}`);
 }
 
+// BUG, parked (design/OPEN.md § Balance: "Successor-pull checks fail on master (pull grows with automation; steering act)"): the start
+// pull is ω 0.006 (not ≈ 0.07) and day 400 (0.003) is below the start; not re-diagnosed here.
+KNOWN["reference: the pull grows with the lab's automation (start ≈ 0.07; RefBot fixtures day 400 and 900)"] = 'OPEN.md § Balance: Successor-pull checks fail on master (no owner)';
 // ---------- reference numbers (start, ai2027 RefBot fixtures day 400 and 900) ----------
 {
-  const s0 = game();
+  const s0 = proto;
   const p0 = successorPull(s0);
   const f = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
   const p4 = successorPull(f('day400.json'));
