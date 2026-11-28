@@ -30,7 +30,7 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | F1.production2026 | ~25M H100e produced | Epoch, research/15:445 | 2026 (Q2 2026 6.33M/q, research/15:27) |
 | F6.supplierMargin | supplier margin 70-75% | Nvidia 72-75%, research/15:450 | Q4 2025 to Q4 2027 (straddles; 2027 half is a forecast) |
 | F7.revenue2026 | $36-67B (AI 2027 $45B; Anthropic CY2026 $53-56B) | research/22:228-262 | 2026 (9M 2026 $33.2B measured; Q4 estimated; unsure) |
-| F9.fc1.privateMarks | private marks $0.45-0.75T at start, $2.2-3.3T late 2026 | research/15 marks | Jul 2025, Oct 2026 to Jan 2027 |
+| F9.fc1.start, F9.fc1.late2026 | private marks $0.45-0.75T at start, $2.2-3.3T late 2026 | research/15 marks | Jul 2025, Oct 2026 to Jan 2027 |
 | F9.fc2.leaderMultiple | leader valued 20-37x run-rate | research/15:455 C11 [P][D] | 2025-26 rounds (unsure: tag [P][D]) |
 | F9.dilution, F9.dilutionCap | round dilution 5-8%, anchored <=14%, IPO 5% | research/15:456 C12 [P][S] | 2025-26 rounds |
 | F10.sitesBlockedDelayed, F10.siteBuild | 5-10% sites blocked, 8 quarters to live | research/15:458-459 C14, C15 | undated 2025-26 |
@@ -53,7 +53,7 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | GOLD.sampled.SC | Eli Apr 2025 distributions, p10/p50/p90 2026.05/2028.37/2044 (research/11:168-196) |
 | T2.labour.SCband | AI 2027 ~200k copies at ~30x at SC |
 | F2.production2027 | 45-60M H100e in 2027 (research/15:446, AI27 + Epoch trend) |
-| F9.fc2.byYear | multiple stays 20-37x in 2027 (2026 half is history; straddles) |
+| F9.fc2.2027, F9.fc2.2026 | multiple stays 20-37x in 2027 (2026 half is history; straddles) |
 | F11.revenue2027 | AI 2027 $140B in 2027 |
 | W.equity2026 †, W.aggregateU2026 † | AI 2027 "stock market up 30% in 2026", "aggregate U < +0.3 pp" (research/16:353, 424); dated 2026 but a forecast |
 | W.hireRate10, W.aiFriend2027, W.remote25, W.unemployment12m, W.govAccept85 | AI 2027 scenario, Jul to Dec 2027 (research/16:461) |
