@@ -19,8 +19,8 @@ const HOLDER_COLOR: Record<Holding['kind'], string> = { founders: SPHERE.sec, in
 const holderTitle = (h: Pick<Holding, 'id' | 'kind'>) => (h.kind === 'founders' ? 'Founders' : h.kind === 'investors' ? 'Investors' : h.kind === 'public' ? 'Public' : h.kind === 'mission' ? 'Mission body' : h.kind === 'government' ? 'Government' : h.id);
 const holderSubject = (h: Pick<Holding, 'id' | 'kind'>) => (h.kind === 'founders' ? 'the founders hold' : h.kind === 'mission' ? 'the mission body holds' : h.kind === 'government' ? 'the government holds' : `${h.id} holds`);
 
-/** The seat's holder, so a holder's seats can be counted under its segment. */
-const seatHolder = (x: BoardSeat): string => (x.kind === 'founder' ? 'founders' : x.kind === 'financial' ? 'investors' : x.kind === 'independent' ? 'public' : x.kind === 'mission' ? 'mission' : x.kind === 'gov' ? 'government' : x.holder);
+/** The seat's holder, so a holder's elected seats can be counted under its segment; the CEO's own seat is nobody's. */
+const seatHolder = (x: BoardSeat): string => (x.kind === 'founder' && x.holder === 'CEO' ? 'CEO' : x.kind === 'founder' ? 'founders' : x.kind === 'financial' ? 'investors' : x.kind === 'independent' ? 'public' : x.kind === 'mission' ? 'mission' : x.kind === 'gov' ? 'government' : x.holder);
 const holderKey = (h: Holding): string => (h.kind === 'partner' ? h.id : h.kind);
 
 /** The class rule in words (CORPORATE.md §2.1). */
@@ -71,6 +71,7 @@ export function ControlRow({ s }: { s: GameStateV2 }) {
   const hs = holdingsOf(s).filter((h) => h.votes > 0.0005).sort((a, b) => b.votes - a.votes);
   const seats = boardSeats(s);
   const c = controllerOf(s);
+  const fixed = holdingsOf(s).find((h) => h.cls === 'state' || h.cls === 'mission');
   const seatsOf = (h: Holding) => seats.filter((x) => seatHolder(x) === holderKey(h)).length;
   return (
     <div className="ctl-who" data-test="who-controls" data-home="votes">
@@ -80,9 +81,9 @@ export function ControlRow({ s }: { s: GameStateV2 }) {
           <Tip key={h.id} className="vtip" style={{ flex: `0 0 ${h.votes * 100}%` }} content={() => (
             <TipCard title={holderTitle(h)} value={`${share(h.votes)} of the votes`} rows={[
               { label: <Term id="shareClass">Share class</Term>, value: classRule(h) },
-              { label: 'Board seats', value: `${seatsOf(h)}${h.kind === 'founders' ? ' (including yours)' : ''}` },
+              { label: 'Board seats', value: `${seatsOf(h)} elected` },
               ...(c?.id === h.id ? [{ label: <Term id="controller">Controller</Term>, value: 'more than half of the votes' }] : []),
-            ]}>{"Seats follow votes: the CEO plus six elected by the holders' votes. The share of the company each holds is in Who owns you."}</TipCard>
+            ]}>{"Seats follow votes: the CEO's own seat plus six elected by the holders' votes. The share of the company each holds is in Who owns you."}</TipCard>
           )}>
             <div className={`vseg ${c?.id === h.id ? 'ctrl' : ''}`} data-holder={h.id} style={{ background: HOLDER_COLOR[h.kind] }}>{h.votes >= 0.14 ? holderTitle(h) : ''}</div>
           </Tip>
@@ -92,7 +93,9 @@ export function ControlRow({ s }: { s: GameStateV2 }) {
       <div className="vseats">
         {hs.map((h) => <span key={h.id} data-seats={h.id} style={{ flex: `0 0 ${h.votes * 100}%` }}>{seatsOf(h)}{h.votes >= 0.1 ? (seatsOf(h) === 1 ? ' seat' : ' seats') : ''}</span>)}
       </div>
-      {!ownerFunded(s) && <div className="dim small" data-test="control-rule">If a company passes 50% of the votes it becomes your parent: it sets a yearly budget and goals and can oust you.</div>}
+      <Tip content={() => <TipCard title="Your CEO seat">You hold one seat as CEO in every structure. No holder elects it.</TipCard>}><div className="dim small" data-seats="CEO" style={{ textAlign: 'right' }}>+ your CEO seat</div></Tip>
+      {!ownerFunded(s) && !c && !fixed && <div className="dim small" data-test="control-rule">If a company passes 50% of the votes it becomes your parent: it sets a yearly budget and goals and can oust you.</div>}
+      {!ownerFunded(s) && fixed?.kind === 'mission' && <div className="dim small" data-test="control-rule">The mission body's ⅔ is fixed: no holder can pass 50% while it stands.</div>}
     </div>
   );
 }
