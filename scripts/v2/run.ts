@@ -66,10 +66,10 @@ const JOBS: Job[] = [
   { id: 'sites', script: 'sites.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE bot round' }, budget: { quick: 10, full: 30 }, ...S(ALL, 90) } as Job,
   { id: 'signals', script: 'signals.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 20) } as Job,
   { id: 'successor', script: 'successor.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
-  { id: 'research', script: 'research.ts', budget: { quick: 100, full: 300 }, ...S(ALL, 35) } as Job,
-  { id: 'evals', script: 'evals.ts', budget: { quick: 140, full: 420 }, ...S(ALL, 30) } as Job,
-  { id: 'safetyresearch', script: 'safetyresearch.ts', budget: { quick: 60, full: 180 }, ...S(ALL, 25) } as Job,
-  { id: 'worktypes', script: 'worktypes.ts', budget: { quick: 300, full: 900 }, ...S(ALL, 60) } as Job,
+  { id: 'research', script: 'research.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 35) } as Job,
+  { id: 'evals', script: 'evals.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 30 }, ...S(ALL, 30) } as Job,
+  { id: 'safetyresearch', script: 'safetyresearch.ts', budget: { quick: 20, full: 20 }, ...S(ALL, 25) } as Job,
+  { id: 'worktypes', script: 'worktypes.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 70 }, ...S(ALL, 60) } as Job,
   { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 3, cal: 3 }, budget: { quick: 30, full: 300 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
   { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 5, full: 5 }, ...S(ALL, 120) } as Job,
   // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
@@ -88,7 +88,7 @@ const JOBS: Job[] = [
   { id: 'footholds', script: 'footholds.ts', budget: { quick: 25, full: 25 }, ...S(ALL, 60) } as Job,
   { id: 'control', script: 'control.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 60) } as Job,
   // E13 (merged in M5).
-  { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
+  { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 30) } as Job,
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
   { id: 'safetyrates', script: 'safetyrates.ts', after: ['safety'], budget: { full: 120 }, ...S(['full'], 200) } as Job,
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, budget: { quick: 90, full: 420 }, ...S(ALL, 250) } as Job,

@@ -27,7 +27,7 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | G7 | uitest.mjs (19 failures; sleeps → waits; day repeats; build skip). Designer: up to 3 whole-uitest runs allowed | merged 777acf9a (19 → 0 fail + 4 KNOWN; 402 → 331 s; 4 questions in G7-report) |
 | G3 | serving, products, money | merged cda4d1f9 (quick 484 → ~40 CPU-s; re-applied orphan rigs of e839141; 2 design questions in G3-report) |
 | G4 | finance, worldfx | merged 6f33da9d (quick 13 CPU-min → ~1.7; full est. finance 7, worldfx 3.7 CPU-min, not yet run) |
-| G2 | research, safetyresearch, safetyideas, evals, worktypes | running (ta-g2) |
+| G2 | research, safetyresearch, safetyideas, evals, worktypes | merged 5fe73d74 (20 fail → 0 + 2 KNOWN; quick 586 → ~97 CPU-s) |
 | G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | merged fa40f327 (safety smoke 521 → ~30 s; full ~26 → ~13 CPU-min cold; deep ~36 → ~4) |
 | G1 | suites, signals, successor, data, effective, oversight | merged 9a684123 (14 fail → 0 + 1 KNOWN; each ≤ 12 s) |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | merged 47f5412a (all green or KNOWN; calib full = 3 games ≈ 4–5 CPU-min, central: budget 300) |
