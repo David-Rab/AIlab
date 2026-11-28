@@ -225,3 +225,14 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 - Running in parallel: W8b-2 (Powers panel), W8b-3 (World tabs + Risk UI), W11a (docs, ws4.ts checks, stale comments),
   W11b (ws4 split). Merge order: W11a, W11b, then W8b-2 and W8b-3 (UI on top). Expected conflict: RiskMap.tsx (one line,
   W11b vs W8b-3).
+- W11a · Sonnet high · ~25 min · V2-SPEC: the old outside-world sections now point to OUTSIDE-WORLD.md; README and IA
+  pointers added. ws4.ts passes in full:
+  - The canon check now strips the player's own model names.
+  - E23 shortened.
+  - The E3 test sets a measured level.
+  - T3 rewritten for the NPC-rule China: China trails the US frontier on ≥ 95% of days; mean trail within the cast
+    span 90–270 d (measured 104 d).
+  - T4: start gaps positive and ≤ 10 mo.
+  - 19 stale history comments fixed.
+
+  · 62b2c1ad
