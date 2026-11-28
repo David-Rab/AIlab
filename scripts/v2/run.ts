@@ -95,9 +95,9 @@ const JOBS: Job[] = [
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, budget: { quick: 90, full: 420 }, ...S(ALL, 250) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 2 }, budget: { quick: 35, full: 240 }, ...S(ALL, 90) } as Job,
   { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 200, full: 600 }, ...S(ALL, 120) } as Job,
-  { id: 'products', script: 'products.ts', budget: { quick: 120, full: 360 }, ...S(ALL, 30) } as Job,
-  { id: 'serving', script: 'serving.ts', budget: { quick: 220, full: 660 }, ...S(ALL, 60) } as Job,
-  { id: 'money', script: 'money.ts', budget: { quick: 160, full: 480 }, ...S(ALL, 60) } as Job,
+  { id: 'products', script: 'products.ts', budget: { quick: 20, full: 30 }, ...S(ALL, 30) } as Job,
+  { id: 'serving', script: 'serving.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 25, full: 90 }, ...S(ALL, 60) } as Job,
+  { id: 'money', script: 'money.ts', budget: { quick: 25, full: 30 }, ...S(ALL, 60) } as Job,
   { id: 'idle', script: 'idle.ts', args: { quick: ['--seeds', '1'] }, mode: { quick: 'SMOKE 1 seed' }, budget: { quick: 310, full: 930 }, ...S(ALL, 150) } as Job,
   // P1a: scripts that asserted but ran in no tier (TEST-AUDIT D-orphans Task A). Budgets are interim, set from one measured run.
   { id: 'npcData', script: 'npcData.ts', budget: { quick: 5, full: 15 }, ...S(ALL, 2) } as Job,
