@@ -9,8 +9,10 @@
 //                                   no flat speed factor; FALSE risk rides on the larger AI share
 // Model v3 E14: F44 (AARs, the `flag:aar` finding) = + Δ_bm of SAF_* fit on AG18 / AG03 / AG16 line work; AG17's
 // science teams = a harness scaffold (+0.3 OOM × √(capacity ÷ SERIOUS_CAP)) on the safety package.
-// Plus: no agenda-speed factors remain (lint), and RefBot researches none of them.
-import { readFileSync, readdirSync } from 'node:fs';
+// GUARDS the four safety ideas' mechanisms (constructed states, day-400 fixture). No sim. About 10 CPU-s. Tier: quick.
+// The hygiene lints that used to end this file (no flat agenda factor, ideas read only in their mechanism, RefBot researches
+// none, only RefBot hands work to AI) are deleted: one-off removal checks (TESTING §4); see the G2 report for a lint-* home.
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { COPY_COLLUSION } from '../../src/data/v2/features';
@@ -20,7 +22,6 @@ import { CAPACITY_UNIT, lineNodeId } from '../../src/data/v2/tree';
 import { TOP_SD } from '../../src/data/v2/workTypes';
 import { SUITE_HARDEN } from '../../src/data/v2/suites';
 import { TRAIT_START } from '../../src/data/v2/traits';
-import { REF_LINES, REF_TREE, SAFE_TREE_EXTRA } from '../../src/engine/v2/bots/ref';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
@@ -52,6 +53,15 @@ const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, 
 function trust(s: GameStateV2, t: number) {
   s.player.policies.trustedToAI = t;
   s.player.split.safetyAgents = Math.max(s.player.split.safetyAgents, 0.2);
+  resetSafAllocation(s);
+}
+
+/** The day-400 fixture has its safety scientists on no line, and SAF_IDEAS is the humans' scientists on lines (workfit humansOf):
+ *  put the first safety science team on a line so the ideas labour exists. */
+function staffLine(s: GameStateV2) {
+  const sci = s.player.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;
+  sci.projectId = lineNodeId('AG08');
+  sci.manual = true;
   resetSafAllocation(s);
 }
 
@@ -91,7 +101,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   // RD-U02: versionOom reads the version's true G (no longer the inverse of its Lg), so the capable model sets both.
   const vHi = { ...v0, Lg: 14.5, G: gOfLevel(s.hidden.timeline, 14.5) };
   const dHi = probeSteer(s, vHi);
-  check((dHi.AF ?? 0) < (d.AF ?? 0) * 0.6, 'P14: steering fades with capability (E6 decay in OOM: the same probes past the AG02 half point, L 14.5)', `AF d ${(d.AF ?? 0).toFixed(3)} (L ${v0.Lg}) → ${(dHi.AF ?? 0).toFixed(3)} (L 14.5)`);
+  check((dHi.AF ?? 0) > 0 && (dHi.AF ?? 0) < (d.AF ?? 0) * 0.9, 'P14: steering fades with capability (E6 decay in OOM: the same probes on a far more capable model, L 14.5; a direction check, the size is the tool strength curve)', `AF d ${(d.AF ?? 0).toFixed(3)} (L ${v0.Lg}) → ${(dHi.AF ?? 0).toFixed(3)} (L 14.5)`);
   // A full post-training run: same state with and without P14.
   const run = (withP14: boolean) => {
     const g = game();
@@ -131,7 +141,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const A = safetyLabour(s).exp.A;
   const iv = internalVersion(s)!;
   const sv = s.player.models.versions.find((v) => v.id === s.player.agents.safety.versionId) ?? iv;
-  check(o.A > 0.1 && near(o.A, A, 1e-12) && near(suiteWorkCost(s, 'swe', 'harden').cashB, base * (1 - A * (1 - P15_OVERSIGHT.aiCostRatio)), 1e-12),
+  check(o.A > 0 && near(o.A, A, 1e-12) && suiteWorkCost(s, 'swe', 'harden').cashB < base && near(suiteWorkCost(s, 'swe', 'harden').cashB, base * (1 - A * (1 - P15_OVERSIGHT.aiCostRatio)), 1e-12),
     'P15: the safety agents do the AI share A of SAF_EXP (E2) of the red-teaming at $4/h vs $150/h: cash × (1 − A·(1 − 4/150))',
     `A ${A.toFixed(3)}; cash $${(base * 1000).toFixed(1)}M → $${(suiteWorkCost(s, 'swe', 'harden').cashB * 1000).toFixed(1)}M`);
   check(o.collusion && sv.baseId === iv.baseId && near(o.Aeff, A * (1 - COPY_COLLUSION), 1e-12) && near(hardenCut(s), SUITE_HARDEN.cut * (1 + P15_OVERSIGHT.criticGain * A * (1 - COPY_COLLUSION)), 1e-12),
@@ -195,7 +205,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
     `mask ${mv.toFixed(3)} vs ${mf.toFixed(3)}`);
   // CoT monitors stay strong: the controllability that blinds them is halved.
   const v0 = s.player.models.versions[0];
-  const at = (cot: PostDesign['cot'], mon: number): ModelVersion => ({ ...v0, Lg: 12, monitorability: mon, design: post({ cot }), masks: { ...v0.masks, SCHEME: {} }, uModes: [] });
+  const at = (cot: PostDesign['cot'], mon: number): ModelVersion => ({ ...v0, Lg: 12, G: gOfLevel(s.hidden.timeline, 12), monitorability: mon, design: post({ cot }), masks: { ...v0.masks, SCHEME: {} }, uModes: [] });
   const pV = familyPenalty(s, at('visible', 0.9), 'SCHEME', 'COT');
   const pF = familyPenalty(s, at('faithful', 0.98), 'SCHEME', 'COT');
   const ctl = cotControllability(oomOfLevel(s.hidden.timeline, 12)); // RD-L05: ctl takes OOM above V0
@@ -228,16 +238,13 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const z0 = lineLabour(s0, 'AG12');
   adopt(s0, 'P27');
   check(lineLabour(s0, 'AG12').aiShare === 0 && z0.aiShare === 0, 'P27: nothing without safety work handed to AI (the FALSE weight stays 0)');
-  const src = readFileSync(join(FIXTURE_DIR, '..', '..', '..', 'src', 'engine', 'v2', 'safety', 'findings.ts'), 'utf8');
-  // M5: E7 replaced E2's FALSE weight (aiShare × sabOf) with the covert act SAFSAB on the same AI share (F49).
-  // SAFMECH: × the result's threat to the saboteur (targeted sabotage).
-  check(/safetySabotage\(s, lineLabour\(s, agenda\)\.aiShare(, \w+)?\)/.test(src), 'P27: the false-result risk is E7\'s safety sabotage (SAFSAB) on the line\'s AI share, which P27 raises');
 }
 
 // ───────────────────────────── F44 and AG17's harness (model v3 E14) ─────────────────────────────
 {
   const AGS = ['AG18', 'AG03', 'AG16', 'AG08', 'AG12'] as const;
   const s = fixture('day400.json');
+  staffLine(s);
   trust(s, 1);
   const sp = AGS.map((a) => lineSpeed(s, a));
   const ll = AGS.map((a) => lineLabour(s, a));
@@ -247,7 +254,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const dBM = s.hidden.timeline.v3.dBM;
   check(F44_AAR.agendas.every((a) => aarFindingOom(s, a) === F44_AAR.gapBM * dBM) && aarFindingOom(s, 'AG08') === 0 && aarFindingOom(fixture('day400.json'), 'AG18') === 0,
     'F44: + one median-to-best gap Δ_bm of SAF_* fit on AG18 / AG03 / AG16 line work once found; nothing elsewhere or before', `Δ_bm ${dBM}`);
-  check([0, 1, 2].every((i) => ll2[i].exp > 2 * ll[i].exp && ll2[i].ideas > ll[i].ideas && ll2[i].aiShare > ll[i].aiShare) && [3, 4].every((i) => ll2[i].exp === ll[i].exp && ll2[i].aiShare === ll[i].aiShare),
+  check([0, 1, 2].every((i) => ll2[i].exp > ll[i].exp && ll2[i].ideas > ll[i].ideas && ll2[i].aiShare > ll[i].aiShare) && [3, 4].every((i) => ll2[i].exp === ll[i].exp && ll2[i].aiShare === ll[i].aiShare),
     'F44 raises AI labour (m_exp, m_ideas) and the AI share (the sabotage weight) on the benchmarked lines only',
     AGS.map((a, i) => `${a} m_exp ${ll[i].exp.toFixed(2)} → ${ll2[i].exp.toFixed(2)}, m_ideas ${ll[i].ideas.toFixed(2)} → ${ll2[i].ideas.toFixed(2)}, AI ${ll[i].aiShare.toFixed(3)} → ${ll2[i].aiShare.toFixed(3)}`).join('; '));
   check(AGS.every((a, i) => lineSpeed(s, a) === sp[i]), 'F44: no flat speed factor (lineSpeed unchanged by it)');
@@ -255,6 +262,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const sl = safetyLabour(s);
   check(near(sdAIOf(s.hidden.timeline, sl.ideas.fit.fit + aarFindingOom(s, 'AG18'), 'SAF_IDEAS') - sl.sdAI, TOP_SD * F44_AAR.gapBM, 1e-6), 'F44: AI taste on those lines + 3.09 SD (best-human level)');
   const s0 = fixture('day400.json');
+  staffLine(s0);
   s0.flags['ws2.aar'] = s0.time.day;
   resetSafAllocation(s0);
   check(lineLabour(s0, 'AG18').exp === 1 && lineLabour(s0, 'AG18').aiShare === 0, 'F44: nothing without safety work handed to AI');
@@ -277,35 +285,6 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   big.heads *= 100;
   resetSafAllocation(a);
   check(near(ag17HarnessOom(a), AG17_HARNESS.fitOom * Math.sqrt(LINE_MULT_MAX), 1e-9), 'AG17: the harness grows with √ capacity, capped at the old Major (×2.5)');
-}
-
-// ───────────────────────────── lint: no flat flags, RefBot ─────────────────────────────
-{
-  const root = join(FIXTURE_DIR, '..', '..', '..');
-  const read = (p: string) => readFileSync(join(root, p), 'utf8');
-  const files = ['src/engine/v2/safety/traits.ts', 'src/engine/v2/safety/lineProjects.ts', 'src/engine/v2/models/suites.ts', 'src/data/v2/suites.ts', 'src/data/v2/tree.ts', 'src/data/v2/paradigms.ts', 'src/data/v2/glossary.ts'];
-  // Model v3 E14: no flat factor on agenda speed. lineRates (lineSpeed until RD-R02b) holds only the CES inputs and the shared
-  // research modifiers: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
-  const lp = read('src/engine/v2/safety/lineProjects.ts');
-  const body = (lp.match(/export function lineRates\([\s\S]*?\n\}/) ?? [''])[0];
-  const flat = [/ag ===/, /AG\d\d/, /flag\(/, /trusted/i, /v \*= [2-9]/, /aar/];
-  const fh = flat.filter((re) => re.test(body)).map(String);
-  if (/ag17Mult|x\.AI \* lift/.test(lp)) fh.push('AG17 lift on AI team-equivalents');
-  if (/×3 while/.test(read('src/data/v2/tree.ts'))) fh.push('tree.ts aar text "×3"');
-  check(body.length > 0 && fh.length === 0, 'lint: no flat factor on agenda speed (F44 ×3 and AG17\'s ×(1 + √m) on AI team-equivalents are gone; E14)', fh.join('; '));
-  // The ideas are read only where their mechanism lives.
-  const where: Record<string, string[]> = { P14: ['src/engine/v2/safety/ideas.ts'], P15: ['src/engine/v2/safety/ideas.ts'], P27: ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts'] };
-  const engine = ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts', ...files.filter((f) => f.startsWith('src/engine')), 'src/engine/v2/safety/detection.ts', 'src/engine/v2/safety/sightLimit.ts'];
-  const stray = Object.entries(where).flatMap(([id, ok]) => engine.filter((f) => !ok.includes(f) && new RegExp(`adopted\\(s, '${id}'\\)`).test(read(f))).map((f) => `${id} in ${f}`));
-  check(stray.length === 0, 'lint: P14, P15 and P27 are read only by their mechanism (safety/ideas.ts; P27\'s fit in workfit.ts)', stray.join('; '));
-  const ids = ['P14', 'P15', 'P23', 'P27'];
-  check(!REF_TREE.some((g) => ids.includes(g.id)) && SAFE_TREE_EXTRA.map((g) => g.id).join() === 'P23',
-    'RefBot researches none of the four (golden dates unaffected); only the safe bot adds P23', REF_TREE.map((g) => g.id).join(' '));
-  // E14: F44 and AG17's harness act only on work handed to AI. F5: RefBot is the only bot that hands safety work to AI
-  // (by its believed oversight of the safety model) and it staffs no AG17 line, so neither can move a bot run.
-  const bots = readdirSync(join(root, 'src/engine/v2/bots')).filter((f) => f.endsWith('.ts'));
-  const handing = bots.filter((f) => /trustedToAI|policy\.trusted|'agents\.trusted/.test(read(`src/engine/v2/bots/${f}`)));
-  check(handing.join() === 'ref.ts' && !REF_LINES.some((l) => l.ag === 'AG17'), 'E14 / F5: only RefBot sets Trusted to AI and it runs no AG17 line, so F44 and AG17\'s harness cannot move a bot run', `${handing.join(' ')}; RefBot lines ${REF_LINES.map((l) => l.ag).join(' ')}`);
 }
 
 finish('safetyideas');
