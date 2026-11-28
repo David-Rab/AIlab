@@ -1,6 +1,6 @@
 // Five-axis scores and verdict (V2-SPEC §5.3). Owner: WS4. Non-judgemental: the verdict is for bots and statistics only.
 import { clamp } from '../../rng';
-import { bestG, otherLabs } from '../models/labs';
+import { publicG, otherLabs } from '../models/labs';
 import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { lagDays } from '../models/capability';
 import { ws4r } from '../actors/state';
@@ -31,7 +31,7 @@ export function epilogueSurvival(s: GameStateV2): number {
   if (s.player.status === 'active') ids.push('player');
   if (!ids.length) return 50;
   let leader = ids[0];
-  for (const id of ids) if (bestG(s, id) > bestG(s, leader)) leader = id;
+  for (const id of ids) if (publicG(s, id) > publicG(s, leader)) leader = id;
   let wsum = 0;
   let acc = 0;
   for (const id of ids) {

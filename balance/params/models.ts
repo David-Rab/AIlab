@@ -133,8 +133,6 @@ const MODELS: Param[] = [
     evidence: 'no tag; capability.ts:204-206 (same doc as CYBER)', notes: 'See Q-models-2.' }),
   ex(MD + 'capability.ts', 'PACE_WINDOW_DAYS', [], 182, 'days', { ...CAP, kind: 'designer',
     evidence: 'capability.ts:331-332 "The window (days) over which the \'how fast\' readers take a lab\'s pace (RD-L02 [D]: half a year ...)"' }),
-  inl('mod.capability.paceFloor', MD + 'capability.ts', 'Math.max(0.06, frontierGPerYear(s, leader))', 0.06, 'OOM per year', { ...CAP, kind: 'untagged',
-    evidence: 'no tag; capability.ts:299', notes: 'Floor on the leader pace when converting a G gap to days of lag.' }),
 
   // deployments.ts
   ex(MD + 'deployments.ts', 'ANON_SHARE', [], [0.3, 0.5, 0, 0, 0, 1], 'fraction of usage', { ...MK, kind: 'stand-in',

@@ -1,6 +1,6 @@
 // record (160, weekly): series samples and cause-ledger trim (V2-SPEC §2.2, §2.5 budgets). Owner: WS1.
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { bestG, bestLg, internalVersion, measuredLOf, otherLabs } from '../models/labs';
+import { bestG, bestLg, publicG, internalVersion, measuredLOf, otherLabs } from '../models/labs';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
 import { METHOD_BY_ID } from '../safety/methods';
@@ -10,7 +10,7 @@ import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
 export function emptySeries(labIds: string[]): SeriesV2 {
   return {
-    day: [], L: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), G: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), Lmeasured: [], U: [], M: [], cash: [], revenue: [],
+    day: [], L: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), G: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), GP: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), Lmeasured: [], U: [], M: [], cash: [], revenue: [],
     valuation: [], compute: [], approval: [], trustGov: [], scrutiny: [], gdpG: [], unemp: [], misTrue: [], misEst: [],
   };
 }
@@ -24,12 +24,16 @@ export function sampleSeries(s: GameStateV2) {
   S.day.push(s.time.day);
   (S.L.player ??= []).push(r3(bestLg(s, 'player')));
   for (const r of otherLabs(s)) (S.L[r.core.id] ??= []).push(r3(bestLg(s, r.core.id)));
-  // RD-L01: frontier G per lab (player, each rival, China), the lead clock's record (capability.ts lagDays).
+  // RD-L01: frontier G per lab (player, each rival, China): the pace record (capability.ts frontierGPerYear). F7: GP the
+  // same for the public (released) models, the lead clock's record (capability.ts lagDays).
   // A lab with no model yet records nothing (the series aligns to day from the end), never a non-finite sample.
   const G = (S.G ??= {});
+  const GP = (S.GP ??= {});
   for (const id of ['player', ...otherLabs(s).map((r) => r.core.id)]) {
     const g = bestG(s, id);
     if (Number.isFinite(g)) (G[id] ??= []).push(r4(g));
+    const gp = publicG(s, id);
+    if (Number.isFinite(gp)) (GP[id] ??= []).push(r4(gp));
   }
   // A freshly switched internal agent has no measurement yet: hold the last measured level instead of dropping to 0
   // (M4 fix: the 0-dips made the causal replay report level swings of +40 on the 0–15 scale).
