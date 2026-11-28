@@ -1,6 +1,7 @@
 // Balance registry lint (design/bal/REGISTRY-DESIGN.md). Run: npm run registry:lint
 //   --area <name>   lint only balance/params/<name>.ts (coverage skipped)
 //   --self-test     check that deliberately bad in-memory entries are caught; writes no files
+let SELFTEST = false; // set by --self-test: the calreport scan is exercised on in-memory sources instead
 let PARTIAL = false; // set when --area loads a single params file
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -103,8 +104,92 @@ function crossChecks(params: Param[], targets: Target[]): string[] {
 
 async function lintAll(params: Param[], targets: Target[]): Promise<string[]> {
   const errs = crossChecks(params, targets);
+  if (!PARTIAL && !SELFTEST) errs.push(...calreportLint(readCalreport(), new Set(targets.map((t) => t.id))));
   for (const p of params) errs.push(...(await resolveParam(p)));
   return errs;
+}
+
+// ---------- calibration report: one home per target (design/TESTING.md §0) ----------
+// scripts/v2/calreport/*.ts make every row through rowOf(registry id, value, measured) (types.ts), so each band, unit and
+// source is written once, in balance/targets.ts. Checks: (a) every id passed to rowOf (or a module's local wrappers R, band,
+// dateCheck) exists in TARGETS; (b) no numeric band literal in the code: a comparison with a number other than 0 or 1
+// (`x >= 0.4`, `3 < x`) is flagged after comments and string/template text are removed, and a line may opt out with the
+// comment `// band-lint: ok <why>` for a measurement threshold that is not a sourced band; (c) no hand-made rows (`ok:`
+// in an object literal), and every module uses rowOf.
+
+/** Source text with comments and string/template-literal contents blanked out (newlines kept, so line numbers hold). */
+function blankCode(src: string): string {
+  let out = '';
+  let i = 0;
+  const str = (q: string): string => {
+    i++; // opening quote
+    let n = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\\') { i += 2; continue; }
+      if (q === '`' && c === '$' && src[i + 1] === '{') {
+        i += 2;
+        let d = 1;
+        while (i < src.length && d > 0) {
+          const ch = src[i];
+          if (ch === "'" || ch === '"' || ch === '`') { str(ch); continue; }
+          if (ch === '{') d++;
+          else if (ch === '}') d--;
+          i++;
+        }
+        continue;
+      }
+      if (c === q) { i++; break; }
+      if (c === '\n') n++;
+      i++;
+    }
+    return '\n'.repeat(n);
+  };
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); const end = e < 0 ? src.length : e + 2; out += src.slice(i, end).replace(/[^\n]/g, ''); i = end; continue; }
+    if (c === "'" || c === '"' || c === '`') { out += '""' + str(c); continue; }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+const BAND_RE = /(?<![\w.$])-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?\s*[<>]=?(?!=)|(?<!=)[<>]=?\s*-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(?![\w.])/g;
+const ID_CALL_RE = /\b(?:rowOf|R|band|dateCheck|times10)\(\s*(['"`])([^'"`]*)\1/g;
+
+function calreportLint(files: { file: string; text: string }[], ids: Set<string>): string[] {
+  const errs: string[] = [];
+  for (const { file, text } of files) {
+    const code = blankCode(text);
+    const rawLines = text.split('\n');
+    // (a) ids: read from the raw text, but only calls that survive comment removal
+    const codeWithStrings = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    let usesRowOf = false;
+    for (const m of codeWithStrings.matchAll(ID_CALL_RE)) {
+      if (!ids.has(m[2])) errs.push(`${file}: unknown registry id '${m[2]}' (add it to balance/targets.ts)`);
+      else usesRowOf = true;
+    }
+    if (!usesRowOf && !/\b(?:rowOf|R|band|dateCheck|times10)\(/.test(codeWithStrings)) errs.push(`${file}: no rowOf call (rows must come from registry ids)`);
+    // (b) band literals and (c) hand-made rows
+    code.split('\n').forEach((ln, k) => {
+      if (/band-lint:\s*ok/.test(rawLines[k] ?? '')) return;
+      for (const m of ln.matchAll(BAND_RE)) {
+        const n = /-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/.exec(m[0])![0];
+        if (n === '0' || n === '1') continue;
+        errs.push(`${file}:${k + 1}: band literal '${m[0].trim()}' (read bands from balance/targets.ts through rowOf; a measurement threshold may carry a '// band-lint: ok <why>' comment)`);
+      }
+      if (/[{,]\s*ok\s*:/.test(ln)) errs.push(`${file}:${k + 1}: hand-made row ('ok:' in an object literal): use rowOf`);
+    });
+  }
+  return errs;
+}
+
+function readCalreport(): { file: string; text: string }[] {
+  const dir = join(ROOT, 'scripts/v2/calreport');
+  const mods = readdirSync(dir).filter((n) => n.endsWith('.ts') && n !== 'types.ts').map((n) => ({ file: `scripts/v2/calreport/${n}`, text: readFileSync(join(dir, n), 'utf8') }));
+  return [...mods, { file: 'scripts/v2/sanity.ts', text: readFileSync(join(ROOT, 'scripts/v2/sanity.ts'), 'utf8') }]; // sanity.ts derives its money bounds from the registry (times10)
 }
 
 // ---------- coverage ----------
@@ -191,6 +276,20 @@ async function selfTest(): Promise<boolean> {
     console.log(`${hit ? 'ok  ' : 'MISS'} self-test: ${name}`);
     if (!hit) ok = false;
   }
+  const goodSrc = "import { rowOf } from './types';\nexport const t = () => [rowOf('st.target', 'v', 1)];\n";
+  const srcCases: [string, string, RegExp][] = [
+    ['unknown id', "rowOf('no.such.id', 'v', 1);", /unknown registry id 'no\.such\.id'/],
+    ['band literal', 'const ok = x >= 0.4 && x <= 0.8;', /band literal/],
+    ['band literal, number first', 'const ok = 3 < x;', /band literal/],
+    ['hand-made row', "out.push({ id: 'a', ok: true });", /hand-made row/],
+  ];
+  for (const [name, text, re] of srcCases) {
+    const hit = calreportLint([{ file: 'calreport/st.ts', text }], new Set(['st.target'])).some((e) => re.test(e));
+    console.log(`${hit ? 'ok  ' : 'MISS'} self-test: calreport lint, ${name}`);
+    if (!hit) ok = false;
+  }
+  const cleanSrc = calreportLint([{ file: 'calreport/st.ts', text: goodSrc + "const a = x > 0 && y < 1; // x >= 0.4 in a comment is fine\nconst s = 'x <= 9 in a string';\nconst z = w <= 3; // band-lint: ok measurement threshold\n" }], new Set(['st.target']));
+  if (cleanSrc.length) { console.log(`MISS self-test: clean calreport source reported ${cleanSrc.join('; ')}`); ok = false; }
   const clean = await lintAll([good], targets);
   if (clean.length) { console.log(`MISS self-test: good entry reported ${clean.join('; ')}`); ok = false; }
   console.log(ok ? 'self-test passed' : 'self-test FAILED');
@@ -200,7 +299,7 @@ async function selfTest(): Promise<boolean> {
 // ---------- main ----------
 async function main() {
   const args = process.argv.slice(2);
-  if (args.includes('--self-test')) process.exit((await selfTest()) ? 0 : 1);
+  if (args.includes('--self-test')) { SELFTEST = true; process.exit((await selfTest()) ? 0 : 1); }
   const ai = args.indexOf('--area');
   const area = ai >= 0 ? args[ai + 1] : undefined;
   PARTIAL = area !== undefined;
