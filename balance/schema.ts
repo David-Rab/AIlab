@@ -38,6 +38,7 @@ export interface Target {
   policy?: 'ref' | 'leader-lab' | 'mixed' | 'race' | 'safe' | 'any' | 'best';  // whose play is measured
   value: { p50?: number; lo?: number; hi?: number; unit?: string };
   tolerance?: string;      // as implemented today (e.g. GOLDEN_TOL ±0.08 y)
+  slack?: number;          // numeric tolerance the calibration report applies: added outside lo/hi, or ± around p50 when lo/hi are absent (same unit as value)
   source: string;          // as stated today
   grade?: 'A' | 'B' | 'C'; // stated grade only
   role: 'fit' | 'holdout' | 'invariant' | 'info' | 'unassigned';  // inventories write 'unassigned' unless code states the role
