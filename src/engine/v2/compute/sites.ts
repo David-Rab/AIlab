@@ -6,7 +6,7 @@ import { dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
 import { ensureWs3 } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
-import { siteCapacityH, siteLiveMW } from './power';
+import { kWPerH100eAt, siteCapacityH, siteLiveMW } from './power';
 
 export { siteLiveMW };
 import { worldWaitQ } from './waits';
@@ -439,7 +439,7 @@ export const sitesQSystem: EngineSystem = {
     ensureWs3(s);
     const q = qOf(s);
     const pw = s.power;
-    if (q > 0) pw.kWPerH100e *= 0.944; // 1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]
+    if (q > 0) pw.kWPerH100e = kWPerH100eAt(pw.kWPerH100e, 1); // 1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]
     for (const src of WAIT_SOURCES) pw.waitHist[src].push(round1(worldWaitQ(s, src)));
     for (const site of s.player.sites) if ((site.stage !== 'live' || stillBuilding(site, s.time.day)) && site.stage !== 'blocked') stepSite(s, ctx, site, q);
     installInventory(s);
