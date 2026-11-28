@@ -19,7 +19,7 @@ import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
 import { boardVote, commitmentsVote, voteGate } from './board';
 import { missionPowers } from './control';
 import { controlVotes, ipTransferVote } from './charter';
-import { issue, partnerEquityIn, stakeRoom } from './equity';
+import { issue, partnerEquityIn, partnerVotesAfter, stakeRoom } from './equity';
 import { leadEstimate } from './observe';
 import { ensureWs3 } from './ext';
 import { paidTo, qOf } from './ledger';
@@ -112,6 +112,9 @@ export function partnerBlocker(s: GameStateV2, partner: string, supply?: Partner
   if (p.kind === 'hyperscaler' && hyperscalerRoom(s, partner) <= 0) {
     return `${partner} holds ${Math.round(stakeOf(s, partner) * 100)}%: a hyperscaler's stake is capped at ${Math.round(PARTNER_TERMS.hyperscaler.stakeCap * 100)}%`;
   }
+  if (p.kind === 'chipVendor' && stakeOf(s, partner) >= PARTNER_TERMS.chipVendor.stakeCap - 1e-9) {
+    return `${partner} holds ${Math.round(stakeOf(s, partner) * 100)}%: a chip vendor's stake is capped at ${Math.round(PARTNER_TERMS.chipVendor.stakeCap * 100)}%`;
+  }
   return undefined;
 }
 
@@ -179,8 +182,8 @@ export interface PartnerChoice { supply?: PartnerSupply; exclusive?: boolean; ip
  *  in `opts` (FIN4b): exclusivity adds 25% to the money, IP access up to 20% (by your lead over its lab), both under the
  *  15% stake cap; `options` says what each adds or why it is not on offer. The commitment is in dollars: 4 × a
  *  hyperscaler's total equity, the dollar value of 2 GW of a vendor's chips; tranches land as it is paid. A rescue
- *  (spec §6.2) is cash for shares at half the valuation, a two-vote board seat, exclusivity and IP access (when the
- *  partner has a lab). */
+ *  (spec §6.2) is cash for shares at half the valuation, a stake that votes, exclusivity and IP access (when the partner
+ *  has a lab). */
 export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoice & { rescue?: boolean } = {}): PartnerTerms {
   const p = partnerDef(partner);
   const V = V0(s);
@@ -203,7 +206,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
     const v = ipVote(s, partner);
     const ipStr = lab ? { ipAccess: { lab: lab.core.id, ...(v?.passes ? { trust: true } : {}) } } : {};
     return {
-      ...base, rescue: true, equityNow: Math.min(t.maxShareOfV * V, Math.max(t.minCash, 2 * burn)), priceMult: t.priceMult, strings: { exclusivity: true, boardVotes: t.seats, ...ipStr }, years: t.years,
+      ...base, rescue: true, equityNow: Math.min(t.maxShareOfV * V, Math.max(t.minCash, 2 * burn)), priceMult: t.priceMult, strings: { exclusivity: true, ...ipStr }, years: t.years,
       options: { exclusive: { on: true, bump: 0 }, ipAccess: { on: !!lab, bump: 0, ...ipLab, ...(lab ? {} : { blocked: ipBlock ?? 'No lab to license to' }) } },
     };
   }
@@ -240,7 +243,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
       const paid = (supply.total * (i + 1)) / t.gw;
       return { amount: perGW, condition: spentCond(partner, paid), dueDay: at(1), deadline: at(paidByQ(s, supply, paid) + t.slackQ) };
     });
-    return { ...base, tranches, supply, strings: strings(), years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * ST.exclusiveBump } } };
+    return { ...base, tranches, supply, strings: strings(), stakeCap: t.stakeCap, years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * ST.exclusiveBump } } };
   }
   return base;
 }
@@ -261,7 +264,7 @@ export function partnerStakeAfter(s: GameStateV2, t: Pick<PartnerTerms, 'partner
 }
 
 /** The most the partner would hold if every tranche landed (at the valuation each lands at: the money added to it), under
- *  a hyperscaler's stake cap. */
+ *  the partner's stake cap (hyperscalers and chip vendors). */
 export function partnerStakeAll(s: GameStateV2, t: PartnerTerms): number {
   const V = V0(s);
   const eq = termsEquity(t);
@@ -269,15 +272,21 @@ export function partnerStakeAll(s: GameStateV2, t: PartnerTerms): number {
   return t.stakeCap !== undefined ? Math.min(all, Math.max(t.stakeCap, partnerStakeAfter(s, t))) : all;
 }
 
+/** The share of all votes the partner would hold once the deal has run: the equity now and every tranche, on a copy of
+ *  the cap table (a rescuer's stake votes; a non-voting stake never does). CORPORATE.md §4: every path that raises one
+ *  holder's votes is judged at the votes it reaches. */
+export const partnerVotesAll = (s: GameStateV2, t: PartnerTerms): number =>
+  partnerVotesAfter(s, t.partner, [t.equityNow, ...t.tranches.map((x) => x.amount)], { priceMult: t.priceMult, stakeCap: t.stakeCap, voting: t.rescue || !!s.player.finance.stratVoting?.[t.partner] });
+
 /** The votes a deal needs, in the order they are held: the trust's (PBC + trust, §7.2: a sale of control, a holder past
- *  50%; IP access that would license a capability-threshold model, FIN4b), then the board's (§7.3: a sale of control;
- *  a rescue, or firm commitments above 3× revenue). A rescue's IP access is not voted: the trust's no only keeps
- *  threshold models out of its licence (`partnerTerms`). */
+ *  half of all votes once every tranche lands; IP access that would license a capability-threshold model, FIN4b), then
+ *  the board's (§7.3: a sale of control; a rescue, or firm commitments above 3× revenue). A rescue's IP access is not
+ *  voted: the trust's no only keeps threshold models out of its licence (`partnerTerms`). */
 export function dealVotes(s: GameStateV2, t: PartnerTerms): BoardVote[] {
   // The trust's votes first: they cannot be forced, so a founder never pays the force cost for a deal the trust stops.
-  const control = controlVotes(s, t.partner, partnerStakeAfter(s, t));
+  const control = controlVotes(s, t.partner, partnerVotesAll(s, t));
   const ip = t.strings.ipAccess && !t.rescue ? ipVote(s, t.partner) : undefined;
-  const own = t.rescue ? boardVote(s, 'rescue', `${t.partner} takes a ${Math.round(partnerStakeAfter(s, t) * 100)}% stake at half the valuation, a board seat with ${t.strings.boardVotes ?? 0} votes, exclusivity${t.strings.ipAccess ? ' and IP access' : ''}`) : commitmentsVote(s, firstYearCommit(t));
+  const own = t.rescue ? boardVote(s, 'rescue', `${t.partner} takes a ${Math.round(partnerStakeAfter(s, t) * 100)}% stake at half the valuation, a stake that votes, exclusivity${t.strings.ipAccess ? ' and IP access' : ''}`) : commitmentsVote(s, firstYearCommit(t));
   return [...control.filter((v) => v.body === 'trust'), ip, ...control.filter((v) => v.body !== 'trust'), own].filter((v): v is BoardVote => !!v);
 }
 /** The vote to show for a deal: the first failing one, else the first needed. */
@@ -306,10 +315,13 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
   }
   const t = partnerTerms(s, partner, opts);
   const paid0 = paidTo(s, partner); // what the partner had been paid at signing: its 'spent:' tranches count from here
-  for (const v of dealVotes(s, t)) {
+  const votes = dealVotes(s, t);
+  for (const v of votes) {
     const no = voteGate(ctx, v, !!opts.force);
     if (no) return no;
   }
+  // The sale of control was voted (judged at the votes every tranche reaches): its tranches may land past 50%.
+  const controlVoted = votes.some((v) => v.decision === 'saleOfControl');
   const q = qOf(s);
   const label = t.rescue ? 'strategic rescue' : `${t.kind === 'hyperscaler' ? 'hyperscaler' : 'chip-vendor'} equity`;
   partnerEquityIn(s, ctx, partner, t.equityNow, label, undefined, t.priceMult);
@@ -319,7 +331,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
   }
   t.tranches.forEach((x, i) => f.tranches.push({
     amount: x.amount, dueDay: x.dueDay, condition: x.condition, deadline: x.deadline,
-    source: t.kind === 'chipVendor' ? `${partner} equity per GW` : `${partner} tranche ${i + 2}`, partner, spentBase: paid0, ...(t.stakeCap !== undefined ? { stakeCap: t.stakeCap } : {}),
+    source: t.kind === 'chipVendor' ? `${partner} equity per GW` : `${partner} tranche ${i + 2}`, partner, spentBase: paid0, ...(t.stakeCap !== undefined ? { stakeCap: t.stakeCap } : {}), ...(controlVoted ? { controlVoted: true as const } : {}),
   }));
   let supplyEnd = s.time.day;
   if (t.supply?.kind === 'cloud') {
@@ -345,7 +357,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
   };
   f.deals.push(deal);
   const ipWords = t.strings.ipAccess ? `, IP access for ${labName(s, t.strings.ipAccess.lab)}` : '';
-  if (t.rescue) ctx.log('alert', `${partner} rescues the company: $${t.equityNow.toFixed(0)}B for ${Math.round(stakeOf(s, partner) * 100)}% held now, a board seat with ${t.strings.boardVotes} votes and exclusivity${ipWords}.`, 4);
+  if (t.rescue) ctx.log('alert', `${partner} rescues the company: $${t.equityNow.toFixed(0)}B for ${Math.round(stakeOf(s, partner) * 100)}% held now and exclusivity${ipWords}; its stake now votes.`, 4);
   else ctx.log('finance', `Deal signed with ${partner}: $${t.equityNow.toFixed(1)}B now${deal.equityLater > 0 ? `, $${deal.equityLater.toFixed(1)}B in tranches` : ''}${t.supply ? `, ${SUPPLY_LABEL[t.supply.kind]} ($${t.supply.total.toFixed(1)}B take-or-pay)` : ''}${t.strings.exclusivity ? ', exclusive' : ''}${ipWords}.`);
   return undefined;
 }

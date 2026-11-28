@@ -35,8 +35,8 @@ const SEAT: Record<BoardSeat['kind'], { icon: typeof ICON.board; label: string }
   founder: { icon: ICON.you, label: 'Founder' }, mission: { icon: ICON.exec, label: 'Mission' }, financial: { icon: ICON.cash, label: 'Financial' },
   strategic: { icon: ICON.relations, label: 'Strategic' }, independent: { icon: ICON.board, label: 'Independent' }, gov: { icon: ICON.congress, label: 'Government' },
 };
-const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', power: 'mw', acquired: 'acquisition' };
-const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', power: 'power', acquired: 'acquired' };
+const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', power: 'mw', merger: 'acquisition' };
+const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', power: 'power', merger: 'merger' };
 
 /** FIN1: firm contracts on the expected path pay one ledger entry per quarter; the contracts table shows one row per
  *  contract (this quarter's payment, or its first if it has not started, and its end). */
@@ -529,7 +529,6 @@ function CharterRights({ s }: { s: GameStateV2 }) {
 /** FIN3b (spec §7.5): the next review and the ouster vote as it stands, seat by seat (no dice). */
 function OusterReview({ s }: { s: GameStateV2 }) {
   const br = boardReview(s);
-  if (br.division) return null;
   const v = br.vote;
   const g = v.grievance;
   const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -565,7 +564,7 @@ function OusterReview({ s }: { s: GameStateV2 }) {
 
 /** FIN3b (spec §7.5): give the critics a seat, shown while confidence is under the warning's clear line. */
 function CriticsSeat({ s }: { s: GameStateV2 }) {
-  if (ownerFunded(s) || s.player.board.confidence >= BC_CLEAR) return null;
+  if (s.player.board.confidence >= BC_CLEAR) return null;
   const c = criticsSide(s);
   return (
     <div className="btn-row" style={{ marginTop: 6 }}>
@@ -791,7 +790,6 @@ function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2;
       {strings.exclusivity && <Pill kind="bad" title={`No deals with ${rivals.join(', ') || 'its competitors'} while the deal runs (exclusivity).`}>exclusive</Pill>}
       {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) && !ip.trust ? ' Capability-threshold models stay out of the licence (the mission body did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
       {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
-      {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
     </>
   );

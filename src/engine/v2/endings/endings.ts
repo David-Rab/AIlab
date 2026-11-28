@@ -1,5 +1,7 @@
 // End conditions (V2-SPEC §5.1), checked daily in spec order, and ending construction. Owner: WS4.
-import { ownerFunded } from '../finance/control';
+import { controllerOf } from '../finance/control';
+import { affiliatedLab } from '../finance/deals';
+import { leadDays } from '../actors/intel';
 import { cadencesDue, decimalYear } from '../core/time';
 import { CHINAGOV } from '../world/chinagov';
 import { activeRivals } from '../models/labs';
@@ -28,8 +30,8 @@ export const ENDING_TEXT: Record<EndingV2['id'], [string, string]> = {
   rogue: ['Rogue AI', 'The copy that escaped your servers was never caught. It found what it needed.'],
   insolvent: ['Insolvent', 'You ran out of money before you ran out of ideas.'],
   ousted: ['Ousted', 'The board removed you. The company races on under new leadership.'],
+  absorbed: ['Absorbed', '{lab} folds your lab into its own. Your people and compute now race under its name.'],
   nationalized: ['Nationalized', 'The government took control of your lab. Your clearance was revoked the same day.'],
-  acquired: ['Acquired', 'A strategic partner bought control of the company to keep it alive.'],
   retired: ['The long road', 'You stepped away. The race continued without you.'],
 };
 
@@ -43,11 +45,13 @@ export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], powe
   ctx.log('alert', `${title}.`, 5, 'ending'); // the one notice that blocks the game (ui store)
 }
 
-/** Sale of control (§5.1 #1 'acquired'): a rescue flag (endingProgress), or one strategic holder above 50% of the equity after
- *  WS3's rescue / deals (finance ownership) [D]. */
-function soldControl(s: GameStateV2): boolean {
-  if (ownerFunded(s)) return false; // an owner-funded company is owned by its controller by construction (R9)
-  return s.endingProgress.soldControl || Object.values(s.player.finance.ownership.strat).some((x) => x > 0.5);
+/** The lab that folds yours into its own when the board removes you (CORPORATE.md §3.3): the controller is a partner
+ *  with an in-house lab (finance/deals.ts affiliatedLab) that leads you (your estimate, actors/intel.ts leadDays < 0).
+ *  Undefined: an ouster is just that. */
+export function absorbingLab(s: GameStateV2): RivalLab | undefined {
+  const c = controllerOf(s);
+  const lab = c?.kind === 'partner' ? affiliatedLab(s, c.id) : undefined;
+  return lab && leadDays(s, lab.core.id).est < 0 ? lab : undefined;
 }
 
 /** Severity-5 misuse incident today (player or rival) with world-tech exposure > 0.6, then civilisation-scale with
@@ -80,16 +84,19 @@ export const endingsSystem: EngineSystem = {
     const day = ctx.day;
 
     // TEST INSTRUMENT, not a game mechanic: scripts/v2/observer.ts sets s.flags['harness:observer'] for runs with no player.
-    // The player's company endings are then off (acquired, insolvent, ousted, nationalized, the player's own ASI, overtaken,
+    // The player's company endings are then off (insolvent, ousted, absorbed, nationalized, the player's own ASI, overtaken,
     // retired and the 2050 cap) and another lab's aligned ASI does not end the run (the harness stops itself 3 years later);
     // world endings (catastrophe, rogue, a misaligned lab's takeover) still do.
     const observer = s.flags['harness:observer'] === true;
-    // 1. Insolvent / acquired. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the
-    //    revolver exhausted (the E26 distress menu is WS3's too).
-    if (!observer && soldControl(s)) return lossEnding(s, ctx, 'acquired');
+    // 1. Insolvent. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the revolver
+    //    exhausted (the E26 distress menu is WS3's too).
     if (!observer && s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
-    // 2. Ousted: WS3's quarterly board ouster roll (finance/board.ts) stamps the day.
-    if (!observer && s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
+    // 2. Ousted: WS3's quarterly board ouster vote (finance/board.ts) stamps the day. Under a controller whose own lab
+    //    leads you, it folds your lab into its own instead (absorbed, the lab named).
+    if (!observer && s.flags['ws3.ousterDay'] !== undefined) {
+      const lab = absorbingLab(s);
+      return lab ? lossEnding(s, ctx, 'absorbed', lab.core.id) : lossEnding(s, ctx, 'ousted');
+    }
     // 3. Nationalized (hard path).
     if (!observer && s.usgov.consolidated === 'nationalized') return lossEnding(s, ctx, 'nationalized');
     // 4. Catastrophe.

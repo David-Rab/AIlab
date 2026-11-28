@@ -203,14 +203,10 @@ export const OUSTER_NOTICE_D = 60;
  *  15%-a-quarter roll and the staff-revolt reinstatement. */
 export const OUSTER = { span: 25, reluctance: 1.5 } as const;
 
-/** An owner-funded company's head answers to the owner, which holds no confidence vote (STRUCTURE §4.8, R9; task C3
- *  brings the ouster to every board). */
-const noOuster = (s: GameStateV2) => ownerFunded(s);
-
 /** Whether an ouster vote is held at the next quarterly review (confidence below the line, warning old enough). */
 export function ousterLive(s: GameStateV2, day = s.time.day): boolean {
   const warn = s.player.finance.ws3?.boardWarnDay;
-  return !noOuster(s) && s.player.board.confidence < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
+  return s.player.board.confidence < OUSTER_BC && warn !== undefined && day - warn >= OUSTER_NOTICE_D;
 }
 
 /**
@@ -244,7 +240,8 @@ export function boardGrievance(s: GameStateV2): { slow: number; reckless: number
  * reluctance, grievance = stance' · v (stance' = stance + the outside-ownership drift on speed and fin, as before),
  * and votes yes above 0; the vote passes when the weighted yes is more than half. A mission board shields a cautious
  * CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite. The CEO does not vote; the
- * founder directors always vote no (founders back their CEO). `bc` previews the vote at another confidence (the Board
+ * founder directors always vote no (founders back their CEO). Under every board (CORPORATE.md §3.3): a parent's or the
+ * government's seats vote like any seat, on their stance (PARENT_STANCE) and the grievance. `bc` previews the vote at another confidence (the Board
  * card shows where each seat turns).
  */
 export function ousterVote(s: GameStateV2, bc = s.player.board.confidence): OusterVote {
@@ -254,17 +251,15 @@ export function ousterVote(s: GameStateV2, bc = s.player.board.confidence): Oust
   const R = OUSTER.reluctance;
   const depth = (OUSTER_BC - bc) / OUSTER.span;
   const seats: OusterSeatVote[] = [];
-  if (!noOuster(s)) {
-    for (const x of boardSeats(s)) {
-      if (x.weight <= 0 || (x.kind === 'founder' && x.holder === 'CEO')) continue;
-      const ally = x.kind === 'founder';
-      const grievance = (x.stance[0] + drift) * v[0] + (x.stance[1] + drift) * v[1] + x.stance[2] * v[2] + x.stance[3] * v[3];
-      const lean = grievance + depth - R;
-      // depth needed = R − grievance: the seat turns below 25 − span × that (never if that needs confidence below 0).
-      const need = R - grievance;
-      const turns = ally ? 0 : OUSTER_BC - OUSTER.span * Math.max(0, need);
-      seats.push({ holder: x.holder, kind: x.kind, weight: x.weight, yes: !ally && lean > 0, lean, parts: { grievance, depth, reluctance: R }, ...(turns > 0 ? { turnsBelow: turns } : {}) });
-    }
+  for (const x of boardSeats(s)) {
+    if (x.weight <= 0 || (x.kind === 'founder' && x.holder === 'CEO')) continue;
+    const ally = x.kind === 'founder';
+    const grievance = (x.stance[0] + drift) * v[0] + (x.stance[1] + drift) * v[1] + x.stance[2] * v[2] + x.stance[3] * v[3];
+    const lean = grievance + depth - R;
+    // depth needed = R − grievance: the seat turns below 25 − span × that (never if that needs confidence below 0).
+    const need = R - grievance;
+    const turns = ally ? 0 : OUSTER_BC - OUSTER.span * Math.max(0, need);
+    seats.push({ holder: x.holder, kind: x.kind, weight: x.weight, yes: !ally && lean > 0, lean, parts: { grievance, depth, reluctance: R }, ...(turns > 0 ? { turnsBelow: turns } : {}) });
   }
   const total = seats.reduce((a, x) => a + x.weight, 0);
   const yes = seats.reduce((a, x) => a + (x.yes ? x.weight : 0), 0);
@@ -304,7 +299,6 @@ export function criticsSide(s: GameStateV2): { side: 'investors' | 'mission'; ki
 
 export function criticsAvailable(s: GameStateV2): true | string {
   const b = s.player.board;
-  if (noOuster(s)) return 'Your owner funds you and judges you through its goals, not a board';
   if (s.player.finance.state === 'insolvent') return 'Insolvent';
   if (b.confidence >= CRITICS.below) return `Only when board confidence is below ${CRITICS.below}`;
   const last = s.player.finance.ws3?.criticsDay;
@@ -386,7 +380,7 @@ export const boardQSystem: EngineSystem = {
     }
     updateRunwayState(s, ctx);
     // Telegraph: the board warns below BC_WARN; the warning clears once confidence recovers.
-    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined && !ownerFunded(s)) {
+    if (b.confidence < BC_WARN && fx.boardWarnDay === undefined) {
       fx.boardWarnDay = s.time.day;
       ctx.log('alert', `The board is losing confidence (${b.confidence.toFixed(0)}). Below ${OUSTER_BC} directors vote on removing you at quarterly reviews. Results restore it; below ${CRITICS.below} you can give the critics a seat (Finance › Board).`, 4);
     } else if (b.confidence >= BC_CLEAR && fx.boardWarnDay !== undefined) {
@@ -394,7 +388,8 @@ export const boardQSystem: EngineSystem = {
       ctx.log('finance', 'The board has steadied: no more talk of a leadership change.');
     }
     // The ouster vote (FIN3b, spec §7.5): at a review below 25 with a warning at least 60 days old, the board votes seat
-    // by seat (no dice; the Board card shows the vote beforehand). WS4 endings read flags['ws3.ousterDay'].
+    // by seat (no dice; the Board card shows the vote beforehand). WS4 endings read flags['ws3.ousterDay']: ousted, or
+    // absorbed when the controller's own lab leads you (endings.ts).
     if (ousterLive(s) && s.flags['ws3.ousterDay'] === undefined) {
       const ov = ousterVote(s);
       if (ov.passes) {

@@ -53,11 +53,14 @@ export const PARTNER_TERMS = {
   // Chip vendor: $10B of equity per GW of its chips you buy (Nvidia–OpenAI; AMD warrants vest by GW) [R15 §1.7]; you buy
   // 2 GW of its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]: that dollar value is
   // the commitment, one tranche lands per GW-worth of it paid, each lapsing `slackQ` quarters after its payment falls due.
-  chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, slackQ: 2 },
+  // Non-voting and capped at 15% of the company like a hyperscaler's stake (CORPORATE.md §5.5): its tranches stop at the
+  // cap (the C3 audit found 37–42% chip-vendor stakes without it).
+  chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, slackQ: 2, stakeCap: 0.15 },
   // Rescue (distress only, spec §6.2): cash = twice the quarter's burn, at least $20B, at most 15% of V, priced like a
-  // distressed round at half the valuation (shares = cash ÷ (0.5 V + cash)); the partner gets a board seat of two votes
-  // and exclusivity [D]; FIN4b: and IP access when the partner has an affiliated lab, for 6 years like a hyperscaler deal [D].
-  rescue: { priceMult: 0.5, minCash: 20, maxShareOfV: 0.15, seats: 2, years: 6 },
+  // distressed round at half the valuation (shares = cash ÷ (0.5 V + cash)); the partner's stake votes (its seats follow
+  // its votes) and it gets exclusivity [D]; FIN4b: and IP access when the partner has an affiliated lab, for 6 years like a
+  // hyperscaler deal [D].
+  rescue: { priceMult: 0.5, minCash: 20, maxShareOfV: 0.15, years: 6 },
   // FIN4b (spec §6.1): at most 3 partners at once (a deal signed in the game counts from signing; stakes from before the
   // start do not) [D]. Optional strings for more money [D]: exclusivity (no deals with the partner's competitors while
   // the deal runs) +25% of the equity (hyperscaler) or of the money per GW (chip vendor), offered only while a competitor

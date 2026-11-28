@@ -11,7 +11,7 @@ import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShi
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { dealVote as firstVote, dealVotes, partnerBlocker, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { dealVote as firstVote, dealVotes, partnerBlocker, partnerOffers, partnerStakeAfter, partnerStakeAll, partnerTerms, partnerVotesAll, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
@@ -310,7 +310,7 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const below = missionPowers(s) && !ip.trust ? "; capability-threshold models stay out without the mission body's yes" : '';
     costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y: its lab ends about ${months < 1 ? 'a month' : `${Math.round(months)} months`} closer over the deal (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
-  if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `${t.partner}'s stake votes (its seats follow its votes), and exclusivity` });
+  if (t.rescue) costs.push({ currency: 'freedom', amount: -1, target: `${t.partner}'s stake votes: ${Math.round(partnerVotesAll(s, t) * 100)}% of all votes, and its seats follow them; and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
 }

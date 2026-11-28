@@ -74,6 +74,25 @@ export function controllerOf(s: ControlView): Holding | undefined {
   return holdingsOf(s).find((h) => h.votes > 0.5 && h.kind !== 'investors' && h.kind !== 'public');
 }
 
+/** The share of all votes `holder` holds on this cap table (0 when it holds none). */
+export const votesOf = (s: ControlView, holder: string): number => holdingsOf(s).find((h) => h.id === holder)?.votes ?? 0;
+
+/** The votes one new holder of `stake` of the company would hold (common shares issued now, diluting everyone): how a
+ *  block of stock paid in a merger is judged (CORPORATE.md §4: every path is judged at the votes it reaches). */
+export function newHolderVotes(s: ControlView, stake: number): number {
+  const f = s.player.finance;
+  const o = f.ownership;
+  const k = 1 - stake;
+  const B = '\u0000block';
+  const strat = Object.fromEntries(Object.entries(o.strat).map(([n, x]) => [n, x * k]));
+  const ownership = { founder: o.founder * k, mission: o.mission * k, fin: o.fin * k, public: o.public * k, strat: { ...strat, [B]: stake } };
+  return votesOf({ player: { finance: { ownership, dualClass: f.dualClass, stratVoting: { ...(f.stratVoting ?? {}), [B]: true } }, charter: s.player.charter } }, B);
+}
+
+/** A holder's name in a sentence ("Azimuth now controls …"). */
+export const holderName = (h: Pick<Holding, 'id' | 'kind'>): string =>
+  h.kind === 'founders' ? 'Your founders' : h.kind === 'mission' ? 'The mission body' : h.kind === 'government' ? 'The government' : h.id;
+
 const SEAT_KIND: Record<HolderKind, { kind: BoardSeat['kind']; name: string }> = {
   founders: { kind: 'founder', name: 'Founder director' },
   investors: { kind: 'financial', name: 'Investor' },
@@ -126,7 +145,8 @@ export function structureLabel(s: ControlView): string {
 export const overrideAvailable = (s: ControlView) => controllerOf(s)?.kind === 'founders';
 export const missionPowers = (s: ControlView) => s.player.charter.missionBody && !s.player.charter.stateControl;
 export const securityPowers = (s: ControlView) => s.player.charter.goldenShare || s.player.charter.stateControl;
-/** A corporate owner or the government controls the company and funds it through a budget (§3.2). */
+/** A corporate owner or the government controls the company and funds it through a budget (§3.2). It may take control
+ *  mid-game (finance/parent.ts controlCheck starts the budget). */
 export const ownerFunded = (s: ControlView) => { const k = controllerOf(s)?.kind; return k === 'partner' || k === 'government'; };
 
 /** Investor appeal of a charter (§2.4): a product of its features. Rivals use it on their kind's charter. */

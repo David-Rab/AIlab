@@ -4,6 +4,7 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis, Tranche } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
+import { votesOf } from './control';
 import { resizeCreditLine } from './debt';
 import { boardMood, MOOD_BASE } from './mood';
 import { addPromise, typicalRound } from './promises';
@@ -72,6 +73,24 @@ export function partnerEquityIn(s: GameStateV2, ctx: SystemCtx, partner: string,
   bookCash(s, ctx, amt, 'financing', label, partner);
   yearStats(s).dealEquity += amt;
   return amt;
+}
+
+/** The share of all votes `partner` would hold after buying each of `buys` ($B of new shares, in order: the first at
+ *  `priceMult` of today's valuation, the rest at the valuation each leaves), each under `stakeCap` as partnerEquityIn
+ *  books it, with its stake voting when `voting`. On a copy of the cap table (CORPORATE.md §4: every path that raises
+ *  one holder's votes is judged at the votes it reaches). */
+export function partnerVotesAfter(s: GameStateV2, partner: string, buys: Money[], opts: { priceMult?: number; stakeCap?: number; voting?: boolean } = {}): number {
+  const f = s.player.finance;
+  const o: Ownership = { ...f.ownership, strat: { ...f.ownership.strat } };
+  let V = Math.max(10, f.valuation) * (opts.priceMult ?? 1);
+  for (const b of buys) {
+    const amt = Math.max(0, opts.stakeCap !== undefined ? Math.min(b, stakeRoom(V, o.strat[partner] ?? 0, opts.stakeCap)) : b);
+    if (amt <= 0) continue;
+    issue(o, amt / (V + amt), { kind: 'strat', name: partner });
+    V += amt;
+  }
+  const stratVoting = { ...(f.stratVoting ?? {}), ...(opts.voting ? { [partner]: true as const } : {}) };
+  return votesOf({ player: { finance: { ownership: o, dualClass: f.dualClass, stratVoting }, charter: s.player.charter } }, partner);
 }
 
 /** Outside (financial + strategic + public) ownership share. */
