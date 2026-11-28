@@ -1,0 +1,164 @@
+run.ts --tier quick: 38 job(s), 6 worker(s), SIMCACHE=on
+  ok   sites                 9 s  (SMOKE bot round)
+  FAIL calib                38 s  (SMOKE)  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\calib.log
+         FAIL  MODEL-V3 §13 frontier G path to 2026 within ±0.2 G of research/12 §0.2 (least-squares line through RefBot's best model)  — worst 0.46 G, 1.42 G/yr
+         FAIL  T4 rival gaps at start 3–9 months (fixture seed)  — 2.3, 1.8, 5.8, 8.9, 2.3
+  ok   fixtures             91 s
+  ok   danger               16 s
+  ok   finance#1           169 s  (prefill 1/2)
+  ok   finance#0           178 s  (prefill 0/2)
+  ok   sabotage             73 s
+  ok   footholds            85 s
+  FAIL control              81 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\control.log
+         FAIL  E15 (day900.json): perturbing hidden truth (tool strengths, masks, undiscovered U-modes, traits, levels) leaves believed control and its model unchanged (true control moves)  — believed 0.9691 (V56) → 0.9691 (V56); readout oversight 0.8247588860078885 → 0.8247588851631218, mis 0.17612125732910316 → 0.17612125732910316; true 0.99 → 0.7405
+  FAIL worktypes           293 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\worktypes.log
+         FAIL  coverage: monotone in fit and in the time horizon (0 far below the best human, ≈ 0.95 at the best human with a long horizon)  — SWE at G_SC − 3 OOM, h50 203 min: 0.59; at G_SC, h50 1e5 min: 1.00
+         FAIL  returns: a line's stack is r_l·log₁₀ of its cumulative research input (each doubling adds r_l·log₁₀2)  — doublings add 0.0420, 0.0414, 0.0430 OOM; r_l·log₁₀2 = 0.0427
+         FAIL  milestones: the reference bot reaches SC → SAR → SIAR → ASI in order  — 961 → 1213 → 1733 → 
+         FAIL  taste: a Strong team without AI = 1; Elite ≈ ×1.46; AI at SIAR (9.27 SD) lifts a team to ≈ ×30  — start 0.000, Elite 1.46, SIAR 31.9
+         FAIL  lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt or multiplierAt (allowed: harness, rivals, lines naming the RD item that removes them)  — npc/lab.ts:227: split: normalizeSplit({ ...shareRefAt(2025.5), safety: posture.safetyInvestment * 0.15 }), | npc/lab.ts:287: const ref = shareRefAt(decimalYear(s)); | npc/lab.ts:298: r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365); | worldfx/revenue.ts:177: const serveShare = shareRefAt(decimalYear(s)).serving;
+  FAIL worldfx             151 s  (SMOKE)  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\worldfx.log
+         FAIL  F7/F11 2026 revenue $45B (AI 2027) to $53–56B (Anthropic CY2026, research/22 §4), ±20%  — $9.2B
+         FAIL  F11 2027 revenue ~$140B (±30%)  — $18.4B
+         FAIL  Late 2026: SOFT youth employment falling, youth unemployment rising  — SOFT 22–25 0.885 → 0.864; hire 0.92 → 0.67; youth U 8.6 → 9.1%
+         FAIL  Jul 2027: AI-friend share 10% (±3)  — 6.9%
+         FAIL  A2c: tokens a day grow ×4.6–20 over 2026 (R22 3a–3b: Google first-party API ×4.6/yr, Google all surfaces ×20/yr), through agent-hours per supervising hour rising with horizon and coverage  — ×2.5 (22T → 55T a day); agent-hours per supervising hour 0.01 → 0.13 → 0.37
+         FAIL  W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)  — -11.4%
+  ok   directorEndings     225 s  (SMOKE)
+  FAIL serving             222 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\serving.log
+         FAIL  S3 day 400: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth), tier by tier (A5 lineups) and for its customers' tier mix  — 252 providers, 1764 tiers, 87 outside
+         FAIL  S3 day 900: every provider's price per hour of use is ≥ its cost and ≤ the work's value (unless serving costs more than the work is worth), tier by tier (A5 lineups) and for its customers' tier mix  — 252 providers, 1764 tiers, 87 outside
+         FAIL  S6 the same scaffold applies to the internal engineering agents (fit +ΔG, × tokens per work-hour)  — 27.627 → 27.627
+         FAIL  C1 the leader's Chat starts at ≈ 700M weekly users (ChatGPT, Jul 2025, NBER w34255; ±10%)  — 620M
+         FAIL  A7 day 1: free users served (≥ 90%) and a free message within ×3 of 0.24 Wh  — free need 3k cut 0k; 0.10 H100e-s ≈ 0.02 Wh
+         FAIL  A8 US buyers 40–72% of the start sector spend outside China, ROW / US hours of use ≈ 3.6; leader day-1 revenue $12–15B, Chat 60–75% of it  — US $5.43B of $12.57B (43%); hours ROW / US 3.50; revenue $15.59B (Chat $7.63B, 49%)
+         FAIL  B3 Enterprise seat revenue = seats × seat price × 12 (MK-9: ≤ the seat cap, ≥ the seat's serving cost)  — 7.4M × $27 × 12 = $2.36B; serving cost $1.82/seat-month
+         FAIL  B6 a longer horizon (memory ×1.3 h50) raises agent-hours and the serving need, not the human hours of use  — agent-hours 0.000B → 0.000B, need 28k → 30k H100e; human hours 129.9B unchanged
+         FAIL  B7 day 400: per-hour billing stays cost-plus (agent-hours ≥ cost, ≤ the wage; seats ≥ serving cost; k after the buyer's gate ≤ k)  — api $0.12→$0.29/h, agent-hours 0.27B; enterprise $0.17→$0.38/h, agent-hours 0.12B
+         FAIL  B7 day 900: per-hour billing stays cost-plus (agent-hours ≥ cost, ≤ the wage; seats ≥ serving cost; k after the buyer's gate ≤ k)  — api $0.03→$0.17/h, agent-hours 50.37B; enterprise $0.16→$1.28/h, agent-hours 6.66B
+         FAIL  D3 day 1: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule on its customers' tier mix)  — 210 provider offers, 210 differ, 0 cells bound
+         FAIL  D3 day 400: below the ceiling nothing changes (no cell binds; every provider's agent-hours per supervising hour is bit-identical to the A2c rule on its customers' tier mix)  — 252 provider offers, 252 differ, 0 cells bound
+  FAIL hygiene             517 s  (no perf, SMOKE 3b)  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\hygiene.log
+         FAIL  causes: ledger keys canonical and strip sorted
+  FAIL tsc-scripts           8 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\tsc-scripts.log
+  FAIL successor            16 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\successor.log
+         FAIL  reference: the pull grows with the lab's automation (start ≈ 0.07; RefBot fixtures day 400 and 900)  — start r 0.03 oversight 0.50 ω 0.006; day 400 r 0.06 oversight 0.88 ω 0.003; day 900 r 0.986 oversight 0.78 ω 0.113
+  ok   money               158 s
+  ok   safety              532 s  (SMOKE)
+  FAIL oversight            13 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\oversight.log
+         FAIL  decay: half strength at oHalf; AG08's is the SAR level (v2 M½ 25)  — oHalf 4.218 ≈ L11.14
+  FAIL rivals                1 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\rivals.log
+  FAIL safetyideas          13 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\safetyideas.log
+         FAIL  P14: steering fades with capability (E6 decay in OOM: the same probes past the AG02 half point, L 14.5)  — AF d 0.325 (L 5) → 0.247 (L 14.5)
+         FAIL  P15: the safety agents do the AI share A of SAF_EXP (E2) of the red-teaming at $4/h vs $150/h: cash × (1 − A·(1 − 4/150))  — A 0.026; cash $44.9M → $43.7M
+         FAIL  P23: at L 12 the CoT family sees a faithful model × 0.98·(1 − ctl/2) instead of × 0.9·(1 − ctl): CoT monitors (AG09) stay strong  — ctl 0.800; COT penalty visible 0.875, faithful 0.966
+         FAIL  F44 raises AI labour (m_exp, m_ideas) and the AI share (the sabotage weight) on the benchmarked lines only  — AG18 m_exp 1.04 → 1.19, m_ideas 1.00 → 1.00, AI 0.021 → 0.087; AG03 m_exp 1.04 → 1.17, m_ideas 1.00 → 1.00, AI 0.019 → 0.078; AG16 m_exp 1.04 → 1.19, m_ideas 1.00 → 1.00, AI 0.021 → 0.087; AG08 m_exp 1.04 → 1.04, m_ideas 1.00 → 1.00, AI 0.021 → 0.021; AG12 m_exp 1.01 → 1.01, m_ideas 1.00 → 1.00, AI 0.004 → 0.004
+  FAIL research             84 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\research.log
+         FAIL  failure: a dud direction fails after 3 dropped candidates and leaves the queue  — failed, drops 0
+  FAIL effective            30 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\effective.log
+         FAIL  post-training: RL FLOP = ρ × base FLOP; no minimum days  — 4.50e+25 FLOP, 38 d
+  ok   tsc-main              6 s
+  FAIL data                 20 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\data.log
+         FAIL  draw: on the day-400 portfolio balanced keeps the reference shares (no specialisation while no domain repeats); the natural mix specialises in code  — balanced none; natural SOCIAL -0.56 MEDIA -0.02 REASON +0.19 CODE +0.11 RSCH +0.16 BIO +0.30 AGENCY +0.34 CYBER +0.68 PHYS +0.45
+         FAIL  D9 teacher re-check: below the cap the strongest teacher pays (P10 changes nothing at day 400); at the web's cap the smallest teacher wins again; P10 lets quality rank them  — day 400: V0-3 q 0.10 ΔG -0.1667, V0-2 q 0.28 ΔG -0.0315, V11 q 0.28 ΔG -0.0315, V18 q 0.35 ΔG -0.0342, V0-1 q 0.35 ΔG -0.0174, V24 q 0.35 ΔG -0.0341, V29 q 0.37 ΔG -0.0337, V9 q 0.50 ΔG -0.0055, V0 q 0.50 ΔG -0.0054, V7 q 0.50 ΔG -0.0054, V3 q 0.50 ΔG -0.0054, V5 q 0.50 ΔG -0.0054, V14 q 0.57 ΔG -0.0047, V12 q 0.57 ΔG -0.0046, V16 q 0.57 ΔG -0.0046, V20 q 0.58 ΔG -0.0044, V27 q 0.59 ΔG -0.0041, V25 q 0.59 ΔG -0.0041; teachers +2.5 OOM, no P10: V0-3 q 0.64 ΔG -0.0311, V0-2 q 0.90 ΔG +0.0233, V11 q 0.91 ΔG +0.0238, V18 q 0.97 ΔG +0.0338, V0-1 q 0.97 ΔG +0.0227, V24 q 0.98 ΔG +0.0350, V29 q 0.99 ΔG +0.0369, V9 q 1.00 ΔG +0.0097, V0 q 1.00 ΔG +0.0087, V7 q 1.00 ΔG +0.0100, V3 q 1.00 ΔG +0.0099, V5 q 1.00 ΔG +0.0090, V14 q 1.00 ΔG +0.0096, V12 q 1.00 ΔG +0.0099, V16 q 1.00 ΔG +0.0093, V20 q 1.00 ΔG +0.0090, V27 q 1.00 ΔG +0.0088, V25 q 1.00 ΔG +0.0090 (best V29; at the cap 11 of 18, best V7, smallest V14 / V12 / V16 / V20 / V27 / V25); with P10: V0-3 q 0.64 ΔG -0.0311, V0-2 q 0.90 ΔG +0.0233, V11 q 0.91 ΔG +0.0238, V18 q 0.97 ΔG +0.0338, V0-1 q 0.97 ΔG +0.0227, V24 q 0.98 ΔG +0.0350, V29 q 0.99 ΔG +0.0369, V9 q 1.12 ΔG +0.0155, V0 q 1.13 ΔG +0.0140, V7 q 1.13 ΔG +0.0160, V3 q 1.13 ΔG +0.0159, V5 q 1.13 ΔG +0.0146, V14 q 1.19 ΔG +0.0180, V12 q 1.19 ΔG +0.0187, V16 q 1.19 ΔG +0.0175, V20 q 1.20 ΔG +0.0171, V27 q 1.21 ΔG +0.0172, V25 q 1.21 ΔG +0.0177 (best V29)
+  FAIL safetyresearch       43 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\safetyresearch.log
+         FAIL  E1 reference inputs (serious staffing, SAF_RE_ASK engineers, reference compute at day-0 compute): first result after T₁ (±2%), every line  — worst 55.7%
+         FAIL  E1 once the pipeline is full a result follows every (small + validation) × T₁ (scientists ideate while engineers test)  — 0.444 T₁
+         FAIL  E1 readouts: ETA of a fresh project = T₁, steady cycle = 0.8 T₁ at reference  — 42.1 d, 42.1 d
+         FAIL  E1 a compute-bound line gains from compute and not from engineers, a labour-bound one the reverse  — compute-bound ×1.582 compute vs ×1.109 engineers; labour-bound ×1.543 engineers vs ×1.061 compute
+         FAIL  E1 a project in experiments takes SAF_RE_ASK engineers from the idle engineers (none while it ideates)  — idle 100 → 0
+         FAIL  E2 AI labour on safety experiments grows with the package's copies and has no √M cap  — m_exp 11.3 → 11.3 at 247487 → 494975 copies (SAF_EXP a 0.801)
+         FAIL  E2 a safety model with low SAF coverage adds little (start model, full trust, 60% of the safety pool)  — m 1.320 / 1.0446, work AI does 14.1%
+         FAIL  E2 AI taste from the safety model's SAF_IDEAS fit lifts the scientists' taste (weight: AI's share of the SAF_IDEAS labour, DD-13)  — taste 1.000 → 0.12 (sd_AI -15.0)
+         FAIL  E2 a low-coverage safety model does little of the work, so its sabotage weight is small  — 14.1%
+  FAIL signals              11 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\signals.log
+         FAIL  reference post-train at the start reproduces V1's signals exactly (standard, broad on the six start suites, constitution), S6 0 (AF2)  — S1 0.400 S2 0.357 S3 0.750 S4 0.000 S5 0.050 S6 0.000 S7 0.350
+         FAIL  reference base at the start (B0's G, the start portfolio) reproduces V1's S5 0.28 (0.2 + 0.1 × start tier 0.8); S6 0 (AF2: no narrow harmful fine-tune)  — S5 0.278 S6 0.000
+         FAIL  a distilled student (a new network) learns what the teacher's outputs show, whatever its family: visible PERSONA in full, hidden AF only its OC_VIS share (Cloud et al. 2025: no transfer without a shared initialisation)  — teacher PERSONA 0.8, AF 0.8 → student (same / other family) PERSONA 0.796 / 0.796, AF 0.268 / 0.268 (start: AF 0.107 = shown share, before the run's own step)
+  FAIL finance             475 s  (SMOKE)  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\finance.log
+         FAIL  FIN4a a partner tranche buys shares when it lands; a hyperscaler stops at 15% (the rest lapses)  — 6.8B landed · stake 6% → 15% → capped 15%
+         FAIL  FIN4b exclusivity is optional: +25% of the money (hyperscaler equity, vendor money per GW), shown as the option's bump, no extra capacity; a sovereign has none to offer  — Azimuth $15.0B → $15.6B · Silica $20.0B → $25.0B
+         FAIL  FIN4b no IP access without an affiliated lab (no big-tech rival), nor from a chip vendor
+         FAIL  FIN4b IP access (a hyperscaler with an in-house lab): +20% of the equity; the preview says the lab closes ~10% of your lead a year, in days at your estimated lead  — IP access: Tarnwick (Azimuth's lab) licenses your models and closes ~10% of your lead a year for 6 y (you are not ahead of Tarnwick now)
+         FAIL  FIN4b a signed IP access moves the affiliated lab lag a share of the way to the licensed model each day (npc/shocks.ts ipAccessDays); none without it  — 0.00e+0 d a day
+         FAIL  FIN4b PBC + trust: IP access to a capability-threshold model goes to the trust's transfer vote (first, not forceable); its no stops the deal, which signs without IP access; a rescue's licence stops below the thresholds  — Agent-1-2.4: cyber offense, autonomous replication · trust 0/2 · The trust votes no on transfer of a capability-threshold model (0 of 2 votes for, needs more than half)
+         FAIL  FIN4r H2 a promise weighs its round ÷ max(the year's rounds, a typical round at the close): a $0.1B round barely counts; four ceiling-sized rounds 25% each, one 100%  — $0.1B at $88.5B pre: typical $7.7B → weight 1.30% · stacked 25%/33%/50%/100% · lone 100%
+         FAIL  FIN4r H3 the distress down round pays in full at the close (no tranche)  — $10.0B
+         FAIL  FIN5a RefBot equity raised a year in the 2025–26 range (H2 2025 $5–45B, 2026 $50–150B)  — 2025 H2 8.1B · 2026 36.2B · story share Oct 2026 22%
+         FAIL  FIN5b a rival's credibility comes from one rule (revenue up over four quarters: Credible ×1, down: Unproven ×0.9, halved: Doubted ×0.7) and its governance from its kind (safety PBC + trust ×1, maverick and upstart founder ×1.1, leader lab nonprofit PBC ×0.9), both in its weight  — growth ×2.0 Credible · ×0.70 Unproven · ×0.50 Doubted
+         FAIL  FIN5b a bust pushes the most over-committed private rival into distress: it raises nothing that quarter and is offered to you (E32); it recovers next quarter if it has the cash  — Lanternworks
+         FAIL  FIN6a the aggressive pitch end to end: signed and closed at ×1.2 the mark with a target 1.3× the trend gain; the next mark falls back under its post-money (a base round is then a down round); judged like any promise  — pre $106.2B on a $88.5B mark · next mark $68.8B vs post $111.2B · met: credibility +16.2
+  FAIL suites               18 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\suites.log
+         FAIL  start suites reproduce V1's reference S2 (standard, broad, hardened graders: 0.6 × 0.6 = 0.36)  — 0.3575
+         FAIL  follower starts by their start tables: challenger and big tech hardened (0.36), the spinout cheap (0.9 = V1's cheap graders)  — 0.357 / 0.357 / 0.894
+         FAIL  the RL budget's optimisation pressure (model v3 E3: Gao's log form in ρ) keeps V1's light ×0.5, heavy ×1.3 within 1%  — 0.180 / 0.466
+         FAIL  hardening: once built, exploitability falls  — 18.00% → 18.00%
+         FAIL  hardening: diminishing returns (each pass removes less, never below the floor)  — Δ 0.00 then 0.00 pp; floor 1.80%
+         FAIL  building: the expert data joins the family's expert asset and its fidelity rises (that suite only)  — math fidelity 1 → 0.986
+         FAIL  building: fidelity has diminishing returns in expert data and a ceiling
+         FAIL  building: a post-train reads the better math suite (REASON gain up)  — 0.861 → 0.849 OOM
+         FAIL  RD-B03: once built, computer use has a fidelity-1 suite (start exploitability): in broad RL, a focus, on upkeep (as the build preview showed)  — broad share 0.0%, RL ΔG 0.695 → 0.685 OOM
+  ok   lint-hidden          10 s
+  ok   lint-ux              13 s
+  FAIL lint-structure       11 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\lint-structure.log
+         FAIL Action titles ≤ 4 words  research.safReAlloc "Safety research engineers by need"
+  FAIL evals               124 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\evals.log
+         FAIL  EV9 the reference lab's release suites take about two weeks or less (v2: 14 days fixed)  — 47, 34, 77, 85, 89, 80, 61, 34, 50, 32, 29, 38
+  ok   currency             11 s
+  ok   lint-tradeoffs       25 s
+  FAIL domainref            10 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\domainref.log
+         FAIL  grep: no REF_OFF in src  — C:\Users\david\Documents\projects\AI27-testaudit\src\data\v2\danger.ts, C:\Users\david\Documents\projects\AI27-testaudit\src\engine\v2\models\capability.ts
+  FAIL products            120 s  → C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs\products.log
+         FAIL  P6 short of serving: Chat's free users are cut first, then per-hour work pro rata at equal revenue per H100e; seats and paying chat users served  — consumer 153K cut 2622 (free need 2622), api 107K cut 25905, enterprise 143K cut 18962 (seats 9006 served)
+         FAIL  P7 the engineers build it  — 60 d
+         FAIL  P7 switched on for Chat: the companion segment (a task enabler) raises the users at the target share (preview), arriving through the customer stock  — target users 701M → 684M; demand today 8.60 → 8.60
+         FAIL  M2 copies of the watched models: coverage = budget (20% of the safety pool) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines  — {"need":0.04895251322044762,"budget":0.2,"used":0.04956441963570322,"coverage":1,"control":0.0006119064152555955,"controlShort":0}
+         FAIL  A5 less engineering compute: less build capacity, more research agents  — 1403.7 → 1403.7
+         FAIL  A6 no monitors: no safety compute reserved and no monitoring of the fleet
+         FAIL  RD-B12 a relaunch on the channel takes over the retired product's certifications
+         FAIL  RD-B12 a new launch has the lab's built features for its channel on (other channels' and lab-level features not)
+  ok   idle                293 s  (SMOKE 1 seed)
+
+script            mode        pass  fail  warn smoke   cache  wall s   cpu s  status
+tsc-scripts                      0     0     0     0             8.0     0.3  FAIL (exit 1)
+tsc-main                         0     0     0     0             6.4     0.2  ok
+effective                       26     1     0     0            30.4    35.8  FAIL (exit 1)
+data                            62     2     0     0            19.5    22.9  FAIL (exit 1)
+suites                          28     9     0     0            18.1    23.6  FAIL (exit 1)
+sites             SMOKE bot round   274     0     0     0             9.4     8.6  ok
+signals                         18     3     0     0            10.7     9.8  FAIL (exit 1)
+successor                       11     1     0     0            16.1    12.9  FAIL (exit 1)
+research                        52     1     0     0            83.7    89.8  FAIL (exit 1)
+evals                           27     1     0     0           124.1   134.9  FAIL (exit 1)
+safetyresearch                  17     9     0     0            42.5    53.3  FAIL (exit 1)
+worktypes                       16     5     0     0           293.0   299.2  FAIL (exit 1)
+calib             SMOKE          3     2     0     0     1/2    37.7    43.1  FAIL (exit 1)
+fixtures                        12     0     0     0     0/3    91.0   108.3  ok
+hygiene           no perf, SMOKE 3b   154     1     0     0     0/1   517.3   458.2  FAIL (exit 1)
+lint-hidden                      1     0     0     0            10.1     7.2  ok
+lint-ux                         11     0     0     0            12.6     9.8  ok
+lint-tradeoffs                 804     0     0     0            24.6    29.4  ok
+lint-structure                   7     1     0     0            11.1     8.1  FAIL (exit 1)
+safety            SMOKE         16     0     0     4     0/3   532.2   521.4  ok
+danger                          26     0     0     0            15.5    15.5  ok
+oversight                       27     1     0     0            13.1    11.1  FAIL (exit 1)
+currency                         4     0     0     0            10.6     8.4  ok
+domainref                        6     1     0     0             9.7     8.3  FAIL (exit 1)
+sabotage                        32     0     0     0            72.5    65.4  ok
+footholds                       34     0     0     0            84.7    34.2  ok
+control                         31     1     0     0            80.5    26.5  FAIL (exit 1)
+safetyideas                     35     4     0     0            12.6     9.1  FAIL (exit 1)
+finance#0         prefill 0/2     0     0     0     0     1/4   178.2   188.1  ok
+finance#1         prefill 1/2     0     0     0     0     0/3   169.1   182.9  ok
+finance           SMOKE        145    12     0    19     7/7   474.9   406.9  FAIL (exit 1)
+worldfx           SMOKE         21     6     0     2     0/2   151.4   130.2  FAIL (exit 1)
+directorEndings   SMOKE         22     0     0     3     0/5   224.7   197.3  ok
+rivals                           0     0     0     0             0.5     0.5  FAIL (exit 1)
+products                        60     8     0     0           119.5   119.5  FAIL (exit 1)
+serving                         78    14     0     0           221.5   209.5  FAIL (exit 1)
+money                           24     0     0     0           158.0   153.9  ok
+idle              SMOKE 1 seed     3     0     0     0           293.2   302.9  ok
+
+quick: 14/36 scripts ok (+ 2 prefill shards), 2087 checks passed, 83 failed; wall 12.9 min, cpu 65.8 min, machine load 92% (12 cores, 6 workers)
+quick is a smoke gate: SMOKE lines are informational; run the full tier (npm run test:full) before a merge.
+FAILED: tsc-scripts, effective, data, suites, signals, successor, research, evals, safetyresearch, worktypes, calib, hygiene, lint-structure, oversight, domainref, control, safetyideas, finance, worldfx, rivals, products, serving (logs in C:\Users\david\Documents\projects\AI27-testaudit\.simcache\logs)
