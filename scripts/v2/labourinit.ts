@@ -55,7 +55,7 @@ check(untouched.every((id) => s.rng[id] === seeds[id]), 'other streams still at 
 {
   const rng = { ...s.rng, labour: seeds.labour };
   const before = { ...rng };
-  const lab = initialLabour({ rng, hidden: s.hidden }, s.player);
+  initialLabour({ rng, hidden: s.hidden }, s.player);
   check(STREAMS.every((id) => (id === 'labour') === (rng[id] !== before[id])), "initialLabour consumes the 'labour' stream and no other (incl. 'world')");
 }
 

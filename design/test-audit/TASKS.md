@@ -29,7 +29,7 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 | G4 | finance, worldfx | merged 6f33da9d (quick 13 CPU-min → ~1.7; full est. finance 7, worldfx 3.7 CPU-min, not yet run) |
 | G2 | research, safetyresearch, safetyideas, evals, worktypes | running (ta-g2) |
 | G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | merged fa40f327 (safety smoke 521 → ~30 s; full ~26 → ~13 CPU-min cold; deep ~36 → ~4) |
-| G1 | suites, signals, successor, data, effective, oversight | running (ta-g1) |
+| G1 | suites, signals, successor, data, effective, oversight | merged 9a684123 (14 fail → 0 + 1 KNOWN; each ≤ 12 s) |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | merged 47f5412a (all green or KNOWN; calib full = 3 games ≈ 4–5 CPU-min, central: budget 300) |
 | later | idle, hygiene (after speed merges), directorEndings, npcShocks (after bal merges) | — |
 
