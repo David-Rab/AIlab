@@ -46,8 +46,8 @@ sanity.ts full-only; no played games in quick), then quick (ask) and full (ask),
 
 | id | what | state |
 |---|---|---|
-| CR-A | milestones (calib.ts → calreport, delete calib.ts), rivals (one band per quantity), safety S4/S5 + safetyrates games; paired safety direction check; new sanity.ts (full) | running (ta-cra) |
-| CR-B | world (worldfx bands), finance (played-game targets), market (serving sourced start numbers) | running (ta-crb) |
+| CR-A | milestones (calib.ts → calreport, delete calib.ts), rivals (one band per quantity), safety S4/S5 + safetyrates games; paired safety direction check; new sanity.ts (full) | merged 29a43acc (sanity found the integrated RefBot economy collapse → OPEN.md Balance) |
+| CR-B | world (worldfx bands), finance (played-game targets), market (serving sourced start numbers) | merged 7d17068e |
 
 Guards to finish after the merges: lint-known (every KNOWN value names an existing OPEN.md section: "OPEN.md § <Section>: …"; several today say "§ Bugs", which does not exist) — lead, after CR-A/CR-B/G9.
 
@@ -59,3 +59,7 @@ checkLabels/metric re-pointed to the report; registry-lint checks every row's id
 calreport/; missing targets proposed to the balance session (asked 2026-11-28, also about targets.draft.ts).
 Then: back-of-envelope estimates (designer's idea): read-only feasibility map first (which targets are computable from
 engine functions on the reference path, no game); built on the same ids.
+| tiers | run.ts quick/full/perf only (cal, deep gone), calib job gone, sanity in full, default 4 workers | done 29a43acc |
+| CR-C | calreport rows read bands from balance/targets.ts by id; new targets added; registry-lint checks ids + no literals; sanity: bounds from registry, day 2200, KNOWN, light read-purity | running (ta-crc) |
+| L1 | lint-known: every KNOWN value = "OPEN.md § <existing section>: <row phrase>"; fix existing texts | running (ta-l1) |
+| then | send CR-C's new target ids to the balance session; quick (ask), full (ask), merge to master (ask); back-of-envelope feasibility map | — |
