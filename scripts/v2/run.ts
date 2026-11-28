@@ -44,6 +44,9 @@ interface Job {
   shards?: Partial<Record<Tier, number>>;
   /** Jobs that must finish first (set for the prefill shards). */
   after?: string[];
+  /** CPU budget in CPU-seconds per tier (TESTING.md §1). INTERIM values (P1a): quick = the 2026-11-28 measured cpu s rounded up,
+   *  full = 3x quick where unmeasured; phase 2 of the test cleanup lowers them. A job without one gets DEFAULT_BUDGET. */
+  budget?: Partial<Record<Tier, number>>;
   /** Extra environment for the job. */
   env?: Record<string, string>;
 }
@@ -52,52 +55,63 @@ const TSC = join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 const SMOKE = ['--smoke'];
 const S = (tiers: Tier[], est: number, extra: Partial<Job> = {}): Partial<Job> => ({ tiers, est, ...extra });
 const ALL: Tier[] = ['quick', 'full'];
+const DEFAULT_BUDGET = 20; // CPU-s per job when a job declares none
+const TIER_BUDGET_MIN: Partial<Record<Tier, number>> = { quick: 15 }; // CPU-min for the tier in total (TESTING.md §1)
 /** Every job. `full` lists exactly the old test:v2 chain (+ test:ui); quick adds the main tsc and SMOKE modes. */
 const JOBS: Job[] = [
-  { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], ...S(ALL, 30) } as Job,
-  { id: 'tsc-main', argv: [process.execPath, TSC, '--noEmit', '-p', '.'], ...S(['quick'], 20) } as Job,
-  { id: 'effective', script: 'effective.ts', ...S(ALL, 25) } as Job,
-  { id: 'data', script: 'data.ts', ...S(ALL, 20) } as Job,
-  { id: 'suites', script: 'suites.ts', ...S(ALL, 20) } as Job,
-  { id: 'sites', script: 'sites.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE bot round' }, ...S(ALL, 90) } as Job,
-  { id: 'signals', script: 'signals.ts', ...S(ALL, 20) } as Job,
-  { id: 'successor', script: 'successor.ts', ...S(ALL, 30) } as Job,
-  { id: 'research', script: 'research.ts', ...S(ALL, 35) } as Job,
-  { id: 'evals', script: 'evals.ts', ...S(ALL, 30) } as Job,
-  { id: 'safetyresearch', script: 'safetyresearch.ts', ...S(ALL, 25) } as Job,
-  { id: 'worktypes', script: 'worktypes.ts', ...S(ALL, 60) } as Job,
-  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 10 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
-  { id: 'fixtures', script: 'fixtures.ts', ...S(ALL, 120) } as Job,
+  { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
+  { id: 'tsc-main', argv: [process.execPath, TSC, '--noEmit', '-p', '.'], budget: { quick: 10, full: 30 }, ...S(['quick'], 20) } as Job,
+  { id: 'effective', script: 'effective.ts', budget: { quick: 40, full: 120 }, ...S(ALL, 25) } as Job,
+  { id: 'data', script: 'data.ts', budget: { quick: 25, full: 75 }, ...S(ALL, 20) } as Job,
+  { id: 'suites', script: 'suites.ts', budget: { quick: 25, full: 75 }, ...S(ALL, 20) } as Job,
+  { id: 'sites', script: 'sites.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE bot round' }, budget: { quick: 10, full: 30 }, ...S(ALL, 90) } as Job,
+  { id: 'signals', script: 'signals.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 20) } as Job,
+  { id: 'successor', script: 'successor.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
+  { id: 'research', script: 'research.ts', budget: { quick: 100, full: 300 }, ...S(ALL, 35) } as Job,
+  { id: 'evals', script: 'evals.ts', budget: { quick: 140, full: 420 }, ...S(ALL, 30) } as Job,
+  { id: 'safetyresearch', script: 'safetyresearch.ts', budget: { quick: 60, full: 180 }, ...S(ALL, 25) } as Job,
+  { id: 'worktypes', script: 'worktypes.ts', budget: { quick: 300, full: 900 }, ...S(ALL, 60) } as Job,
+  { id: 'calib', script: 'calib.ts', args: { quick: SMOKE, cal: ['--cal'] }, mode: { quick: 'SMOKE', cal: 'T1 T1L T4' }, shards: { full: 6, cal: 10 }, budget: { quick: 50, full: 150 }, ...S(['quick', 'cal', 'full'], 300) } as Job,
+  { id: 'fixtures', script: 'fixtures.ts', budget: { quick: 120, full: 360 }, ...S(ALL, 120) } as Job,
   // G1: hygiene's readout-purity games (3b) run as prefill shards in full; --smoke in quick plays one seed of them.
-  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
-  { id: 'lint-hidden', script: 'lint-hidden.ts', ...S(ALL, 10) } as Job,
-  { id: 'lint-ux', script: 'lint-ux.ts', ...S(ALL, 10) } as Job,
-  { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', ...S(ALL, 10) } as Job,
-  { id: 'lint-structure', script: 'lint-structure.ts', ...S(ALL, 10) } as Job,
+  { id: 'hygiene', script: 'hygiene.ts', args: { quick: ['--no-perf', '--smoke'], full: ['--no-perf'], perf: ['--perf-only'] }, mode: { quick: 'no perf, SMOKE 3b', full: 'no perf', perf: 'perf only' }, shards: { full: 3 }, budget: { quick: 500, full: 1500 }, ...S(['quick', 'full', 'perf'], 120) } as Job,
+  { id: 'lint-hidden', script: 'lint-hidden.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
+  { id: 'lint-ux', script: 'lint-ux.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
+  { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 10) } as Job,
+  { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   // M10: the deep tier (merge waves only, after test:full on the same code, so S4/S5's base games are cache hits) adds
   // S5's played mechanism checks (180 RefBot games to SAR since M11: half staff 20, sabotage on / off 2 × 80), kept out of full to hold it ≲ 20 min wall.
-  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, ...S([...ALL, 'deep'], 1000) } as Job,
-  { id: 'danger', script: 'danger.ts', ...S(ALL, 60) } as Job,
-  { id: 'oversight', script: 'oversight.ts', ...S(ALL, 30) } as Job,
-  { id: 'currency', script: 'currency.ts', ...S(ALL, 10) } as Job, // RD-U01: one capability currency
-  { id: 'domainref', script: 'domainref.ts', ...S(ALL, 10) } as Job, // RD-U05: domain difficulty only in the human reference points
+  { id: 'safety', script: 'safety.ts', args: { quick: SMOKE, deep: ['--deep'] }, mode: { quick: 'SMOKE', deep: 'S5 mechanisms' }, shards: { full: 6, deep: 6 }, budget: { quick: 550, full: 1650 }, ...S([...ALL, 'deep'], 1000) } as Job,
+  { id: 'danger', script: 'danger.ts', budget: { quick: 20, full: 60 }, ...S(ALL, 60) } as Job,
+  { id: 'oversight', script: 'oversight.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
+  { id: 'currency', script: 'currency.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job, // RD-U01: one capability currency
+  { id: 'domainref', script: 'domainref.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job, // RD-U05: domain difficulty only in the human reference points
   // E7 sabotage, E8 footholds, E9 control (merged in M5).
-  { id: 'sabotage', script: 'sabotage.ts', ...S(ALL, 60) } as Job,
-  { id: 'footholds', script: 'footholds.ts', ...S(ALL, 60) } as Job,
-  { id: 'control', script: 'control.ts', ...S(ALL, 60) } as Job,
+  { id: 'sabotage', script: 'sabotage.ts', budget: { quick: 70, full: 210 }, ...S(ALL, 60) } as Job,
+  { id: 'footholds', script: 'footholds.ts', budget: { quick: 40, full: 120 }, ...S(ALL, 60) } as Job,
+  { id: 'control', script: 'control.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 60) } as Job,
   // E13 (merged in M5).
-  { id: 'safetyideas', script: 'safetyideas.ts', ...S(ALL, 30) } as Job,
+  { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 30) } as Job,
   // E10: safety rates vs research/20 F (12 RefBot games to ASI and 40 probe worlds; full tier only).
-  { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, ...S(['full'], 200) } as Job,
-  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, ...S(ALL, 250) } as Job,
-  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, ...S(ALL, 90) } as Job,
-  { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, ...S(ALL, 120) } as Job,
-  { id: 'rivals', script: 'rivals.ts', ...S(ALL, 30) } as Job,
-  { id: 'products', script: 'products.ts', ...S(ALL, 30) } as Job,
-  { id: 'serving', script: 'serving.ts', ...S(ALL, 60) } as Job,
-  { id: 'money', script: 'money.ts', ...S(ALL, 60) } as Job,
-  { id: 'idle', script: 'idle.ts', args: { quick: ['--seeds', '1'] }, mode: { quick: 'SMOKE 1 seed' }, ...S(ALL, 150) } as Job,
-  { id: 'ui', argv: ['npm', 'run', 'test:ui'], ...S(['full'], 300, { first: true }) } as Job,
+  { id: 'safetyrates', script: 'safetyrates.ts', shards: { full: 4 }, budget: { full: 600 }, ...S(['full'], 200) } as Job,
+  { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 3, quick: 2 }, budget: { quick: 450, full: 1350 }, ...S(ALL, 250) } as Job,
+  { id: 'worldfx', script: 'worldfx.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, shards: { full: 4 }, budget: { quick: 150, full: 450 }, ...S(ALL, 90) } as Job,
+  { id: 'directorEndings', script: 'directorEndings.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 200, full: 600 }, ...S(ALL, 120) } as Job,
+  { id: 'products', script: 'products.ts', budget: { quick: 120, full: 360 }, ...S(ALL, 30) } as Job,
+  { id: 'serving', script: 'serving.ts', budget: { quick: 220, full: 660 }, ...S(ALL, 60) } as Job,
+  { id: 'money', script: 'money.ts', budget: { quick: 160, full: 480 }, ...S(ALL, 60) } as Job,
+  { id: 'idle', script: 'idle.ts', args: { quick: ['--seeds', '1'] }, mode: { quick: 'SMOKE 1 seed' }, budget: { quick: 310, full: 930 }, ...S(ALL, 150) } as Job,
+  { id: 'ui', argv: ['npm', 'run', 'test:ui'], budget: { full: 60 }, ...S(['full'], 300, { first: true }) } as Job,
+];
+
+/** Scripts under scripts/v2 that are tools or helpers, not tests (D-orphans.md Task A "tools and helpers"). A top-level script that
+ *  asserts must be a job above or be named here (and then not assert); the orphan guard fails quick and full otherwise. */
+const TOOLS = [
+  'balrun', 'baldash', 'baldash-live', 'worlddash', 'bots', 'botgame', 'policies', 'matched', 'forcedInputs', 'overridePreload', 'paramOverride',
+  'observer', 'calseeds', 'calibscore', 's1compare', 'tastecurve', 'calscan', 'starts', 'safety-emu', 'worldfx-refplay', 'readsweep', 'lint-tips',
+  'profile', 'ref-trace', 'botfingerprint', 'lib', 'run', 'simcache', 'uitest',
+  // Pending: P1c adds jobs for these two; remove them from here when it merges.
+  'naming', 'rdt10',
 ];
 
 // ---------- arguments ----------
@@ -139,12 +153,35 @@ jobs = jobs.flatMap((j) => {
   const env = process.env.SIMCACHE?.toLowerCase() === 'refresh' ? { SIMCACHE: 'on' } : undefined;
   return [...shards, { ...j, after: shards.map((x) => x.id), est: j.est / n, env }];
 });
+/** Orphan guard: every top-level scripts/v2/*.ts|mjs that asserts (imports check/finish from ./lib, or prints FAIL lines) is a job or a listed tool. */
+function orphans(): string[] {
+  const jobScripts = new Set(JOBS.filter((j) => j.script).map((j) => j.script as string));
+  const tools = new Set(TOOLS);
+  const dir = join(ROOT, 'scripts', 'v2');
+  const bad: string[] = [];
+  for (const f of readdirSync(dir)) {
+    if (f.startsWith('_') || f.startsWith('.') || !/\.(ts|mjs)$/.test(f) || jobScripts.has(f) || tools.has(f.replace(/\.(ts|mjs)$/, ''))) continue;
+    const src = readFileSync(join(dir, f), 'utf8');
+    if (/import[^;]*\b(check|finish)\b[^;]*from\s+'\.\/lib'/.test(src) || /['"`]FAIL\b/.test(src)) bad.push(f);
+  }
+  return bad;
+}
 if (argv.includes('--list')) {
+  console.log(`tools  ${TOOLS.join(', ')}`);
+  const o = orphans();
+  if (o.length) console.log(`ORPHANS (assert but in no tier): ${o.join(', ')}`);
   for (const t of ['quick', 'cal', 'full', 'deep', 'perf'] as Tier[]) console.log(`${t.padEnd(6)} ${JOBS.filter((j) => j.tiers.includes(t)).map((j) => (j.mode?.[t] ? `${j.id} (${j.mode[t]})` : j.id)).join(', ')}`);
   process.exit(0);
 }
 
 // ---------- scheduling: longest first (last run's times, else the estimates) ----------
+if (tier === 'quick' || tier === 'full') {
+  const o = orphans();
+  if (o.length) {
+    console.error(`ORPHAN GUARD: these scripts assert but are neither a job in run.ts nor in TOOLS: ${o.join(', ')}. Add a job (TESTING.md §5) or, if it is a tool that asserts nothing, list it in TOOLS.`);
+    process.exit(1);
+  }
+}
 const LOG_DIR = join(CACHE_DIR, 'logs');
 mkdirSync(LOG_DIR, { recursive: true });
 const pruned = pruneCache(3);
@@ -268,11 +305,16 @@ for (const r of results) {
   const ok = r.status === 0 && r.fail === 0;
   console.log(`${pad(r.id, 17)} ${pad(r.mode, 10)} ${pad(r.pass, 5, true)} ${pad(r.fail, 5, true)} ${pad(r.warn, 5, true)} ${pad(r.smoke, 5, true)} ${pad(r.hits + r.misses ? `${r.hits}/${r.hits + r.misses}` : '', 7, true)} ${pad(r.wall.toFixed(1), 7, true)} ${pad(r.cpu.toFixed(1), 7, true)}  ${ok ? 'ok' : `FAIL (exit ${r.status})`}`);
 }
+const baseJob = (id: string) => JOBS.find((j) => j.id === id.split('#')[0]);
+const budgetOf = (id: string) => baseJob(id)?.budget?.[tier] ?? DEFAULT_BUDGET;
+for (const r of results) if (r.cpu > budgetOf(r.id)) console.log(`WARN over budget: ${r.id} used ${r.cpu.toFixed(1)} cpu s, budget ${budgetOf(r.id)}`);
 const failed = results.filter((r) => r.status !== 0 || r.fail > 0);
 const tot = results.reduce((a, r) => ({ pass: a.pass + r.pass, fail: a.fail + r.fail, cpu: a.cpu + r.cpu }), { pass: 0, fail: 0, cpu: 0 });
 const scripts = results.filter((r) => !r.id.includes('#'));
 const shardNote = scripts.length < results.length ? ` (+ ${results.length - scripts.length} prefill shards)` : '';
 console.log(`\n${tier}: ${scripts.length - failed.filter((r) => !r.id.includes('#')).length}/${scripts.length} scripts ok${shardNote}, ${tot.pass} checks passed, ${tot.fail} failed; wall ${(wall / 60).toFixed(1)} min, cpu ${(tot.cpu / 60).toFixed(1)} min, machine load ${(load * 100).toFixed(0)}% (${os.cpus().length} cores, ${workers} workers)`);
+const tierBudget = TIER_BUDGET_MIN[tier];
+if (tierBudget !== undefined) console.log(`${tot.cpu / 60 > tierBudget ? 'WARN over budget: ' : ''}total cpu ${(tot.cpu / 60).toFixed(1)} min vs the ${tier} tier budget of ${tierBudget} cpu-min`);
 if (tier === 'quick') console.log('quick is a smoke gate: SMOKE lines are informational; run the full tier (npm run test:full) before a merge.');
 if (failed.length) console.log(`FAILED: ${failed.map((r) => r.id).join(', ')} (logs in ${LOG_DIR})`);
 
