@@ -23,11 +23,11 @@ const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'lic
 const CHINAGOV_VALUES: Record<string, number> = {
   aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, leadQuarters: 4, collectiveMilestone: 2, coerceMilestone: 4, coerceStage: 3, provokeDays: 180, provokeHold: 30,
   centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 2,
-  theftIntentBase: 20, theftIntentPerRung: 20, taiwanPerRung: 0.5, taiwanCoercion: 0.15, warPerQuarter: 0.25, warShock: 0.05,
+  theftIntentBase: 20, theftIntentPerRung: 20, taiwanLowRung: 0.25, taiwanHighRung: 1, taiwanCoercion: 0.05, treatyConcern: 70, treatyTestAccess: 0.5, warPerQuarter: 0.25, warShock: 0.05,
   safetyBase: 30, safetyPerTalks: 10, safetyPerRung: -5, goPublicApproval: 2, treatyClockRate: 0.65,
 };
 /** CHINAGOV keys that keep a value of the China actor deleted in W1d (git 2219e5b4^). */
-const CHINAGOV_OLD = new Set(['taiwanCoercion', 'warPerQuarter', 'warShock', 'safetyBase', 'treatyClockRate', 'theftIntentBase']);
+const CHINAGOV_OLD = new Set(['warPerQuarter', 'warShock', 'safetyBase', 'treatyClockRate', 'theftIntentBase']);
 const W = { area: 'worldfx', layer: 'world' } as const;
 
 /** An exported constant (or a key of one), `file` under src/engine/v2/worldfx/. */

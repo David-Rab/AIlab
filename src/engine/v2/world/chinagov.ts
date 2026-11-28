@@ -13,8 +13,9 @@ import { centraliseChina } from '../npc/china';
 import { poolsOf } from '../compute/power';
 import { USGOV, playerAttention } from './usgov';
 import { frontier, incidentHeat, publicMilestones, usLeadOverChinaMonths } from './observe';
-import { CHINA_ID } from '../models/labs';
-import type { ChinaGovState, ComputeSplit, EngineSystem, GameStateV2, SystemCtx } from '../types';
+import { CHINA_ID, PLAYER_ID, otherLabs } from '../models/labs';
+import { publicOf } from '../npc/public';
+import type { RivalLab, ChinaGovState, ComputeSplit, EngineSystem, GameStateV2, SystemCtx } from '../types';
 
 /** The China government's constants. [D] designer stand-ins unless marked. Registered in balance/params/worldfx.ts. */
 export const CHINAGOV = {
@@ -58,10 +59,18 @@ export const CHINAGOV = {
   theftRung: 2, // the old rule's theftMinRung 2: rung 1 is the acquisition push (talent, smuggling, distillation), weight theft starts at the collective
   theftIntentBase: 20,
   theftIntentPerRung: 20,
-  /** Taiwan hazard (compute/market.ts): × (1 + taiwanPerRung × tension), plus taiwanCoercion a quarter from rung 3 (the
-   *  old ladder's blockade add) [D]. */
-  taiwanPerRung: 0.5,
-  taiwanCoercion: 0.15,
+  /** Taiwan hazard (compute/market.ts): factor 1 + taiwanLowRung × min(tension, 2) + taiwanHighRung × max(0, tension − 2),
+   *  plus taiwanCoercion a quarter from rung 3 [D]. Shape intent: a disruption is rare before coercion (a mild lift on the
+   *  lower rungs, not none) and likely during a prolonged coercion (0.05 a quarter is about 19% a year, on top of the
+   *  steeper factor). */
+  taiwanLowRung: 0.25,
+  taiwanHighRung: 1.0,
+  taiwanCoercion: 0.05,
+  /** A verified treaty needs real political will [D]: US concern at least treatyConcern (+ USGOV.concernShift), and the
+   *  leading labs accept testing (the player, if Washington attends it, holds a pre-deploy-testing pledge; the frontier-
+   *  holding NPC lab, or the best US NPC lab, shows outside access of at least treatyTestAccess in its public posture). */
+  treatyConcern: 70,
+  treatyTestAccess: 0.5,
   /** War ending: the quarterly chance at war footing (the old rung-6 roll) [D]. */
   warPerQuarter: 0.25,
   /** US output shock while on war footing, growth a year (the old war term, worldfx/economy.ts) [D]. */
@@ -157,6 +166,24 @@ export function resolveTreaty(s: GameStateV2, ctx: SystemCtx, back: boolean): vo
   setTalks(s, ctx, 0);
 }
 
+/** The NPC lab whose testing stance counts for a treaty: the frontier holder when it is an NPC lab, else the best US NPC lab. */
+export function treatyNpcLab(s: GameStateV2): RivalLab | undefined {
+  const f = frontier(s);
+  const ok = (id: string) => id !== PLAYER_ID && id !== CHINA_ID;
+  let id: string | undefined = f.lab && ok(f.lab) ? f.lab : undefined;
+  if (!id) for (const k of Object.keys(f.lagMonths)) if (ok(k) && (id === undefined || f.lagMonths[k]! < f.lagMonths[id]!)) id = k;
+  return id ? otherLabs(s).find((r) => r.core.id === id) : undefined;
+}
+
+/** Political will for a verified treaty: US concern high enough, the player (when Washington attends it) pledged to
+ *  pre-deploy testing, and the leading NPC lab shows external testing. */
+export function treatyWill(s: GameStateV2, ctx?: SystemCtx): boolean {
+  if (s.public.concern < CHINAGOV.treatyConcern + USGOV.concernShift) return false;
+  if (playerAttention(s, ctx) >= USGOV.attentionMin && !hasCommitment(s, 'preDeployTesting')) return false;
+  const npc = treatyNpcLab(s);
+  return !npc || publicOf(s, npc).safetyPosture.externalAccess >= CHINAGOV.treatyTestAccess;
+}
+
 /** Daily (123): the lead history (quarterly), the tension ladder, the talks track and a verified treaty's clock. */
 export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
   const g = s.chinagov;
@@ -204,8 +231,7 @@ export function stepChinagov(s: GameStateV2, ctx: SystemCtx): void {
     else if (g.asked === undefined) { g.asked = day; request(s, 'E23'); }
   } else if (g.talks === 2) {
     g.holdDays.held = quiet && s.usgov.stage >= CHINAGOV.talksStage ? (g.holdDays.held ?? 0) + 1 : 0;
-    const verifiable = hasCommitment(s, 'preDeployTesting') || playerAttention(s, ctx) < USGOV.attentionMin;
-    if (g.holdDays.held >= CHINAGOV.verifyDays / b && verifiable) setTalks(s, ctx, 3);
+    if (g.holdDays.held >= CHINAGOV.verifyDays / b && treatyWill(s, ctx)) setTalks(s, ctx, 3);
   }
   // A verified treaty holds the NPC labs' reference clock back (npc/shocks.ts refYear).
   if (g.treaty === 'verified') g.clockLostDays += 1 - CHINAGOV.treatyClockRate;

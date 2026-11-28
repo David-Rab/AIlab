@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
-import { aiRdOf, CHINAGOV, initialChinagov, resolveTreaty, stepChinagov } from '../../src/engine/v2/world/chinagov';
+import { aiRdOf, CHINAGOV, initialChinagov, resolveTreaty, stepChinagov, treatyNpcLab } from '../../src/engine/v2/world/chinagov';
 import { playerAttention, USGOV } from '../../src/engine/v2/world/usgov';
 import { frontier, publicMilestones, usLeadOverChinaMonths } from '../../src/engine/v2/world/observe';
 import { taiwanHazardQ } from '../../src/engine/v2/compute/market';
@@ -114,10 +114,13 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   const h0 = taiwanHazardQ(s);
   s.chinagov.tension = 3;
   const h3 = taiwanHazardQ(s);
-  const want = h0 * (1 + 3 * CHINAGOV.taiwanPerRung) + CHINAGOV.taiwanCoercion;
-  check(near(h3, want), `S6: Taiwan hazard at tension 3 = tension 0 × ${1 + 3 * CHINAGOV.taiwanPerRung} + ${CHINAGOV.taiwanCoercion}`, `${h0.toFixed(4)} -> ${h3.toFixed(4)} (want ${want.toFixed(4)})`);
+  const f3 = 1 + 2 * CHINAGOV.taiwanLowRung + CHINAGOV.taiwanHighRung;
+  const want = h0 * f3 + CHINAGOV.taiwanCoercion;
+  check(near(h3, want), `S6: Taiwan hazard at tension 3 = tension 0 × ${f3} + ${CHINAGOV.taiwanCoercion}`, `${h0.toFixed(4)} -> ${h3.toFixed(4)} (want ${want.toFixed(4)})`);
+  s.chinagov.tension = 1;
+  check(near(taiwanHazardQ(s), h0 * (1 + CHINAGOV.taiwanLowRung)), 'S6: tension 1 lifts it by the low-rung factor (not none)', taiwanHazardQ(s).toFixed(4));
   s.chinagov.tension = 2;
-  check(near(taiwanHazardQ(s), h0 * 2), 'S6: tension 2 doubles it (no coercion add)', taiwanHazardQ(s).toFixed(4));
+  check(near(taiwanHazardQ(s), h0 * (1 + 2 * CHINAGOV.taiwanLowRung)), 'S6: tension 2 = two low rungs (no coercion add)', taiwanHazardQ(s).toFixed(4));
 }
 
 // Treaty: talks -> restraint (E23 to an attended player) -> verified only with pre-deploy testing; the player's AI R&D
@@ -137,6 +140,18 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   step(s, CHINAGOV.verifyDays + 30);
   check(s.chinagov.talks === 2, 'treaty: no verified treaty without pre-deploy testing (attended player)', String(s.chinagov.talks));
   signCommitment(s, makeCtx(s), 'testingAgreement', 'Pre-deployment testing', 'preDeployTesting', { days: 21 });
+  const npc = treatyNpcLab(s)!;
+  const post = s.hidden.rivalPostures[npc.core.id]!;
+  const access0 = post.externalAccess;
+  post.externalAccess = CHINAGOV.treatyTestAccess;
+  s.public.concern = 60;
+  step(s, 1);
+  check(s.chinagov.talks === 2, 'treaty: pledge and open leaders but concern 60 -> no verified treaty', `talks ${s.chinagov.talks}`);
+  s.public.concern = 75;
+  post.externalAccess = CHINAGOV.treatyTestAccess - 0.05;
+  step(s, 1);
+  check(s.chinagov.talks === 2, 'treaty: concern 75 but the leading NPC lab shows too little outside access -> no verified treaty', `talks ${s.chinagov.talks}, access ${post.externalAccess}`);
+  post.externalAccess = Math.max(access0, CHINAGOV.treatyTestAccess);
   step(s, 1);
   check(s.chinagov.talks === 3 && s.chinagov.treaty === 'verified' && s.chinagov.cap !== undefined, 'treaty: pre-deploy testing makes it verifiable -> verified', `${s.chinagov.treaty}, cap ${s.chinagov.cap}`);
   const cap = s.chinagov.cap!;
@@ -158,11 +173,13 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
     check(want === 'rejected' ? o.chinagov.rejected && (o.chinagov.talks as number) === 0 : o.chinagov.treaty === 'restraint', `treaty: Oppose at concern ${concern} -> ${want}`, `${o.chinagov.treaty}, rejected ${o.chinagov.rejected}`);
   }
 
-  // A player Washington ignores: restraint and the verified treaty come without it (no E23, no testing needed).
+  // A player Washington ignores: restraint and the verified treaty come without it (no E23, no pledge needed; concern and the leading lab's testing still are).
   const w = load('day400.json');
   w.player.deployments = [];
   setLead(w, 2);
   w.usgov.stage = 2;
+  w.public.concern = 75;
+  w.hidden.rivalPostures[treatyNpcLab(w)!.core.id]!.externalAccess = CHINAGOV.treatyTestAccess;
   const attW = playerAttention(w);
   step(w, 1 + CHINAGOV.quietDays + 1 + CHINAGOV.verifyDays + 1);
   check(attW < USGOV.attentionMin && w.chinagov.treaty === 'verified' && !ws4(w).requests.some((r) => r.id === 'E23'), 'treaty: with low player attention it reaches verified without E23', `attention ${attW.toFixed(2)}, ${w.chinagov.treaty}`);
