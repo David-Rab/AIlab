@@ -70,6 +70,7 @@ Spec [DATACENTERS.md](DATACENTERS.md); calibration [dc/CALIBRATION-NOTE.md](dc/C
 | Bot competence and spend size (≈ $300B of gas campuses by mid-2027 in seed 1) | Later (calibration) | dc/CALIBRATION-NOTE.md "Bots" |
 | Design values with no per-project data: rush power, fast-track price, crash premium, community package, opposition odds | Parked | dc/CALIBRATION-NOTE.md; research/23 §8 |
 | Grid-wait and turbine-wait easing 2027–30 | Parked | dc/CALIBRATION-NOTE.md |
+| Sites abroad (Gulf-style): sovereign money paired with an overseas campus; cheap power and fast builds against export-control and security risk (the US government's trust). Replaces the dropped sovereign partner | Later | corp/CORPORATE.md §5.6 |
 
 ## Market and revenue
 
