@@ -416,7 +416,7 @@ function China({ s }: { s: GameStateV2 }) {
                     {tp.easing && <div className="dim small pw-sub">{tp.easing.text}</div>}
                   </TipCard>
                 )}>
-                  <span className="pw-needtx">needs {tp.mode === 'any' ? 'any push on China' : tp.parts.map((x) => x.text).join(' and ').slice(0, 60)}</span>
+                  <span className="pw-needtx">needs {tp.needs.replace(/^Any push on China: /, '')}</span>
                   <span className="pw-hold"><i style={{ width: `${tp.needDays ? (tp.heldDays / tp.needDays) * 100 : 0}%` }} /></span>
                   <span className="num">{F.num(tp.heldDays, 0)} / {F.num(tp.needDays, 0)} d</span>
                 </Tip>
