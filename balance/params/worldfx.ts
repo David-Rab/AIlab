@@ -317,6 +317,9 @@ export const PARAMS_WORLDFX = defineParams([
             : { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/OUTSIDE-WORLD.md 6', notes: 'Designer stand-in, to fit to the shape checks (OUTSIDE-WORLD 11).' }),
   } as Param)),
 
+  { id: 'wfx.STATE_CONTROL_CONFIDENCE', ref: { kind: 'export', module: 'src/engine/v2/world/usgov.ts', symbol: 'STATE_CONTROL_CONFIDENCE' }, value: 40, unit: 'board confidence', ...W, actor: 'all', kind: 'designer',
+    evidence: 'usgov.ts "Board confidence the board starts at once the government takes control: on probation [D, CORPORATE.md §4.3]"' },
+
   // ---------------------------------------------------------------- world/chinagov.ts (W6: the China government, spec 7)
   ...Object.entries(CHINAGOV_VALUES).map(([k, value]): Param => ({
     id: `wfx.CHINAGOV.${k}`,

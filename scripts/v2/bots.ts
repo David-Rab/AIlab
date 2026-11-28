@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { misalignment } from '../../src/engine/v2/safety/traits';
-import type { AlignDiffId, EndingId, EndingV2, GameStateV2, StartType, TraitId, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, EndingId, EndingV2, GameStateV2, LabKindId, TraitId, WorldPresetId } from '../../src/engine/v2/types';
 import { ALL, newBotGame, playBot } from './botgame';
 
 // The game loop (playBot), the bot table and the game setup live in botgame.ts, shared with balrun.ts.
@@ -24,7 +24,7 @@ const arg = (k: string, d: string) => {
 };
 const SEEDS = Number(arg('seeds', '200'));
 const BOTS = arg('bots', 'race,safe,mixed,capex2x,ref').split(',').filter((b) => ALL[b]);
-const START = arg('start', 'leader') as StartType;
+const START = arg('start', 'leader') as LabKindId;
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
   { world: 'tl-central', alignment: 'medium' }, { world: 'tl-central', alignment: 'sampled' },
   { world: 'tl-fast', alignment: 'medium' }, { world: 'tl-fast', alignment: 'sampled' },
@@ -141,7 +141,7 @@ function printChoicesVsWorld(results: RunResult[], bots: string[]) {
 }
 
 const TAKEOVER: EndingId[] =['asiTakeover', 'rivalTakeover', 'chinaTakeover', 'rogue'];
-const COMPANY: EndingId[] = ['insolvent', 'ousted', 'acquired', 'nationalized'];
+const COMPANY: EndingId[] = ['insolvent', 'ousted', 'absorbed'];
 const OTHER_FIRST: EndingId[] = ['overtaken', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover'];
 
 function main() {
@@ -211,7 +211,7 @@ function main() {
   printChoicesVsWorld(results, ['race', 'ref', 'mixed', 'safe'].filter((b) => BOTS.includes(b)));
 
   // E5 (statistical): ending coverage across all runs.
-  const ALL_ENDINGS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover', 'overtaken', 'catastropheBio', 'catastropheCyber', 'war', 'rogue', 'insolvent', 'ousted', 'nationalized', 'acquired', 'retired'];
+  const ALL_ENDINGS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover', 'overtaken', 'catastropheBio', 'catastropheCyber', 'war', 'rogue', 'insolvent', 'ousted', 'absorbed', 'retired'];
   const seen = new Set(results.map((r) => r.ending));
   console.log(`\nE5 coverage over ${results.length} runs: ${seen.size}/${ALL_ENDINGS.length} endings seen; missing: ${ALL_ENDINGS.filter((e) => !seen.has(e)).join(', ') || 'none'}`);
   console.log(`total ${((performance.now() - t0) / 1000).toFixed(0)} s`);

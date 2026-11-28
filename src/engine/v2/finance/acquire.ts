@@ -8,16 +8,17 @@
 // parent (the bubble index reads rival commitments the same way, investors.ts bubbleX).
 //
 // Votes: a merger is a major decision (spec §7.3) the board judges on the company after the deal (can it carry the
-// contracts and the debt?). Paying in stock that would hand the lab's holders, as one block, more than half the
-// company is a sale of control as well: the trust's vote under PBC + trust (§7.2), then the board's (§7.3); if it goes
-// through, they control the company (the 'acquired' ending). Buying for cash never sells control.
+// contracts and the debt?). Paying in stock that would hand the lab's holders, as one block, more than half of all
+// votes is a sale of control as well: the mission body's vote under one (§7.2), then the board's (§7.3). The shares are
+// booked to investors ('fin'), a crowd that never forms one controller, so the company plays on. Buying for cash never
+// sells control.
 import { DEBT_TERMS } from '../../../data/v2/deals';
-import { isDivision } from '../../../data/v2/starts';
 import type { BoardVote, Commitment$, CostLine, Debt, GameStateV2, Money, RivalLab, SystemCtx } from '../types';
 import { boardVote, VOTE, voteGate, voteNo } from './board';
 import { controlVotes } from './charter';
+import { newHolderVotes, ownerFunded } from './control';
 import { debtRatePct, newDebtSpreadBp } from './debt';
-import { issue } from './equity';
+import { issue, issueControlAfter } from './equity';
 import { addLedger, bookCash } from './ledger';
 
 export const ACQUIRE = {
@@ -54,13 +55,13 @@ export function acquireTerms(s: GameStateV2, r: RivalLab): AcquireTerms {
   return { lab: r.core.id, name: r.core.name, price, stockFrac: price / (V + price), holder: `${r.core.name}'s holders`, obligations: rivalObligations(r) };
 }
 
-/** Paying in stock sells control when the lab's holders, as one block, would own more than half the company. */
-export const sellsControl = (t: AcquireTerms, pay: PayWith) => pay === 'stock' && t.stockFrac > 0.5;
+/** The votes the lab's holders, as one block, would hold if you pay in stock (0 for cash). */
+export const blockVotes = (s: GameStateV2, t: AcquireTerms, pay: PayWith) => (pay === 'stock' ? newHolderVotes(s, t.stockFrac) : 0);
 
 const $ = (x: Money) => (x >= 1000 ? `$${(x / 1000).toFixed(1)}T` : `$${x >= 10 ? x.toFixed(0) : x.toFixed(1)}B`);
 
 function contractsEntry(s: GameStateV2, name: string, o: Obligations): Omit<Commitment$, 'id'> {
-  return { payee: `${name} contracts`, kind: 'acquired', perQuarter: o.perQ, endDay: s.time.day + Math.round(o.termQ * 91.25), cancellableNoticeQ: null, penalty: 0 };
+  return { payee: `${name} contracts`, kind: 'merger', perQuarter: o.perQ, endDay: s.time.day + Math.round(o.termQ * 91.25), cancellableNoticeQ: null, penalty: 0 };
 }
 function assumedDebt(s: GameStateV2, amount: Money, id: string): Debt {
   return { id, kind: 'assumed', principal: amount, drawn: amount, spreadBp: newDebtSpreadBp(s, 'assumed'), maturityDay: s.time.day + DEBT_TERMS.assumed.years * 365 };
@@ -85,18 +86,18 @@ export function mergerVote(s: GameStateV2, what: string, name: string, o: Obliga
   return { ...v, needLabel: `after the deal, ${v.needLabel}` };
 }
 
-/** Every vote buying this lab needs, in the order they are held: a sale of control first (stock past 50%: the trust,
- *  then the board), then the merger. */
+/** Every vote buying this lab needs, in the order they are held: a sale of control first (stock whose holders would pass
+ *  half of all votes: the trust, then the board), then the merger. */
 export function acquireVotes(s: GameStateV2, t: AcquireTerms, pay: PayWith): BoardVote[] {
   const frac = pay === 'stock' ? t.stockFrac : 0;
   const what = pay === 'cash' ? `buying ${t.name} for ${$(t.price)} in cash` : `buying ${t.name} for ${(frac * 100).toFixed(1)}% of your stock`;
-  return [...(pay === 'stock' ? controlVotes(s, t.holder, frac) : []), mergerVote(s, what, t.name, t.obligations, pay === 'cash' ? t.price : 0, frac)];
+  return [...controlVotes(s, t.holder, blockVotes(s, t, pay)), mergerVote(s, what, t.name, t.obligations, pay === 'cash' ? t.price : 0, frac)];
 }
 
 /** The vote to show under a choice: the first that fails, else the merger vote (always last). */
 export const shownVote = (vs: BoardVote[]): BoardVote | undefined => vs.find((v) => !v.passes) ?? vs[vs.length - 1];
 
-/** Why this payment is impossible now, or undefined. A failed vote blocks only when founder control cannot force it
+/** Why this payment is impossible now, or undefined. A failed vote blocks only when the override cannot force it
  *  (an event choice forces at the shown cost: see `forceLines`). */
 export function voteBlock(vs: BoardVote[]): string | undefined {
   const v = vs.find((x) => !x.passes && !x.canForce);
@@ -106,13 +107,13 @@ export function acquireBlock(s: GameStateV2, t: AcquireTerms, pay: PayWith): str
   const f = s.player.finance;
   if (f.state === 'insolvent') return 'Insolvent';
   if (pay === 'cash' && f.cash < t.price) return `Needs ${$(t.price)} in cash (you have ${$(Math.max(0, f.cash))})`;
-  if (pay === 'stock' && isDivision(s)) return 'A division has no stock of its own';
+  if (pay === 'stock' && ownerFunded(s)) return 'A division has no stock of its own';
   return voteBlock(acquireVotes(s, t, pay));
 }
 
-/** The board-confidence cost of forcing the failed votes (founder control), as preview cost lines. */
+/** The board-confidence cost of forcing the failed votes (the override), as preview cost lines. */
 export function forceLines(vs: BoardVote[]): CostLine[] {
-  return vs.filter((v) => !v.passes && v.canForce).map((v) => ({ currency: 'boardConf' as const, amount: VOTE.forceCost, target: `${v.label.toLowerCase()} forced past the board (founder control)` }));
+  return vs.filter((v) => !v.passes && v.canForce).map((v) => ({ currency: 'boardConf' as const, amount: VOTE.forceCost, target: `${v.label.toLowerCase()} forced past the board (your majority)` }));
 }
 
 /** Preview lines of the payment: the cash price or the stake its holders get, and a sale of control if it is one. */
@@ -121,7 +122,9 @@ export function paymentLines(s: GameStateV2, t: AcquireTerms, pay: PayWith): Cos
   const out: CostLine[] = pay === 'cash'
     ? [{ currency: 'cash', amount: Math.round(t.price * 10) / 10, target: `half its ${$(t.price / ACQUIRE.discount)} valuation` }]
     : [{ currency: 'dilution', amount: Math.round(t.stockFrac * 1000) / 10, target: `new shares worth ${$(t.price)} to ${t.holder}, at your ${$(V)} valuation` }];
-  if (sellsControl(t, pay)) out.push({ currency: 'freedom', amount: Math.round(t.stockFrac * 100), target: `${t.holder} would own ${Math.round(t.stockFrac * 100)}%: a sale of control ends the game (acquired)` });
+  if (pay === 'stock') { const c = issueControlAfter(s, t.stockFrac, 'fin'); if (c) out.push({ currency: 'freedom', amount: -1, target: c.line }); }
+  const bv = blockVotes(s, t, pay);
+  if (bv > 0.5) out.push({ currency: 'freedom', amount: Math.round(bv * 100), target: `${t.holder} would hold ${Math.round(bv * 100)}% of all votes: a sale of control, which the board must approve` });
   return out;
 }
 
@@ -143,7 +146,7 @@ export function takeOnObligations(s: GameStateV2, ctx: SystemCtx, name: string, 
   if (o.perQ > 0 || o.debt > 0) ctx.log('finance', `Took on ${name}'s obligations: ${o.perQ > 0 ? `contracts at ${$(o.perQ)} a quarter for ${o.termQ} quarters` : 'no contracts'}${o.debt > 0 ? ` and ${$(o.debt)} of debt` : ''}.`, 2);
 }
 
-/** Buy a rival: hold the votes (forcing a failed board vote under founder control, at the cost the preview showed),
+/** Buy a rival: hold the votes (forcing a failed board vote under the override, at the cost the preview showed),
  *  pay, take on its obligations. Returns why it did not go through. The event moves the staff and deactivates the lab. */
 export function payForRival(s: GameStateV2, ctx: SystemCtx, t: AcquireTerms, pay: PayWith): string | undefined {
   const no = acquireBlock(s, t, pay);

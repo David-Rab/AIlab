@@ -209,11 +209,11 @@ export function ActBtn({
   if (!s) return null;
   const v = actionView(s, id, params);
   if (v.ok === true && block) v.ok = block;
-  // FIN3a: a major decision shows the board's vote before you ask; a failed vote disables it (founder control can
+  // FIN3a: a major decision shows the board's vote before you ask; a failed vote disables it (a founder majority can
   // force it at a confidence cost).
   const vote = v.ok === true ? actionVote(s, id, params) : undefined;
   const forcing = params.force === true;
-  if (vote && !vote.passes && !(forcing && vote.canForce)) v.ok = `The board votes no (${vote.yes} of ${vote.total})${vote.canForce ? '; founder control can force it' : ''}`;
+  if (vote && !vote.passes && !(forcing && vote.canForce)) v.ok = `The board votes no (${vote.yes} of ${vote.total})${vote.canForce ? '; your majority can force it' : ''}`;
   const off = v.ok !== true;
   const btn = (
     <Tip
@@ -276,7 +276,7 @@ export function VoteStrip({ v }: { v: BoardVote }) {
           { label: `Situation: ${v.needLabel}`, value: signed(p.need), tone: p.need < 0 ? 'neg' as const : 'neutral' as const },
         ] : []),
         ...v.seats.map((x) => ({ label: `${x.holder} · ${SEAT_KIND_LABEL[x.kind]}${x.weight > 1 ? ` · ${x.weight} votes` : ''}`, value: x.kind === 'founder' ? 'yes (your seat)' : `${x.yes ? 'yes' : 'no'} · stance ${signed(x.parts.stance)} → ${signed(x.lean)}`, tone: x.yes ? 'pos' as const : 'neg' as const })),
-      ]} footer={v.canForce ? `Founder control: you can force it (board confidence −${VOTE.forceCost}).` : 'Passes with more than half the votes. No dice: this is the vote you will get.'}>
+      ]} footer={v.canForce ? `Your founders hold most of the votes: you can force it (board confidence −${VOTE.forceCost}).` : 'Passes with more than half the votes. No dice: this is the vote you will get.'}>
         {"Each seat's lean = its stance on this decision + the outside owners' drift + the board's mood + the situation; it votes yes above 0. See [[boardVote]]."}
       </TipCard>
     )}>

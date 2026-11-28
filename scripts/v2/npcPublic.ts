@@ -14,7 +14,7 @@ const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const sd = (xs: number[]) => { const m = xs.reduce((a, x) => a + x, 0) / xs.length; return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1)); };
 const step = (g: GameStateV2) => tick(g, { skip: ['endings'] });
 
-const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
 const us = s.rivals.find((r) => r.npc?.kind === 'bigtech')!;
 const cn = s.china.lab;
 for (const l of [us, cn]) { l.finance.revenueRun = l.finance.revenueRun || 2; l.finance.valuation = 20; } // the cast gives some labs no valuation; set values so every error can be measured

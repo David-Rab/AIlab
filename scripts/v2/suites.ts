@@ -10,8 +10,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
-import { EXPERT_START_T, EXPLOIT_START, START_EXPLOIT_MULT, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
-const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * START_EXPLOIT_MULT.spinout])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
+import { EXPERT_START_T, EXPLOIT_START, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { POSITION_BY_ID } from '../../src/data/v2/starts';
+const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * POSITION_BY_ID.talent.exploitMult])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
 
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -27,14 +28,13 @@ import {
   S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, tasksOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
 } from '../../src/engine/v2/models/suites';
 import { optimisationPressure, postSignals } from '../../src/engine/v2/safety/traits';
-import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
+import type { GameStateV2, LabKindId, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-type StartKind = 'leader' | 'challenger' | 'bigtech' | 'spinout';
 // One newGame per start type, cloned per case (TESTING.md section 2).
-const protos: Partial<Record<StartKind, GameStateV2>> = {};
-const game = (start: StartKind = 'leader'): GameStateV2 => structuredClone(protos[start] ??= newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false })));
+const protos: Partial<Record<LabKindId, GameStateV2>> = {};
+const game = (labKind: LabKindId = 'leader'): GameStateV2 => structuredClone(protos[labKind] ??= newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind, tutorial: false })));
 /** The engineers finish a queued suite item (its mechanism: completeSuiteWork). Waiting for them is no part of what is tested: a new
  *  game's engineers are all on upkeep (see the report), and 60 days of unmet upkeep also decay the suites' tasks (suites.ts decaySuites). */
 const finishWork = (s: GameStateV2, ref: string) => {
@@ -76,13 +76,13 @@ const s2 = (s: GameStateV2, o: Partial<PostDesign> = {}) => postSignals(s, post(
 // STALE-PIN re-derived: S2 is now the sourced per-family exploitability (data/v2/suites.ts: SWE 0.18, ML research 0.12, math 0.06, the
 // rest 0.01) x S2_PER_EXPLOIT 5.5 x the RL shares, which that file documents as "a broad run on the start suites reads 0.36"
 // (V1's 0.6 x 0.6): 0.3575 here. So the broad reference is V1's 0.36 within the anchors' rounding (0.005), and each start's S2 is
-// its exploitability table (START_EXPLOIT_MULT) times that.
+// its position's exploitMult (data/v2/starts.ts) times that.
 const sWant = (mult: number) => S2_PER_EXPLOIT * START_FAMS.reduce((a, f) => a + (wBroad[f] ?? 0) * EXPLOIT_START[f] * mult, 0);
 check(near(s2(s0), sWant(1), 1e-9) && near(s2(s0), 0.36, 0.005), 'start suites: the reference S2 (standard, broad, hardened graders) is the exploitability formula, ≈ V1\'s 0.36', s2(s0).toFixed(4));
-const starts = { challenger: game('challenger'), bigtech: game('bigtech'), spinout: game('spinout') };
-check(near(s2(starts.challenger), s2(s0), 1e-9) && near(s2(starts.bigtech), s2(s0), 1e-9) && near(s2(starts.spinout), sWant(START_EXPLOIT_MULT.spinout), 1e-9) && s2(starts.spinout) > 2 * s2(s0),
-  'follower starts by their start tables: challenger and big tech hardened like the leader, the spinout on cheap graders (× START_EXPLOIT_MULT)',
-  `${s2(starts.challenger).toFixed(3)} / ${s2(starts.bigtech).toFixed(3)} / ${s2(starts.spinout).toFixed(3)}`);
+const starts = { safety: game('safety'), bigtech: game('bigtech'), breakaway: game('breakaway') };
+check(near(s2(starts.safety), s2(s0), 1e-9) && near(s2(starts.bigtech), s2(s0), 1e-9) && near(s2(starts.breakaway), sWant(POSITION_BY_ID.talent.exploitMult), 1e-9) && s2(starts.breakaway) > 2 * s2(s0),
+  'follower starts by their start tables: the safety-first contender and big tech hardened like the leader, the breakaway on cheap graders (× exploitMult)',
+  `${s2(starts.safety).toFixed(3)} / ${s2(starts.bigtech).toFixed(3)} / ${s2(starts.breakaway).toFixed(3)}`);
 check(near(s2(s0, { rlBudget: 'light' }), s2(s0) * optimisationPressure(RL_BUDGET.light), 1e-9) && near(s2(s0, { rlBudget: 'heavy' }), s2(s0) * optimisationPressure(RL_BUDGET.heavy), 1e-9)
   && s2(s0, { rlBudget: 'light' }) < s2(s0) && s2(s0) < s2(s0, { rlBudget: 'heavy' }),
   'the RL budget scales S2 by the optimisation pressure p(ρ) (model v3 E3: Gao\'s log form in ρ): light < standard < heavy',

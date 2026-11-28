@@ -2,15 +2,15 @@
 // Owner: WS3.
 import { divisionQ } from './parent';
 import { decimalYear } from '../core/time';
-import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
+import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx, Tranche } from '../types';
 import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
-import { gwOwned, publicFrontier } from './observe';
-import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
+import { publicFrontier } from './observe';
+import { cancelTrancheShares, closePendingRound, partnerEquityIn, partnerVotesAfter } from './equity';
 import { bustTarget, markRivals, RIVAL } from './rivalFinance';
 import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
-import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
-import { commitmentsPerYear, bookCash } from './ledger';
+import { cumulativeCapex, defaultCapitalWS3, ensureWs3, yearStats } from './ext';
+import { commitmentsPerYear, bookCash, paidTo } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
 import { boardMood, MOOD_BASE } from './mood';
 
@@ -95,10 +95,11 @@ export function bubbleX(s: GameStateV2): number {
 }
 export const bustProbQ = (X: number) => Math.min(0.12, 0.005 + 0.02 * Math.max(0, X - 3));
 
-function cumulativeCapex(s: GameStateV2): Money {
-  let sum = 0;
-  for (const y of Object.values(s.player.finance.ws3.years)) sum += y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding;
-  return sum;
+/** A voting partner's tranche that would take it past half of all votes when no sale-of-control vote passed at signing
+ *  (CORPORATE.md §4: every path is judged at the votes it reaches). */
+export function trancheTakesControl(s: GameStateV2, t: Tranche): boolean {
+  if (!t.partner || t.controlVoted || !s.player.finance.stratVoting?.[t.partner]) return false;
+  return partnerVotesAfter(s, t.partner, [t.amount], { stakeCap: t.stakeCap, voting: true }) > 0.5;
 }
 
 /** Tranches: land when due and the condition holds; conditional tranches lapse at their deadline. */
@@ -106,8 +107,12 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   const f = s.player.finance;
   const keep = [];
   for (const t of f.tranches) {
-    const met = !t.condition || trancheConditionMet(s, t.condition);
+    const met = !t.condition || trancheConditionMet(s, t.condition, t);
     if (t.dueDay <= s.time.day && met) {
+      if (trancheTakesControl(s, t)) {
+        ctx.log('finance', `${t.source}: it would give ${t.partner} more than half of all votes, a sale of control no vote approved at signing; $${t.amount.toFixed(1)}B lapses.`, 2);
+        continue;
+      }
       // A partner's tranche buys shares at today's valuation (FIN4a); a round's tranche was priced at the close.
       if (t.partner) partnerEquityIn(s, ctx, t.partner, t.amount, t.source, t.stakeCap);
       else {
@@ -134,16 +139,18 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   f.tranches = keep;
 }
 
-/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. FIN4r (M1): 'gw:' counts the
- *  compute online in your own sites (`gwOwned`), not rented cloud or spot capacity (a hyperscaler's own cloud must
- *  not meet its condition). */
-export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
+/** What has been paid to `partner` on the ledger since its tally stood at `base` ($B). */
+export const spentSince = (s: GameStateV2, partner: string, base: Money): Money => paidTo(s, partner) - base;
+
+/** Tranche conditions: 'recapitalisation', 'revenue:<R>', and a partner's 'spent:<partner>:<$B>': that much has
+ *  been paid to the partner on the ledger since the deal was signed (`tranche.spentBase` is what it had been paid by
+ *  then; without a tranche, since the start). */
+export function trancheConditionMet(s: GameStateV2, cond: string, tranche?: Pick<Tranche, 'spentBase'>): boolean {
   const f = s.player.finance;
   if (cond === 'recapitalisation') return f.ws3.recap.doneDay !== undefined;
-  if (cond === 'ipo') return f.ownership.public > 0;
-  const [k, v] = cond.split(':');
+  const [k, v, w] = cond.split(':');
   if (k === 'revenue') return f.revenueRun >= Number(v);
-  if (k === 'gw') return gwOwned(s) >= Number(v);
+  if (k === 'spent') return spentSince(s, v, tranche?.spentBase ?? 0) >= Number(w) - 1e-9;
   return false;
 }
 
@@ -163,6 +170,9 @@ export const capitalQSystem: EngineSystem = {
     const ocf = (fx.opCash4q ??= []);
     ocf.push(fx.opCashQ);
     if (ocf.length > 4) ocf.shift();
+    const opc = (fx.opCost4q ??= []);
+    opc.push(fx.accQ.opCosts);
+    if (opc.length > 4) opc.shift();
     fx.accQ = { revenue: 0, opCosts: 0 };
     const cum = cumulativeCapex(s);
     fx.capex4q.push(cum - fx.capexCumAtQ);
@@ -200,12 +210,11 @@ export const capitalQSystem: EngineSystem = {
       ctx.headline('bust', 'AI stocks crash as investors question trillion-dollar compute bets');
     } else if (!busted) w.spreadAddBp = Math.max(0, w.spreadAddBp * 0.5);
 
-    // Legacy recapitalisation completes after 4 quarters (AG review), then the board becomes nonprofit-controlled PBC.
+    // Lifting the profit cap completes after 4 quarters (AG review); the mission body stays (CORPORATE.md §4).
     if (fx.recap.startDay !== undefined && fx.recap.doneDay === undefined && s.time.day - fx.recap.startDay >= 360) {
       fx.recap.doneDay = s.time.day;
-      s.player.board.preset = 'nonprofitPBC';
-      s.player.board.safetyCommitteeVeto = true;
-      ctx.log('finance', 'Recapitalisation complete: the company is now a nonprofit-controlled PBC. Conditional tranches are freed.');
+      s.player.charter.profitCap = false;
+      ctx.log('finance', 'Recapitalisation complete: the profit cap is lifted; the mission body keeps its seats. Conditional tranches are freed.');
     }
 
     // Promises due this quarter are judged first (FIN2: they move credibility, which the share reads). Then the story

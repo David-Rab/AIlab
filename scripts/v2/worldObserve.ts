@@ -9,7 +9,7 @@ import { FIXTURE_DIR, check, finish } from './lib';
 import type { GameStateV2, Incident } from '../../src/engine/v2/types';
 
 const load = (n: string): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
-const FILES = ['day0.json', 'day400.json', 'day900.json', 'start-spinout-day400.json'];
+const FILES = ['day0.json', 'day400.json', 'day900.json', 'start-breakaway-day400.json'];
 const f2 = (x: number) => x.toFixed(2);
 
 // Attention in every fixture (printed for the record).
@@ -26,7 +26,7 @@ for (const f of FILES) {
 check(frontier(load('day0.json')).lab === 'player' && att['day0.json'].player === 1, 'day 0: the player holds the public frontier, attention 1', `${frontier(load('day0.json')).lab} ${att['day0.json'].player}`);
 
 // 2. Spin-out start: the player is far behind (attention < 0.5) and some NPC lab has attention 1.
-const sp = att['start-spinout-day400.json'];
+const sp = att['start-breakaway-day400.json'];
 check(sp.player < 0.5, 'spinout day 400: the player attention < 0.5', f2(sp.player));
 check(Object.entries(sp).some(([id, a]) => id !== 'player' && a === 1), 'spinout day 400: some NPC lab has attention 1', JSON.stringify(sp));
 

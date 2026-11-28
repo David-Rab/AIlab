@@ -7,15 +7,18 @@
 // (on delivery, marketQ) and site capex (by stage, sitesQ). Security spend and the transition fund are charged ONLY
 // here (WS4 keeps the security effects, WS5 the fund's effects on workers). Other workstreams book one-off costs
 // through `bookCash` themselves (WS1 run cash at launch, WS4 action/event costs) and must not deduct the items above.
-import { isDivision } from '../../../data/v2/starts';
 import { payrollOf } from '../departments/teams';
 import { powerAndOMPerYear } from '../compute/power';
 import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types';
+import { ownerFunded } from './control';
 import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
 import { ensureWs3, revenueShareRate, yearStats } from './ext';
-import { bookCash, ledgerPaying } from './ledger';
+import { distributionCut } from './distribution';
+import { bookCash, ledgerPaying, notePaid } from './ledger';
+import { partnerMonthly } from './deals';
 import { deploymentRevenue } from './observe';
+import { controlCheck } from './parent';
 import { runwayOf } from './runway';
 
 /** Insolvency grace: cash may sit below zero this many days (after the revolver) before the company fails [D]. */
@@ -32,7 +35,7 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
   }
   f.ws3.negativeSinceDay ??= s.time.day;
   // A division cannot go broke (R9): the parent carries the overdraft against its next payment.
-  if (isDivision(s)) return;
+  if (ownerFunded(s)) return;
   if (f.state !== 'insolvent' && s.time.day - f.ws3.negativeSinceDay >= INSOLVENCY_GRACE_DAYS) {
     f.state = 'insolvent';
     ctx.log('alert', `Insolvent: cash has been negative for ${INSOLVENCY_GRACE_DAYS} days with no options left.`, 5);
@@ -40,11 +43,13 @@ export function checkSolvency(s: GameStateV2, ctx: SystemCtx): void {
   }
 }
 
-/** opex (130, daily): revenue run-rate (from WS5), power and O&M, spot rentals, interest; solvency check. */
+/** opex (130, daily): who controls the company (parent.ts controlCheck), revenue run-rate (from WS5), power and O&M,
+ *  spot rentals, interest; solvency check. */
 export const opexSystem: EngineSystem = {
   id: 'opex', owner: 'WS3', cadence: 'daily', order: 130, system: 'finance',
   run(s, ctx) {
     ensureWs3(s);
+    controlCheck(s, ctx);
     expireRepriced(s, ctx);
     const f = s.player.finance;
     const fx = f.ws3;
@@ -68,9 +73,9 @@ export const opexSystem: EngineSystem = {
   },
 };
 
-const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', acquired: 'acquired contracts' };
+const KIND_LABEL: Record<Commitment$['kind'], string> = { cloud: 'cloud contracts', lta: 'chip supply contracts', lease: 'colocation leases', finLease: 'financing leases', power: 'power contracts', merger: 'acquired contracts' };
 
-/** payroll (300, monthly): payroll, security spend, transition fund, revenue share, ledger instalments; expire
+/** payroll (300, monthly): payroll, security spend, transition fund, revenue share, marketplace fee, ledger instalments; expire
  *  finished contracts; refresh the runway readout. */
 export const payrollSystem: EngineSystem = {
   id: 'payroll', owner: 'WS3', cadence: 'monthly', order: 300, system: 'finance',
@@ -87,12 +92,20 @@ export const payrollSystem: EngineSystem = {
     if (security > 0) bookCash(s, ctx, -security, 'security', 'security spend', `WSL target ${p.security.target.toFixed(1)}`);
     if (fund > 0) bookCash(s, ctx, -fund, 'transitionFund', 'transition fund');
     const other = security + fund;
-    const share = (revenueShareRate(s) * f.revenueRun) / 12;
-    if (share > 0) bookCash(s, ctx, -share, 'opex', 'revenue share');
+    // C7c: the legacy share of all revenue, and the partners' fee on what their distribution sells.
+    const legacy = (revenueShareRate(s) * f.revenueRun) / 12;
+    const fee = distributionCut(s) / 12;
+    if (legacy > 0) bookCash(s, ctx, -legacy, 'opex', 'revenue share');
+    if (fee > 0) bookCash(s, ctx, -fee, 'opex', 'marketplace fee');
+    const share = legacy + fee;
     ys.otherOpex += other + share;
     let total = payroll + other + share;
     const byKind: Partial<Record<Commitment$['kind'], number>> = {};
-    for (const c of f.ledger) if (ledgerPaying(c, s.time.day)) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
+    for (const c of f.ledger) {
+      if (!ledgerPaying(c, s.time.day)) continue;
+      byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
+      notePaid(s, c.payee, c.perQuarter / 3);
+    }
     for (const [k, amt] of Object.entries(byKind) as [Commitment$['kind'], number][]) {
       if (amt <= 0) continue;
       bookCash(s, ctx, -amt, 'commitments', KIND_LABEL[k]);
@@ -106,6 +119,7 @@ export const payrollSystem: EngineSystem = {
     p.cloud = p.cloud.filter((c) => c.endDay > s.time.day);
     f.ws3.rentals = f.ws3.rentals.filter((r) => r.endDay > s.time.day);
     f.runwayQ = Math.round(runwayOf(s).q * 10) / 10;
+    partnerMonthly(s); // the quarter's payments tally; a deal that ended asks about a renewal (C7b)
     checkSolvency(s, ctx);
   },
 };

@@ -86,6 +86,10 @@ const JOBS: Job[] = [
   { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 30) } as Job,
   // E10: safety rates vs research/20 F on probe worlds (no game; its RefBot-game rates moved to calreport/safety.ts).
   { id: 'safetyrates', script: 'safetyrates.ts', budget: { full: 30 }, ...S(['full'], 20) } as Job,
+  // Corporate structure (corp): constructed cases, no bands. Budgets from one measured run (7-9 s wall each).
+  { id: 'corp', script: 'corp.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 10) } as Job, // C1: control model (votes, controller, seats)
+  { id: 'partners', script: 'partners.ts', budget: { quick: 15, full: 15 }, ...S(ALL, 12) } as Job, // C7a: partner deal shape (commitment in dollars, tranches, strings, rescue)
+  { id: 'distribution', script: 'distribution.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 8) } as Job, // C7c: distribution replaces the revenue share; the legacy Northwind share
   // Constructed mechanism checks only (no played game since the CRB move); full adds a year of ticks and the 6-year site wait.
   { id: 'finance', script: 'finance.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 70, full: 140 }, ...S(ALL, 140) } as Job,
   { id: 'worldfx', script: 'worldfx.ts', budget: { quick: 20, full: 20 }, ...S(ALL, 20) } as Job,

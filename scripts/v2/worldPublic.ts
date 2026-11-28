@@ -71,7 +71,7 @@ const step = (s: GameStateV2, days: number) => { for (let i = 0; i < days; i++) 
 
 // Approval's drift baseline is scaled by the player's attention: one day's move at concern 80 = -0.4 x 30 x attention x k.
 {
-  for (const n of ['day0.json', 'start-spinout-day400.json']) {
+  for (const n of ['day0.json', 'start-breakaway-day400.json']) {
     const s = load(n);
     s.public = { concern: 80, approval: 0 };
     const att = attention(s, 'player');
@@ -86,7 +86,7 @@ const step = (s: GameStateV2, days: number) => { for (let i = 0; i < days; i++) 
 // Approval pushes scale with attention: spinout day 400 (attention ~0.4) vs day 0 (attention 1).
 {
   const a = load('day0.json');
-  const b = load('start-spinout-day400.json');
+  const b = load('start-breakaway-day400.json');
   const att0 = attention(a, 'player');
   const att1 = attention(b, 'player');
   const push = (s: GameStateV2) => { s.public.approval = 0; approvalPush(s, makeCtx(s), -10, 'test'); return s.public.approval; };

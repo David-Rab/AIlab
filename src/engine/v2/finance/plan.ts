@@ -6,7 +6,8 @@
 // fund them, FIN1), colocation and one-year neocloud capacity for near-term gaps; it raises equity when its cash
 // projection runs short, on the milestone it is surest to hit (FIN2), and borrows on the credit line when short.
 import { CAMPUS, PARTNERS, SITE_MIN_MW, SITE_TIERS, type CampusBuildings } from '../../../data/v2/deals';
-import { isDivision, START_BY_ID } from '../../../data/v2/starts';
+import { POSITION_BY_ID, positionOf } from '../../../data/v2/starts';
+import { ownerFunded } from './control';
 import { act } from '../core/loop';
 import { dayOfQuarter } from '../core/time';
 import { siteCapacityH } from '../compute/power';
@@ -37,7 +38,7 @@ export interface AutopilotOpts {
   guard: boolean;
   /** Accept a strategic rescue in distress. */
   rescue: boolean;
-  /** Start the recapitalisation (legacy preset) when E02 would fire (Q4 2025). */
+  /** Start the recapitalisation when it comes up (Q4 2025). */
   recap: boolean;
   /** Runway guard (quarters) for new sites when `guard` is on (default GUARD_Q); chips use guardQ − 1 (FIN1). */
   guardQ?: number;
@@ -49,12 +50,12 @@ export interface AutopilotOpts {
   scale?: number;
 }
 
-/** Follower starts (R9: spinout, challenger, big-tech division): start from their own compute, aim to close on the
+/** Follower starts (R9: every position but the frontier): start from their own compute, aim to close on the
  *  reference path over FOLLOWER_RAMP_D days, and keep two more quarters of runway than the leader-start policy (a
  *  smaller company cannot carry the leader's commitments). The leader start's options are unchanged. */
 export const FOLLOWER_RAMP_D = 730;
 export function followerOpts(s: GameStateV2, o: AutopilotOpts): AutopilotOpts {
-  if ((s.setup.start ?? 'leader') === 'leader') return o;
+  if (!positionOf(s).follower) return o;
   const r0 = refTotalAt(s, 0);
   const own0 = Number(s.flags['plan:own0'] ?? (s.flags['plan:own0'] = s.player.computeOnline));
   const phi0 = Math.min(1, own0 / Math.max(1, r0));
@@ -98,9 +99,9 @@ const kWAt = (s: GameStateV2, qAhead: number) => s.power.kWPerH100e * Math.pow(0
 function cloudAt(s: GameStateV2, day: number) {
   return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day ? c.h100e : 0), 0);
 }
-/** Cloud from contracts longer than ~13 months (bridge rentals excluded) live at a future day. */
+/** Cloud from contracts longer than ~13 months (bridge rentals excluded; a partner's yearly contracts are one commitment) live at a future day. */
 function baseCloudAt(s: GameStateV2, day: number) {
-  return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && c.endDay - c.startDay > 400 ? c.h100e : 0), 0);
+  return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && (c.endDay - c.startDay > 400 || PARTNERS.includes(c.provider)) ? c.h100e : 0), 0);
 }
 /** Facility MW expected live by a future day, per building (siteLiveMW): live sites, sites under construction whose
  *  buildings go live by then, and, with `includePlanned`, sites still in permits or waiting for power whose planned
@@ -173,8 +174,8 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
   if (s.time.day % 30 !== 0 && !isQuarterStart(s)) return;
   if (f.state === 'insolvent') return;
 
-  // Governance: start the recapitalisation when it becomes available (Q4 2025).
-  if (o.recap && s.player.board.preset === 'legacyNonprofit' && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
+  // Governance: start lifting the profit cap when it becomes available (Q4 2025).
+  if (o.recap && s.player.charter.profitCap && f.ws3.recap.startDay === undefined && !f.ws3.recap.refused && s.time.day >= 92) tryAct('fin.recap');
 
   // Board (FIN3b, spec §7.5): below the board's warning line (35), give the critics a seat when it is available (once a
   // year) and it leaves more room above the ouster vote's passing line than before: +15 now, but the new director votes
@@ -195,7 +196,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // Last resort before insolvency: sell owned chips to cover a quarter's shortfall (a CEO who keeps the company).
   // (A division cannot go broke: it never sells its compute, R9.)
-  if (f.state === 'distress' && !isDivision(s) && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
+  if (f.state === 'distress' && !ownerFunded(s) && f.cash < Math.max(1, 0.5 * runwayOf(s).burnQ)) {
     const perH = (s.market.rental * 8760 * 1.5) / 1e9; // fin.sellChips resale value per H100e ($B)
     const need = Math.max(1, runwayOf(s).burnQ) - f.cash;
     if (perH > 0 && need > 0) tryAct('fin.sellChips', { qty: Math.max(1e4, need / perH) });
@@ -213,7 +214,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // One strategic hyperscaler deal (from Q4 2025): the hyperscaler that offers the most equity, on cloud capacity
   // (FIN4a: the legacy Northwind stake is above the 15% cap, so on the leader start that is Azimuth). A rescue counts.
-  // FIN4b: it takes exclusivity (one deep partner: +25% of the money, and it never wants the competitor) but not IP
+  // FIN4b: it takes exclusivity when it is on offer (one deep partner: +25% of the money, and it never wants the competitor) but not IP
   // access (its in-house lab would close on the lead the bot races for).
   if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0)) {
     const deep = Object.fromEntries(PARTNERS.map((id) => [id, { supply: 'cloud' as const, exclusive: true }]));
@@ -335,7 +336,7 @@ export function pickThesis(s: GameStateV2, o: AutopilotOpts): { type: MilestoneT
 /** A down round in the last 180 days (one per distress spell). */
 const recentDownRound = (s: GameStateV2) => s.player.finance.rounds.some((r) => r.down && r.day > s.time.day - 180);
 
-/** A rescue tops the partner up to PARTNER_TERMS.rescue.stake plus the cash stake; keep the largest strategic holder at
+/** A rescue gives the partner a stake at half the valuation (up to 15% of it); keep the largest strategic holder at
  *  or below 45% so the company is not sold by accident. */
 function rescueKeepsControl(s: GameStateV2): boolean {
   const strat = s.player.finance.ownership.strat;
@@ -349,5 +350,5 @@ function isQuarterStart(s: GameStateV2) {
 /** Reference revenue run-rate ($B/yr) at a day: R11 #14 / AI27 table — $12B (Jul 2025), $45B (2026), ~$157B (2027),
  *  i.e. 12 × 3.5^years. Used by tests and bots until WS5's revenue model is live. */
 export function refRevenueRun(s: GameStateV2, day = s.time.day): number {
-  return START_BY_ID.leader.revenueRun * Math.pow(3.5, Math.min(day, 913) / 365) * Math.pow(1.8, Math.max(0, day - 913) / 365);
+  return POSITION_BY_ID.frontier.revenueRun * Math.pow(3.5, Math.min(day, 913) / 365) * Math.pow(1.8, Math.max(0, day - 913) / 365);
 }

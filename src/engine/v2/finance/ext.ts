@@ -31,7 +31,7 @@ export function defaultMarketWS3(): MarketWS3 {
 }
 
 export function defaultCapitalWS3(hype: number): CapitalWS3 {
-  return { hypeBase: hype, rSectorHist: [], playerPoolQ: 0, playerTakenQ: 0, playerShare: 0.3, anchors: { 'Northwind Cloud': 'player' }, lastFrontierL: 0, spreadAddBp: 0 };
+  return { hypeBase: hype, rSectorHist: [], playerPoolQ: 0, playerTakenQ: 0, playerShare: 0.3, lastFrontierL: 0, spreadAddBp: 0 };
 }
 
 /** Fill any missing WS3 block (saves and fixtures made before the blocks existed). Cheap; called by every system. */
@@ -49,7 +49,15 @@ export function yearStats(s: GameStateV2, day: Day = s.time.day): YearStats {
   return (ys[y] ??= emptyYear());
 }
 
-/** Share of revenue owed to partners now: the revenue-share strings of deals still running (FIN4a). */
+/** Capex booked since the start ($B): chips, sites (financed included) and supplier funding, over every year. */
+export function cumulativeCapex(s: GameStateV2): Money {
+  let sum = 0;
+  for (const y of Object.values(s.player.finance.ws3.years)) sum += y.capexChips + y.capexSites + y.capexSitesFinanced + y.supplierFunding;
+  return sum;
+}
+
+/** Share of all revenue owed to partners now: the revenue-share strings of deals still running (C7c: the legacy
+ *  Northwind stake; distribution's fee is on its own channel, finance/distribution.ts). */
 export function revenueShareRate(s: GameStateV2): number {
   return s.player.finance.deals.reduce((a, d) => a + (d.until > s.time.day ? d.strings.revenueShare ?? 0 : 0), 0);
 }

@@ -16,8 +16,9 @@
 // `--worlds N` (default 40); `--prefill k/n` fills
 // the cache in shards. Each banded row is a check; rows rate constants cannot bring into band print WARN with the
 // mechanism they need; rows with no source band print INFO.
-import { EXPLOIT_START, START_EXPLOIT_MULT } from '../../src/data/v2/suites';
-const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * START_EXPLOIT_MULT.spinout])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
+import { EXPLOIT_START } from '../../src/data/v2/suites';
+import { POSITION_BY_ID } from '../../src/data/v2/starts';
+const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * POSITION_BY_ID.talent.exploitMult])) as Record<RLFamily, number>; // RD-T07: the talent breakaway's raw (unhardened) rates
 
 import { PRE_GAME_G_PER_YEAR, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';

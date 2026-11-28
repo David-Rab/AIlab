@@ -18,9 +18,10 @@ import { siteLeasePerYear } from '../compute/sites';
 import { crf } from './capex';
 import { interestPerYear, lineUndrawn } from './debt';
 import { revenueShareRate } from './ext';
+import { distributionCut } from './distribution';
 import { ledgerPaying, qOf } from './ledger';
 import { parentPaymentQ } from './parent';
-import { isDivision } from '../../../data/v2/starts';
+import { ownerFunded } from './control';
 
 /** Healthy ≥ 6q, Tight 3–6q, Distress < 3q (or covenant breach), Insolvent if cash < 0 after all options. */
 export function runwayState(runwayQ: number, covenantBreach = false, cash = 1): FinanceState['state'] {
@@ -36,10 +37,10 @@ export const PROJECTION_Q = 8;
 export const RUNWAY_CAP = PROJECTION_Q;
 
 /** Non-ledger running costs $B/yr held flat in the projection: payroll, security spend, transition fund, power & O&M,
- *  interest, revenue share. (Spot rentals are projected to their end.) */
+ *  interest, revenue share, the partners' marketplace fee. (Spot rentals are projected to their end.) */
 export function operatingCostsPerYear(s: GameStateV2): Money {
   const p = s.player;
-  const share = revenueShareRate(s) * p.finance.revenueRun;
+  const share = revenueShareRate(s) * p.finance.revenueRun + distributionCut(s);
   return payrollOf(s) + p.security.spendRate + p.policies.transitionFund + powerAndOMPerYear(s) + interestPerYear(s) + share;
 }
 
@@ -76,7 +77,7 @@ export function cashFlows(s: GameStateV2): Flow[] {
   const q0 = qOf(s);
   const nextQ = (d: Day) => dayOfQuarter(start, Math.max(q0 + 1, qOf(s, d) + (dayOfQuarter(start, qOf(s, d)) < d ? 1 : 0)));
   const far = dayOfQuarter(start, q0 + PROJECTION_Q + 2);
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const out: Flow[] = [
     // A division's revenue goes to the parent; its budget lands at each quarter start (finance/parent.ts, R9; later
     // years at the plan × today's budget factor, FIN5c). The parent's cover of an overspend at the review is not

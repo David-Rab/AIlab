@@ -13,7 +13,9 @@ import type { GameStateV2 } from '../types';
 // player.actionDay, rivalIncidents, endingProgress, usgov.dpaAccepted, public.misalignLeakDay, world.gdp0, the market, npc and site fields).
 // 125: weekly record series aiWork, aiIncome, robots (World tab tiles, W8b-3). 126: bal merged with master (series.GP, the public-model G per lab, F7).
 // 127: F1, the diffused know-how level (research.diffused); NpcLabState.rec and SimpleModel.recG are gone.
-export const SCHEMA_REV = 127;
+// 128: corp, the corporate structure (design/corp/CORPORATE.md): player.charter, board without presets (extraSeats), setup.labKind/custom,
+// finance.stratVoting, partner interest/renewal/distribution fields, the division budget for any owner; 'acquired' and 'nationalized' endings gone.
+export const SCHEMA_REV = 128;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

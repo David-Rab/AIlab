@@ -128,7 +128,7 @@ const clearMilestones = (s: GameStateV2) => {
   check(lawsInForce(s).exportPolicy === 'caseByCase', 'S7: stage falling below 2 with no recent theft returns case-by-case', lawsInForce(s).exportPolicy);
 }
 
-// Hard path: trust 15 held 90 days at stage 3 (a prominent player) -> nationalized, and the ending fires.
+// Hard path: trust 15 held 90 days at stage 3 (a prominent player) -> nationalized (state control or absorbed).
 {
   const s = load('day900.json');
   s.usgov = initialUsgov();
@@ -143,7 +143,7 @@ const clearMilestones = (s: GameStateV2) => {
   step(s, 10);
   check(s.usgov.consolidated === 'nationalized' && (s.usgov.stage as number) === 4, 'hard path: trust 15 held 90 days at stage 3 -> nationalized', `${s.usgov.consolidated}, stage ${s.usgov.stage}`);
   endingsSystem.run(s, makeCtx(s));
-  check(s.ending?.id === 'nationalized', 'hard path: the nationalized ending', String(s.ending?.id));
+  check(s.player.charter.stateControl ? !s.ending : s.ending?.id === 'absorbed', 'hard path: state control while leading (no ending), else the absorbed ending', String(s.ending?.id));
 }
 
 finish('worldUsgov');

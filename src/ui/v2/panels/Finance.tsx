@@ -4,20 +4,19 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState, type ReactNode } from 'react';
 import {
-  actionView, anchorPartners, conditionWords, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
+  actionView, conditionWords, dealControlAfter, followOnTerms, holdingsOf, partnerTerms, dependence, divisionView, interestWord, issueControlAfter, partnerOwed, rescuePartner, followOnBlocker, interestWords, partnerInterest, dealCutProjections, distributionProjection, type CutProjection, partnerStakeAfter, partnerStakeAll, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   payrollOf, qOf, runwayOf, totalDebt, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
-  BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
+  BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
 } from '../../../engine/v2';
-import { isDivision } from '../../../data/v2/starts';
 import { boardReview } from '../shell/selectors';
-import { OUSTER_NOTICE_D } from '../../../engine/v2';
+import { boardSeats, missionPowers, OUSTER_NOTICE_D, ownerFunded } from '../../../engine/v2';
 import type { BoardSeat, Commitment$, Debt, GameStateV2, MilestoneType, MoodSource, PartnerKind, PartnerSupply, PartnerTerms, Pitch, StrategicDeal } from '../../../engine/v2';
 import { DEBT_SIZING, MARKET, PARTNER_KINDS, PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { PathCurve } from './Compute';
 import { ActBtn, Limit, CauseBars, Gate, SEAT_KIND_LABEL, Seg, Term, Tip, TipCard, Toggle, Why } from '../ui';
 import { MILESTONE_UI, OweCard, OweLink } from './FinanceOwe';
-import { ParentBudget } from './FinanceDivision';
+import { ControlAfter, ControlHeader, ControlRow, OwnerBudget, ParentConf } from './FinanceControl';
 import { StoryCard } from './FinanceStory';
 import { Card, GoBtn, HBar, PanelHead, Pill, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
@@ -36,8 +35,8 @@ const SEAT: Record<BoardSeat['kind'], { icon: typeof ICON.board; label: string }
   founder: { icon: ICON.you, label: 'Founder' }, mission: { icon: ICON.exec, label: 'Mission' }, financial: { icon: ICON.cash, label: 'Financial' },
   strategic: { icon: ICON.relations, label: 'Strategic' }, independent: { icon: ICON.board, label: 'Independent' }, gov: { icon: ICON.congress, label: 'Government' },
 };
-const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', power: 'mw', acquired: 'acquisition' };
-const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', power: 'power', acquired: 'acquired' };
+const KIND_TERM: Record<string, string> = { cloud: 'cloudContract', lta: 'lta', lease: 'site', finLease: 'spv', power: 'mw', merger: 'acquisition' };
+const KIND_LABEL: Record<string, string> = { cloud: 'cloud', lta: 'chip supply', lease: 'colocation', finLease: 'lease', power: 'power', merger: 'merger' };
 
 /** FIN1: firm contracts on the expected path pay one ledger entry per quarter; the contracts table shows one row per
  *  contract (this quarter's payment, or its first if it has not started, and its end). */
@@ -75,7 +74,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
   const building = pl.sites.filter((x) => x.stage !== 'live' && x.stage !== 'blocked' && x.capex > x.capexPaid);
   const rev = -p.revenue;
   // Jank F2: a division's inflow is the parent's budget (its revenue goes to the parent).
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const parentQ = Math.max(0, -p.funding);
   const steps = [
     division
@@ -140,7 +139,7 @@ function Waterfall({ s }: { s: GameStateV2 }) {
 
 // ───────── cash history with raise markers and projections (history is its own datum: no current-value label) ─────────
 /** A division's cash below zero is the parent's advance (FIN5c): the axis extends below $0 and that band is marked. */
-const divisionAdvance = (s: GameStateV2) => isDivision(s) && (s.player.finance.cash < 0 || s.series.cash.some((v) => v < 0) || runwayOf(s).path.some((p) => p.cash < 0));
+const divisionAdvance = (s: GameStateV2) => ownerFunded(s) && (s.player.finance.cash < 0 || s.series.cash.some((v) => v < 0) || runwayOf(s).path.some((p) => p.cash < 0));
 function CashHistory({ s }: { s: GameStateV2 }) {
   const [hi, setHi] = useState<number>();
   const S = s.series;
@@ -154,7 +153,7 @@ function CashHistory({ s }: { s: GameStateV2 }) {
   const n = days.length;
   // Projection: the runway's quarter-by-quarter cash path (each payment in the quarter it falls due).
   const proj = rw.path.map((p) => [p.day, p.cash]);
-  const dry = isDivision(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
+  const dry = ownerFunded(s) ? undefined : rw.zeroDay; // a division cannot run dry (the parent covers it)
   const pend = f.ws3.pendingRound;
   const nq = nextQDay(s);
   const pendPts: number[][] = [];
@@ -229,17 +228,16 @@ function CashHistory({ s }: { s: GameStateV2 }) {
 // ───────── how much can you raise ─────────
 function RaiseCard({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
-  const [anchor, setAnchor] = useState('');
   const [type, setType] = useState<MilestoneType>(() => raiseTerms(s, {}).type);
   const [pitch, setPitch] = useState<Pitch>('base');
   const [dual, setDual] = useState(false);
-  const q0 = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const q0 = raiseQuote(s, Number.POSITIVE_INFINITY, { pitch });
   const ceil = q0.ceiling;
   const askMax = Math.max(5, Math.ceil(ceil.max * 2));
   const [askIn, setAsk] = useState<number | undefined>(undefined);
   const ask = Math.max(0.1, Math.round(Math.min(askMax, askIn ?? Math.max(0.1, ceil.max)) * 10) / 10);
-  const params = { ask, type, pitch, ...(anchor ? { anchor } : {}) };
-  const q = raiseQuote(s, ask, { anchor: !!anchor, pitch });
+  const params = { ask, type, pitch };
+  const q = raiseQuote(s, ask, { pitch });
   const stake = q.dilution * 100;
   const fail = 1 - q.pClose;
   const burn = runwayOf(s).burnQ;
@@ -251,7 +249,6 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
     .map(([k, label, term, icon]) => ({ k, label, term, icon, v: ceil.parts[k] ?? 0 }));
   const lmax = Math.max(1e-6, ...limits.map((l) => l.v));
   const boundLabel = limits.find((l) => l.k === ceil.bound)?.label.toLowerCase() ?? ceil.bound;
-  const partners = anchorPartners(s).slice(0, 3);
   const pend = f.ws3.pendingRound;
   const th = makeThesis(s, type, pitch);
   const tr = trendOf(s, type);
@@ -260,6 +257,9 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
   const typeOpts = MILESTONES.map((m) => { const t = trendOf(s, m); return { v: m, label: MILESTONE_UI[m].label, ...(t.blocked ? { locked: t.blocked } : {}) }; });
   const pitchOpts = PITCHES.map((p) => { const ok = pitchAvailable(s, p); return { v: p, label: `${p[0].toUpperCase()}${p.slice(1)} ×${PITCH[p].price}`, ...(ok !== true ? { locked: ok } : {}) }; });
   const ipoView = actionView(s, 'fin.ipo', { dualClass: dual });
+  const ipoControl = isListed(s) ? undefined : issueControlAfter(s, raiseQuote(s, Number.POSITIVE_INFINITY, { ipo: true }).dilution, 'public', dual || !!f.dualClass);
+  const rescueWho = f.state === 'distress' ? rescuePartner(s) : undefined;
+  const rescueControl = rescueWho ? dealControlAfter(s, partnerTerms(s, rescueWho, { rescue: true })) : undefined;
   const MI = MILESTONE_UI[type].icon;
   return (
     <Card title={<Term id="raiseCeiling">Raise</Term>} home="raiseCeiling" id="ctl-raise-card"
@@ -292,9 +292,6 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           <div className="fin-row small" data-test="raise-promise"><MI size={13} /><span>Promise: <b>{describeTarget(th)}</b> by {fmtDate(dateOf(s, due))}</span><span className="dim">now {fmtMetric(type, th.start)}</span></div>
         </Tip>
       )}
-      {partners.length > 0 && (
-        <div className="fin-row"><span className="dim small"><Term id="anchorPartner">Anchor partner</Term></span><Seg value={anchor} options={[{ v: '', label: 'None' }, ...partners.map((p) => ({ v: p, label: p }))]} onChange={setAnchor} /></div>
-      )}
       <div className="ask-head">
         <span className="dim small">Ask</span><Tip content={() => <TipCard title="Ask" value={F.money(ask)} rows={[{ label: 'Ceiling now', value: F.money(ceil.max) }]}>Drag the slider; above the ceiling the round may fail.</TipCard>}><b className="num">{F.money(ask)}</b></Tip>
         <span className="sp" />
@@ -326,6 +323,7 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           </Tip>
         );
       })()}
+      <ControlAfter c={issueControlAfter(s, q.dilution, 'fin')} />
       <div className="ask-slider">
         <input className="slider" type="range" min={0.1} max={askMax} step={0.1} value={ask} onChange={(e) => setAsk(Number(e.target.value))} data-test="raise-ask" />
         <i className="ask-ceil" style={{ left: `${(Math.min(askMax, ceil.max) / askMax) * 100}%` }} title="ceiling" />
@@ -337,6 +335,7 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         <ActBtn id="fin.downRound" label={<Term id="downRound">Down round</Term>} />
         <ActBtn id="fin.rescue" label={<Term id="rescue">Rescue</Term>} />
       </div>
+      <ControlAfter c={rescueControl} />
       {f.ws3.repricedRound && (() => {
         const rr = f.ws3.repricedRound;
         return (
@@ -365,6 +364,7 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
           </>
         )}
       </div>
+      <ControlAfter c={ipoControl} />
       <div className="fin-foot">
         {pend ? <Tip content={() => <TipCard title="Pending round" value={F.money(pend.ask)} rows={[{ label: 'Closes', value: fmtDate(dateOf(s, close)) }]}>The money lands when the round closes.</TipCard>}><span><span className="dim">Pending</span> <b className="num">{F.money(pend.ask)}</b> <span className="dim">closes {fmtDate(dateOf(s, close))}</span></span></Tip> : <span className="dim">No round in progress</span>}
         <span className="sp" />
@@ -467,7 +467,7 @@ function MoodSources({ s }: { s: GameStateV2 }) {
     sums[k] += e.delta;
   }
   const max = Math.max(5, ...Object.values(sums).map(Math.abs));
-  const seats = s.player.board.seats.filter((x) => x.weight > 0 && x.kind !== 'founder');
+  const seats = boardSeats(s).filter((x) => x.weight > 0 && x.kind !== 'founder');
   const row = (key: string, icon: typeof ICON.board, label: ReactNode, mult: ReactNode, v: number, tip: () => ReactNode) => {
     const w = (Math.abs(v) / max) * 50;
     return (
@@ -499,43 +499,9 @@ function MoodSources({ s }: { s: GameStateV2 }) {
 }
 const IconOf = ({ I }: { I: typeof ICON.board }) => <I size={13} />;
 
-/** FIN3b (spec §7.2): this preset's charter rights, each with what it blocks; the safety committee's row lists the
- *  models it is holding now. */
-const RIGHT_ICON: Record<string, typeof ICON.board> = { safetyCommittee: ICON.safety, trust: ICON.exec, founderControl: ICON.you, nonprofitRemoval: ICON.board };
-function CharterRights({ s }: { s: GameStateV2 }) {
-  const rights = charterRights(s);
-  const holds = charterHolds(s);
-  return (
-    <div className="charter" data-test="charter">
-      <div className="tip-cap"><Term id="charter">Charter rights</Term></div>
-      {!rights.length && <div className="dim small">None: the board acts only through its votes.</div>}
-      {rights.map((r) => {
-        const I = RIGHT_ICON[r.id] ?? ICON.locked;
-        const held = r.id === 'safetyCommittee' ? holds : [];
-        return (
-          <Tip as="div" key={r.id} content={() => (
-            <TipCard title={r.label} value={held.length ? <span className="tone-warn">holding {held.length}</span> : undefined} rows={[
-              { label: 'Blocks', value: r.blocks },
-              ...held.map((h) => ({ label: h.name, value: `held: ${h.reason}`, tone: 'neg' as const })),
-              { label: 'Source', value: r.source },
-            ]}>{"A hard right of this governance, not a vote: no confidence or force gets past it. See [[charter]]."}</TipCard>
-          )}>
-            <div className="charter-row" data-right={r.id}>
-              <span className="row-i small"><I size={13} />{r.label}</span>
-              <span className="dim small">{r.short}</span>
-              {held.length > 0 ? <span className="tag2 warn" data-test="charter-held">holds {held.map((h) => h.name).join(', ')}</span> : <span />}
-            </div>
-          </Tip>
-        );
-      })}
-    </div>
-  );
-}
-
 /** FIN3b (spec §7.5): the next review and the ouster vote as it stands, seat by seat (no dice). */
 function OusterReview({ s }: { s: GameStateV2 }) {
   const br = boardReview(s);
-  if (br.division) return null;
   const v = br.vote;
   const g = v.grievance;
   const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -571,7 +537,7 @@ function OusterReview({ s }: { s: GameStateV2 }) {
 
 /** FIN3b (spec §7.5): give the critics a seat, shown while confidence is under the warning's clear line. */
 function CriticsSeat({ s }: { s: GameStateV2 }) {
-  if (isDivision(s) || s.player.board.confidence >= BC_CLEAR) return null;
+  if (s.player.board.confidence >= BC_CLEAR) return null;
   const c = criticsSide(s);
   return (
     <div className="btn-row" style={{ marginTop: 6 }}>
@@ -583,15 +549,18 @@ function CriticsSeat({ s }: { s: GameStateV2 }) {
 
 function BoardCard({ s }: { s: GameStateV2 }) {
   const b = s.player.board;
+  const dv = ownerFunded(s) ? divisionView(s) : undefined;
   return (
     <Card title={<Term id="boardSeat">Board</Term>} id="ctl-board" home="board"
-      right={isDivision(s) ? <GoBtn to={{ panel: 'finance', anchor: 'parent' }} label={<Term id="parentConf">Parent confidence</Term>} testId="fin.go.parentConf" /> : <span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it votes on removing you at every review.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
+      right={dv ? <ParentConf s={s} v={dv} /> : <span className="row-i"><span className="dim small"><Term id="boardConf">confidence</Term></span><Why k="board.confidence" title="Board confidence" value={F.idx(b.confidence)} body={`See [[boardConf]]. Drifts toward ${BC_ANCHOR}; below 35 the board warns you, below 25 it votes on removing you at every review.`}><b className="num big" data-home="boardConf">{F.idx(b.confidence)}</b></Why></span>}>
+      <ControlHeader s={s} />
+      <ControlRow s={s} />
       <div className="seats">
-        {b.seats.map((x, i) => {
+        {boardSeats(s).map((x, i) => {
           const k = x.stance.reduce((m, v, j) => (Math.abs(v) > Math.abs(x.stance[m]) ? j : m), 0);
           const v = x.stance[k];
           const meta = SEAT[x.kind];
-          const minds = x.kind === 'founder' ? 'your seat: votes yes, moves no mood' : MOOD_SOURCES.map((m) => `${MOOD_LABEL[m].split(' ').pop()} ×${MOOD_WEIGHTS[m][x.kind]}`).join(' · ');
+          const minds = x.holder === 'CEO' ? 'your seat: votes yes, moves no mood' : x.kind === 'founder' ? 'a founder: votes your way unless the news is bad; moves no mood' : MOOD_SOURCES.map((m) => `${MOOD_LABEL[m].split(' ').pop()} ×${MOOD_WEIGHTS[m][x.kind]}`).join(' · ');
           return (
             <Tip key={i} content={() => <TipCard title={x.holder} value={meta.label} rows={[...x.stance.map((sv, j) => ({ label: STANCE[j], value: sv > 0 ? 'for' : sv < 0 ? 'against' : 'neutral', tone: sv > 0 ? 'pos' as const : sv < 0 ? 'neg' as const : 'neutral' as const })), { label: 'Minds', value: minds }]} footer={x.weight > 1 ? `${x.weight} votes` : x.weight > 0 ? '1 vote' : 'observer: no vote'}>{"How this seat votes on major decisions ([[boardVote]]) and how much each kind of news moves it."}</TipCard>}>
               <div className="seat" data-seat={i}>
@@ -603,13 +572,13 @@ function BoardCard({ s }: { s: GameStateV2 }) {
           );
         })}
       </div>
-      {!isDivision(s) && <CharterRights s={s} />}
-      {!isDivision(s) && <MoodSources s={s} />}
+      {dv && <OwnerBudget s={s} v={dv} />}
+      {!ownerFunded(s) && <MoodSources s={s} />}
       <OusterReview s={s} />
       <CriticsSeat s={s} />
       {(() => { const h = incidentBoardHit(s); return <div className="limit-row"><span className="dim small">Public incidents at the next review</span><Limit id="board.incidentCap" tone={h.raw > h.cap ? 'warn' : h.capped > 0 ? 'bind' : 'quiet'}>{h.capped > 0 ? `−${h.hit.toFixed(1)}` : 'none'}{h.raw > h.cap ? ` (${h.raw} capped at ${h.cap})` : ''} · max −{(h.cap * h.mult).toFixed(1)}/q</Limit></div>; })()}
-      {/* Jank F4: the recap question exists only for the capped-profit nonprofit, until it is decided. */}
-      {b.preset === 'legacyNonprofit' && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
+      {/* Jank F4: the recap question exists only under a profit cap, until it is decided. */}
+      {s.player.charter.profitCap && s.player.finance.ws3?.recap.startDay === undefined && !s.player.finance.ws3?.recap.refused && (
         <div className="btn-row" style={{ marginTop: 8 }}>
           <ActBtn id="fin.recap" label={<Term id="recap">Recapitalise</Term>} />
           <ActBtn id="fin.refuseRecap" label="Refuse recap" />
@@ -762,42 +731,96 @@ function DebtCard({ s }: { s: GameStateV2 }) {
 }
 
 // ───────── partners (FINANCE-V3 §6; FIN4a): one offer per partner, every term and string shown before you sign ─────────
-const KIND_ICON: Record<PartnerKind, typeof ICON.cloud> = { hyperscaler: ICON.cloud, chipVendor: ICON.compute, sovereign: ICON.world };
+const KIND_ICON: Record<PartnerKind, typeof ICON.cloud> = { hyperscaler: ICON.cloud, chipVendor: ICON.compute };
 const SUPPLY_SHORT: Record<PartnerSupply, string> = { cloud: 'Cloud', asic: 'Custom chips', chips: 'Its chips' };
 
-/** One partner's line in the list: signed, a holder from before the start, an offer, or why not. */
-function partnerStatus(s: GameStateV2, partner: string, blocked?: string): { text: string; tone: string; tip: string } {
-  const d = dealWith(s, partner);
-  if (d) return { text: d.rescue ? 'rescued you' : `since ${qLabel(s, qOf(s, d.day))}`, tone: 'tone-pos', tip: `Signed ${fmtDate(dateOf(s, d.day))}. One deal per partner.` };
-  const stake = s.player.finance.ownership.strat[partner] ?? 0;
-  if (blocked) return { text: stake > 0 ? `holds ${F.pct(stake)}` : 'unavailable', tone: 'dim', tip: blocked };
-  return { text: 'offer', tone: '', tip: 'Terms below, priced today. Sign to book them.' };
-}
-
-/** A signed deal: what still runs. Its tranche conditions live in What we owe, its payments in Contracts (one home). */
-function SignedDeal({ s, d }: { s: GameStateV2; d: StrategicDeal }) {
-  const live = s.player.finance.tranches.filter((t) => t.partner === d.partner);
+/** One partner on the Partners card (C8, CORPORATE.md §5.7: the one home for partners): what it gives and wants, how much
+ *  it values you, how much you lean on it, its stake and votes, its running deal or its offer. */
+function PartnerRow({ s, o, open, onToggle, choice, setChoice }: { s: GameStateV2; o: ReturnType<typeof partnerOffers>[number]; open: boolean; onToggle: () => void; choice: PartnerChoice; setChoice: (c: PartnerChoice) => void }) {
+  const d = dealWith(s, o.partner);
+  const I = KIND_ICON[o.kind];
+  const i = partnerInterest(s, o.partner);
+  const word = interestWord(i.value);
+  const dep = dependence(s, o.partner);
+  const stake = s.player.finance.ownership.strat[o.partner] ?? 0;
+  const h = holdingsOf(s).find((x) => x.id === o.partner);
+  const votes = h && h.cls !== 'nonVoting' ? `${F.pct(h.votes)} of the votes` : 'non-voting';
   return (
-    <div className="pt-terms" data-test="partner-signed">
-      <div className="fin-row small"><Tip content={() => <TipCard title="Equity in" rows={[{ label: 'At signing', value: F.money(d.equityNow) }, { label: 'In tranches', value: F.money(d.equityLater) }, { label: 'Stake now', value: F.pct(s.player.finance.ownership.strat[d.partner] ?? 0) }]}>{d.legacy ? 'A holder from before the start.' : 'Tranches land on their conditions at that day\'s valuation.'}</TipCard>}><span>Equity <b className="num">{F.money(d.equityNow)}</b> now · <b className="num">{F.money(d.equityLater)}</b> in tranches</span></Tip>
-        {live.length > 0 && <GoBtn to={{ panel: 'finance', tab: 'owe' }} label={`${live.length} tranche${live.length > 1 ? 's' : ''} pending`} testId="fin.go.partnerTranches" />}</div>
-      {d.supply && <div className="fin-row small"><Tip content={() => <TipCard title={SUPPLY_SHORT[d.supply!.kind]} rows={[{ label: 'Take-or-pay', value: F.money(d.supply!.total) }, { label: 'Ends', value: fmtDate(dateOf(s, d.supply!.endDay ?? d.until)) }]}>Payments are in the Contracts tab.</TipCard>}><span>{SUPPLY_SHORT[d.supply.kind]} · <b className="num">{F.money(d.supply.total)}</b> take-or-pay to {fmtDate(dateOf(s, d.supply.endDay ?? d.until))}</span></Tip><GoBtn to={{ panel: 'finance', tab: 'contracts' }} label="Contracts" testId="fin.go.partnerContracts" /></div>}
-      <div className="pills"><Strings s={s} partner={d.partner} strings={d.strings} years={Math.max(0, Math.round((d.until - s.time.day) / 365))} ipName={partnerCosts(s).find((c) => c.partner === d.partner)?.ip?.labName} /></div>
+    <div className="pt-card" data-partner={o.partner} data-blocked={o.blocked ? '1' : '0'} data-partner-detail={o.partner}>
+      <div className="pt-head">
+        <I size={13} /><b>{o.partner}</b><span className="dim small">{PARTNER_KINDS[o.kind].label}</span>
+        <Tip content={() => <TipCard title={<Term id="interest">How much it values you</Term>} value={word} rows={i.parts.map((x, k) => ({ label: x.label, value: `${x.v > 0 && k > 0 ? '+' : ''}${x.v.toFixed(2)}` }))} footer={`Total ${i.value.toFixed(2)}: around 1 is a typical client; high (1.2 or more) offers follow-ons.`}>{interestWords(s, o.partner)}</TipCard>}>
+          <span className={`tag2 ${word === 'high' ? 'good' : word === 'low' ? 'warn' : ''}`} data-test="partner-interest" data-interest={word}>interest {word}</span>
+        </Tip>
+        {dep > 0 && <Tip content={() => <TipCard title={<Term id="dependence">Your dependence</Term>} value={F.pct(dep)}>{`${o.partner} supplies ${F.pct(dep)} of your compute now. The more you lean on it, the less of its discount you keep when the deal is renewed.`}</TipCard>}><span className="tag2" data-test="partner-dependence">supplies {F.pct(dep)} of your compute</span></Tip>}
+        <Tip content={() => <TipCard title={`${o.partner}'s stake`} value={F.pct(stake)}>{h && h.cls !== 'nonVoting' ? `Its shares vote: ${votes}. See [[votes]].` : 'Its shares carry no votes: it takes no board seats. See [[shareClass]].'}</TipCard>}>
+          <span className="tag2" data-test="partner-stake">{stake > 0 ? `stake ${F.pct(stake)} · ${votes}` : 'no stake'}</span>
+        </Tip>
+        <span className="sp" />
+        {d ? <span className="tag2 good">{d.rescue ? 'rescued you' : 'deal runs'}</span> : !o.blocked && <button className="btn btn-sm btn-ghost" data-test="partner-open" onClick={onToggle}>{open ? 'Hide offer' : 'See offer'}</button>}
+      </div>
+      <div className="dim small">gives {PARTNER_KINDS[o.kind].gives}; wants {PARTNER_KINDS[o.kind].wants}</div>
+      {d ? <RunningDeal s={s} d={d} /> : o.blocked ? <div className="tone-neg small" data-test="partner-blocked">{o.blocked}</div> : open && o.terms && <PartnerOffer s={s} o={o} choice={choice} setChoice={setChoice} />}
     </div>
   );
 }
 
+/** A running deal: years left, what is still to pay, the tranches to come with their conditions, its strings and the
+ *  follow-on. Payments live in Contracts and each tranche's progress in What we owe (one home each). */
+function RunningDeal({ s, d }: { s: GameStateV2; d: StrategicDeal }) {
+  const live = s.player.finance.tranches.filter((t) => t.partner === d.partner);
+  const owed = partnerOwed(s, d.partner);
+  const years = Math.max(0, (d.until - s.time.day) / 365);
+  const cost = partnerCosts(s).find((c) => c.partner === d.partner);
+  const blocker = followOnBlocker(s, d.partner);
+  return (
+    <div className="pt-terms" data-test="partner-signed">
+      <div className="fin-row small" data-test="partner-running">
+        <Tip content={() => <TipCard title={d.supply ? SUPPLY_SHORT[d.supply.kind] : 'The deal'} rows={[{ label: 'Runs to', value: fmtDate(dateOf(s, d.until)) }, ...(d.supply ? [{ label: <Term id="firmCommit">Take-or-pay</Term>, value: F.money(d.supply.total) }, { label: 'Still to pay', value: F.money(owed) }] : []), { label: 'Equity at signing', value: F.money(d.equityNow) }]}>{d.legacy ? 'A holder from before the start.' : 'Payments are in the Contracts tab.'}</TipCard>}>
+          <span><b className="num">{years < 1 ? `${Math.round(years * 12)} months` : `${years.toFixed(1)} years`}</b> left{d.supply ? <> · {SUPPLY_SHORT[d.supply.kind].toLowerCase()} · <b className="num">{F.money(owed)}</b> still to pay</> : null}</span>
+        </Tip>
+        {d.supply && <GoBtn to={{ panel: 'finance', tab: 'contracts' }} label="Contracts" testId="fin.go.partnerContracts" />}
+      </div>
+      {live.map((t, k) => (
+        <Tip as="div" key={k} content={() => <TipCard title={<Term id="trancheCondition">Tranche</Term>} value={F.money(t.amount)} rows={[{ label: 'Condition', value: t.condition ? conditionWords(t.condition, d.supply?.kind) : 'none' }, ...(t.deadline !== undefined ? [{ label: 'Lapses', value: fmtDate(dateOf(s, t.deadline)) }] : [])]}>Contractual: missed by the deadline, it lapses. Its progress is in What we owe.</TipCard>}>
+          <div className="pt-tranche small" data-test="partner-tranche"><ICON.commitment size={12} /><span className="num">{F.money(t.amount)}</span><span className="dim">after {t.condition ? conditionWords(t.condition, d.supply?.kind) : 'the deal'}{t.deadline !== undefined ? ` (by ${qLabel(s, qOf(s, t.deadline))})` : ''}</span></div>
+        </Tip>
+      ))}
+      <div className="pills" data-test="partner-strings">
+        {d.strings.exclusivity && <Pill kind="bad" title={`No deals with ${cost?.blocks.join(', ') || 'its competitors'} until ${fmtDate(dateOf(s, d.until))} (exclusivity).`}>exclusive until {fmtMonth(dateOf(s, d.until))}</Pill>}
+        {cost?.ip && <Pill kind="bad" title={`IP access: ${cost.ip.labName} licenses your models and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your lead a year: ≈${F.days(cost.ip.daysYr)} a year at your estimated ${F.days(cost.ip.leadEst)} lead.${cost.ip.noThreshold ? ' Capability-threshold models stay out of the licence.' : ''}`}>IP access · {cost.ip.labName} −{F.days(cost.ip.daysYr)}/yr of lead</Pill>}
+        {cost?.distribution && cost.distribution.base <= 1e-6 && <Pill kind="cost" title={`Distribution: ${d.partner}'s cloud customers are served after your own, from spare serving compute. You have none spare now (or no API or enterprise product), so the channel earns nothing until you add compute.`}>distribution · no spare compute to serve its customers</Pill>}
+        {cost?.distribution && cost.distribution.base > 1e-6 && <Pill kind="cost" title={`Distribution: ${d.partner} sells your API and enterprise models to its cloud customers: about +${F.money(cost.distribution.base, { perYear: true })} of revenue now, of which it keeps ${F.pct(cost.distribution.rate)}, ${overWords(cost.distribution)}.`}>distribution +{F.money(cost.distribution.base, { perYear: true })} revenue · it keeps {F.money(cost.distribution.rate * cost.distribution.base, { perYear: true })}</Pill>}
+        {cost?.share && <Pill kind="cost" title={`Revenue share: ${F.pct(cost.share.rate)} of all your revenue, about ${F.money(cost.share.rate * cost.share.base, { perYear: true })} now, ${overWords(cost.share)}.`}>revenue share {F.money(cost.share.rate * cost.share.base, { perYear: true })}</Pill>}
+        {!d.strings.exclusivity && !cost?.ip && !cost?.distribution && !cost?.share && <span className="dim small">no strings</span>}
+      </div>
+      {d.supply && (blocker
+        ? <Tip content={() => <TipCard title={<Term id="followOn">Follow-on</Term>} value={<span className="tone-neg">not now</span>}>{blocker}</TipCard>}><span className="act-wrap"><button className="btn btn-sm btn-ghost is-off" disabled data-test="followon-blocked">{d.partner}'s follow-on</button></span></Tip>
+        : <>
+          <div className="btn-row"><ActBtn id="fin.followOn" params={{ partner: d.partner }} label={`Take ${d.partner}'s follow-on`} icon={ICON.relations} anchor="partnerFollowOn" reason /></div>
+          <ControlAfter c={dealControlAfter(s, followOnTerms(s, d.partner))} />
+        </>)}
+    </div>
+  );
+}
+
+/** C7c: a projected cut in player words: its rate now and what it comes to over the deal at your growth. */
+const overWords = (p: CutProjection) => `≈${F.money(p.over)} over the ${p.years >= 1 ? `${Math.round(p.years)} years` : 'months'} left at your current growth (×${p.growth.toFixed(1)} a year, at most ×2)`;
+
 /** The strings of a deal as pills (each explains itself on hover). `ipName`: the affiliated lab an IP-access string
- *  licenses to (FIN4b). */
-function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; asic?: boolean; ipName?: string }) {
+ *  licenses to (FIN4b). `deal`: a signed deal (its projections from what it sells now; an offer's from today's revenue). */
+function Strings({ s, partner, strings, years, asic, ipName, deal }: { s: GameStateV2; partner: string; strings: PartnerTerms['strings']; years: number; asic?: boolean; ipName?: string; deal?: StrategicDeal }) {
   const rivals = partnerDef(partner)?.competitors ?? [];
   const ip = strings.ipAccess;
+  const dist = strings.distribution;
+  const pj = deal ? dealCutProjections(s, deal) : {};
+  const dp = dist ? pj.distribution ?? distributionProjection(s, dist, years) : undefined;
   return (
     <>
-      {strings.exclusivity && <Pill kind="bad" title={`No deals with ${rivals.join(', ') || 'its competitors'} for good (exclusivity).`}>exclusive</Pill>}
-      {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' && !ip.trust ? ' Capability-threshold models stay out of the licence (the trust did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
-      {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} at today's run-rate.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
-      {strings.boardVotes !== undefined && strings.boardVotes > 0 && <Pill kind="bad" title={`${partner} holds a board seat with ${strings.boardVotes} votes.`}>board seat · {strings.boardVotes} votes</Pill>}
+      {strings.exclusivity && <Pill kind="bad" title={`No deals with ${rivals.join(', ') || 'its competitors'} while the deal runs (exclusivity).`}>exclusive</Pill>}
+      {ip && <Pill kind="bad" title={`${ipName ?? ip.lab}, ${partner}'s in-house lab, licenses your models while the deal runs: it closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) && !ip.trust ? ' Capability-threshold models stay out of the licence (the mission body did not approve them).' : ''}`}>IP access · {ipName ?? ip.lab}</Pill>}
+      {dist && dp && <Pill kind="cost" title={`${partner} resells your models to its cloud customers: about +${F.money(dp.base, { perYear: true })} of API and enterprise revenue now, of which it keeps ${F.pct(dist.fee)} (${overWords(dp)}). Your chat app is not part of it.`}>distribution +{F.pct(dist.reach)} reach · {F.pct(dist.fee)} fee · {years} y</Pill>}
+      {strings.revenueShare !== undefined && strings.revenueShare > 0 && <Pill kind="cost" title={`${F.pct(strings.revenueShare)} of all your revenue to ${partner} while the deal runs: about ${F.money(strings.revenueShare * s.player.finance.revenueRun, { perYear: true })} now${pj.share ? `, ${overWords(pj.share)}` : ''}.`}>revenue share {F.pct(strings.revenueShare)} · {years} y</Pill>}
       {asic && <Pill kind="cost" title={`Moving to custom chips slows research ${F.pct(1 - PARTNER_TERMS.asic.researchMult)} for about ${(PARTNER_TERMS.asic.migrationDays / 91).toFixed(1)} quarters.`}>research −{F.pct(1 - PARTNER_TERMS.asic.researchMult)} while migrating</Pill>}
     </>
   );
@@ -807,7 +830,6 @@ function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2;
  *  with an in-house lab, IP access (more money, the lab closes on your lead). Each option shows what it adds; a string
  *  not on offer is locked with the reason. */
 function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerTerms; choice: PartnerChoice; setChoice: (c: PartnerChoice) => void }) {
-  if (t.kind === 'sovereign') return null;
   const ex = t.options.exclusive;
   const ip = t.options.ipAccess;
   const rivals = partnerDef(t.partner)?.competitors ?? [];
@@ -816,12 +838,12 @@ function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerT
   return (
     <>
       <div className="fin-row" data-test="partner-strings">
-        <Tip content={() => <TipCard title={<Term id="exclusivity">Exclusivity</Term>} value={ex.blocked ? 'not on offer' : `+${F.money(ex.bump)}`} rows={[{ label: 'Adds', value: F.money(ex.bump) }, { label: 'Blocks', value: rivals.join(', ') || '—' }]}>{ex.blocked ?? `${ex.bump < 0.05 ? (t.kind === 'hyperscaler' ? 'Its stake is at its cap, so exclusivity adds no money now. ' : 'Exclusivity adds no money at what you deploy today. ') : ''}${t.partner} pays ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more to be your only ${PARTNER_KINDS[t.kind].label.toLowerCase()}: no deals with ${rivals.join(', ')} for good. Open, you may sign both, each for less.`}</TipCard>}><span className="dim small">Exclusivity</span></Tip>
-        <Seg value={ex.on ? 'yes' : 'no'} testId="partner-exclusive" options={[{ v: 'no', label: 'Open', tip: `No exclusivity: ${rivals.join(', ')} stays open to you` }, { v: 'yes', label: ex.blocked ? 'Exclusive' : ex.bump >= 0.05 ? `Exclusive +${F.money(ex.bump)}` : 'Exclusive · no more money', tip: `Blocks ${rivals.join(', ')} for good`, ...(ex.blocked ? { locked: ex.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, exclusive: v === 'yes' })} />
+        <Tip content={() => <TipCard title={<Term id="exclusivity">Exclusivity</Term>} value={ex.blocked ? 'not on offer' : `+${F.money(ex.bump)}`} rows={[{ label: 'Adds', value: F.money(ex.bump) }, { label: 'Blocks', value: rivals.join(', ') || '—' }]}>{ex.blocked ?? `${ex.bump < 0.05 ? (t.kind === 'hyperscaler' ? 'Its stake is at its cap, so exclusivity adds no money now. ' : 'Exclusivity adds no money at what you deploy today. ') : ''}${t.partner} pays ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more to be your only ${PARTNER_KINDS[t.kind].label.toLowerCase()}: no deals with ${rivals.join(', ')} while the deal runs. Open, you may sign both, each for less.`}</TipCard>}><span className="dim small">Exclusivity</span></Tip>
+        <Seg value={ex.on ? 'yes' : 'no'} testId="partner-exclusive" options={[{ v: 'no', label: 'Open', tip: `No exclusivity: ${rivals.join(', ')} stays open to you` }, { v: 'yes', label: ex.blocked ? 'Exclusive' : ex.bump >= 0.05 ? `Exclusive +${F.money(ex.bump)}` : 'Exclusive · no more money', tip: `Blocks ${rivals.join(", ")} while the deal runs`, ...(ex.blocked ? { locked: ex.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, exclusive: v === 'yes' })} />
       </div>
       {t.kind === 'hyperscaler' && (
         <div className="fin-row" data-test="partner-ip">
-          <Tip content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={ip.blocked ? 'not on offer' : `+${F.money(ip.bump)}`} rows={ip.blocked ? [] : [{ label: 'Adds', value: F.money(ip.bump) }, { label: 'Licensed to', value: ip.labName ?? '—' }, { label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closes a year', value: `≈${F.days(days)}` }]}>{ip.blocked ?? `${ip.labName}, ${t.partner}'s in-house lab, licenses your models for ${t.years} years and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${s.player.board.preset === 'pbcTrust' ? ' The trust votes on licensing a capability-threshold model.' : ''}`}</TipCard>}><span className="dim small">IP access</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="ipAccess">IP access</Term>} value={ip.blocked ? 'not on offer' : `+${F.money(ip.bump)}`} rows={ip.blocked ? [] : [{ label: 'Adds', value: F.money(ip.bump) }, { label: 'Licensed to', value: ip.labName ?? '—' }, { label: 'Your lead (est.)', value: F.days(lead) }, { label: 'Closes a year', value: `≈${F.days(days)}` }]}>{ip.blocked ?? `${ip.labName}, ${t.partner}'s in-house lab, licenses your models for ${t.years} years and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your capability lead a year.${missionPowers(s) ? ' The mission body votes on licensing a capability-threshold model.' : ''}`}</TipCard>}><span className="dim small">IP access</span></Tip>
           <Seg value={ip.on ? 'yes' : 'no'} testId="partner-ipaccess" options={[{ v: 'no', label: 'Keep IP' }, { v: 'yes', label: ip.blocked ? 'License' : ip.bump >= 0.05 ? `License +${F.money(ip.bump)}` : 'License · no more money', ...(ip.blocked ? { locked: ip.blocked } : {}) }]} onChange={(v) => setChoice({ ...choice, ipAccess: v === 'yes' })} />
         </div>
       )}
@@ -834,10 +856,9 @@ function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerT
  *  optional strings, the strings, then Sign (with the board's or trust's vote when it needs one). */
 function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnType<typeof partnerOffers>[number]; choice: PartnerChoice; setChoice: (c: PartnerChoice) => void }) {
   const t = o.terms!;
-  const V = Math.max(10, s.player.finance.valuation);
   const eq = termsEquity(t);
-  const stake0 = s.player.finance.ownership.strat[o.partner] ?? 0;
-  const stake = (stake0 * V + eq) / (V + eq);
+  const stake = partnerStakeAfter(s, t); // one number, as the votes read it: the stake right after signing
+  const stakeAll = partnerStakeAll(s, t);
   const sp = t.supply;
   return (
     <div className="pt-terms" data-test="partner-terms">
@@ -845,14 +866,14 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
       <OfferStrings s={s} t={t} choice={choice} setChoice={setChoice} />
       {eq > 0 && (
         <div className="fin-row small" data-test="partner-equity">
-          <Tip content={() => <TipCard title="Equity" value={F.money(eq)} rows={[{ label: 'Now', value: F.money(t.equityNow) }, ...t.tranches.map((x, i) => ({ label: `Tranche ${i + 1 + (t.equityNow > 0 ? 1 : 0)}`, value: F.money(x.amount) })), ...(t.options.exclusive.on ? [{ label: 'Of which exclusivity', value: F.money(t.options.exclusive.bump) }] : []), ...(t.options.ipAccess.on ? [{ label: 'Of which IP access', value: F.money(t.options.ipAccess.bump) }] : []), { label: `${o.partner}'s stake after`, value: F.pct(stake) }, ...(t.stakeCap ? [{ label: 'Stake cap', value: F.pct(t.stakeCap) }] : [])]}>{t.kind === 'hyperscaler' ? 'Non-voting shares at today\'s valuation; no board seat. A tranche lands at that day\'s valuation, only up to the cap.' : 'Shares at today\'s valuation; a tranche lands at that day\'s valuation.'}</TipCard>}>
-            <span><Term id="deal">Equity</Term> <b className="num">{F.money(t.equityNow)}</b> now{t.tranches.length ? <> + <b className="num">{F.money(t.tranches.reduce((a, x) => a + x.amount, 0))}</b> in {t.tranches.length} tranches</> : null} · stake → {F.pct(stake)}</span>
+          <Tip content={() => <TipCard title="Equity" value={F.money(eq)} rows={[{ label: 'Now', value: F.money(t.equityNow) }, ...t.tranches.map((x, i) => ({ label: `Tranche ${i + 1 + (t.equityNow > 0 ? 1 : 0)}`, value: F.money(x.amount) })), ...(t.options.exclusive.on ? [{ label: 'Of which exclusivity', value: F.money(t.options.exclusive.bump) }] : []), ...(t.options.ipAccess.on ? [{ label: 'Of which IP access', value: F.money(t.options.ipAccess.bump) }] : []), { label: `${o.partner}'s stake after signing`, value: F.pct(stake) }, ...(stakeAll > stake + 1e-4 ? [{ label: 'If every tranche lands', value: F.pct(stakeAll) }] : []), ...(t.stakeCap ? [{ label: 'Stake cap', value: F.pct(t.stakeCap) }] : [])]}>{t.kind === 'hyperscaler' ? 'Non-voting shares at today\'s valuation; no board seat. A tranche lands at that day\'s valuation, only up to the cap.' : 'Shares at today\'s valuation; a tranche lands at that day\'s valuation.'}</TipCard>}>
+            <span><Term id="deal">Equity</Term> <b className="num">{F.money(t.equityNow)}</b> now{t.tranches.length ? <> + <b className="num">{F.money(t.tranches.reduce((a, x) => a + x.amount, 0))}</b> in {t.tranches.length} tranches</> : null} · stake → {F.pct(stake)}{stakeAll > stake + 1e-4 ? ` (up to ${F.pct(stakeAll)} if every tranche lands)` : ''}</span>
           </Tip>
         </div>
       )}
       {t.tranches.map((x, i) => (
-        <Tip as="div" key={i} content={() => <TipCard title={<Term id="trancheCondition">Tranche condition</Term>} value={F.money(x.amount)} rows={[{ label: 'Condition', value: conditionWords(x.condition) }, { label: 'Due', value: fmtDate(dateOf(s, x.dueDay)) }, { label: 'Lapses', value: fmtDate(dateOf(s, x.deadline)) }]}>Contractual: missed by the deadline, it lapses. After signing it shows in What we owe.</TipCard>}>
-          <div className="pt-tranche small" data-tranche-offer={i}><ICON.commitment size={12} /><span className="num">{F.money(x.amount)}</span><span className="dim">if {conditionWords(x.condition)} by {qLabel(s, qOf(s, x.deadline))}</span></div>
+        <Tip as="div" key={i} content={() => <TipCard title={<Term id="trancheCondition">Tranche condition</Term>} value={F.money(x.amount)} rows={[{ label: 'Condition', value: conditionWords(x.condition, sp?.kind) }, { label: 'Due', value: fmtDate(dateOf(s, x.dueDay)) }, { label: 'Lapses', value: fmtDate(dateOf(s, x.deadline)) }]}>Contractual: missed by the deadline, it lapses. After signing it shows in What we owe.</TipCard>}>
+          <div className="pt-tranche small" data-tranche-offer={i}><ICON.commitment size={12} /><span className="num">{F.money(x.amount)}</span><span className="dim">after {conditionWords(x.condition, sp?.kind)} (by {qLabel(s, qOf(s, x.deadline))})</span></div>
         </Tip>
       ))}
       {sp && (
@@ -865,36 +886,17 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
             { label: 'First year', value: F.money(sp.perQ.slice(0, 4).reduce((a, b) => a + b, 0)) },
             { label: <Term id="firmCommit">Take-or-pay</Term>, value: F.money(sp.total) },
             ...(sp.prepaid ? [{ label: <Term id="supplierTerms">Prepaid at signing</Term>, value: F.money(sp.prepaid) }] : []),
-          ]}>{sp.kind === 'cloud' ? 'Cloud capacity from next quarter, served first in a shortage, paid each quarter on the expected cloud price less both discounts.' : sp.kind === 'asic' ? 'Custom chips every quarter from a separate supply pool (outside rationing), priced on the expected list path.' : `Its chips every quarter, priced on the expected list path; while it supplies, every chip order gets +${MARKET.rationW.strategic} allocation weight.`}</TipCard>}>
-            <span>{sp.kind === 'cloud' ? <><b className="num">{F.count(sp.h100e)}</b> H100e cloud · {sp.quarters / 4} y</> : <><b className="num">{F.count(sp.h100e)}</b> H100e a quarter × {sp.quarters}</>} · −{F.pct(sp.firmDiscount)} firm{sp.partnerDiscount > 0 ? ` −${F.pct(sp.partnerDiscount)} partner` : ''}{sp.costMult !== undefined ? ` · ${F.pct(sp.costMult)} of H100e cost` : ''}</span>
+          ]}>{sp.kind === 'cloud' ? 'One firm cloud contract a year from next quarter, each sized so a year costs the same dollars: the capacity grows as prices fall. Paid each quarter on the expected cloud price less both discounts.' : sp.kind === 'asic' ? 'Custom chips every quarter from a separate supply pool (outside rationing), priced on the expected list path.' : `Its chips every quarter, priced on the expected list path; while it supplies, every chip order gets +${MARKET.rationW.strategic} allocation weight.`}</TipCard>}>
+            <span>{sp.kind === 'cloud' ? <><b className="num">{F.count(sp.h100e)}</b> H100e cloud in year 1{sp.yearly && sp.yearly.length > 1 ? <> → <b className="num">{F.count(sp.yearly[sp.yearly.length - 1])}</b> in year {sp.yearly.length}</> : null} · {sp.quarters / 4} y</> : <><b className="num">{F.count(sp.h100e)}</b> H100e a quarter × {sp.quarters}</>} · −{F.pct(sp.firmDiscount)} firm{sp.partnerDiscount > 0 ? ` −${F.pct(sp.partnerDiscount)} partner` : ''}{sp.costMult !== undefined ? ` · ${F.pct(sp.costMult)} of H100e cost` : ''}</span>
           </Tip>
           <PathCurve s={s} prices={sp.prices} unit="$" discount={sp.firmDiscount} firstQ={sp.startQ} />
           <Pill kind="cost" title="Every take-or-pay payment over the term, on the expected path. Owed whatever happens.">take-or-pay {F.money(sp.total)}</Pill>
           {sp.prepaid ? <Pill kind="cost" title="Supplier terms: a lab with a small share of investor money or a short runway prepays part of the first delivery at signing (part of the take-or-pay total).">prepay {F.money(sp.prepaid)} now</Pill> : null}
         </div>
       )}
-      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} />{t.kind === 'sovereign' && <Pill kind="neu" title="A passive cheque: no seat, no supply, no strings.">passive</Pill>}</div>
+      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} /></div>
+      <ControlAfter c={dealControlAfter(s, t)} />
       <div className="btn-row"><ActBtn id="fin.partner" params={{ partner: o.partner, ...(choice.supply ? { supply: choice.supply } : {}), exclusive: !!t.options.exclusive.on, ipAccess: !!t.options.ipAccess.on }} label={`Sign with ${o.partner}`} primary icon={ICON.relations} anchor="partner" reason /></div>
-    </div>
-  );
-}
-
-/** What each partner costs you now (FIN4b): revenue share a year, the lead its IP access closes, the partners its
- *  exclusivity blocks. Home of these running costs; take-or-pay payments live in Contracts. */
-function PartnerCosts({ s }: { s: GameStateV2 }) {
-  const rows = partnerCosts(s);
-  if (!rows.length) return null;
-  return (
-    <div className="pt-costs" data-test="partner-costs">
-      {rows.map((r) => (
-        <div key={r.partner} className="pt-cost small" data-partner-cost={r.partner}>
-          <b>{r.partner}</b><span className="sp" />
-          {r.revenueShare > 0 && <Pill kind="cost" title={`The revenue share at today's run-rate, while the deal runs.`}>{F.money(r.revenueShare, { perYear: true })} revenue</Pill>}
-          {r.ip && <Pill kind="bad" title={`IP access: ${r.ip.labName} licenses your models and closes about ${F.pct(PARTNER_TERMS.strings.ipCloseYr)} of your lead a year: ≈${F.days(r.ip.daysYr)} a year at your estimated ${F.days(r.ip.leadEst)} lead.${r.ip.noThreshold ? ' Capability-threshold models stay out of the licence.' : ''}`}>{r.ip.labName} −{F.days(r.ip.daysYr)}/yr</Pill>}
-          {r.blocks.length > 0 && <Pill kind="neu" title={`Exclusivity: no deals with ${r.blocks.join(', ')} for good.`}>blocks {r.blocks.join(', ')}</Pill>}
-          {r.revenueShare <= 0 && !r.ip && !r.blocks.length && <span className="dim">no running strings</span>}
-        </div>
-      ))}
     </div>
   );
 }
@@ -902,32 +904,13 @@ function PartnerCosts({ s }: { s: GameStateV2 }) {
 function Partners({ s }: { s: GameStateV2 }) {
   const [choice, setChoiceMap] = useState<Partial<Record<string, PartnerChoice>>>({});
   const offers = partnerOffers(s, choice);
-  const [sel, setSel] = useState<string>(() => offers.find((o) => !o.blocked)?.partner ?? offers[0].partner);
-  const cur = offers.find((o) => o.partner === sel) ?? offers[0];
+  const [open, setOpen] = useState<string | undefined>(() => offers.find((o) => !o.blocked && !dealWith(s, o.partner))?.partner);
   const n = partnersNow(s).length;
   const max = PARTNER_TERMS.strings.maxPartners;
-  const d = dealWith(s, cur.partner);
   return (
-    <Card title={<Term id="deal">Partners</Term>} home="partners" right={<Tip content={() => <TipCard title="Partners" value={`${n} of ${max}`}>{`At most ${max} partners at once; a deal counts from signing (stakes from before the start do not). One deep partner (exclusivity: ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more money, its competitor blocked) or several shallow ones (independence, less money each). Hyperscalers: non-voting equity (stake ≤ 15%) and cloud or custom chips for a take-or-pay commitment. Chip vendors: equity per GW you deploy for buying their chips. Sovereigns: a passive cheque with a political cost.`}</TipCard>}><span className="dim small" data-test="partner-count">{n} of {max} partners</span></Tip>}>
+    <Card title={<Term id="deal">Partners</Term>} home="partners" right={<Tip content={() => <TipCard title="Partners" value={`${n} of ${max}`}>{`At most ${max} partners at once; a deal counts from signing (stakes from before the start do not). One deep partner (exclusivity: ${F.pct(PARTNER_TERMS.strings.exclusiveBump)} more money, its competitor blocked) or several shallow ones (independence, less money each). Hyperscalers: non-voting equity (stake ≤ 15%) and cloud or custom chips for a take-or-pay commitment. Chip vendors: equity per GW you deploy for buying their chips.`}</TipCard>}><span className="dim small" data-test="partner-count">{n} of {max} partners</span></Tip>}>
       <Gate s={s} k="deals">
-        <PartnerCosts s={s} />
-        <div className="pt-list">
-          {offers.map((o) => {
-            const st = partnerStatus(s, o.partner, o.blocked);
-            const I = KIND_ICON[o.kind];
-            return (
-              <Tip key={o.partner} as="div" content={() => <TipCard title={o.partner} value={PARTNER_KINDS[o.kind].label} rows={[{ label: 'Gives', value: PARTNER_KINDS[o.kind].gives }, { label: 'Wants', value: PARTNER_KINDS[o.kind].wants }]}>{st.tip}</TipCard>}>
-                <button className={`pt-row ${o.partner === cur.partner ? 'on' : ''}`} data-partner={o.partner} data-blocked={o.blocked ? '1' : '0'} onClick={() => setSel(o.partner)}>
-                  <I size={13} /><b>{o.partner}</b><span className="dim small">{PARTNER_KINDS[o.kind].label}</span><span className="sp" /><span className={`small ${st.tone}`}>{st.text}</span>
-                </button>
-              </Tip>
-            );
-          })}
-        </div>
-        <div className="offer2" data-partner-detail={cur.partner}>
-          <div className="row-i small"><b style={{ whiteSpace: 'nowrap' }}>{cur.partner}</b><span className="dim">gives {PARTNER_KINDS[cur.kind].gives}; wants {PARTNER_KINDS[cur.kind].wants}</span></div>
-          {d ? <SignedDeal s={s} d={d} /> : cur.blocked ? <div className="tone-neg small" data-test="partner-blocked">{cur.blocked}</div> : <PartnerOffer s={s} o={cur} choice={choice[cur.partner] ?? {}} setChoice={(c) => setChoiceMap({ ...choice, [cur.partner]: c })} />}
-        </div>
+        {offers.map((o) => <PartnerRow key={o.partner} s={s} o={o} open={open === o.partner} onToggle={() => setOpen(open === o.partner ? undefined : o.partner)} choice={choice[o.partner] ?? {}} setChoice={(c) => setChoiceMap({ ...choice, [o.partner]: c })} />)}
       </Gate>
     </Card>
   );
@@ -942,7 +925,7 @@ function oweBadge(s: GameStateV2): number {
 export function Finance({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
   const dLeft = Math.max(0, nextQDay(s) - s.time.day);
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   // Jank F3: first glance = cash flow, cash history and the raise (or the parent budget); the rest on tabs.
   const tab0 = tabOf('finance', 'cash');
   const tab = division && (tab0 === 'deals' || tab0 === 'story') ? 'cash' : tab0; // a division has no debt or partners (FIN5c: its goals are in What we owe)
@@ -970,7 +953,7 @@ export function Finance({ s }: { s: GameStateV2 }) {
         </Card>
       </div>
       <div className="g2">
-        {division ? <ParentBudget s={s} /> : <RaiseCard s={s} />}
+        {!division && <RaiseCard s={s} />}
         <Card title="Why cash moved · 30 d" sub="every booked inflow and outflow, summed per source · ×N = days it moved" home="cashCauses">
           <CauseBars s={s} k="cash" fmt={(x) => F.money(x)} />
         </Card>

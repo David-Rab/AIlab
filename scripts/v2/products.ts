@@ -50,7 +50,7 @@ import { REEVAL_DAYS } from '../../src/data/v2/evals';
 import { autoEvaluate, openEval, reevalReason } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 
-import { START_BY_ID } from '../../src/data/v2/starts';
+import { POSITION_BY_ID } from '../../src/data/v2/starts';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
 
@@ -81,7 +81,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const own = new Set(s.player.models.versions.map((v) => v.id));
   // CP4b (RF-P1): the leader starts with the tools OpenAI had shipped by 2025-07-01 (data/v2/starts.ts), each product
   // carrying the start's list for its channel, all of them built.
-  const startTools = (ch: Deployment['channel']) => START_BY_ID.leader.products.find((x) => x.channel === ch)?.features ?? [];
+  const startTools = (ch: Deployment['channel']) => POSITION_BY_ID.frontier.products.find((x) => x.channel === ch)?.features ?? [];
   const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
   check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.stance === 'profit' && sameSet(d.features, startTools(d.channel)) && d.features.every((f) => s.player.features.includes(f)) && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
     'P1 leader start: Chat, API, Enterprise are products at the standard tier with the start\'s built tools for their channel (RF-P1) and no monitor; any lineup is of the lab\'s own versions',
@@ -223,7 +223,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const cash0 = s.player.finance.cash;
   // CP4b (RF-P1): at the leader start every feature is built or its idea known (Companion), so the unknown-idea gate is
   // checked on the spinout start (no tools; Long context + memory unknown).
-  const sp = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'spinout' }));
+  const sp = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, labKind: 'breakaway' }));
   const no = act(sp, 'feature.build', { id: 'memory' });
   check(!!no && /Needs the idea/.test(no) && !sp.player.features.includes('memory') && !sp.player.build.queue.some((it) => it.kind === 'feature' && it.ref === 'memory'),
     'P7 a feature whose idea is unknown cannot be built', no ?? '');

@@ -122,14 +122,14 @@ function products(s: GameStateV2): HubBox {
 function finance(s: GameStateV2): HubBox {
   const dv = divisionView(s);
   if (dv) {
-    const rows = [{ label: 'Budget this year', value: `$${(dv.budget / 1e9).toFixed(1)}B` }, { label: 'Spent so far', value: `$${(dv.spent / 1e9).toFixed(1)}B` }];
+    const rows = [{ label: 'Budget this year', value: `$${dv.budget.toFixed(1)}B` }, { label: 'Spent so far', value: `$${dv.spent.toFixed(1)}B` }];
     if (dv.status === 'over') return { id: 'finance', verdict: 'Over budget', tone: 'bad', sub: 'the parent covers it', rows };
     if (dv.status === 'course') return { id: 'finance', verdict: 'Over budget pace', tone: 'warn', sub: 'over by the review', rows };
     return { id: 'finance', verdict: 'Within budget', tone: 'good', sub: 'parent budget holds', rows };
   }
   const rw = runwayOf(s);
   const covers = rw.burnQ <= 0;
-  const rows = [{ label: 'Runway', value: rw.q >= 8 ? '8+ quarters' : `${rw.q.toFixed(1)} quarters` }, { label: covers ? 'Earned above costs a quarter' : 'Spent above revenue a quarter', value: `$${(Math.abs(rw.burnQ) / 1e9).toFixed(1)}B` }];
+  const rows = [{ label: 'Runway', value: rw.q >= 8 ? '8+ quarters' : `${rw.q.toFixed(1)} quarters` }, { label: covers ? 'Earned above costs a quarter' : 'Spent above revenue a quarter', value: `$${Math.abs(rw.burnQ).toFixed(1)}B` }];
   const sub = covers ? 'revenue covers costs' : rw.q >= 6 ? 'cash covers the spending' : 'spending more than it earns';
   if (rw.q < 3) return { id: 'finance', verdict: 'Cash running out', tone: 'bad', sub, rows };
   if (rw.q < 6) return { id: 'finance', verdict: 'Runway tight', tone: 'warn', sub, rows };

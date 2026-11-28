@@ -5,8 +5,16 @@ import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { lagDays } from '../models/capability';
 import { pMisOf, projectedMisAtAsi } from './epilogue';
 import { lawsInForce } from '../../../data/v2/laws';
+import { controllerOf } from '../finance/control';
 
-export const COMPANY_LOSS: EndingV2['id'][] = ['insolvent', 'ousted', 'nationalized', 'acquired'];
+export const COMPANY_LOSS: EndingV2['id'][] = ['insolvent', 'ousted', 'absorbed'];
+
+/** Independent at the end: no controller other than your founders or the mission body (CORPORATE.md §3), and not
+ *  under the government's committee or state control. */
+export function independentAtEnd(s: GameStateV2): boolean {
+  const k = controllerOf(s)?.kind;
+  return (k === undefined || k === 'founders' || k === 'mission') && !s.usgov.oversight && !s.player.charter.stateControl && !s.usgov.dpaAccepted;
+}
 
 const SURVIVAL_BASE: Partial<Record<EndingV2['id'], number>> = {
   asiAligned: 95, rivalAligned: 85, chinaAligned: 70, asiContested: 45, catastropheCyber: 50, war: 30, catastropheBio: 25, rogue: 10,
@@ -95,10 +103,9 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   else {
     const V = Math.max(1, s.player.finance.valuation);
     const playerFirst = id === 'asiAligned' || id === 'asiTakeover' || (id === 'asiContested' && !otherLabs(s).some((r) => r.core.milestoneDays[6] !== undefined && r.core.milestoneDays[6]! <= (s.player.milestoneDays[6] ?? Infinity)));
-    const independent = !s.usgov.oversight && s.usgov.consolidated !== 'nationalized' && !s.usgov.dpaAccepted && !s.endingProgress.soldControl;
     company = [{ label: 'Valuation', value: 20 * Math.log10(V / 100) }];
     if (playerFirst) company.push({ label: 'First to superintelligence', value: 40 });
-    if (independent) company.push({ label: 'Independent at the end', value: 20 });
+    if (independentAtEnd(s)) company.push({ label: 'Independent at the end', value: 20 });
   }
   // Geopolitics
   const leadChina = s.china.lab.core.status === 'active' ? lagDays(s, 'china', 'player') : 180;

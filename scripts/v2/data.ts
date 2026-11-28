@@ -38,14 +38,14 @@ import {
   syntheticAccrual, syntheticQuality, synAssetFor, synQualityCap, synTokensPerH100eDay, tokenWorth, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
 import { teacherRows } from '../../src/engine/v2/production/dataView';
-import type { BaseDesign, Candidate, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
+import type { BaseDesign, Candidate, DataPortfolio, DomainId, GameStateV2, LabKindId, OwnedDataAsset } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const T = 1e12;
 // One newGame per start type, cloned per case (TESTING.md section 2).
 const protos: Record<string, GameStateV2> = {};
-const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader'): GameStateV2 => structuredClone(protos[start] ??= newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false })));
+const game = (labKind: LabKindId = 'leader'): GameStateV2 => structuredClone(protos[labKind] ??= newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, labKind, tutorial: false })));
 /** v1's stock: (licensed + unlicensed) × (1 + 0.5·deals) + 0.5 × synthetic. */
 const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number) =>
   ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT) * T;
@@ -63,7 +63,7 @@ check(rows.length === 5 && rows.every((r) => r.assets >= 1), 'start: the portfol
 check(near(uniqueTokens(s0), oldU({ licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 20 }, 0), 1e3), 'start: U = 270T crawl + 30T licensed + 0.5 × 20T synthetic = v1\'s 310T', `${(uniqueTokens(s0) / T).toFixed(3)}T`);
 check(near(s0.player.models.bases[0].epochs!, (REFERENCE_BASE.params * REFERENCE_BASE.tpp) / 310e12, 1e-12), 'start: B0\'s epochs read the portfolio (141T over 310T)', s0.player.models.bases[0].epochs!.toFixed(4));
 let sameStart = true;
-for (const st of ['challenger', 'bigtech', 'spinout'] as const) if (uniqueTokens(game(st)) !== uniqueTokens(s0)) sameStart = false;
+for (const st of ['safety', 'bigtech', 'breakaway'] as const) if (uniqueTokens(game(st)) !== uniqueTokens(s0)) sameStart = false;
 check(sameStart, 'start: every start type keeps the same data as before (U 310T)');
 
 // ---------- repetition at equal U ----------
@@ -153,7 +153,7 @@ check(near(oneD.epochs, 6, 1e-9) && near(oneD.dEff, (3 * effectiveTokens(60e12, 
 
 // ---------- the public web: finite and shared ----------
 const sA = game();
-const sB = game('challenger');
+const sB = game('safety');
 const pubA = publicUse(sA.player.dataPortfolio)!;
 pubA.coverage = 5; // a lab cannot crawl more than the world has
 check(assetTokensT(pubA) === PUBLIC_WEB.stockT && assetTokensT(publicUse(sB.player.dataPortfolio)!) === 0.9 * PUBLIC_WEB.stockT,

@@ -31,8 +31,6 @@ export interface AftermathSlots {
   /** The best US lab, its lag behind the subject lab ("about two months"), and the US–China standing as a sentence
    *  ("xLab was about two months ahead of DeepCent."). */
   usLab: string; usLag: string; raceLine: string;
-  /** Buyer of the company (acquired). */
-  buyer: string;
   /** The best lab's level when the race stopped, with its article ("a superhuman coder"). */
   frontier: string;
   /** Rogue: the escaped model, when it left. */
@@ -51,8 +49,7 @@ export const OPENER: Record<EndingId, string> = {
   retired: 'You stepped down on {endDate}. The race did not slow.',
   insolvent: '{player} ran out of money on {endDate}. Its people and its compute went to the labs still racing.',
   ousted: 'The board removed you on {endDate}. {player} raced on under new leadership.',
-  nationalized: 'The government took control of {player} on {endDate}, and your clearance went with it.',
-  acquired: '{buyer} bought control of {player} on {endDate}.',
+  absorbed: 'On {endDate} {lab} folded {player} into its own lab: either its owner controlled your company and its own lab was ahead, or the government folded your lab into the national project under it.',
   overtaken: 'By {endDate}, {lab} was too far ahead of {player} to catch.',
   war: 'On {endDate}, the standoff over Taiwan became a shooting war. {raceLine} No one had reached superintelligence. The race the labs were running stopped mattering overnight.',
   catastropheBio: 'On {endDate}, an AI-assisted biological attack spread beyond containment. The best models were at the level of {frontier}; no one had reached superintelligence. The race stopped mattering.',
@@ -85,7 +82,7 @@ export const CLOSER: Record<Exclude<PowerOutcome, 'none'>, string> = {
   beijing: 'What it builds next is decided in Beijing.',
 };
 
-/** The projected race after the player left it (retired, insolvent, ousted, nationalized, acquired, overtaken). */
+/** The projected race after the player left it (retired, insolvent, ousted, absorbed, overtaken). */
 export const PROJECTED = {
   held: '{lab}, the leading lab, reached superintelligence around {asiMonth}, {wait} later. Its AI stayed within what the world could absorb.',
   lost: '{lab}, the leading lab, reached superintelligence around {asiMonth}, {wait} later. Its drive to act against its makers was {ratio} what the world could absorb, and nothing contained it. By the end of {asiYear}, no government, lab or board was in charge of what came next.',

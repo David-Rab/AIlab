@@ -212,9 +212,17 @@ const load = (i: number) => deserialize(fixtures[i]);
   // 'war' is a quarterly roll at China tension 4 (world/chinagov.ts); scripts/v2/worldChina.ts covers it.
   const setups: Partial<Record<EndingId, (s: GameStateV2) => void>> = {
     insolvent: (s) => void (s.player.finance.state = 'insolvent'),
-    acquired: (s) => void (s.endingProgress.soldControl = true),
     ousted: (s) => void (s.flags['ws3.ousterDay'] = s.time.day), // WS3's board ouster vote
-    nationalized: (s) => void (s.usgov.consolidated = 'nationalized'),
+    // C3: the ouster under a controller whose in-house lab leads you (Azimuth with 60% of the voting stock, its lab 90
+    // days ahead on your estimate).
+    absorbed: (s) => {
+      s.player.charter = { ...s.player.charter, missionBody: false, profitCap: false };
+      s.player.finance.ownership = { founder: 0.2, mission: 0, fin: 0.2, public: 0, strat: { Azimuth: 0.6 } };
+      s.player.finance.stratVoting = { Azimuth: true };
+      const lab = s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === 'bigtech');
+      if (lab) lab.npc.d -= -90 - leadDays(s, lab.core.id).est;
+      s.flags['ws3.ousterDay'] = s.time.day;
+    },
     catastropheBio: (s) => misuse(s, 'bio'),
     catastropheCyber: (s) => misuse(s, 'cyber'),
     rogue: (s) => {

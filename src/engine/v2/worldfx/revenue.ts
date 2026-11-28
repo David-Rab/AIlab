@@ -40,6 +40,10 @@
 // most per H100e first and records what it cuts; spare pool is spread over the products in proportion to need. With Auto
 // off the products keep the shares set by hand (scaled if > 100%). Capacity-bound products ration (MK-7, above);
 // demand-bound ones report quality or price.
+// C7c distribution (finance/distribution.ts): while a hyperscaler deal runs, an API or enterprise product's customers are
+// ×(1 + X): its need segments again × X (the partner's cloud customers), served after its own and ranked in the split at
+// what they earn the lab after the partner's fee; their served revenue is the product's revenue with X less without it,
+// in the same pass. They stay out of rationing and the customer stocks (MK-7: ration reads the product's own need).
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { productSafeguardOverhead, productUsageMult } from '../safety/safeguards';
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
@@ -54,6 +58,7 @@ import { decimalYear } from '../core/time';
 import { savedAt, useShareOf, workHoursOf } from './use';
 import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
+import { distributes, distributionFee, distributionReach } from '../finance/distribution';
 import { flopPerToken } from '../departments/workfit';
 import {
   agentDemandOf, agentMixOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, offerOf, productFx, stanceFactor, productLineup, productOffer, productUses, serveDollarsPerHour,
@@ -122,6 +127,9 @@ export interface DeploymentRevenue {
    *  player's capacity-short products into its spare compute (in revenue). */
   turnedAway: TurnedAway;
   spillIn: { hours: number; dollars: Money };
+  /** C7c: what its partner distribution adds (in demand, revenue, needH100e and servingH100e): demand and served revenue
+   *  ($B/yr), serving need and what it got (H100e incl. monitor). */
+  partner?: { demand: Money; revenue: Money; needH100e: number; servedH100e: number };
 }
 
 /** MK-7: buyers turned away: billed AI work-hours a year (sector products: adopted, agent and seated hours) and Chat
@@ -157,6 +165,8 @@ export interface RevenueReadout {
   turnedAway: TurnedAway;
   spillRev: Record<string, Money>;
   served: ServedTargets;
+  /** C7c: revenue sold through partner distribution ($B/yr, in total): total with the extra reach less total without. */
+  partnerRevenue: Money;
 }
 
 /** MK-8 (design/MARKET.md M11): a non-player seller's serving capacity, the serving its own buyers take, and the room
@@ -431,7 +441,7 @@ function agentOf(o: Offer, line: readonly Offer[], tw: readonly number[] | undef
 const seatOf = (c: Channel, sector: string) => c === 'enterprise' || (c === 'vetted' && GOV_SECTORS.has(sector));
 
 /** A product's need segments with their demand $ (B/yr), in serving order. */
-interface Seg { need: number; dem: Money }
+interface Seg { need: number; dem: Money; /** C7c: the partner's customers (served after the product's own). */ partner?: true }
 
 /** Full revenue computation (pure; the system applies it). */
 export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offers?: Map<string, Offer>): RevenueReadout {
@@ -635,20 +645,26 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
 
   // Serving split, capacity and the binding cause. Need segments in serving order: Chat's paying users, then its free
   // users (earning nothing, served last); a sector product's seated hours (seat revenue), then its per-hour work.
+  const xD = distributionReach(s);
+  const keep = 1 - distributionFee(s);
   const segsOf = (d: Deployment): Seg[] => {
     const a = acc.get(d.id)!;
     const mon = 1 + monitorOverhead(s, d) + productSafeguardOverhead(d); // SR-13b: control compute billed to serving
     if (d.channel === 'consumer') return [{ need: a.needPaid * mon, dem: a.dem }, { need: (a.need - a.needPaid) * mon, dem: 0 }];
     const work = { need: a.need * mon, dem: a.dem };
-    return a.seatNeed > 0 || a.seatDem > 0 ? [{ need: a.seatNeed * mon, dem: a.seatDem }, work] : [work];
+    const own: Seg[] = a.seatNeed > 0 || a.seatDem > 0 ? [{ need: a.seatNeed * mon, dem: a.seatDem }, work] : [work];
+    // C7c: the partner's customers, the product's own × the extra reach, after them.
+    return xD > 0 && distributes(d) ? [...own, ...own.map((x): Seg => ({ need: x.need * xD, dem: x.dem * xD, partner: true }))] : own;
   };
   const segs = new Map(deps.map((d) => [d.id, segsOf(d)]));
-  const split = servingSplit(s, deps, (d) => segs.get(d.id)!.map((x) => ({ need: x.need, rpH: x.need > 0 ? (x.dem * 1e9) / x.need : 0 })));
+  // The split ranks the partner's customers at what they earn the lab after its fee.
+  const split = servingSplit(s, deps, (d) => segs.get(d.id)!.map((x) => ({ need: x.need, rpH: x.need > 0 ? (x.dem * 1e9 * (x.partner ? keep : 1)) / x.need : 0 })));
   const out: DeploymentRevenue[] = [];
   const served = new Map<string, { seat: number; work: number }>();
   let total = 0;
   let D = 0;
   let C = 0;
+  let pRevenue = 0;
   for (const d of deps) {
     const a = acc.get(d.id)!;
     const sg = segs.get(d.id)!;
@@ -661,14 +677,25 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     let left = h;
     let revenue = 0;
     const fr: number[] = [];
+    let pDem = 0;
+    let pRev = 0;
+    let pNeed = 0;
+    let pGot = 0;
     for (const x of sg) {
       const got = Math.min(left, x.need);
-      revenue += x.need > 0 ? (x.dem * got) / x.need : x.dem;
-      fr.push(x.need > 0 ? got / x.need : 1);
+      const rv = x.need > 0 ? (x.dem * got) / x.need : x.dem;
+      revenue += rv;
+      if (x.partner) {
+        pDem += x.dem;
+        pRev += rv;
+        pNeed += x.need;
+        pGot += got;
+      } else fr.push(x.need > 0 ? got / x.need : 1);
       left -= got;
     }
+    pRevenue += pRev;
     // MK-7: the served fraction of its seats and of its per-hour work (Chat: of its paying users).
-    served.set(d.id, d.channel === 'consumer' ? { seat: 1, work: fr[0] } : sg.length > 1 ? { seat: fr[0], work: fr[1] } : { seat: 1, work: fr[0] });
+    served.set(d.id, d.channel === 'consumer' ? { seat: 1, work: fr[0] } : fr.length > 1 ? { seat: fr[0], work: fr[1] } : { seat: 1, work: fr[0] });
     // Capacity ($B/yr the served H100e could earn): consumers at the paying users' rate; sector products in serving order
     // (seats, then per-hour work), H100e beyond the need at the per-hour work's rate.
     let capacity: number;
@@ -682,9 +709,12 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     else if (need > h * 1.0001) bound = 'capacity';
     else bound = 'quality';
     const allHours = a.hours + a.seatHours;
-    const servedBy = servedByModel(s, d, a, h, mon);
+    // C7c: the partner's customers' tokens on top of the product's own (their need is the product's × X, served pGot).
+    const ownNeed = need - pNeed;
+    const servedBy = servedByModel(s, d, a, h - pGot, mon, ownNeed > 0 ? pGot / ownNeed : 0);
     out.push({
-      id: d.id, channel: d.channel, demand, capacity, revenue, bound, servingH100e: h, rpH: sp.rpH, needH100e: need, cutH100e: sp.cut,
+      // C7c: serving and need without the partner's customers until rationing is done (added back below).
+      id: d.id, channel: d.channel, demand, capacity, revenue, bound, servingH100e: h - pGot, rpH: sp.rpH, needH100e: ownNeed, cutH100e: sp.cut,
       hours: a.hours, capHours: allHours > 0 && need > 0 ? (allHours * h) / need : 0,
       costPerHour: a.hours > 0 ? (a.cost * 1e9) / a.hours : 0, pricePerHour: a.hours > 0 ? (a.dem * 1e9) / a.hours : 0,
       valueCapped: demand > 0 ? a.capped / demand : 0, servedBy, turnedAway: noneAway(), spillIn: { hours: 0, dollars: 0 },
@@ -696,13 +726,20 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         seatPrice: a.seatPrice, seatCost: a.seats > 0 ? (a.seatCost * 1e9) / (a.seats * 12) : 0, needSeat: a.seatNeed * mon,
         tiers: Array.from({ length: Math.max(a.tH.length, a.tD.length) }, (_, k) => ({ hours: a.tH[k] ?? 0, dem: a.tD[k] ?? 0 })),
       }),
+      ...(pNeed > 0 || pDem > 0 ? { partner: { demand: pDem, revenue: pRev, needH100e: pNeed, servedH100e: pGot } } : {}),
     });
     D += demand;
     C += capacity;
   }
   const ra = ration(s, mix, playerIdx, out, cells, ccells, served);
-  for (const x of out) total += x.revenue;
-  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent, ...ra };
+  for (const x of out) {
+    total += x.revenue;
+    if (x.partner) {
+      x.needH100e += x.partner.needH100e;
+      x.servingH100e += x.partner.servedH100e;
+    }
+  }
+  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent, ...ra, partnerRevenue: pRevenue };
 }
 
 /** MK-7: one product's demand in one sector × region (hours a year; $B/yr; serving need in H100e before the monitor). */
@@ -1058,7 +1095,7 @@ function shiftTarget(t: readonly number[], p: number, tp: number, w: readonly nu
 /** RD-P10: tokens a day per model of product `d` from its demand as served: Chat in serving order (paying users on the
  *  main model first, then free users on the free tier); sector products at the served share of their need, split by
  *  each lineup tier's own need. Spare H100e beyond the need serve nobody. Each model at its own FLOP per token. */
-function servedByModel(s: GameStateV2, d: Deployment, a: Acc, h: number, mon: number): Record<string, number> {
+function servedByModel(s: GameStateV2, d: Deployment, a: Acc, h: number, mon: number, extra = 0): Record<string, number> {
   const out: Record<string, number> = {};
   const tok = (id: string, need: number) => {
     const v = versionById(s, id);
@@ -1073,7 +1110,7 @@ function servedByModel(s: GameStateV2, d: Deployment, a: Acc, h: number, mon: nu
   }
   const f = a.need + a.seatNeed > 0 ? Math.min(1, h / ((a.need + a.seatNeed) * mon)) : 0;
   const ids = [d.versionId, ...lineupVersions(s, d).map((v) => v.id)];
-  a.tN.forEach((n, k) => { if (ids[k]) tok(ids[k], n * f); });
+  a.tN.forEach((n, k) => { if (ids[k]) tok(ids[k], n * (f + extra)); });
   return out;
 }
 
@@ -1130,9 +1167,11 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
       if (d.revenueRate !== undefined) d.revenueRate = 0;
       if (d.servedTokensDay !== undefined) d.servedTokensDay = 0;
       if (d.servedBy !== undefined) d.servedBy = {};
+      if (d.partnerRate !== undefined) d.partnerRate = 0;
       continue;
     }
     d.revenueRate = Math.round(x.revenue * 1e4) / 1e4;
+    if (x.partner || d.partnerRate !== undefined) d.partnerRate = Math.round((x.partner?.revenue ?? 0) * 1e4) / 1e4;
     d.demandBound = x.bound;
     d.needH100e = Math.round(x.needH100e);
     d.servedH100e = Math.round(x.servingH100e);

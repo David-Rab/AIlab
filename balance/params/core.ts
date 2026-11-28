@@ -673,9 +673,9 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.init.computeOnline',
-    ref: { kind: 'export', module: 'src/data/v2/starts.ts', symbol: 'STARTS', path: ['#leader', 'owned'] },
+    ref: { kind: 'export', module: 'src/data/v2/starts.ts', symbol: 'POSITIONS', path: ['#frontier', 'owned'] },
     value: 500e3, unit: 'H100e owned at the leader start (online compute = owned + rented)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; data/v2/starts.ts leader row (values from the old AI 2027 Classic baseline; to re-source, handed to bal)',
+    evidence: 'no tag; data/v2/starts.ts frontier position row (values from the old AI 2027 Classic baseline; to re-source, handed to bal)',
   },
 
   // ───────────────────────────── departments/ ─────────────────────────────

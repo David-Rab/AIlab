@@ -13,7 +13,7 @@ import { check, finish } from './lib';
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const labs = (s: GameStateV2): RivalLab[] => [...s.rivals, s.china.lab];
 
-const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
 const y0 = decimalYear(s);
 
 // (c) start lags match the cast within a day; the leader-kind lab is present (challenger start) and absent in a leader start.
@@ -25,7 +25,7 @@ for (const r of labs(s)) {
   check(Math.abs(r.internal.G - refGAt(s, y0 - r.npc!.d / 365.25)) < 1e-9, `(c) ${r.core.name} start internal G on the reference at its lag`);
 }
 check(s.rivals.some((r) => r.npc?.kind === 'leader'), '(c) the leader-kind lab is in a challenger game');
-const sl = newGame(defaultSetupV2({ world: 'tl-central', start: 'leader', seed: 7, tutorial: false }));
+const sl = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'leader', seed: 7, tutorial: false }));
 check(!sl.rivals.some((r) => r.npc?.kind === 'leader') && sl.rivals.length === 5, '(c) no leader-kind lab in a leader start', `${sl.rivals.length} US labs`);
 
 // (d) relaxation: a copy with a lab's d set to d0 + 60 relaxes back with time constant tau_D. Against a control copy

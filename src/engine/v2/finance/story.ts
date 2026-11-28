@@ -7,9 +7,9 @@
 // FIN5b: private rivals are in the same split with their own position, momentum and capacity, the sector's typical
 // margin, a credibility rung from their revenue growth and a governance factor by kind; their valuations are marked from
 // it (finance/rivalFinance.ts), at most their cap (team value + a multiple of run-rate).
-import { GOV_FACTOR } from '../../../data/v2/deals';
 import { DEBT_SIZING } from '../../../data/v2/deals';
-import { startOf, isDivision } from '../../../data/v2/starts';
+import { positionOf } from '../../../data/v2/starts';
+import { investorAppeal, ownerFunded } from './control';
 import { PLAYER_ID } from '../models/labs';
 import type { GameStateV2, LabId, Money } from '../types';
 import { computeSecured, publicFrontier, publicLevel, revenueRun, servingEconomics } from './observe';
@@ -147,10 +147,8 @@ export function openWeightFloor(s: GameStateV2): number {
   return L;
 }
 
-/** Player governance factor: preset (R15 §1.6: legacy nonprofit 0.6 · nonprofit PBC 0.9 · PBC + trust 1.0 · founder
- *  1.1) × 0.95 with dual-class shares (spec §1 [D]). */
-export const DUAL_CLASS_GOV = 0.95;
-export const playerGov = (s: GameStateV2) => GOV_FACTOR[s.player.board.preset] * (s.player.finance.dualClass ? DUAL_CLASS_GOV : 1);
+/** Player governance factor: the charter's investor appeal (control.ts, CORPORATE.md §2.4). */
+export const playerGov = (s: GameStateV2) => investorAppeal(s);
 
 const clampX = (x: number) => Math.max(-STORY.clamp, Math.min(STORY.clamp, x));
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -162,7 +160,7 @@ export function storyShares(s: GameStateV2): LabStory[] {
   const floor = openWeightFloor(s);
   const labs: Omit<LabStory, 'x' | 'z' | 'weight' | 'share'>[] = [];
   const hist = s.capital.ws3?.labRev ?? {};
-  if (!isDivision(s)) {
+  if (!ownerFunded(s)) {
     const f = s.player.finance;
     const L = publicLevel(s, PLAYER_ID);
     const R = f.revenueRun;
@@ -275,7 +273,7 @@ export function startStory(s: GameStateV2): void {
   if (st.me) {
     f.valuation = st.V;
     f.ws3.mark = { S: st.sector.S, share: st.share };
-    if (startOf(s).id !== 'leader') for (const d of f.debts) if (d.kind === 'revolver') d.principal = Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * st.V);
+    if (positionOf(s).creditLine) for (const d of f.debts) if (d.kind === 'revolver') d.principal = Math.min(DEBT_SIZING.lineCap, DEBT_SIZING.lineShareOfV * st.V);
   }
   c.poolAnnual = poolAnnualOf(s, st.sector.S);
   c.ws3.playerShare = st.share;
@@ -288,7 +286,7 @@ export function startStory(s: GameStateV2): void {
 export interface SupplierTerms { batch: number; firstDelivery: number; shareAdd: number; runwayAdd: number; share: number; runwayQ: number }
 export function supplierTerms(s: GameStateV2): SupplierTerms {
   const f = s.player.finance;
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const share = division ? 1 : s.capital.ws3?.playerShare ?? 0.3;
   const runwayQ = division ? SUPPLIER.runwayFull : f.runwayQ;
   const shareAdd = SUPPLIER.sharePremium * Math.max(0, Math.min(1, 1 - share / SUPPLIER.shareFull));

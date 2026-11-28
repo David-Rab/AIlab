@@ -11,7 +11,7 @@ import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
 const clone = (g: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(g));
-const s = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', seed: 7, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', labKind: 'safety', seed: 7, tutorial: false }));
 const coding = PRODUCT_TOOL_BY_ID.coding;
 const w = s.hidden.timeline;
 

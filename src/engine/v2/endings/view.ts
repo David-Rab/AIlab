@@ -21,6 +21,7 @@ import { misalignmentBand } from '../safety/traits';
 import { CONTROL_DOMAINS } from '../worldfx/control';
 import type { ControlDomainId, EndingId, GameStateV2, LabId, PowerOutcome, SafetyLatents } from '../types';
 import { epilogueLost, misOf, otherContain, playerContain, resolveAsi } from './epilogue';
+import { controllerOf, structureLabel } from '../finance/control';
 import { COMPANY_LOSS, SCORE_KEYS, scoreTerms, termSum, type ScoreKey, type ScoreTerm } from './scoring';
 import { TALKS_NAMES, TENSION_NAMES } from '../world/chinagov';
 
@@ -32,7 +33,9 @@ export type FutureHolder = Exclude<PowerOutcome, 'none'> | 'ai' | 'contested' | 
 export type EndTone = 'pos' | 'neg' | 'warn' | 'neutral';
 export type LabKind = 'player' | 'rival' | 'china';
 export type LabStatusView = 'active' | 'bankrupt' | 'merged' | 'nationalized' | 'shutdown';
-export type CompanyStatus = 'independent' | 'under committee' | 'nationalized' | 'acquired' | 'retired' | 'insolvent' | 'ousted';
+/** Who controlled the company at the end: independent, under committee, government-controlled, a division of its owner (the
+ *  structure label), or gone (retired, insolvent, ousted, absorbed). */
+export type CompanyStatus = 'independent' | 'under committee' | 'Government-controlled' | `Division of ${string}` | 'retired' | 'insolvent' | 'ousted' | 'absorbed';
 export type AsiOutcome = 'held' | 'contained' | 'lost';
 
 export interface EndStep {
@@ -297,7 +300,6 @@ export function endingView(s: GameStateV2): EndingView | null {
   const us = bestUsLab(s);
   const gov = s.world.control.GOV?.P ?? 0;
   const infra = s.world.control.INFRA?.P ?? 0;
-  const strat = Object.entries(s.player.finance.ownership.strat).sort((a, b) => b[1] - a[1])[0];
   const loose = s.player.security.loose;
   const rogue = rogueCopy(s);
   const escVid = loose?.versionId ?? rogue?.versionId;
@@ -322,7 +324,6 @@ export function endingView(s: GameStateV2): EndingView | null {
     gov: pct(gov), infra: pct(infra),
     usLab: us?.name ?? 'No American lab', usLag: us ? lagText(lagDays(s, us.id, 'china')) : 'far',
     raceLine: !us ? `${s.china.lab.core.name} had the field to itself.` : chinaVsUs >= 0 ? `${us.name} was ${lagText(chinaVsUs)} ahead of ${s.china.lab.core.name}.` : `${s.china.lab.core.name} was ${lagText(chinaVsUs)} ahead of ${us.name}.`,
-    buyer: strat?.[0] ?? 'A strategic partner',
     frontier,
     model: escVid ? s.player.models.versions.find((v) => v.id === escVid)?.name ?? 'one of its models' : 'one of its models',
     escapeDate: escDay !== undefined ? longDate(s, escDay) : 'an unknown day',
@@ -391,7 +392,7 @@ export function endingView(s: GameStateV2): EndingView | null {
       else steps.push(step(day, true, 'Containment failed', 'neg', 'bot', 'No lab, no state in charge'));
     }
   } else if (projected) {
-    const exitTitle: Partial<Record<EndingId, string>> = { retired: 'You step away', insolvent: 'Out of money', ousted: 'The board removes you', nationalized: 'The government takes the lab', acquired: `${slots.buyer} buys control`, overtaken: `${Xname} pulls ahead for good` };
+    const exitTitle: Partial<Record<EndingId, string>> = { retired: 'You step away', insolvent: 'Out of money', ousted: 'The board removes you', absorbed: `${Xname} folds your lab into its own`, overtaken: `${Xname} pulls ahead for good` };
     steps.push(step(day, false, exitTitle[e.id] ?? e.title, e.id === 'retired' ? 'neutral' : 'neg', 'log-out', `${s.player.name} leaves the race`, 'player'));
     if (X && e.epilogue.misAtAsi !== undefined && far) steps.push(step(day, true, 'Superintelligence decades away', 'neutral', 'minus', `${Xname} leads the labs still racing`, X, true));
     else if (X && e.epilogue.misAtAsi !== undefined) {
@@ -441,8 +442,9 @@ export function endingView(s: GameStateV2): EndingView | null {
     { name: 'Public shareholders', share: own.public, you: false },
   ].filter((h) => h.share > 0).map((h) => ({ ...h, share: r3(h.share) }));
   const outside = holders.filter((h) => !h.you).sort((a, b) => b.share - a.share)[0] ?? { name: 'None', share: 0 };
-  const status: CompanyStatus = e.id === 'retired' ? 'retired' : e.id === 'insolvent' ? 'insolvent' : e.id === 'ousted' ? 'ousted'
-    : e.id === 'nationalized' || s.usgov.consolidated === 'nationalized' || s.usgov.dpaAccepted ? 'nationalized' : e.id === 'acquired' || s.endingProgress.soldControl ? 'acquired' : s.usgov.oversight ? 'under committee' : 'independent';
+  const ctl = controllerOf(s);
+  const status: CompanyStatus = e.id === 'retired' ? 'retired' : e.id === 'insolvent' ? 'insolvent' : e.id === 'ousted' ? 'ousted' : e.id === 'absorbed' ? 'absorbed'
+    : s.player.charter.stateControl ? (structureLabel(s) as 'Government-controlled') : ctl?.kind === 'partner' ? `Division of ${ctl.id}` : s.usgov.oversight || s.usgov.dpaAccepted ? 'under committee' : 'independent';
   const v0 = S.valuation.find((x) => x > 0) ?? s.player.finance.valuation;
   const valuation = fin(s.player.finance.valuation);
 

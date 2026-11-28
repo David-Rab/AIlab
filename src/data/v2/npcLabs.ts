@@ -10,6 +10,7 @@
 import type { SectorId } from '../../engine/v2/types';
 import type { ProductToolId } from './tools';
 import { REF_TPP } from './runDesign';
+import type { CompanyId } from './deals';
 
 // ───────────────────────────── Types ─────────────────────────────
 
@@ -78,6 +79,10 @@ export interface NpcCastEntry {
   /** Real analogue: for tooltips and research notes only, never shown as the lab's name. */
   analogue: string;
   start: NpcStart;
+  /** The company that owns the lab (a division: funding 'parent'); a lab has one owner or none (CORPORATE.md §5.8). */
+  owner?: CompanyId;
+  /** Companies that hold a stake (share of the lab). Rival labs carry the tie as a label; nothing else reads the share. */
+  backers?: Partial<Record<CompanyId, number>>;
 }
 
 // ───────────────────────────── Kinds (presets of the 7 personality values) ─────────────────────────────
@@ -197,6 +202,7 @@ const START = '2025-07-01'; // [repo src/engine/v2/core/time.ts:5 START_DATE]
 export const REALISTIC_CAST: NpcCastEntry[] = [
   {
     id: 'marenth', kind: 'leader', name: 'Marenth', family: 'Solvane', analogue: 'OpenAI',
+    backers: { 'Northwind Cloud': 0.27 }, // [repo starts.ts leader kind: the legacy Northwind stake, R15]
     start: {
       startDate: START,
       publicLagMonths: 0, // [P Epoch ECI: o3-pro 147.47 is the frontier itself; CAST §1]
@@ -210,6 +216,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
   },
   {
     id: 'lanternworks', kind: 'safety', name: 'Lanternworks', family: 'Ouvril', analogue: 'Anthropic',
+    backers: { Azimuth: 0.14 }, // [repo starts.ts safety kind: the Azimuth stake]
     start: {
       startDate: START,
       publicLagMonths: 3.0, // [P Epoch ECI first crossing: Opus 4 142.85 first crossed by Gemini 2.5 Pro Mar 143.98 on 31 Mar; CAST §1]
@@ -223,6 +230,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
   },
   {
     id: 'tarnwick', kind: 'bigtech', name: 'Tarnwick', family: 'Davrel', analogue: 'Google DeepMind',
+    owner: 'Azimuth', // the big-tech lab is the Google-like company's division
     start: {
       startDate: START,
       publicLagMonths: 2.5, // [P Epoch ECI first crossing: Gemini 2.5 Pro Jun 144.88 first crossed by o4-mini / o3 on 16 Apr; CAST §1]
@@ -249,6 +257,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
   },
   {
     id: 'wolderfield', kind: 'openweights', name: 'Wolderfield', family: 'Hollin', analogue: 'Meta',
+    owner: 'Lattice', // the open-weights lab is the Meta-like company's division
     start: {
       startDate: START,
       publicLagMonths: 9.6, // [P Epoch ECI first crossing: Llama 4 Maverick 132.19, o1-preview 133.58 on 12 Sep 2024; CAST §1]

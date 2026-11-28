@@ -16,6 +16,7 @@ import { cadencesDue, dayOfDate, decimalYear } from '../../../src/engine/v2/core
 import { demandShock, impliedMargin, rentalBase, spotRental } from '../../../src/engine/v2/compute/market';
 import { siteLiveMW } from '../../../src/engine/v2/compute/sites';
 import { charterReleaseBlock } from '../../../src/engine/v2/finance/charter';
+import { missionPowers } from '../../../src/engine/v2/finance/control';
 import { parentFunded } from '../../../src/engine/v2/finance/rivalFinance';
 import { storyNow } from '../../../src/engine/v2/finance/story';
 import { commitmentsRemaining } from '../../../src/engine/v2/finance/ledger';
@@ -76,7 +77,7 @@ function runBot(seed: number, opts: AutopilotOpts | undefined, until: number, st
   let rivals2026: RivalRow[] = [];
   const private0 = s.rivals.filter((r) => r.finance.valuation > 0 && !parentFunded(r)).map((r) => r.core.id);
   while (s.time.day < until) {
-    if (s.player.board.safetyCommitteeVeto && s.time.day % 7 === 0) {
+    if (missionPowers(s) && s.time.day % 7 === 0) {
       pbcDays += 7;
       const hs = s.player.models.versions.filter((v) => v.status === 'ready' && (v.variant === 'full' || v.variant === 'mini') && charterReleaseBlock(s, v, 'api'));
       for (const v of hs) held.add(v.id);
@@ -254,8 +255,8 @@ export function targets(): Target[] {
     const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((q) => q.v / q.r / mA(q.r))));
     const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R));
     t('f9.fc2trailing', 'trailing median < leader-style median (÷ m_A)', 'research/15 §2.9 [P]/[U] (Anthropic marks); R21 [U]', trA.length > 0 && median(trA) < median(hiA), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at the same revenue scale (each mark ÷ Anthropic\'s multiple at that revenue; their marks through 2026)', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`);
-    const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
-    t('f9.dilution', 'max ≤ 8%', 'V2-SPEC §7.2 F9 (C12)', dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
+    const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.down).map((x) => x.dilution));
+    t('f9.dilution', 'max ≤ 8%', 'V2-SPEC §7.2 F9 (C12)', dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   }
 
   // ───────────── FIN2: raises on the reference path ─────────────
@@ -276,15 +277,15 @@ export function targets(): Target[] {
     const bc = median(ref.map((r) => r.s.player.board.confidence));
     t('fin3a.board', 'median ≥ 40 (collapse guard; design target ≥ 55)', 'design/FINANCE-V3.md §7.3; lead decision after FINREF 2026-11-21', bc >= 40, 'FIN3a RefBot end-2027 board confidence median ≥ 40 (collapse guard)', `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`);
   }
-  // ───────────── FIN3b: the safety committee under the nonprofit PBC ─────────────
+  // ───────────── FIN3b: the safety committee under a mission body ─────────────
   {
-    // How often the committee bites on the reference bot: leader start (legacy nonprofit), recapitalised into a nonprofit PBC
-    // around Q4 2026; ready models it held back, through 2027.
+    // How often the committee bites on the reference bot: the leader start's mission body holds it from day 0; ready
+    // models it held back, through 2027.
     const pbc = ref.filter((r) => r.pbcDays > 0);
     const games = pbc.filter((r) => r.held.length > 0).length;
     const versions = pbc.reduce((a, r) => a + r.held.length, 0);
     const sh = median(pbc.map((r) => r.heldDays / Math.max(1, r.pbcDays)));
-    t('fin3b.committee', '≥ 1 game reaches the PBC; median share ≤ 50%', 'design/FINANCE-V3.md §7.5', pbc.length > 0 && sh <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under the nonprofit PBC: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games reach the PBC · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`);
+    t('fin3b.committee', '≥ 1 game under a mission body; median share ≤ 50%', 'design/FINANCE-V3.md §7.5', pbc.length > 0 && sh <= 0.5, 'FIN3b the safety committee binds without freezing releases (RefBot under a mission body: median share of weeks with a model held ≤ 50%)', `${pbc.length} of ${ref.length} games under a mission body · ${games} held a model · ${versions} versions held · median ${F1pct(sh)} of PBC weeks with a hold`);
   }
   // ───────────── FIN4a / FIN4b: the reference bot's partner deal ─────────────
   {
@@ -295,8 +296,8 @@ export function targets(): Target[] {
     t('fin4a.deal', '≥ 80% of seeds, cloud, partner discount', 'design/FINANCE-V3.md §6', deals.length >= 0.8 * ref.length && deals.every((d) => d.supply?.kind === 'cloud' && (d.supply.partnerDiscount ?? 0) > 0), 'FIN4a RefBot signs one hyperscaler cloud deal (≥ 80% of seeds), on the expected path with the partner discount', `${deals.length}/${ref.length} · ${JSON.stringify(by)} · equity median $${f1(eq)}B · take-or-pay median $${f1(tot)}B · ${f1(median(deals.map((d) => d.supply?.h100e ?? 0)) / 1e6)}M H100e · $${f1(median(deals.map((d) => d.supply?.first ?? 0)))}K → $${f1(median(deals.map((d) => d.supply?.last ?? 0)))}K`);
     const n = ref.map((r) => partnersNow(r.s).length);
     const ST = PARTNER_TERMS.strings;
-    t('fin4b.deal', '≥ 80% of seeds, exclusive, no IP access, ≤ max partners', 'design/FINANCE-V3.md §6.1', deals.length >= 0.8 * ref.length && deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
-      'FIN4b RefBot takes one hyperscaler deal with exclusivity and without IP access; never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
+    t('fin4b.deal', '≥ 80% of seeds, no IP access, ≤ max partners', 'design/FINANCE-V3.md §6.1', deals.length >= 0.8 * ref.length && deals.every((d) => !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
+      'FIN4b RefBot takes one hyperscaler deal without IP access (exclusivity only when a competitor could offer something); never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
   }
   // ───────────── FIN5a: the story on the reference path ─────────────
   {
@@ -331,7 +332,7 @@ export function targets(): Target[] {
     // One seed, a year and a half: it keeps to the budget room, the state is never distress, the first review judges three
     // goals and sets the budget by the rule (the rule itself is checked constructed in finance.ts).
     const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
-    const s = newGame(defaultSetupV2({ seed: 30000, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'bigtech' }));
+    const s = newGame(defaultSetupV2({ seed: 30000, world: 'tl-central', alignment: 'medium', tutorial: false, labKind: 'bigtech' }));
     let distress = 0;
     while (s.time.day < 550 && !s.ending) {
       for (const p of [...s.events.pending]) if (resolve(s, p.instance, mixedBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);

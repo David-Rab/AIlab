@@ -227,7 +227,7 @@ function Tiles({ v }: { v: View }) {
   const e = w.economy;
   const g = w.geopolitics;
   const co = w.company;
-  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' || co.status === 'under committee' ? 'neu' : 'bad';
+  const statusTone = co.status === 'independent' ? 'good' : co.status === 'retired' || co.status === 'under committee' || co.status.startsWith('Division of') ? 'neu' : 'bad';
   const tensionTone = g.tension === 0 ? 'good' : g.tension <= 2 ? 'warn' : 'bad';
   const taiwanTone = g.taiwan === 'calm' ? 'good' : g.taiwan === 'recovered' ? 'neu' : g.taiwan === 'disrupted' ? 'warn' : 'bad';
   const own = [...co.ownership].sort((a, b) => Number(b.you) - Number(a.you));

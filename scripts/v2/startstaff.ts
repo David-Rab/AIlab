@@ -13,7 +13,7 @@ import { buildCapacity } from '../../src/engine/v2/departments/teams';
 import { upkeepTW } from '../../src/engine/v2/departments/build';
 import { reCapacity } from '../../src/engine/v2/departments/capacity';
 import { humansOf } from '../../src/engine/v2/departments/workfit';
-import { START_BY_ID } from '../../src/data/v2/starts';
+import { LAB_KIND_BY_ID, POSITION_BY_ID } from '../../src/data/v2/starts';
 import { keyOf } from '../../src/engine/v2/departments/teams';
 import type { TeamKey } from '../../src/engine/v2/types';
 
@@ -45,9 +45,9 @@ ok([...spec].filter(([k]) => k.startsWith('cap:')).every(([, n]) => n >= 4), 'ca
 // Other starts: the same people as before, in whole teams.
 const people = (d: { teams: Record<TeamKey, number> }) => d.teams.eng * TEAM_SIZE.eng + (d.teams['re.cap'] + d.teams['re.saf']) * TEAM_SIZE.re + (d.teams['sci.cap'] + d.teams['sci.saf']) * TEAM_SIZE.sci;
 // 1.5 and 10.5 engineer teams round down (the tie goes to the smaller team count).
-const OLD: Record<string, number> = { spinout: 150 + 100 + 40, challenger: 4 * 150 + 8 * 100 + 5 * 40, bigtech: 7 * 150 + 19 * 100 + 12 * 40 };
-for (const id of ['spinout', 'challenger', 'bigtech'] as const) {
-  const p = people(START_BY_ID[id]);
+const OLD: Record<string, number> = { breakaway: 150 + 100 + 40, safety: 4 * 150 + 8 * 100 + 5 * 40, bigtech: 7 * 150 + 19 * 100 + 12 * 40 };
+for (const id of ['breakaway', 'safety', 'bigtech'] as const) {
+  const p = people(POSITION_BY_ID[LAB_KIND_BY_ID[id].position]);
   ok(Math.abs(p - OLD[id]) / OLD[id] <= 0.2, `${id} start: ${p} people (was ${OLD[id]}), whole teams`);
 }
 

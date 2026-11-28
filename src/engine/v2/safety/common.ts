@@ -30,7 +30,7 @@ export function adopted(s: GameStateV2, paradigm: string): boolean {
 
 /** Red flags (§4.2; the old E17 event, now the Safety framework's misalignment rule, SR-19): the traits whose measured belief is a red line, and the line: estimate above 30% with clarity
  *  above 0.4 (what the player's own evals and probes show, never the truth). The framework's rule reads the internal model's. The
- *  nonprofit PBC's safety committee uses the same traits at a stricter estimate (FINANCE-V3 §7.2, FIN3b: finance/charter). */
+ *  mission body's safety committee uses the same traits at a stricter estimate (FINANCE-V3 §7.2, FIN3b: finance/charter). */
 export const RED_FLAG_TRAITS = ['SCHEME', 'AF', 'SAND'] as const;
 export const RED_FLAG = { est: 0.3, clarity: 0.4 } as const;
 export function redFlags(v: Pick<ModelVersion, 'beliefs'>, minEst: number = RED_FLAG.est): { trait: (typeof RED_FLAG_TRAITS)[number]; est: number }[] {

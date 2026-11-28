@@ -1,18 +1,25 @@
 // Player finance state and the commitment ledger (V2-SPEC §3.7.2, §3.7.6; research/15 §1.8). Owner: WS3.
 import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
-import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
+import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
 import { defaultFinanceWS3, yearStats } from './ext';
 import { RENT } from '../../../data/v2/deals';
-import { START_CREDIBILITY } from './promises';
-import { START_BY_ID } from '../../../data/v2/starts';
 
-/** Player finance at Jul 2025 (§3.7.2): the leader start's row (data/v2/starts.ts). */
-export function initialFinance(governance: GovernancePresetId, startDate: string): FinanceState {
-  const { cash, revenueRun, revenueHistory } = START_BY_ID.leader;
-  const cloudEnd = dayOfDate(startDate, '2028-07-01');
+import { POSITION_BY_ID, type LabKindDef } from '../../../data/v2/starts';
+import { partnerDef } from '../../../data/v2/deals';
+
+/** The partner stakes a lab kind holds from before the start: holders with no running terms and no board seat (hyperscaler
+ *  stakes are non-voting and seatless [R21 B2]; a division's voting owner is no deal). */
+export const legacyDealsOf = (kind: LabKindDef, startDate: string): FinanceState['deals'] => (kind.legacyDeals ?? []).map((d) => ({ id: d.id, partner: d.partner, kind: partnerDef(d.partner)?.kind ?? 'hyperscaler', day: d.day, equityNow: 0, equityLater: 0, strings: d.revenueShare ? { revenueShare: d.revenueShare } : {}, until: d.until ? dayOfDate(startDate, d.until) : d.day, legacy: true }));
+
+/** Player finance at Jul 2025 (§3.7.2): the frontier position's row (cash, revenue, credibility) with the lab kind's cap
+ *  table, charter and partner stakes (data/v2/starts.ts). */
+export function initialFinance(startDate: string, kind: LabKindDef): FinanceState {
+  const { cash, revenueRun, revenueHistory, credibility, provider, cloudEnd: cloudEndDate } = POSITION_BY_ID.frontier;
+  const { ownership: o, charter } = kind;
+  const cloudEnd = dayOfDate(startDate, cloudEndDate);
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
-    { id: 'L-cloud0', payee: 'Northwind Cloud', kind: 'cloud', perQuarter: 2.275, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
+    { id: 'L-cloud0', payee: provider, kind: 'cloud', perQuarter: 2.275, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
     // S1 Abilene North is a rented hall: 0.3 GW at the rent price (DC-TASKS [D-12]).
     { id: 'L-rent-S1', payee: 'Data-centre rent', kind: 'lease', perQuarter: (0.3 * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 },
   ];
@@ -21,12 +28,13 @@ export function initialFinance(governance: GovernancePresetId, startDate: string
     revenueRun,
     revenueHistory: [...revenueHistory],
     valuation: 0, // FIN5a: marked from the story split once the rivals exist (startStory in newGame)
-    ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 },
-    credibility: START_CREDIBILITY.leader,
+    ownership: { founder: o.founder, mission: o.mission ?? 0, fin: o.fin, strat: { ...(o.strat ?? {}) }, public: 0 },
+    ...(o.stratVoting ? { stratVoting: { ...o.stratVoting } } : {}),
+    credibility,
     promises: [],
     rounds: [],
-    // Legacy preset: SoftBank-style $30B growth tranche conditional on the recapitalisation (cut to $10B if refused) [R15 §1.6].
-    tranches: governance === 'legacyNonprofit'
+    // A profit cap: SoftBank-style $30B growth tranche conditional on lifting it (cut to $10B if refused) [R15 §1.6].
+    tranches: charter.profitCap
       ? [{ amount: 30, dueDay: dayOfDate(startDate, '2026-01-01'), condition: 'recapitalisation', deadline: dayOfDate(startDate, '2026-12-31'), source: 'Growth round (conditional)' }]
       : [],
     debts: [{ id: 'D-revolver', kind: 'revolver', principal: 4, drawn: 0, spreadBp: 200, maturityDay: dayOfDate(startDate, '2030-07-01'), covenant: 'liquidity' }],
@@ -34,10 +42,11 @@ export function initialFinance(governance: GovernancePresetId, startDate: string
     rating: 'BB',
     runwayQ: 8,
     state: 'healthy',
-    // The legacy Northwind stake (Microsoft-like, ~27%), a holder from before the start: no exclusivity after the 2025
+    // The kind's legacy partner stakes (the leader's Northwind: Microsoft-like, ~27%, no exclusivity after the 2025
     // renegotiation [R15], no board seat (Microsoft gave up its observer seat in Jul 2024 [R21 B3]); its cloud contract is
-    // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a).
-    deals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', kind: 'hyperscaler', day: -2000, equityNow: 0, equityLater: 0, strings: {}, until: -2000, legacy: true }],
+    // L-cloud0. Above the 15% hyperscaler cap, so Northwind sells no more equity (FIN4a). C7c: its running string is a
+    // share of all revenue to LEGACY_NORTHWIND.until (the leader kind's legacyDeals row, data/v2/starts.ts).
+    deals: legacyDealsOf(kind, startDate),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = 0.5e6 * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]
@@ -169,6 +178,16 @@ export function commitmentsRemaining(s: GameStateV2, firmOnly = false): Money {
   for (const c of s.player.finance.ledger) if (c.endDay > s.time.day && (!firmOnly || c.cancellableNoticeQ === null)) sum += (c.perQuarter * Math.max(0, c.endDay - Math.max(s.time.day, c.startDay ?? -Infinity))) / 91.25;
   return sum;
 }
+
+/** Record a payment to `payee` ($B): the running tally partner tranche conditions count (entries leave the ledger as they
+ *  end, so the tally is kept as they pay). */
+export function notePaid(s: GameStateV2, payee: string, amount: Money): void {
+  const w = s.player.finance.ws3;
+  const m = (w.paidTo ??= {});
+  m[payee] = (m[payee] ?? 0) + amount;
+}
+/** Everything paid to `payee` so far ($B). */
+export const paidTo = (s: GameStateV2, payee: string): Money => s.player.finance.ws3.paidTo?.[payee] ?? 0;
 
 /** Add a ledger entry (returns it). */
 export function addLedger(s: GameStateV2, e: Omit<Commitment$, 'id'> & { id?: string }): Commitment$ {

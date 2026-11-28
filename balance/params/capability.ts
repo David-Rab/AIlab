@@ -1988,16 +1988,6 @@ export const PARAMS_CAPABILITY = defineParams([
     source: 'research/20 F1 (2025 hack rates); red-teaming share [D]',
   },
   {
-    id: 'cap.START_EXPLOIT_MULT',
-    ref: { kind: 'export', module: 'src/data/v2/suites.ts', symbol: 'START_EXPLOIT_MULT' },
-    value: [1, 1, 1, 2.5],
-    unit: 'multiplier',
-    area: 'safety', layer: 'world',
-    kind: 'designer',
-    evidence: 'suites.ts:21 "Start exploitability per start type, × EXPLOIT_START [D]"',
-    notes: 'Array order = leader, challenger, bigtech, spinout. Spinout 2.5 = 1 / 0.4 (the share red-teaming leaves).',
-  },
-  {
     id: 'cap.S2_PER_EXPLOIT',
     ref: { kind: 'export', module: 'src/data/v2/suites.ts', symbol: 'S2_PER_EXPLOIT' },
     value: 5.5,
