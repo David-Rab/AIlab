@@ -22,7 +22,13 @@ export const area = 'market';
 
 const START = '2025-07-01';
 const newState = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
-const band = (id: string, k: 'p50' | 'lo' | 'hi') => bandOf(id)![k]!;
+/** A registry band's number; 'p50' falls back to the middle of lo..hi when the source gives a range and no central value. */
+const band = (id: string, k: 'p50' | 'lo' | 'hi') => {
+  const b = bandOf(id);
+  const x = k === 'p50' ? (b?.p50 ?? (b?.lo !== undefined && b?.hi !== undefined ? (b.lo + b.hi) / 2 : undefined)) : b?.[k];
+  if (x === undefined) throw new Error(`estimates/market: registry target ${id} has no ${k}`);
+  return x;
+};
 const SOURCED = ['US', 'ROW'] as const;
 
 /** Sourced mid-2026 world stocks (read from the registry entries): US workers using AI (A2a.workers2026) and hours of use
