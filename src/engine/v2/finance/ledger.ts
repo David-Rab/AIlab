@@ -1,14 +1,14 @@
 // Player finance state and the commitment ledger (V2-SPEC §3.7.2, §3.7.6; research/15 §1.8). Owner: WS3.
 import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
-import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
+import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, Money, SystemCtx } from '../types';
 import { defaultFinanceWS3, yearStats } from './ext';
 import { RENT } from '../../../data/v2/deals';
 import { START_CREDIBILITY } from './promises';
 import { START_BY_ID } from '../../../data/v2/starts';
 
 /** Player finance at Jul 2025 (§3.7.2): the leader start's row (data/v2/starts.ts). */
-export function initialFinance(governance: GovernancePresetId, startDate: string): FinanceState {
-  const { cash, revenueRun, revenueHistory } = START_BY_ID.leader;
+export function initialFinance(startDate: string): FinanceState {
+  const { cash, revenueRun, revenueHistory, ownership: o, charter } = START_BY_ID.leader;
   const cloudEnd = dayOfDate(startDate, '2028-07-01');
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
@@ -21,12 +21,12 @@ export function initialFinance(governance: GovernancePresetId, startDate: string
     revenueRun,
     revenueHistory: [...revenueHistory],
     valuation: 0, // FIN5a: marked from the story split once the rivals exist (startStory in newGame)
-    ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 },
+    ownership: { founder: o.founder, mission: o.mission ?? 0, fin: o.fin, strat: { ...(o.strat ?? {}) }, public: 0 },
     credibility: START_CREDIBILITY.leader,
     promises: [],
     rounds: [],
-    // Legacy preset: SoftBank-style $30B growth tranche conditional on the recapitalisation (cut to $10B if refused) [R15 §1.6].
-    tranches: governance === 'legacyNonprofit'
+    // A profit cap: SoftBank-style $30B growth tranche conditional on lifting it (cut to $10B if refused) [R15 §1.6].
+    tranches: charter.profitCap
       ? [{ amount: 30, dueDay: dayOfDate(startDate, '2026-01-01'), condition: 'recapitalisation', deadline: dayOfDate(startDate, '2026-12-31'), source: 'Growth round (conditional)' }]
       : [],
     debts: [{ id: 'D-revolver', kind: 'revolver', principal: 4, drawn: 0, spreadBp: 200, maturityDay: dayOfDate(startDate, '2030-07-01'), covenant: 'liquidity' }],

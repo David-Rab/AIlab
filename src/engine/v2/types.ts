@@ -41,8 +41,6 @@ export type TimelinePresetId = 'tl-fast' | 'tl-central' | 'tl-slow';
 /** The world is one of the three timelines; the old named presets and the sampled world are removed. */
 export type WorldPresetId = TimelinePresetId;
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
-/** Board presets; 'parent' = a big-tech parent company (start type 'bigtech', R9). */
-export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder' | 'parent';
 
 /** Capability domains (§3.3.1). Union of research/12 (model card) and research/16 (sector) domains. */
 export type DomainId = 'CODE' | 'RSCH' | 'REASON' | 'AGENCY' | 'SOCIAL' | 'MEDIA' | 'CYBER' | 'BIO' | 'PHYS';
@@ -222,7 +220,6 @@ export interface SetupV2 {
   /** The US NPC labs (design/npc/NPC-LABS.md §10): 'realistic' (the July 2025 cast) or a custom list; China's lab is
    *  always there. */
   cast: 'realistic' | NpcSetupLab[];
-  governance: GovernancePresetId;
   tutorial: boolean;
   seed: number;
   companyName: string;
@@ -1660,7 +1657,7 @@ export interface DealStrings {
    *  part of a rescue. */
   exclusivity?: boolean;
   /** IP access (FIN4b, spec §6.1): the partner's affiliated rival lab licenses your models while the deal runs (to
-   *  `until`) and closes ~10% a year of your capability lead. `trust`: under PBC + trust, the trust voted yes at signing
+   *  `until`) and closes ~10% a year of your capability lead. `trust`: under a mission body, its seats voted yes at signing
    *  on licensing a capability-threshold model; without it, such models stay out of the licence. */
   ipAccess?: { lab: LabId; trust?: boolean };
   /** Share of revenue paid to the partner while the deal runs (to `until`). */
@@ -1710,16 +1707,13 @@ export interface StrategicDeal {
 }
 
 export interface Board {
-  preset: GovernancePresetId;
-  seats: BoardSeat[];
   confidence: number; // BC 0..100
-  /** Charter right (FINANCE-V3 §7.2, nonprofit-controlled PBC): the nonprofit's safety committee halts the release of
-   *  a model the player's own safety evals red-flag (read by the deployment gate, FIN3b). */
-  safetyCommitteeVeto: boolean;
+  /** Seats on top of the ones votes elect (the critics' directors); the board itself is control.ts boardSeats. */
+  extraSeats: BoardSeat[];
 }
 
 /** Major decisions the board votes on (FINANCE-V3 §7.3). Operating decisions (compute, releases, research, pricing)
- *  are never voted on. `transferModel` is a charter decision only the PBC + trust's trust votes on (§7.2, FIN3b). */
+ *  are never voted on. `transferModel` is a charter decision only the mission body's seats vote on (the trust approval power) (§7.2, FIN3b). */
 export type MajorDecision = 'saleOfControl' | 'merger' | 'downRound' | 'rescue' | 'commitments' | 'debt' | 'transferModel';
 
 /** One voting seat's vote on a major decision (FIN3a): deterministic, shown before you ask. lean = stance · decision
@@ -1745,10 +1739,10 @@ export interface BoardVote {
   yes: number;
   total: number;
   passes: boolean;
-  /** Founder control (founder preset before listing, or dual-class): a failed vote can be forced at a confidence cost.
-   *  Never for a charter vote by the trust. */
+  /** The override (control.ts: founders with more than half the votes): a failed vote can be forced at a confidence cost.
+   *  Never for a mission body's vote. */
   canForce: boolean;
-  /** Who votes: the whole board (default) or, for the PBC + trust's charter rights, only the trust's (mission) seats. */
+  /** Who votes: the whole board (default) or, for the mission body's powers, only its (mission) seats. */
   body?: 'board' | 'trust';
 }
 
@@ -1776,7 +1770,7 @@ export interface OusterVote {
   live: boolean;
   /** Shares of the last year's confidence losses the grievance is read from. */
   grievance: { slow: number; reckless: number; burn: number };
-  /** The board's reluctance to remove a CEO (the legacy nonprofit's is half: ouster comes ×2 as easily). */
+  /** The board's reluctance to remove a CEO (one value for every board). */
   reluctance: number;
 }
 

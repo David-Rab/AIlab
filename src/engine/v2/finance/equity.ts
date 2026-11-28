@@ -135,7 +135,8 @@ export function roundSplit(s: GameStateV2, amount: Money, opts: { full?: boolean
   if (opts.full || amount < LARGE_ROUND.min) return { now: amount };
   const f = s.player.finance;
   const q = quarterIndex(s.time.startDate, opts.closeDay ?? s.time.day);
-  const recap = s.player.board.preset === 'legacyNonprofit' && f.ws3?.recap.doneDay === undefined;
+  // A profit cap ties large rounds to lifting it, until the lift is refused (then the revenue condition).
+  const recap = s.player.charter.profitCap && !f.ws3?.recap.refused;
   const now = amount * LARGE_ROUND.nowShare;
   return { now, tranche: { amount: amount - now, condition: recap ? 'recapitalisation' : `revenue:${(f.revenueRun * LARGE_ROUND.revenueX).toFixed(1)}`, dueDay: dayOfQuarter(s.time.startDate, q + LARGE_ROUND.dueQ), deadline: dayOfQuarter(s.time.startDate, q + LARGE_ROUND.deadlineQ) } };
 }
@@ -292,9 +293,6 @@ function closeRound(s: GameStateV2, ctx: SystemCtx, r0: { ask: Money; pre: Money
   if (r.ipo) {
     s.capital.ipoWindow = true;
     if (r.dualClass) s.player.finance.dualClass = true;
-    if (!s.player.board.seats.some((x) => x.kind === 'independent' && x.holder === 'Listing independent')) {
-      s.player.board.seats.push({ kind: 'independent', holder: 'Listing independent', stance: [0, 0.5, 0.3, 0.3], weight: 1 });
-    }
   }
   ctx.log('finance', `${r.ipo ? 'IPO' : 'Round'} closed: $${r.ask.toFixed(1)}B ($${now.toFixed(1)}B now) at $${r.pre.toFixed(0)}B pre-money${r.ipo && r.dualClass ? ', dual-class shares' : ''}.`);
 }

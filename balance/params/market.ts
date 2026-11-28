@@ -340,7 +340,6 @@ const DEALS: Param[] = [
   one(DL, 'MARKET', ['spotRentalPoolShare'], 0.1, 'fraction of rental pool', { area: 'market', layer: 'world', kind: 'sourced', source: 'research/15', evidence: 'deals.ts:179 "spot rental ≤ 10% of the rental pool [R15]"' }),
   one(DL, 'MARKET', ['rentalPoolShare'], 0.15, 'fraction of global stock', { area: 'market', layer: 'world', kind: 'designer', evidence: 'deals.ts:180 "rental pool = 15% of global stock [D]"' }),
   ...(['xCN', 'perf'] as const).map((f) => one(DL, 'EXPORT_POLICY', ['*', f], undefined, f === 'xCN' ? "China's share of global supply" : 'performance factor', { area: 'market', layer: 'world', kind: 'sourced', source: R15('§1.2'), evidence: 'deals.ts:183 "Export-control states (R15 §1.2): China\'s share of global supply and the performance factor."', notes: 'Field family over strict, caseByCase, open.' })),
-  one(DL, 'GOV_FACTOR', [], [0.6, 0.9, 1.0, 1.1, 0], 'investor attractiveness multiplier', { ...F, kind: 'sourced', source: R15('§1.6'), evidence: 'deals.ts:190 "Governance attractiveness to investors (R15 §1.6). A division (parent) takes no outside equity (R9)."', notes: 'Array order = legacyNonprofit, nonprofitPBC, pbcTrust, founder, parent.' }),
 ];
 
 // ---------- src/engine/v2/production/* ----------

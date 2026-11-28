@@ -1,6 +1,7 @@
 // Board confidence: its named sources and how each kind of seat weighs them (FINANCE-V3 §7.4, FIN3a). Owner: WS3.
 // Kept apart from board.ts so promises, equity and events can move the mood without importing the vote machinery.
 import type { BoardSeat, GameStateV2, SystemCtx } from '../types';
+import { boardSeats } from './control';
 
 /** The four kinds of news the board reacts to (spec §7.4): investor-promise results; financial setbacks (down round,
  *  covenant breach, distress, a failed raise; leaving distress is the good news here); falling behind (behind the best
@@ -19,11 +20,11 @@ export const MOOD_WEIGHTS: Record<MoodSource, Record<BoardSeat['kind'], number>>
   incidents: { financial: 0.5, mission: 2, independent: 1, strategic: 0.5, gov: 1.5, founder: 0 },
 };
 
-/** This board's multiplier for a source: the vote-weighted mean of its voting seats other than the CEO's (1 if none). */
+/** This board's multiplier for a source: the vote-weighted mean of its voting seats other than the founders' (1 if none). */
 export function moodWeight(s: GameStateV2, src: MoodSource): number {
   let sum = 0;
   let W = 0;
-  for (const x of s.player.board.seats) {
+  for (const x of boardSeats(s)) {
     if (x.weight <= 0 || x.kind === 'founder') continue;
     sum += x.weight * MOOD_WEIGHTS[src][x.kind];
     W += x.weight;

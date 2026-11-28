@@ -200,5 +200,3 @@ export const EXPORT_POLICY = {
   open: { xCN: 0.12, perf: 1.0 },
 } as const;
 
-/** Governance attractiveness to investors (R15 §1.6). A division (parent) takes no outside equity (R9). */
-export const GOV_FACTOR = { legacyNonprofit: 0.6, nonprofitPBC: 0.9, pbcTrust: 1.0, founder: 1.1, parent: 0 } as const;

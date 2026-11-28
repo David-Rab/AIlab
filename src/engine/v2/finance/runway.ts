@@ -20,7 +20,7 @@ import { interestPerYear, lineUndrawn } from './debt';
 import { revenueShareRate } from './ext';
 import { ledgerPaying, qOf } from './ledger';
 import { parentPaymentQ } from './parent';
-import { isDivision } from '../../../data/v2/starts';
+import { ownerFunded } from './control';
 
 /** Healthy ≥ 6q, Tight 3–6q, Distress < 3q (or covenant breach), Insolvent if cash < 0 after all options. */
 export function runwayState(runwayQ: number, covenantBreach = false, cash = 1): FinanceState['state'] {
@@ -76,7 +76,7 @@ export function cashFlows(s: GameStateV2): Flow[] {
   const q0 = qOf(s);
   const nextQ = (d: Day) => dayOfQuarter(start, Math.max(q0 + 1, qOf(s, d) + (dayOfQuarter(start, qOf(s, d)) < d ? 1 : 0)));
   const far = dayOfQuarter(start, q0 + PROJECTION_Q + 2);
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   const out: Flow[] = [
     // A division's revenue goes to the parent; its budget lands at each quarter start (finance/parent.ts, R9; later
     // years at the plan × today's budget factor, FIN5c). The parent's cover of an overspend at the review is not

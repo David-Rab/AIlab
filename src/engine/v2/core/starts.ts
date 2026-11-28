@@ -1,12 +1,12 @@
 // Start-state builders for the non-leader start types (BUILD-PLAN R9; data/v2/starts.ts). Owner: WS1 (composes WS3's
 // finance and compute shapes the way their initialisers do). The frontier-leader start never comes here: buildPlayer
-// keeps the owners' initialisers (initialFinance, initialSites, initialCloud, initialOrders, initialBoard) for it.
+// keeps the owners' initialisers (initialFinance, initialSites, initialCloud, initialOrders) for it.
 import { parentBudgetYear, type StartDef } from '../../../data/v2/starts';
-import { initialBoard, SEAT_STANCE } from '../finance/board';
+import { ownerFunded, startControl } from '../finance/control';
 import { defaultFinanceWS3 } from '../finance/ext';
 import { START_CREDIBILITY } from '../finance/promises';
 import { partnerDef, RENT } from '../../../data/v2/deals';
-import type { Board, CloudContract, Commitment$, FinanceState, Site } from '../types';
+import type { CloudContract, Commitment$, FinanceState, Site } from '../types';
 import { dayOfDate } from './time';
 
 /** Rental price of start cloud contracts ($ per H100e-year, V2-SPEC §3.7.2) and chip book value ($ per H100e). */
@@ -31,7 +31,7 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
   const ledger: Commitment$[] = [];
   const base = { crash: false, communityPackage: false, spvFunded: 0, stage: 'live' as const, stageEndDay: 0 };
   if (def.owned > 0) {
-    const parent = def.board === 'parent';
+    const parent = ownerFunded(startControl(def));
     const campuses = parent ? 2 : 1;
     const startDay = -500;
     for (let i = 0; i < campuses; i++) {
@@ -67,7 +67,7 @@ export function startCompute(def: StartDef, startDate: string): StartCompute {
  *  borrows), the start compute's ledger. The valuation is marked from the story split once the rivals exist, and the
  *  line sized as banks size it, 3% of it, cap $15B (finance/story.ts startStory, FIN5a). */
 export function startFinance(def: StartDef, c: StartCompute): FinanceState {
-  const division = def.board === 'parent';
+  const division = ownerFunded(startControl(def));
   // A division's first quarterly budget payment (Q3 2025) is in the starting cash (finance/parent.ts).
   const cash = def.cash + (division ? parentBudgetYear(0) / 4 : 0);
   const f: FinanceState = {
@@ -75,7 +75,8 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     revenueRun: def.revenueRun,
     revenueHistory: [...def.revenueHistory],
     valuation: 0,
-    ownership: { founder: def.ownership.founder, mission: 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
+    ownership: { founder: def.ownership.founder, mission: def.ownership.mission ?? 0, fin: def.ownership.fin, strat: { ...(def.ownership.strat ?? {}) }, public: 0 },
+    ...(def.ownership.stratVoting ? { stratVoting: { ...def.ownership.stratVoting } } : {}),
     credibility: START_CREDIBILITY[def.id],
     promises: [],
     rounds: [],
@@ -86,20 +87,10 @@ export function startFinance(def: StartDef, c: StartCompute): FinanceState {
     runwayQ: 8,
     state: 'healthy',
     // The challenger's strategic investor (an Amazon/Google-like stake from before the start): a holder with no running
-    // terms and no board seat (hyperscaler stakes are non-voting and seatless [R21 B2]).
-    deals: Object.keys(def.ownership.strat ?? {}).map((partner, i) => ({ id: `DL-start${i}`, partner, kind: partnerDef(partner)?.kind ?? 'hyperscaler', day: -400, equityNow: 0, equityLater: 0, strings: {}, until: -400, legacy: true })),
+    // terms and no board seat (hyperscaler stakes are non-voting and seatless [R21 B2]). A division's owner is no deal.
+    deals: Object.keys(def.ownership.strat ?? {}).filter((p) => !def.ownership.stratVoting?.[p]).map((partner, i) => ({ id: `DL-start${i}`, partner, kind: partnerDef(partner)?.kind ?? 'hyperscaler', day: -400, equityNow: 0, equityLater: 0, strings: {}, until: -400, legacy: true })),
     ws3: defaultFinanceWS3(cash),
   };
   f.ws3.chipBook = (def.owned * CHIP_BOOK_PER_H) / 1e9;
   return f;
-}
-
-/** Board at a non-leader start: the founder preset (spinout: one financial seat; challenger: two; its strategic
- *  investor holds no seat, FIN4a) or the parent company (research/18 §3.2). */
-export function startBoard(def: StartDef): Board {
-  const b = initialBoard(def.board);
-  if (def.id === 'challenger') {
-    b.seats.push({ kind: 'financial', holder: 'Investor 2', stance: [...SEAT_STANCE.financial], weight: 1 });
-  }
-  return b;
 }

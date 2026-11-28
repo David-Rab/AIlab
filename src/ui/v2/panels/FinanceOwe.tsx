@@ -2,7 +2,7 @@
 // tranche conditions, covenants with headroom and contingent liabilities. One card, one selector (engine whatWeOwe). A
 // big-tech division (FIN5c) owes no investors: the card lists the parent's goals and any contingent liabilities.
 import type { ReactNode } from 'react';
-import { isDivision } from '../../../data/v2/starts';
+import { ownerFunded } from '../../../engine/v2';
 import type { LucideIcon } from 'lucide-react';
 import { CRED_RUNGS, credRung, dateOf, describeTarget, fmtDate, fmtMetric, whatWeOwe } from '../../../engine/v2';
 import type { GameStateV2, MilestoneType, OweCovenant, PromiseStatus } from '../../../engine/v2';
@@ -83,7 +83,7 @@ function Section({ title, term, n, children }: { title: string; term: string; n?
 export function OweCard({ s }: { s: GameStateV2 }) {
   const o = whatWeOwe(s);
   const f = s.player.finance;
-  const division = isDivision(s);
+  const division = ownerFunded(s);
   return (
     <Card title={<Term id="whatWeOwe">What we owe</Term>} home="whatWeOwe" id="ctl-owe" right={division ? undefined : <CredBadge s={s} />}>
       <Section title={division ? 'Parent goals' : 'Promises'} term={division ? 'parentGoal' : 'promise'} n={`${o.promises.length} live${o.behind.length ? `, ${o.behind.length} behind` : ''}`}>

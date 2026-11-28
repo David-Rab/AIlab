@@ -200,12 +200,11 @@ export const capitalQSystem: EngineSystem = {
       ctx.headline('bust', 'AI stocks crash as investors question trillion-dollar compute bets');
     } else if (!busted) w.spreadAddBp = Math.max(0, w.spreadAddBp * 0.5);
 
-    // Legacy recapitalisation completes after 4 quarters (AG review), then the board becomes nonprofit-controlled PBC.
+    // Lifting the profit cap completes after 4 quarters (AG review); the mission body stays (CORPORATE.md §4).
     if (fx.recap.startDay !== undefined && fx.recap.doneDay === undefined && s.time.day - fx.recap.startDay >= 360) {
       fx.recap.doneDay = s.time.day;
-      s.player.board.preset = 'nonprofitPBC';
-      s.player.board.safetyCommitteeVeto = true;
-      ctx.log('finance', 'Recapitalisation complete: the company is now a nonprofit-controlled PBC. Conditional tranches are freed.');
+      s.player.charter.profitCap = false;
+      ctx.log('finance', 'Recapitalisation complete: the profit cap is lifted; the mission body keeps its seats. Conditional tranches are freed.');
     }
 
     // Promises due this quarter are judged first (FIN2: they move credibility, which the share reads). Then the story

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   act as engineAct, activeRivals, controlReadout, dangerView, footholdView, lossOfControlRisk, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
-  serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
+  boardSeats, ownerFunded, serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
 import { lawsInForce } from '../../data/v2/laws';
@@ -46,7 +46,7 @@ function sig(s: GameStateV2): Sig {
     pending: s.events.pending.length,
     incidents3: p.safety.incidents.filter((i) => i.severity >= 3).length,
     runsDone: p.models.runs.filter((r) => r.status === 'done').length,
-    runway: p.board.preset === 'parent' ? 0 : RUNWAY_RANK[p.finance.state] ?? 0, // a division never stops on runway (jank F2)
+    runway: ownerFunded(s) ? 0 : RUNWAY_RANK[p.finance.state] ?? 0, // a division never stops on runway (jank F2)
     findings: p.safety.findings.filter((f) => f.type === 'DISC' || f.type === 'NEG' || f.revealedFalseDay !== undefined).length,
     otherMs,
     statutes: Object.values(lawsInForce(s)).filter((x) => x === true).length,
@@ -478,4 +478,4 @@ export function useGame(): GameStateV2 {
 }
 export const today = (s: GameStateV2) => dateOf(s);
 // D8: read-only selectors for scripts/v2/uitest.mjs (the rendered values are checked against them).
-(window as unknown as { ai27v2Views: object }).ai27v2Views = { evalQueueView, evalMeasureView, evalDepthView, actionView };
+(window as unknown as { ai27v2Views: object }).ai27v2Views = { evalQueueView, evalMeasureView, evalDepthView, actionView, boardSeats };

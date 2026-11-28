@@ -9,13 +9,13 @@
 //
 // Votes: a merger is a major decision (spec §7.3) the board judges on the company after the deal (can it carry the
 // contracts and the debt?). Paying in stock that would hand the lab's holders, as one block, more than half the
-// company is a sale of control as well: the trust's vote under PBC + trust (§7.2), then the board's (§7.3); if it goes
+// company is a sale of control as well: the mission body's vote under one (§7.2), then the board's (§7.3); if it goes
 // through, they control the company (the 'acquired' ending). Buying for cash never sells control.
 import { DEBT_TERMS } from '../../../data/v2/deals';
-import { isDivision } from '../../../data/v2/starts';
 import type { BoardVote, Commitment$, CostLine, Debt, GameStateV2, Money, RivalLab, SystemCtx } from '../types';
 import { boardVote, VOTE, voteGate, voteNo } from './board';
 import { controlVotes } from './charter';
+import { ownerFunded } from './control';
 import { debtRatePct, newDebtSpreadBp } from './debt';
 import { issue } from './equity';
 import { addLedger, bookCash } from './ledger';
@@ -96,7 +96,7 @@ export function acquireVotes(s: GameStateV2, t: AcquireTerms, pay: PayWith): Boa
 /** The vote to show under a choice: the first that fails, else the merger vote (always last). */
 export const shownVote = (vs: BoardVote[]): BoardVote | undefined => vs.find((v) => !v.passes) ?? vs[vs.length - 1];
 
-/** Why this payment is impossible now, or undefined. A failed vote blocks only when founder control cannot force it
+/** Why this payment is impossible now, or undefined. A failed vote blocks only when the override cannot force it
  *  (an event choice forces at the shown cost: see `forceLines`). */
 export function voteBlock(vs: BoardVote[]): string | undefined {
   const v = vs.find((x) => !x.passes && !x.canForce);
@@ -106,13 +106,13 @@ export function acquireBlock(s: GameStateV2, t: AcquireTerms, pay: PayWith): str
   const f = s.player.finance;
   if (f.state === 'insolvent') return 'Insolvent';
   if (pay === 'cash' && f.cash < t.price) return `Needs ${$(t.price)} in cash (you have ${$(Math.max(0, f.cash))})`;
-  if (pay === 'stock' && isDivision(s)) return 'A division has no stock of its own';
+  if (pay === 'stock' && ownerFunded(s)) return 'A division has no stock of its own';
   return voteBlock(acquireVotes(s, t, pay));
 }
 
-/** The board-confidence cost of forcing the failed votes (founder control), as preview cost lines. */
+/** The board-confidence cost of forcing the failed votes (the override), as preview cost lines. */
 export function forceLines(vs: BoardVote[]): CostLine[] {
-  return vs.filter((v) => !v.passes && v.canForce).map((v) => ({ currency: 'boardConf' as const, amount: VOTE.forceCost, target: `${v.label.toLowerCase()} forced past the board (founder control)` }));
+  return vs.filter((v) => !v.passes && v.canForce).map((v) => ({ currency: 'boardConf' as const, amount: VOTE.forceCost, target: `${v.label.toLowerCase()} forced past the board (your majority)` }));
 }
 
 /** Preview lines of the payment: the cash price or the stake its holders get, and a sale of control if it is one. */
@@ -143,7 +143,7 @@ export function takeOnObligations(s: GameStateV2, ctx: SystemCtx, name: string, 
   if (o.perQ > 0 || o.debt > 0) ctx.log('finance', `Took on ${name}'s obligations: ${o.perQ > 0 ? `contracts at ${$(o.perQ)} a quarter for ${o.termQ} quarters` : 'no contracts'}${o.debt > 0 ? ` and ${$(o.debt)} of debt` : ''}.`, 2);
 }
 
-/** Buy a rival: hold the votes (forcing a failed board vote under founder control, at the cost the preview showed),
+/** Buy a rival: hold the votes (forcing a failed board vote under the override, at the cost the preview showed),
  *  pay, take on its obligations. Returns why it did not go through. The event moves the staff and deactivates the lab. */
 export function payForRival(s: GameStateV2, ctx: SystemCtx, t: AcquireTerms, pay: PayWith): string | undefined {
   const no = acquireBlock(s, t, pay);
