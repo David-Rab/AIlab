@@ -7,20 +7,18 @@
 //       (V3_CAL): fit them with `npx tsx scripts/v2/calscan.ts t1 <preset> --gsc … --dbm … --sd …` (the same median over
 //       the same seeds) and take the middle of the passing window. (The old `--fit-v3` and `--fit-tree`
 //       went with the golden days of the removed presets.)
-//   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
 //   R5  RefBot's build queue never delays a run by more than 3 days (stub and integrated).
 // Every game goes through the simulation cache (simcache.ts; the fit modes do not). Modes:
-//   (default)  everything above.
+//   (default)  everything above (a preset with no golden days plays only SEED's one T1 game; no median seeds, no integrated run).
 //   --cal      T1 and T4 only (test:cal).
 //   --smoke    (test:quick) T1 on tl-central, seed 2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026
 //              G-path reads, so those run at full strength); the milestone checks print SMOKE (the binding basis is the
-//              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs, T2 and T3 are skipped.
+//              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs are skipped.
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { gOfBuild, h50Of } from '../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { labSpeedRel } from '../../src/engine/v2/production/production';
-import { speedOfCopy, workContext } from '../../src/engine/v2/departments/workfit';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { START_DATE, dayOfDate, decimalYearOf } from '../../src/engine/v2/core/time';
 import { trueLeadDays } from '../../src/engine/v2/models/capability';
@@ -184,39 +182,19 @@ function intRec(preset: T1Preset) {
     return { md: s.player.milestoneDays, worstWait: Math.max(0, ...waits.values()), cash: s.player.finance.cash, state: s.player.finance.state };
     });
 }
-/** T2 AI labour at the stub RefBot's SC (cached). */
-function t2Rec() {
-  return cached('calib-t2', { preset: 'tl-central', seed: SEED, maxDays: 365 * 4, stopAt: 3, env: ENV }, ME, () => {
-    const s = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: SEED }));
-    runRef(s, 365 * 4, (x) => x.player.milestoneDays[3] !== undefined);
-    const wc = workContext(s);
-    return { day: s.time.day, fte: wc.slots.EXP.aiFte + wc.slots.IDEAS.aiFte, copies: wc.slots.EXP.copies + wc.slots.IDEAS.copies, h100e: wc.slots.EXP.h100e + wc.slots.IDEAS.h100e };
-  });
-}
-/** T3 China lead, monthly until the first theft (stub RefBot, cached). */
-function t3Rec() {
-  const stolen = (x: GameStateV2) => x.player.security.stolen.length + x.rivals.reduce((n, r) => n + r.core.security.stolen.length, 0) > 0;
-  return cached('calib-t3', { world: 'tl-central', alignment: 'medium', seed: SEED, from: 30, to: 540, step: 30, env: ENV }, ME, () => {
-    const s = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: SEED }));
-    const leads: number[] = [];
-    for (let d = 30; d <= 540; d += 30) {
-      runRef(s, d, stolen);
-      if (stolen(s)) break;
-      leads.push(Math.round(trueLeadDays(s, 'china')));
-    }
-    return { leads, day: s.time.day };
-  });
-}
 // The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
 /** Seeds of the binding T1 median (smoke: SEED only, cut at SMOKE_DAYS, informational). T1 needs all 20: RefBot's
  *  dates are multimodal and every smaller subset of CAL_SEEDS tried (first 5, 8, 10, 12) moved some median out of
  *  tolerance. (F4). */
 const T1_SEEDS = SMOKE ? [SEED] : CAL_SEEDS;
+/** A preset with no golden days has nothing for the median or the integrated run to be checked against (lib.ts
+ *  calGolden returns none for the timeline worlds yet): only SEED's one T1 game (R5, G-path, M, METR reads) is played. */
+const hasGolden = (p: T1Preset) => Object.keys(golden.presets[p].days).length > 0;
+const seedsOf = (p: T1Preset) => (hasGolden(p) ? T1_SEEDS : [SEED]);
 prefill([
   // slow (the longest runs) first.
-  ...[...PRESETS].reverse().flatMap((p) => [() => t1Rec(p), ...T1_SEEDS.filter((x) => x !== SEED).map((x) => () => t1SeedRec(p, x))]),
-  ...(SMOKE || CAL_ONLY || process.argv.includes('--no-integrated') ? [] : T1_PRESETS.map((p) => () => intRec(p))),
-  ...(SMOKE || CAL_ONLY ? [] : [() => t2Rec(), () => t3Rec()]),
+  ...[...PRESETS].reverse().flatMap((p) => [() => t1Rec(p), ...seedsOf(p).filter((x) => x !== SEED).map((x) => () => t1SeedRec(p, x))]),
+  ...(SMOKE || CAL_ONLY || process.argv.includes('--no-integrated') ? [] : T1_PRESETS.filter(hasGolden).map((p) => () => intRec(p))),
 ]);
 type MsDays = Partial<Record<MilestoneIdx, number>>;
 const sgn = (x: number) => (x >= 0 ? '+' : '') + x.toFixed(3);
@@ -294,13 +272,18 @@ for (const preset of PRESETS) {
   const worstWait = Math.max(0, ...waits.values());
   delays.push(`${preset} ${worstWait} d over ${waits.size} runs`);
   check(worstWait <= 3, `R5 build queue never delays a RefBot run > 3 d (${preset})`, `worst ${worstWait} d`);
-  const mds = T1_SEEDS.map((x) => t1SeedRec(preset, x));
-  const { row, spread } = medianChecks('T1', preset, mds, 1);
+  if (!hasGolden(preset)) console.log(`INFO  T1 ${preset}: no golden days yet (calGolden), T1 skipped`);
+  else {
+    const mds = T1_SEEDS.map((x) => t1SeedRec(preset, x));
+    const { row, spread } = medianChecks('T1', preset, mds, 1);
+    medTable.push(`${preset.padEnd(12)} ${row}`, ...spread.map((x) => `${' '.repeat(14)}${x}`));
+  }
   table.push(`${preset.padEnd(12)} G_SC ${cal.gSC.toFixed(3)} Δ_bm ${cal.dBM.toFixed(3)} sd_SC ${V3_CAL[preset].sdSC}  seed ${SEED}: ${seedRow(preset, rec.md, 1)}  [${(performance.now() - t0).toFixed(0)} ms]`);
-  medTable.push(`${preset.padEnd(12)} ${row}`, ...spread.map((x) => `${' '.repeat(14)}${x}`));
 }
-console.log(`\nT1 RefBot milestone years, median over ${T1_SEEDS.length} seeds (${T1_SEEDS.join(', ')}; Δ vs golden, years; the binding checks):`);
-for (const r of medTable) console.log('  ' + r);
+if (medTable.length) {
+  console.log(`\nT1 RefBot milestone years, median over ${T1_SEEDS.length} seeds (${T1_SEEDS.join(', ')}; Δ vs golden, years; the binding checks):`);
+  for (const r of medTable) console.log('  ' + r);
+}
 console.log(`T1 RefBot milestone years on seed ${SEED} alone (informational since F4; its run also gives the R5, G-path, M and METR reads):`);
 for (const r of table) console.log('  ' + r);
 console.log(`  R5 build queue, worst wait for engineers: ${delays.join(', ')}`);
@@ -315,7 +298,7 @@ for (const r of v3checks) console.log('  ' + r);
 // money and the market move it (M2 report: flag anything > 3 months).
 if (!process.argv.includes('--no-integrated') && !SMOKE && !CAL_ONLY) {
   console.log('\nT1 integrated RefBot (real finance; Δ vs golden, years):');
-  for (const preset of T1_PRESETS) {
+  for (const preset of T1_PRESETS.filter(hasGolden)) {
     const t0 = performance.now();
     const r = intRec(preset);
     const s = { player: { milestoneDays: r.md, finance: { cash: r.cash, state: r.state } } };
@@ -334,45 +317,13 @@ if (!process.argv.includes('--no-integrated') && !SMOKE && !CAL_ONLY) {
   }
 }
 
-// ---------- T2: AI labour at the superhuman coder (model v3 V3: a sanity check against AI 2027, not a fit target) ----------
-// AI 2027 (research/13 §1.9): ≈ 200k Agent-3 copies at ≈ 30× ("50,000 copies of the best human coder sped up by 30×",
-// ≈ 1.5M best-coder FTE, ≈ 5M median-FTE) on ≈ 0.5M H100e. Model v3 counts copies physically (FLOP per token, utilisation,
-// tokens per work-hour; departments/workfit.ts), so the check is an order of magnitude on the AI FTE in research.
-if (!SMOKE && !CAL_ONLY) {
-  const t2 = t2Rec();
-  const { fte, copies } = t2;
-  const s = { time: { day: t2.day } };
-  console.log(`INFO  T2 at SC (day ${s.time.day}): research agents ${Math.round(copies / 1000)}k copies at ${speedOfCopy().toFixed(1)}× on ${Math.round(t2.h100e / 1000)}k H100e = ${(fte / 1e6).toFixed(2)}M FTE (AI 2027: 200k copies at 30×, ≈ 5M median-FTE on ≈ 0.5M H100e)`);
-  check(fte >= 5e5 / 10 && fte <= 5e6 * 10, 'T2 AI labour at SC within an order of magnitude of AI 2027 (sanity check)', `${(fte / 1e6).toFixed(2)}M FTE`);
-}
-
-// ---------- T3 / T4 (default rival/China labs, no theft) ----------
+// ---------- T4 (default rival labs, no theft) ----------
 {
   const s = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: SEED }));
   // Gap in months at the start = trueLeadDays / 30.4 (gap / the player's model progress rate). The archetype gap
-  // ranges are WS4's (actors/rivals.ts); the spread over seeds is printed for them.
+  // ranges are WS4's (actors/rivals.ts).
   const gaps = s.rivals.map((r) => trueLeadDays(s, r.core.id) / 30.4);
   check(gaps.every((m) => m >= 3 - 1e-9 && m <= 9 + 1e-9), 'T4 rival gaps at start 3–9 months (fixture seed)', gaps.map((m) => m.toFixed(1)).join(', '));
-  const all: number[] = [];
-  for (let seed = 1; seed <= 40; seed++) {
-    const t = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed }));
-    for (const r of t.rivals) all.push(trueLeadDays(t, r.core.id) / 30.4);
-  }
-  all.sort((a, b) => a - b);
-  const inBand = all.filter((m) => m >= 3 && m <= 9).length / all.length;
-  console.log(`      T4 over 40 seeds: min ${all[0].toFixed(1)}, median ${all[all.length >> 1].toFixed(1)}, max ${all[all.length - 1].toFixed(1)} months; ${(100 * inBand).toFixed(0)}% in 3–9 (archetype ranges: WS4)`);
-  // The lead is read against the player's discrete releases, so it swings by ± a release interval; T3 tests the
-  // mean over the pre-SC year and a loose band on every monthly sample.
-  // Sampled monthly until the first weight theft by China (from the player or any rival), which resets the gap.
-  if (!SMOKE && !CAL_ONLY) {
-  const t3 = t3Rec();
-  const leads = t3.leads;
-  if (leads.length < 18) console.log(`      T3: first theft on day ${t3.day}; ${leads.length} monthly samples before it`);
-  const mean = leads.reduce((a, x) => a + x, 0) / leads.length;
-  // M2: informational. The stub pins China's compute to the reference path; with China's lab on the chip market (W6: its orders × its chip access) and
-  // the WS1 distillation leak live, the binding T3 is the integrated one in scripts/v2/directorEndings.ts (CHINA_CAL deleted in CP3k).
-  console.log(`INFO  T3 (stub compute) China mean lead before theft: ${mean.toFixed(0)} d; monthly ${leads.join(' ')}`);
-  }
 }
 
 finish('calib');
