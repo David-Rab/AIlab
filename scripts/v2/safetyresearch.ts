@@ -6,7 +6,7 @@
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
 // Model v3 E2 (§5b): AI labour from the SAF_EXP / SAF_IDEAS work types through the capabilities labour function, the
 // Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/archive/notes/E2.md).
-import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
+import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { PROJECT_BY_ID, lineNodeId } from '../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
