@@ -4,16 +4,20 @@
 //   time ∝ 1/compute with no floor; a fixed physical run gives the same G whatever its start date (the v2 calendar
 //   bug); the start state (V0 at research/12's G ≈ 28.0, pm(V0) = the reference start for every start type).
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
+import { WORK_TYPES, skillRefDelta as refDelta } from '../../src/data/v2/workTypes';
 import { COGNITIVE, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { domainRefShift, gOfBuild, gV0, levelOfG } from '../../src/engine/v2/models/capability';
+import { domainRefShift, domainsOf, gOfBuild, gV0, levelOfG, skillMarks } from '../../src/engine/v2/models/capability';
+import { postEffect } from '../../src/engine/v2/models/design';
+import { domainG, fitOf } from '../../src/engine/v2/departments/workfit';
+import { clamp } from '../../src/engine/rng';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import {
   REF_RL_PROFILE, continueGPre, distillGap, effectiveTokens, fData, fOver, flopOfDesign, rlCeiling, rlFamiliesAvailable, rlGains, rlWeights, trainFlop,
 } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
 import { START_BY_ID } from '../../src/data/v2/starts';
-import type { GameStateV2 } from '../../src/engine/v2/types';
+import type { DomainId, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
@@ -116,5 +120,63 @@ sC.player.dataPortfolio = JSON.parse(assets0) as typeof sC.player.dataPortfolio;
 sC.player.research.stacks = stacks0;
 const g500 = base(sC, 2e12).limits!.gPre.total;
 check(near(g0, g500, 1e-9), 'a fixed physical run at fixed know-how gives the same G on day 0 and day 500 (no F(t))', `${g0.toFixed(4)} vs ${g500.toFixed(4)}`);
+
+// ---------- one capability currency (RD-U01) and the domain reference points (RD-U05; merged from currency.ts, domainref.ts) ----------
+// Design offsets are domain ΔG in OOM; the displayed domain level is λ(G_d − shift_d) of the same G the work fit reads, shift_d the
+// domain's best-human reference point; no level→OOM factor and no display offset table is left.
+{
+// 2. A version's displayed domain level equals λ(G_d) (less the domain's best-human shift, RD-U05), G_d the fit's domain G.
+const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const w = s.hidden.timeline;
+const V0 = s.player.models.versions[0];
+const lam = (v: Pick<ModelVersion, 'G' | 'build'>, d: (typeof DOMAIN_IDS)[number]) => clamp(levelOfG(w, domainG(s, v, d) - domainRefShift(w, d)), 0, 15);
+const err0 = Math.max(...DOMAIN_IDS.map((d) => Math.abs(V0.domains[d] - lam(V0, d))));
+check(err0 < 1e-9, 'display: V0\'s domain levels are λ(G_d) of the fit\'s domain G', `max |L_d − λ(G_d)| ${err0.toExponential(1)}`);
+
+// 3. A design offset (persuasion preference: SOCIAL) moves the fit and the display together.
+const pe = postEffect({ ...V0.design, pref: 'persuasion' });
+const v1 = { G: V0.G, build: { ...V0.build!, dgD: { ...pe.dgD } } };
+const dG = domainG(s, v1, 'SOCIAL') - domainG(s, V0, 'SOCIAL');
+const dFit = fitOf(s, v1, 'OTHER') - fitOf(s, V0, 'OTHER');
+const wS = WORK_TYPES.OTHER.w.SOCIAL ?? 0;
+const dom1 = domainsOf(w, v1.G, v1.build);
+const dL = dom1.SOCIAL - V0.domains.SOCIAL;
+const dLwant = lam(v1, 'SOCIAL') - lam(V0, 'SOCIAL');
+check(near(dG, 0.8 / 1.2, 1e-3) && near(dFit, wS * dG, 1e-9) && near(dL, dLwant, 1e-9) && (dL > 0 || dom1.SOCIAL === 0)
+  && DOMAIN_IDS.every((d) => d === 'SOCIAL' || near(dom1[d], V0.domains[d], 1e-12)),
+  'design offset: persuasion adds 0.667 OOM to SOCIAL G (was 0.8 L ÷ 1.2: fit unchanged); fit and display move by the same G (the display may sit at its 0 floor, RD-U05)',
+  `ΔG ${dG.toFixed(4)}, Δfit(OTHER) ${dFit.toFixed(4)} = ${wS} × ΔG, ΔL ${dL.toFixed(3)} = λ slope × ΔG`);
+
+// 4. RSCH (RD-E01a deleted P19 and its RSCH gain): the fit's RSCH G is the build's domain G and the display reads λ of it.
+const gR = domainG(s, V0, 'RSCH');
+const domR = domainsOf(w, V0.G, V0.build);
+check(near(domR.RSCH, clamp(levelOfG(w, gR - domainRefShift(w, 'RSCH')), 0, 15), 1e-9),
+  'RSCH: the display is λ of the fit G (no P19 gain since RD-E01a)', `G_RSCH ${gR.toFixed(4)}, L_RSCH ${domR.RSCH.toFixed(3)}`);
+
+}
+{
+for (const world of ['tl-fast', 'tl-central', 'tl-slow'] as const) {
+  const s = newGame(defaultSetupV2({ world, alignment: 'medium', seed: 2027, tutorial: false }));
+  const w = s.hidden.timeline;
+  const rd = refDelta(w.v3.sdSC);
+  const V0 = s.player.models.versions[0];
+  // 2. The shift is the reference points' δ_d·Δ_bm; a model at a domain's best human scores 10 there.
+  const shiftOk = DOMAIN_IDS.every((d) => near(domainRefShift(w, d), rd[d] * w.v3.dBM, 1e-12));
+  const atBest = DOMAIN_IDS.every((d) => near(clamp(levelOfG(w, w.v3.gSC + rd[d] * w.v3.dBM - domainRefShift(w, d)), 0, 15), 10, 1e-9));
+  // 3. V0's stored domain scores are λ(G_d − shift_d) of the fit's domain G.
+  const err = Math.max(...DOMAIN_IDS.map((d) => Math.abs(V0.domains[d] - clamp(levelOfG(w, domainG(s, V0, d) - domainRefShift(w, d)), 0, 15))));
+  check(shiftOk && atBest && err < 1e-9, `${world}: domain score = λ(G_d − δ_d·Δ_bm); 10 at each domain's best human; V0 stored = formula`,
+    `Δ_bm ${w.v3.dBM}, V0 ${DOMAIN_IDS.map((d: DomainId) => `${d} ${V0.domains[d].toFixed(2)}`).join(' ')}`);
+  // 2b. UB-1b (job scale): each skill bar's marks are the work fit's whole-job median expert and best human on the score;
+  // V0 sits below both in every skill; a model at G_SC with the reference profile (the SC-era frontier) reads the best
+  // human in coding and agency (10); every skill carries a test or a stand-in for the tooltip.
+  const mk = DOMAIN_IDS.map((d) => [d, skillMarks(w, d)] as const);
+  const scL = domainsOf(w, w.v3.gSC);
+  const ok = mk.every(([d, m]) => m.median < m.best && m.test.length > 0 && V0.domains[d] < m.median) && near(skillMarks(w, 'CODE').best, 10, 1e-9) && near(scL.CODE, 10, 1e-9);
+  check(ok, `${world}: skill-bar marks on the job scale (V0 below the median expert in every skill; SC model at the coding best human)`,
+    mk.map(([d, m]) => `${d} ${m.median.toFixed(2)}/${m.best.toFixed(2)} (SC ${scL[d].toFixed(1)})${m.standIn ? '*' : ''}`).join(' '));
+}
+
+}
 
 finish('effective');
