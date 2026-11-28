@@ -98,6 +98,7 @@ All of these go to one **dedicated safety session, started when the designer say
 | Safety programmes stop after a finished project; teams idle for the rest of the game (day 900: 0 of 18 staffed) | Bug → safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
 | Monitor stop rate vs SR-12 (a93a01ec may have fixed it) | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
 | Sandbagged discoveries should read "nothing found" (SABREAD) | Safety session | archive/V3-TASKS.md |
+| F6 persistence of SCHEME through a standard safety run stays below the sourced 0.8 (64-66% vs 80-100%); closing it means a HEAL_K or detection weight below the sourced ratio, a design bet | Safety session (KNOWN in safetyrates F6) | scripts/v2/safetyrates.ts |
 | Safety line pacing: the first result at reference inputs comes at ≈ T₁/2, not the documented T₁ (`stepTest` adds the science and experiment rates); which one is right | Bug or spec fix → safety session (KNOWN in safetyresearch E1) | bal/SAFETY-UNIFY.md:37; test-audit/G2-report.md |
 
 ## UI
@@ -128,6 +129,7 @@ From the R&D UI phase follow-ups (archive/RD-AUDIT/UI-BUILD.md) unless noted.
 | Relations C6 "Open weights" has no trust-vote version | Check | archive/FINANCE-BUILD.md |
 | Continual learning ("later idea") | Later | MODEL-V3.md §4.6 |
 | Dead fields RD-C04 / C05 / C07 and the P26 placeholder | Check | archive/V3-TASKS.md |
+| RefBot release suites wait 29-89 d in a year while the ready-date preview says 14-24 d (evals EV9: a full suite is 14 d at full staffing): staffing/queue question, or preview ≠ effect | Check (KNOWN in evals EV9) | test-audit/G2-report.md |
 
 ## Future phases
 

@@ -73,6 +73,7 @@ const JOBS: Job[] = [
   { id: 'lint-ux', script: 'lint-ux.ts', budget: { quick: 10, full: 30 }, ...S(ALL, 10) } as Job,
   { id: 'lint-tradeoffs', script: 'lint-tradeoffs.ts', budget: { quick: 30, full: 90 }, ...S(ALL, 10) } as Job,
   { id: 'lint-structure', script: 'lint-structure.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 10) } as Job,
+// Every KNOWN registration points at an existing OPEN.md row (TESTING.md §5).  { id: 'lint-known', script: 'lint-known.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 10) } as Job,
   { id: 'safety', script: 'safety.ts', args: { quick: SMOKE }, mode: { quick: 'SMOKE' }, budget: { quick: 40, full: 40 }, ...S(ALL, 40) } as Job,
   { id: 'danger', script: 'danger.ts', budget: { quick: 20, full: 60 }, ...S(ALL, 60) } as Job,
   { id: 'oversight', script: 'oversight.ts', budget: { quick: 15, full: 45 }, ...S(ALL, 30) } as Job,
