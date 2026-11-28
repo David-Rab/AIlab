@@ -1,6 +1,8 @@
 // N6 + F3-F6 test: the NPC shocks (engine/v2/npc/shocks.ts; design/npc/NPC-LABS.md §5). Direct calls on a fresh state (day 0, no simulation):
 // each shock moves the lag d (or the safety emphasis, or the reference clock) by its stated amount, and each preview equals its effect.
-// Run: npx tsx scripts/v2/npcShocks.ts
+// Run: npx tsx scripts/v2/npcShocks.ts [--smoke]
+// Cost: quick (--smoke) ~10 s of import + day-0 state, no sim; full adds one forced 3.5-year bot game (~1,300 days, ~1 CPU-min).
+// Tier: quick (--smoke) and full. The game check (F4 on a game) is emergent, so it is full only.
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { RECIPE_LEAK_SHARE, TACIT_FIRM_SHARE } from '../../src/engine/v2/production/diffusion';
@@ -18,8 +20,7 @@ import { headsMoved } from '../../src/engine/v2/departments/teams';
 import { poachFallbackDays, poachFromRivals, poachShare, poachSplit, weeklyHires } from '../../src/engine/v2/departments/market';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
-let fails = 0;
-const check = (ok: boolean, msg: string, detail = '') => { console.log(`${ok ? '  ok ' : 'FAIL '} ${msg}${detail ? `  (${detail})` : ''}`); if (!ok) fails++; };
+import { SMOKE, check, finish } from './lib';
 const near = (a: number, b: number, e = 1e-6) => Math.abs(a - b) <= e * Math.max(1, Math.abs(b));
 const clone = (s: GameStateV2): GameStateV2 => JSON.parse(JSON.stringify(s));
 const fresh = () => newGame(defaultSetupV2({ world: 'tl-central', start: 'leader', seed: 7, tutorial: false }));
@@ -161,11 +162,21 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   const err = act(s, 'starHire', { star: star.id });
   check(!err && star.employer === 'player' && JSON.stringify([s.rivals, s.china.lab]) === npc0, 'a star hire takes it from the outside group and touches no NPC lab', String(err ?? ''));
 }
-// F4 on a game: a 3-year forced run (the AIFM compute and staff paths) with the spies growing. The leak used to pull China toward
+// F4 constructed (quick and full): the leak closes a share of the KNOW-HOW gap, so a thousand days of it approach the player's
+// know-how position geometrically and never cross it (the old rule pulled toward the capability position and ran to -462 d).
+{
+  const s = clone(base); const cn = s.china.lab; const d0 = cn.npc!.d; let prev = d0, mono = true;
+  const share = 0.01, N = 1100;
+  for (let i = 0; i < N; i++) { sh.secretsLeak(s, share); if (cn.npc!.d > prev + 1e-12) mono = false; prev = cn.npc!.d; }
+  const gap0 = d0 - kp;
+  check(gap0 > 0 && mono && near(cn.npc!.d, kp + gap0 * Math.pow(1 - share, N), 1e-6) && cn.npc!.d >= kp - 1e-9,
+    `secrets leak (F4): ${N} days at ${share * 100}% a day take China's lag ${d0.toFixed(0)} -> ${cn.npc!.d.toFixed(1)} d, geometrically toward the know-how position ${kp.toFixed(0)} d, never past it`);
+}
+// F4 on a game (full only; ~1,300 days of the forced AIFM game, ~1 CPU-min): a 3-year forced run (the AIFM compute and staff paths) with the spies growing. The leak used to pull China toward
 // the player's whole capability position: 198 d -> -462 d by 2028 (with the leak off, about 160 d). It now closes a share of the
 // know-how gap; China's lag stays sane. Only the days before a weight theft count: a theft (world/chinagov.ts opens it from
 // tension CHINAGOV.theftRung) is its own rule (F6, tested above) and sets the lag to the stolen model's position.
-{
+if (!SMOKE) {
   installForced('aifm');
   const B = await import('./botgame');
   const g = B.newBotGame(2027, { world: 'tl-central', alignment: 'medium' }, 'leader');
@@ -187,5 +198,4 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   console.log(`  China's lag path (d, half-yearly): ${path.join('  ')}; spies ${spies0} -> ${spies1.toFixed(0)}; theft ${theftAt || 'none'}`);
   check(lo > -60 && spies1 > 5 * spies0, `secrets leak over 3 years with spies growing ${spies0} -> ${spies1.toFixed(0)}: China's lag stays above -60 d`, `lowest ${lo.toFixed(0)} d, highest ${hi.toFixed(0)} d before any theft`);
 }
-console.log(fails ? `\n${fails} FAILED` : '\nall passed');
-process.exit(fails ? 1 : 0);
+finish('npcShocks');
