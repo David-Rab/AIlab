@@ -8,25 +8,22 @@ export type { PartnerKind, PartnerSupply };
 
 /** Strategic partner kinds (FIN4a, spec §6.1): what each gives, what it wants and its strings. */
 export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; wants: string }> = {
-  hyperscaler: { label: 'Hyperscaler', gives: 'non-voting equity in tranches + cloud or custom chips at a discount, served first', wants: 'a take-or-pay compute commitment' },
-  chipVendor: { label: 'Chip vendor', gives: 'equity per GW you deploy + rationing priority', wants: 'you buy its chips (take-or-pay)' },
-  sovereign: { label: 'Sovereign', gives: 'a passive equity cheque', wants: 'nothing; Washington notices' },
+  hyperscaler: { label: 'Hyperscaler', gives: 'non-voting equity in tranches + cloud or custom chips at a discount', wants: 'a take-or-pay compute commitment' },
+  chipVendor: { label: 'Chip vendor', gives: 'equity per GW of its chips you buy', wants: 'you buy its chips (take-or-pay)' },
 };
 
 export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[]; /** Its in-house lab is the big-tech NPC lab (IP access). */ inHouse?: true }
 
 /** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, the NPC lab of the big-tech kind. Only
- *  a partner marked `inHouse` has one (Azimuth, the Google-like cloud); the others, chip vendors and sovereigns offer no
+ *  a partner marked `inHouse` has one (Azimuth, the Google-like cloud); the others (chip vendors) offer no
  *  IP access (one simple rule, NPC principle 7; the cast has one big-tech lab). */
 export const AFFILIATE_KIND = 'bigtech' as const satisfies NpcKindId;
 
-/** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§6.1, kept). */
+/** Fictional partners (real analogues in comments). */
 export const PARTNER_DEFS: Partner[] = [
   { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], supply: ['cloud'] }, // Microsoft-like
   { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'], inHouse: true }, // Amazon/Google-like (Trainium/TPU)
-  { id: 'Silica Systems', kind: 'chipVendor', competitors: ['Corvid Micro'], supply: ['chips'] }, // Nvidia-like
-  { id: 'Corvid Micro', kind: 'chipVendor', competitors: ['Silica Systems'], supply: ['chips'] }, // AMD-like (warrants by GW)
-  { id: 'Gulf Sovereign Fund', kind: 'sovereign', competitors: [], supply: [] }, // MGX/QIA-like
+  { id: 'Silica Systems', kind: 'chipVendor', competitors: [], supply: ['chips'] }, // Nvidia-like
 ];
 /** Default provider on the Rent compute card: a neocloud (CoreWeave-like). Neoclouds are providers, not deals (FIN1,
  *  spec §5). */
@@ -44,7 +41,7 @@ export const PARTNER_TERMS = {
   // [R21 B2]. Commitment: cloud capacity worth 4 × E over 6 years at today's price (C = 4–12 × E over 5–10 y [R15]),
   // paid on the expected path; the partner takes 10% off for the commitment [D]. Revenue share 8% while it runs
   // (all three cloud partnerships carry one [R21 B4]; size [D]). Exclusivity and IP access are optional (FIN4b, below).
-  hyperscaler: { equityShareOfV: 0.03, trancheMin: 5, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08 },
+  hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08 },
   // Custom chips (TPU, Trainium): 1 GW over 8 quarters at 45% of the H100e list path (perf/$ 2–5× an H100: TPU v6e 5.9,
   // Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served outside rationing); migration −15% research for
   // ~2.5 quarters [R15 Design].
@@ -53,9 +50,6 @@ export const PARTNER_TERMS = {
   // its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]; tranches by GW online
   // within 12 quarters.
   chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, deadlineQ: 12 },
-  // Sovereign: a passive cheque of 2.5% of V ($5–25B) (MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E) [R15];
-  // no political cost (the US government's trust moves only by its own rules, world/usgov.ts). No in-country site (sovereign money was passive; builds were separate deals) [R21 §3].
-  sovereign: { equityShareOfV: 0.025, min: 5, max: 25 },
   // Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; the partner is
   // topped up to 30%, with a board seat of two votes and exclusivity [D]; FIN4b: and IP access when the partner has an
   // affiliated lab, for 6 years like a hyperscaler deal [D].

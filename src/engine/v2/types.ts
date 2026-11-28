@@ -1592,7 +1592,7 @@ export interface Charter { missionBody: boolean; profitCap: boolean; goldenShare
 
 export interface Ownership { founder: number; mission: number; fin: number; strat: Record<string, number>; public: number; }
 
-export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; anchor?: string; down: boolean; ipo?: boolean; }
+export interface EquityRound { day: Day; amount: Money; postMoney: Money; dilution: number; down: boolean; ipo?: boolean; }
 
 /** The milestone a round is raised on (FINANCE-V3 §2.2): a public model level, compute online (H100e) or a revenue
  *  run-rate ($B/yr) by the deadline. */
@@ -1650,7 +1650,7 @@ export interface Commitment$ {
 }
 
 /** Strategic partner kinds (FINANCE-V3 §6.1). */
-export type PartnerKind = 'hyperscaler' | 'chipVendor' | 'sovereign';
+export type PartnerKind = 'hyperscaler' | 'chipVendor';
 /** What a partner supplies against the commitment: a hyperscaler's cloud capacity or custom chips (ASIC), a chip
  *  vendor's own chips. */
 export type PartnerSupply = 'cloud' | 'asic' | 'chips';
@@ -1925,7 +1925,6 @@ export interface PendingRound {
   ask: Money;
   max: Money;
   preMoney: Money;
-  anchor?: string;
   ipo: boolean;
   /** The round's milestone (priced rounds; none for the IPO) and the pitch's price multiplier on the mark (FIN2). */
   thesis?: Thesis;
@@ -1943,7 +1942,6 @@ export interface RepricedRound {
   /** Pre-money investors now offer, and the last round's post-money it falls below. */
   pre: Money;
   lastPost: Money;
-  anchor?: string;
   ipo: boolean;
   thesis?: Thesis;
   dualClass?: boolean;
@@ -2067,8 +2065,6 @@ export interface CapitalWS3 {
   playerPoolQ: Money;
   playerTakenQ: Money;
   playerShare: number;
-  /** Lab partner anchors (each partner anchors at most one lab at a time, §3.7.4). */
-  anchors: Record<string, LabId>;
   /** Public-frontier level a quarter ago (hype surprise term). */
   lastFrontierL: number;
   /** Public-frontier level at the last 4 quarter marks (oldest first; M4 smoothed surprise). */

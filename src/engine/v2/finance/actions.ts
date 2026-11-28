@@ -11,7 +11,7 @@ import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShi
 import { MOOD_BASE, MOOD_LABEL, MOOD_SOURCES, moodWeight } from './mood';
 import { leaseAvailable, leaseRate, payOptions } from './capex';
 import { debtHeadroom, drawDebt, newDebtRatePct, repayDebt } from './debt';
-import { anchorPartners, dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
+import { dealVote as firstVote, dealVotes, partnerOffers, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, supplyOptions, termsEquity, type PartnerChoice } from './deals';
 import { leadEstimate } from './observe';
 import { acceptRepriced, bookRound, cancelTrancheShares, canIpo, closingAsk, canRaise, LARGE_ROUND, lastPostMoney, pullRepriced, raiseCeiling, roundSplit, startRaise } from './equity';
 import { describeTarget, makeThesis, MILESTONES, PITCH, PITCHES, PROMISE_RESULT, promiseDeadline } from './promises';
@@ -48,9 +48,9 @@ export function raiseTerms(s: GameStateV2, p: P): { type: MilestoneType; pitch: 
 
 /** What a raise of `ask` at a pitch would look like (Raise card, previews): ceiling, pre-money, dilution, closing odds,
  *  down round. */
-export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean; pitch?: Pitch; ipo?: boolean } = {}) {
+export function raiseQuote(s: GameStateV2, ask: number, opts: { pitch?: Pitch; ipo?: boolean } = {}) {
   const k = opts.ipo ? 1 : PITCH[opts.pitch ?? 'base'].price;
-  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo, priceMult: k });
+  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { ipo: !!opts.ipo, priceMult: k });
   const over = Number.isFinite(ask) ? Math.max(0, ask / Math.max(0.01, c.max) - 1) : 0;
   const pre = Math.max(1, s.player.finance.valuation) * k * (1 - Math.min(0.6, 0.5 * over));
   const a = Number.isFinite(ask) ? ask : c.max;
@@ -58,22 +58,12 @@ export function raiseQuote(s: GameStateV2, ask: number, opts: { anchor?: boolean
   return { ceiling: c, priceMult: k, pre, dilution: a / (pre + a), pClose: Math.exp(-over), down: last > 0 && pre < last, lastPost: last };
 }
 
-/** The anchor a raise names, if it may anchor (FIN4r, L5: only the partners `anchorPartners` offers; anything else is
- *  an error, never a silent 14% limit). */
-function anchorOf(s: GameStateV2, p: P): { anchor: string } | string {
-  const anchor = str(p, 'anchor', '');
-  if (!anchor || anchorPartners(s).includes(anchor)) return { anchor };
-  return `${anchor} cannot anchor a round now (anchors: ${anchorPartners(s).join(', ') || 'none'})`;
-}
-
-/** The raise a set of params describes: ask (default the ceiling), anchor, pitch and the quote at that ask. */
+/** The raise a set of params describes: ask (default the ceiling), pitch and the quote at that ask. */
 function raiseOf(s: GameStateV2, p: P) {
-  const a = anchorOf(s, p);
-  const anchor = typeof a === 'string' ? '' : a.anchor;
   const { type, pitch } = raiseTerms(s, p);
-  const q = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const q = raiseQuote(s, Number.POSITIVE_INFINITY, { pitch });
   const ask = num(p, 'ask', q.ceiling.max);
-  return { anchor, type, pitch, ask, r: raiseQuote(s, ask, { anchor: !!anchor, pitch }) };
+  return { type, pitch, ask, r: raiseQuote(s, ask, { pitch }) };
 }
 
 /** FIN3a (spec §7.3): no dilution vote; a round priced below the last post-money is a down round and needs the board. */
@@ -103,18 +93,15 @@ const raise: ActionDef = {
     return { costs, gains: roundCashLines(s, ask, s.time.day + nextQDays(s)), exposure };
   },
   apply(s, ctx, p) {
-    const a = anchorOf(s, p);
-    if (typeof a === 'string') return a;
-    const { anchor } = a;
     const { type, pitch } = raiseTerms(s, p);
     const th = makeThesis(s, type, pitch);
     if (typeof th === 'string') return th;
     const k = PITCH[pitch].price;
-    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, priceMult: k });
+    const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { priceMult: k });
     const ask = Math.max(0.1, num(p, 'ask', c.max));
     const no = voteGate(ctx, raiseVote(s, { ...p, ask }), bool(p, 'force'));
     if (no) return no;
-    startRaise(s, ctx, ask, { ...(anchor ? { anchor } : {}), thesis: th, priceMult: k });
+    startRaise(s, ctx, ask, { thesis: th, priceMult: k });
   },
 };
 
@@ -280,7 +267,7 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
   if (sp) {
     const lag = Math.max(0, dayOfQuarter(s.time.startDate, sp.startQ) - s.time.day);
     const cuts = `path −${Math.round(sp.firmDiscount * 100)}% firm${sp.partnerDiscount > 0 ? ` −${Math.round(sp.partnerDiscount * 100)}% partner` : ''}${sp.costMult !== undefined ? `, custom chips at ${Math.round(sp.costMult * 100)}% of an H100e` : ''}`;
-    if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y, served first in a shortage` });
+    if (sp.kind === 'cloud') gains.push({ currency: 'compute', amount: sp.h100e, lagDays: lag, target: `cloud for ${sp.quarters / 4} y` });
     else gains.push({ currency: 'compute', amount: sp.h100e * sp.quarters, lagDays: lag + 91, target: sp.kind === 'asic' ? `custom chips over ${sp.quarters} quarters, a separate supply pool` : `its chips over ${sp.quarters} quarters; +${MARKET.rationW.strategic} allocation weight on every chip order while it supplies` });
     // FIN5a: a doubted buyer prepays part of the first delivery (supplier terms, spec §5).
     if (sp.prepaid) costs.push({ currency: 'cash', amount: -sp.prepaid, target: `prepaid now: ${Math.round(supplierTerms(s).firstDelivery * 100)}% of the first delivery (supplier terms: your share of investor money and runway)` });
@@ -365,7 +352,7 @@ const rescue: ActionDef = {
     if (div) return div;
     if (f.state !== 'distress') return 'Only in distress';
     if (f.ws3?.lastRescueDay !== undefined && s.time.day - f.ws3.lastRescueDay < RESCUE_COOLDOWN_D) return 'Partners will not rescue you twice in a year';
-    return rescuePartner(s) ? true : 'No partner will rescue you (blocked by exclusivity or anchoring another lab)';
+    return rescuePartner(s) ? true : "No partner will rescue you (blocked by another partner's exclusivity)";
   },
   vote: rescueVote,
   preview(s, p) {

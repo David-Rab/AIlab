@@ -4,7 +4,7 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState, type ReactNode } from 'react';
 import {
-  actionView, anchorPartners, conditionWords, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
+  actionView, conditionWords, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   payrollOf, qOf, runwayOf, totalDebt, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
   BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
@@ -229,17 +229,16 @@ function CashHistory({ s }: { s: GameStateV2 }) {
 // ───────── how much can you raise ─────────
 function RaiseCard({ s }: { s: GameStateV2 }) {
   const f = s.player.finance;
-  const [anchor, setAnchor] = useState('');
   const [type, setType] = useState<MilestoneType>(() => raiseTerms(s, {}).type);
   const [pitch, setPitch] = useState<Pitch>('base');
   const [dual, setDual] = useState(false);
-  const q0 = raiseQuote(s, Number.POSITIVE_INFINITY, { anchor: !!anchor, pitch });
+  const q0 = raiseQuote(s, Number.POSITIVE_INFINITY, { pitch });
   const ceil = q0.ceiling;
   const askMax = Math.max(5, Math.ceil(ceil.max * 2));
   const [askIn, setAsk] = useState<number | undefined>(undefined);
   const ask = Math.max(0.1, Math.round(Math.min(askMax, askIn ?? Math.max(0.1, ceil.max)) * 10) / 10);
-  const params = { ask, type, pitch, ...(anchor ? { anchor } : {}) };
-  const q = raiseQuote(s, ask, { anchor: !!anchor, pitch });
+  const params = { ask, type, pitch };
+  const q = raiseQuote(s, ask, { pitch });
   const stake = q.dilution * 100;
   const fail = 1 - q.pClose;
   const burn = runwayOf(s).burnQ;
@@ -251,7 +250,6 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
     .map(([k, label, term, icon]) => ({ k, label, term, icon, v: ceil.parts[k] ?? 0 }));
   const lmax = Math.max(1e-6, ...limits.map((l) => l.v));
   const boundLabel = limits.find((l) => l.k === ceil.bound)?.label.toLowerCase() ?? ceil.bound;
-  const partners = anchorPartners(s).slice(0, 3);
   const pend = f.ws3.pendingRound;
   const th = makeThesis(s, type, pitch);
   const tr = trendOf(s, type);
@@ -291,9 +289,6 @@ function RaiseCard({ s }: { s: GameStateV2 }) {
         ]}>An expectation, not a contract: no cash moves. Weight = this round's share of what you raise in the year to the deadline.</TipCard>}>
           <div className="fin-row small" data-test="raise-promise"><MI size={13} /><span>Promise: <b>{describeTarget(th)}</b> by {fmtDate(dateOf(s, due))}</span><span className="dim">now {fmtMetric(type, th.start)}</span></div>
         </Tip>
-      )}
-      {partners.length > 0 && (
-        <div className="fin-row"><span className="dim small"><Term id="anchorPartner">Anchor partner</Term></span><Seg value={anchor} options={[{ v: '', label: 'None' }, ...partners.map((p) => ({ v: p, label: p }))]} onChange={setAnchor} /></div>
       )}
       <div className="ask-head">
         <span className="dim small">Ask</span><Tip content={() => <TipCard title="Ask" value={F.money(ask)} rows={[{ label: 'Ceiling now', value: F.money(ceil.max) }]}>Drag the slider; above the ceiling the round may fail.</TipCard>}><b className="num">{F.money(ask)}</b></Tip>
@@ -762,7 +757,7 @@ function DebtCard({ s }: { s: GameStateV2 }) {
 }
 
 // ───────── partners (FINANCE-V3 §6; FIN4a): one offer per partner, every term and string shown before you sign ─────────
-const KIND_ICON: Record<PartnerKind, typeof ICON.cloud> = { hyperscaler: ICON.cloud, chipVendor: ICON.compute, sovereign: ICON.world };
+const KIND_ICON: Record<PartnerKind, typeof ICON.cloud> = { hyperscaler: ICON.cloud, chipVendor: ICON.compute };
 const SUPPLY_SHORT: Record<PartnerSupply, string> = { cloud: 'Cloud', asic: 'Custom chips', chips: 'Its chips' };
 
 /** One partner's line in the list: signed, a holder from before the start, an offer, or why not. */
@@ -807,7 +802,6 @@ function Strings({ s, partner, strings, years, asic, ipName }: { s: GameStateV2;
  *  with an in-house lab, IP access (more money, the lab closes on your lead). Each option shows what it adds; a string
  *  not on offer is locked with the reason. */
 function OfferStrings({ s, t, choice, setChoice }: { s: GameStateV2; t: PartnerTerms; choice: PartnerChoice; setChoice: (c: PartnerChoice) => void }) {
-  if (t.kind === 'sovereign') return null;
   const ex = t.options.exclusive;
   const ip = t.options.ipAccess;
   const rivals = partnerDef(t.partner)?.competitors ?? [];
@@ -865,7 +859,7 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
             { label: 'First year', value: F.money(sp.perQ.slice(0, 4).reduce((a, b) => a + b, 0)) },
             { label: <Term id="firmCommit">Take-or-pay</Term>, value: F.money(sp.total) },
             ...(sp.prepaid ? [{ label: <Term id="supplierTerms">Prepaid at signing</Term>, value: F.money(sp.prepaid) }] : []),
-          ]}>{sp.kind === 'cloud' ? 'Cloud capacity from next quarter, served first in a shortage, paid each quarter on the expected cloud price less both discounts.' : sp.kind === 'asic' ? 'Custom chips every quarter from a separate supply pool (outside rationing), priced on the expected list path.' : `Its chips every quarter, priced on the expected list path; while it supplies, every chip order gets +${MARKET.rationW.strategic} allocation weight.`}</TipCard>}>
+          ]}>{sp.kind === 'cloud' ? 'Cloud capacity from next quarter, paid each quarter on the expected cloud price less both discounts.' : sp.kind === 'asic' ? 'Custom chips every quarter from a separate supply pool (outside rationing), priced on the expected list path.' : `Its chips every quarter, priced on the expected list path; while it supplies, every chip order gets +${MARKET.rationW.strategic} allocation weight.`}</TipCard>}>
             <span>{sp.kind === 'cloud' ? <><b className="num">{F.count(sp.h100e)}</b> H100e cloud · {sp.quarters / 4} y</> : <><b className="num">{F.count(sp.h100e)}</b> H100e a quarter × {sp.quarters}</>} · −{F.pct(sp.firmDiscount)} firm{sp.partnerDiscount > 0 ? ` −${F.pct(sp.partnerDiscount)} partner` : ''}{sp.costMult !== undefined ? ` · ${F.pct(sp.costMult)} of H100e cost` : ''}</span>
           </Tip>
           <PathCurve s={s} prices={sp.prices} unit="$" discount={sp.firmDiscount} firstQ={sp.startQ} />
@@ -873,7 +867,7 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
           {sp.prepaid ? <Pill kind="cost" title="Supplier terms: a lab with a small share of investor money or a short runway prepays part of the first delivery at signing (part of the take-or-pay total).">prepay {F.money(sp.prepaid)} now</Pill> : null}
         </div>
       )}
-      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} />{t.kind === 'sovereign' && <Pill kind="neu" title="A passive cheque: no seat, no supply, no strings.">passive</Pill>}</div>
+      <div className="pills"><Strings s={s} partner={o.partner} strings={t.strings} years={t.years} asic={sp?.kind === 'asic'} ipName={t.options.ipAccess.labName} /></div>
       <div className="btn-row"><ActBtn id="fin.partner" params={{ partner: o.partner, ...(choice.supply ? { supply: choice.supply } : {}), exclusive: !!t.options.exclusive.on, ipAccess: !!t.options.ipAccess.on }} label={`Sign with ${o.partner}`} primary icon={ICON.relations} anchor="partner" reason /></div>
     </div>
   );

@@ -2,7 +2,7 @@
 // company and the market and shown in full before you sign (`partnerTerms`); signing books exactly those terms
 // (`signPartner`). Three kinds: a hyperscaler (non-voting equity in tranches, capped at 15%, plus cloud or custom chips
 // at a discount, served first, against a take-or-pay commitment), a chip vendor (equity per GW you deploy, rationing
-// priority, you buy its chips), a sovereign (a passive cheque with a political cost). A rescue (distress only) is the
+// priority, you buy its chips), (Sovereigns are gone.) A rescue (distress only) is the
 // same flow. Every supply price follows the expected market path (FIN1) less the firm discount and the partner's own.
 // FIN4b (spec §6.1 strings): up to 3 partners at once; exclusivity and IP access are optional strings that add money
 // (shown on the offer, under the stake cap); IP access lets the partner's affiliated rival lab close ~10% a year of your
@@ -16,7 +16,7 @@ import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
 import { cloudPricePerYear } from '../compute/market';
 import { addSeat, boardVote, commitmentsVote, voteGate } from './board';
 import { controlVotes, ipTransferVote } from './charter';
-import { issue, partnerEquityIn, raiseCeiling, stakeRoom } from './equity';
+import { issue, partnerEquityIn, stakeRoom } from './equity';
 import { gwOwned, leadEstimate } from './observe';
 import { ensureWs3 } from './ext';
 import { qOf } from './ledger';
@@ -93,15 +93,13 @@ export function partnerBlocker(s: GameStateV2, partner: string, supply?: Partner
   const f = s.player.finance;
   if (f.state === 'insolvent') return 'Insolvent';
   if (f.state === 'distress') return 'Distress: only a rescue is on offer';
-  const anchor = s.capital.ws3?.anchors[partner];
-  if (anchor && anchor !== 'player') return `${partner} already anchors another lab`;
   const v = vetoesOf(s, partner);
   if (v.length) return `${v[0]}'s exclusivity blocks deals with ${partner}`;
   if (dealWith(s, partner)) return `Already your partner (one deal per partner)`;
   const now = partnersNow(s);
   if (now.length >= ST.maxPartners) return `You have ${now.length} partners, the most at once (${now.join(', ')})`;
   if (supply && !p.supply.includes(supply)) return `${partner} does not offer ${SUPPLY_LABEL[supply]}`;
-  if (p.kind === 'hyperscaler' && hyperscalerRoom(s, partner) < PARTNER_TERMS.hyperscaler.trancheMin) {
+  if (p.kind === 'hyperscaler' && hyperscalerRoom(s, partner) <= 0) {
     return `${partner} holds ${Math.round(stakeOf(s, partner) * 100)}%: a hyperscaler's stake is capped at ${Math.round(PARTNER_TERMS.hyperscaler.stakeCap * 100)}%`;
   }
   return undefined;
@@ -136,7 +134,7 @@ export interface PartnerChoice { supply?: PartnerSupply; exclusive?: boolean; ip
  *  the 15% stake cap; `options` says what each adds or why it is not on offer. A rescue (spec §6.2) is cash for a
  *  large stake, a two-vote board seat, exclusivity and IP access (when the partner has a lab). */
 export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoice & { rescue?: boolean } = {}): PartnerTerms {
-  const p = partnerDef(partner) ?? { id: partner, kind: 'sovereign' as const, competitors: [], supply: [] };
+  const p = partnerDef(partner);
   const V = V0(s);
   const q = qOf(s);
   const at = (k: number): Day => dayOfQuarter(s.time.startDate, q + k);
@@ -148,7 +146,8 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
   const ip = !ipBlock && !!opts.ipAccess;
   const ipLab = lab ? { lab: lab.core.id, labName: lab.core.name } : {};
   const off = (blocked?: string): PartnerOption => ({ on: false, bump: 0, ...(blocked ? { blocked } : {}) });
-  const base = { partner, kind: p.kind, rescue: false, equityNow: 0, tranches: [] as PartnerTerms['tranches'], strings: {}, years: 0, options: { exclusive: off(exBlock), ipAccess: { ...off(ipBlock), ...ipLab } } };
+  const base = { partner, kind: p?.kind ?? ('chipVendor' as const), rescue: false, equityNow: 0, tranches: [] as PartnerTerms['tranches'], strings: {}, years: 0, options: { exclusive: off(exBlock), ipAccess: { ...off(ipBlock), ...ipLab } } };
+  if (!p) return base;
   if (opts.rescue) {
     const t = PARTNER_TERMS.rescue;
     const burn = Math.max(0, runwayOf(s).burnQ);
@@ -164,7 +163,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
   const strings = (extra: PartnerTerms['strings'] = {}): PartnerTerms['strings'] => ({ ...(ex ? { exclusivity: true } : {}), ...extra, ...(ip && lab ? { ipAccess: { lab: lab.core.id, ...(ipVote(s, partner)?.passes ? { trust: true } : {}) } } : {}) });
   if (p.kind === 'hyperscaler') {
     const t = PARTNER_TERMS.hyperscaler;
-    const per = Math.max(t.trancheMin, Math.min(t.trancheMax, t.equityShareOfV * V));
+    const per = Math.min(t.trancheMax, t.equityShareOfV * V);
     const room = hyperscalerRoom(s, partner);
     // All the equity (now + two tranches) at a multiple of the plain offer, under the 15% cap; each string's bump is the
     // difference it makes with the other string as chosen.
@@ -202,8 +201,7 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
     const tranches = Array.from({ length: t.gw }, (_, i) => ({ amount: perGW, condition: `gw:${(gw + i + 1).toFixed(1)}`, dueDay: at(1), deadline: at(t.deadlineQ) }));
     return { ...base, tranches, supply, strings: strings(), years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * ST.exclusiveBump } } };
   }
-  const t = PARTNER_TERMS.sovereign;
-  return { ...base, equityNow: Math.max(t.min, Math.min(t.max, t.equityShareOfV * V)) };
+  return base;
 }
 /** Take-or-pay payments due in the first four quarters of a deal's supply, with any part of the first delivery prepaid at
  *  signing (FIN5a) ($B): the board's commitments test (§7.3). */
@@ -240,10 +238,9 @@ export function dealVotes(s: GameStateV2, t: PartnerTerms): BoardVote[] {
 /** The vote to show for a deal: the first failing one, else the first needed. */
 export const dealVote = (vs: BoardVote[]) => vs.find((v) => !v.passes) ?? vs[0];
 
-/** Who would rescue the company now: the first hyperscaler or sovereign that is not blocked by another partner's
- *  exclusivity and anchors no other lab (spec §6.2, kept). */
+/** Who would rescue the company now: the first hyperscaler that is not blocked by another partner's exclusivity. */
 export function rescuePartner(s: GameStateV2): string | undefined {
-  return PARTNER_DEFS.find((x) => (x.kind === 'hyperscaler' || x.kind === 'sovereign') && !vetoesOf(s, x.id).length && (!s.capital.ws3?.anchors[x.id] || s.capital.ws3.anchors[x.id] === 'player'))?.id;
+  return PARTNER_DEFS.find((x) => x.kind === 'hyperscaler' && !vetoesOf(s, x.id).length)?.id;
 }
 
 /** Sign `partner`'s deal on today's terms (shown before signing by `partnerTerms`): equity now, tranches with their
@@ -262,7 +259,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
     if (no) return no;
   }
   const q = qOf(s);
-  const label = t.rescue ? 'strategic rescue' : `${t.kind === 'hyperscaler' ? 'hyperscaler' : t.kind === 'chipVendor' ? 'chip-vendor' : 'sovereign'} equity`;
+  const label = t.rescue ? 'strategic rescue' : `${t.kind === 'hyperscaler' ? 'hyperscaler' : t.kind === 'chipVendor' ? 'chip-vendor' : 'strategic'} equity`;
   partnerEquityIn(s, ctx, partner, t.equityNow, label);
   if (t.rescue) {
     issue(f.ownership, topUp(stakeOf(s, partner), t.stake ?? 0), { kind: 'strat', name: partner });
@@ -286,7 +283,6 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
       f.ws3.asicMigrationUntil = s.time.day + PARTNER_TERMS.asic.migrationDays;
     }
   }
-  s.capital.ws3.anchors[partner] = 'player';
   const until = Math.max(supplyEnd, s.time.day + Math.round(t.years * 365));
   const deal: StrategicDeal = {
     id: `DL${s.time.day}-${f.deals.length}`, partner, kind: t.kind, day: s.time.day, equityNow: t.equityNow, equityLater: t.tranches.reduce((a, x) => a + x.amount, 0),
@@ -329,15 +325,3 @@ export function partnerCosts(s: GameStateV2): { partner: string; revenueShare: n
   }
   return out;
 }
-
-/** Share of a round an anchor must take for the 14% dilution limit (R15 §1.5). */
-export const ANCHOR_SHARE = 0.4;
-
-/** Partners that could anchor a round now (Raise card): no other lab, no exclusivity against them (kept). FIN4b: a
- *  hyperscaler's stake stays at or under 15%, so it anchors only while that leaves room for 40% of the largest anchored
- *  round (its shares in the round stop at the cap, `bookRound`). */
-export function anchorPartners(s: GameStateV2): string[] {
-  const maxRound = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: true }).max;
-  return PARTNER_DEFS.filter((p) => !vetoesOf(s, p.id).length && (!s.capital.ws3?.anchors[p.id] || s.capital.ws3.anchors[p.id] === 'player') && (p.kind !== 'hyperscaler' || hyperscalerRoom(s, p.id) >= ANCHOR_SHARE * maxRound)).map((p) => p.id);
-}
-

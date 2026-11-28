@@ -1,6 +1,5 @@
 // Valuation, raises, dilution, the raise ceiling and the IPO (V2-SPEC §3.7.3; research/15 §1.5; FINANCE-V3 §2). Owner:
 // WS3.
-import { PARTNER_TERMS, partnerDef } from '../../../data/v2/deals';
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis, Tranche } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
@@ -14,19 +13,19 @@ import { addPromise, typicalRound } from './promises';
 /** FIN2 removed the revenue-based annual cap (k_Y): a round is bounded by the investor pool and the dilution cap. */
 export interface RaiseCeiling { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> }
 
-/** Maximum dilution per round: 0.08 financial; 0.14 with a strategic anchor taking ≥ 40%; 0.05 IPO (R15 §1.5). */
-export const dMax = (anchor: boolean, ipo: boolean) => (ipo ? 0.05 : anchor ? 0.14 : 0.08);
+/** Maximum dilution per round: 0.08 private; 0.05 IPO (R15 §1.5). */
+export const dMax = (ipo: boolean) => (ipo ? 0.05 : 0.08);
 
 /**
  * EngineApi.raiseCeiling: min(pool share, d_max·V_pre/(1 − d_max), ask) (spec §2.1; FIN2 removed the k_Y annual cap).
  * V_pre = the mark × the pitch's price (`priceMult`). The UI shows `bound`. Tight runway cuts the pool share ×0.8;
  * distress or a closed market leaves only rescue capital (max 0).
  */
-export function raiseCeiling(s: GameStateV2, ask = Number.POSITIVE_INFINITY, opts: { anchor?: boolean; ipo?: boolean; priceMult?: number } = {}): RaiseCeiling {
+export function raiseCeiling(s: GameStateV2, ask = Number.POSITIVE_INFINITY, opts: { ipo?: boolean; priceMult?: number } = {}): RaiseCeiling {
   const f = s.player.finance;
   const cw = s.capital.ws3;
   const V = Math.max(1, f.valuation * (opts.priceMult ?? 1));
-  const d = dMax(!!opts.anchor, !!opts.ipo);
+  const d = dMax(!!opts.ipo);
   const tight = f.state === 'tight' ? 0.8 : 1;
   const closed = f.state === 'distress' || f.state === 'insolvent';
   const poolQ = cw ? cw.playerPoolQ - cw.playerTakenQ : 0.3 * (s.capital.poolAnnual / 4 + s.capital.carry);
@@ -107,17 +106,16 @@ export function canIpo(s: GameStateV2): true | string {
 
 /** Start a raise; it closes at the next quarter (capitalQ). Priced rounds carry a thesis and the pitch's price
  *  multiplier (FIN2); the IPO carries neither and may be dual-class. */
-export function startRaise(s: GameStateV2, ctx: SystemCtx, ask: Money, opts: { anchor?: string; ipo?: boolean; thesis?: Thesis; priceMult?: number; dualClass?: boolean } = {}): PendingRound {
+export function startRaise(s: GameStateV2, ctx: SystemCtx, ask: Money, opts: { ipo?: boolean; thesis?: Thesis; priceMult?: number; dualClass?: boolean } = {}): PendingRound {
   const k = opts.priceMult ?? 1;
-  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: !!opts.anchor, ipo: !!opts.ipo, priceMult: k });
+  const c = raiseCeiling(s, Number.POSITIVE_INFINITY, { ipo: !!opts.ipo, priceMult: k });
   const r: PendingRound = { day: s.time.day, ask, max: c.max, preMoney: s.player.finance.valuation * k, ipo: !!opts.ipo };
-  if (opts.anchor) r.anchor = opts.anchor;
   if (opts.thesis) r.thesis = opts.thesis;
   if (k !== 1) r.priceMult = k;
   if (opts.dualClass) r.dualClass = true;
   s.player.finance.ws3.pendingRound = r;
   s.capital.ws3.playerTakenQ += Math.min(ask, c.max);
-  ctx.log('finance', `Raising $${ask.toFixed(1)}B${opts.ipo ? ` (IPO${opts.dualClass ? ', dual-class' : ''})` : ''}${opts.anchor ? ` anchored by ${opts.anchor}` : ''}; closes next quarter.`);
+  ctx.log('finance', `Raising $${ask.toFixed(1)}B${opts.ipo ? ` (IPO${opts.dualClass ? ', dual-class' : ''})` : ''}; closes next quarter.`);
   return r;
 }
 
@@ -168,7 +166,7 @@ export function cancelTrancheShares(s: GameStateV2, t: Tranche, part: number): n
 /** Book a priced round at `pre` (pre-money): cash now (half for large rounds, `roundSplit`), the rest as a conditional
  *  tranche carrying the shares of its money; dilution; down-round penalties (priced below the last post-money, or
  *  `down`: the distress down round, FIN4r L1). `full`: no tranche. Returns the cash received now. */
-export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Money, opts: { anchor?: string; ipo?: boolean; source?: string; full?: boolean; down?: boolean } = {}): Money {
+export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Money, opts: { ipo?: boolean; source?: string; full?: boolean; down?: boolean } = {}): Money {
   const f = s.player.finance;
   const post = pre + amount;
   const dil = amount / post;
@@ -176,16 +174,7 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
   const down = !!opts.down || (last > 0 && pre < last);
   const before = { fin: f.ownership.fin, strat: { ...f.ownership.strat } };
   if (opts.ipo) issue(f.ownership, dil, { kind: 'public' });
-  else if (opts.anchor) {
-    // The anchor takes half the round; a hyperscaler only up to its 15% stake cap (FIN4b, [R21 B2]), the rest goes to
-    // financial investors. (anchorPartners offers a hyperscaler only while the cap leaves room for 40% of the round.)
-    const stake = f.ownership.strat[opts.anchor] ?? 0;
-    const cap = partnerDef(opts.anchor)?.kind === 'hyperscaler' ? PARTNER_TERMS.hyperscaler.stakeCap : 1;
-    const a = Math.max(0, Math.min(dil * 0.5, (cap - stake) / (1 - stake)));
-    if (a < dil * 0.5 - 1e-9) ctx.log('finance', `${opts.anchor}'s stake is capped at ${Math.round(cap * 100)}%: it takes ${((a / dil) * 100).toFixed(0)}% of the round, financial investors the rest.`, 2);
-    issue(f.ownership, a, { kind: 'strat', name: opts.anchor });
-    issue(f.ownership, (dil - a) / (1 - a), { kind: 'fin' });
-  } else issue(f.ownership, dil, { kind: 'fin' });
+  else issue(f.ownership, dil, { kind: 'fin' });
   // Headline ≠ cash: large rounds arrive 50% at close, the rest on conditions within a year [R15]. The tranche carries
   // the shares of its money (the new shares each holder got × the unpaid share), cancelled if it lapses (FIN4r, H3).
   const sp = roundSplit(s, amount, { full: !!opts.ipo || !!opts.full });
@@ -201,7 +190,7 @@ export function bookRound(s: GameStateV2, ctx: SystemCtx, amount: Money, pre: Mo
     }
     f.tranches.push({ amount: sp.tranche.amount, dueDay: sp.tranche.dueDay, condition: sp.tranche.condition, deadline: sp.tranche.deadline, source: opts.source ?? 'Equity round tranche 2', shares: { holders, insiders: f.ownership.founder + f.ownership.mission } });
   }
-  f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.anchor ? { anchor: opts.anchor } : {}), ...(opts.ipo ? { ipo: true } : {}) });
+  f.rounds.push({ day: s.time.day, amount, postMoney: post, dilution: dil, down, ...(opts.ipo ? { ipo: true } : {}) });
   const dv = post - f.valuation;
   f.valuation = post;
   resizeCreditLine(s, ctx, opts.ipo ? 'IPO' : 'equity round'); // FIN1: banks re-size the line around a raise
@@ -263,7 +252,6 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
   // (LIMITS: the CEO used to pull it silently when runway was ≥ 4 quarters, and close it silently otherwise).
   if (base === mark && pre < lastPostMoney(s)) {
     const rr: RepricedRound = { day: s.time.day, deadline: s.time.day + REPRICED_DECIDE_DAYS, ask: r.ask, pre, lastPost: lastPostMoney(s), ipo: r.ipo };
-    if (r.anchor) rr.anchor = r.anchor;
     if (r.thesis) rr.thesis = r.thesis;
     if (r.dualClass) rr.dualClass = true;
     f.ws3.repricedRound = rr;
@@ -275,20 +263,20 @@ export function closePendingRound(s: GameStateV2, ctx: SystemCtx): void {
 
 /** What a round raises at close: the ask, except an IPO, which sells at most 5% of the company at its closing
  *  pre-money (FIN3b). */
-export const closingAsk = (r: { ask: Money; pre: Money; ipo: boolean }) => (r.ipo ? Math.min(r.ask, (dMax(false, true) * r.pre) / (1 - dMax(false, true))) : r.ask);
+export const closingAsk = (r: { ask: Money; pre: Money; ipo: boolean }) => (r.ipo ? Math.min(r.ask, (dMax(true) * r.pre) / (1 - dMax(true))) : r.ask);
 
 /** Book a priced round, its promise (FIN2) and the IPO's side effects (closePendingRound, acceptRepriced). */
-function closeRound(s: GameStateV2, ctx: SystemCtx, r0: { ask: Money; pre: Money; anchor?: string; ipo: boolean; thesis?: Thesis; dualClass?: boolean }): void {
+function closeRound(s: GameStateV2, ctx: SystemCtx, r0: { ask: Money; pre: Money; ipo: boolean; thesis?: Thesis; dualClass?: boolean }): void {
   // FIN3b (spec §2.6, FC3): an IPO sells at most 5% of the company at its closing price. If the price fell after
   // signing (a repriced or discounted close), fewer dollars are raised rather than more of the company sold: amount ≤
   // d·pre/(1 − d). (A repriced IPO once closed at 8% dilution.)
   const ask = closingAsk(r0);
   const r = ask < r0.ask ? { ...r0, ask } : r0;
-  if (r !== r0) ctx.log('finance', `The IPO sells at most ${Math.round(dMax(false, true) * 100)}% of the company: at $${r.pre.toFixed(0)}B pre-money it raises $${r.ask.toFixed(1)}B of the $${r0.ask.toFixed(1)}B asked.`, 2);
-  const now = bookRound(s, ctx, r.ask, r.pre, { ...(r.anchor ? { anchor: r.anchor } : {}), ipo: r.ipo });
+  if (r !== r0) ctx.log('finance', `The IPO sells at most ${Math.round(dMax(true) * 100)}% of the company: at $${r.pre.toFixed(0)}B pre-money it raises $${r.ask.toFixed(1)}B of the $${r0.ask.toFixed(1)}B asked.`, 2);
+  const now = bookRound(s, ctx, r.ask, r.pre, { ipo: r.ipo });
   // FIN4r (H2): the promise stores a typical round at this close (the dilution limit at its pre-money), the floor of
   // its weight.
-  if (r.thesis) addPromise(s, ctx, r.thesis, r.ask, typicalRound(r.pre, dMax(!!r.anchor, false)));
+  if (r.thesis) addPromise(s, ctx, r.thesis, r.ask, typicalRound(r.pre, dMax(false)));
   if (r.ipo) {
     s.capital.ipoWindow = true;
     if (r.dualClass) s.player.finance.dualClass = true;

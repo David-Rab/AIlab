@@ -30,7 +30,7 @@ import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { affiliatedLab, anchorPartners, dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
+import { affiliatedLab, dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
 import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
 import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
@@ -283,12 +283,12 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   const trA = ref.flatMap((r) => r.q.filter((x) => x.year <= 2026 && !x.bust).flatMap((x) => x.trailing.map((t) => t.v / t.r / mA(t.r))));
   const hiA = marks.filter((x) => x.g >= 2.5).map((x) => x.V / x.R / mA(x.R));
   smokeCheck(trA.length > 0 && median(trA) < median(hiA), 'F9 (FC2, FIN5b) trailing private rivals are valued at a lower multiple than the leader-style lab at the same revenue scale (each mark ÷ Anthropic\'s multiple at that revenue; their marks through 2026)', `trailing rivals ×${median(trA).toFixed(2)} of m_A over ${trA.length} lab-marks (raw ${f1(median(tr))}×; 2027 ${f1(median(tr27))}× over ${tr27.length}) · leader-style ×${median(hiA).toFixed(2)} (raw ${f1(median(hi))}×)`);
-  const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.anchor && !x.down).map((x) => x.dilution));
-  smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 unanchored round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
+  const dil = ref.flatMap((r) => r.s.player.finance.rounds.filter((x) => !x.down).map((x) => x.dilution));
+  smokeCheck(dil.length > 0 && Math.max(...dil) <= 0.08 + 1e-9, 'F9 round dilution ≤ 8% (C12)', `max ${f1(Math.max(...dil) * 100)}% over ${dil.length} rounds`);
   const s = newGame(defaultSetupV2({ seed: 3 }));
   const V = s.player.finance.valuation;
-  const anch = raiseCeiling(s, Number.POSITIVE_INFINITY, { anchor: true }).parts.dilution;
-  check(Math.abs(anch / (V + anch) - dMax(true, false)) < 1e-9 && dMax(false, true) === 0.05, 'F9 dilution cap 14% with a strategic anchor, 5% at IPO (C12)', `${f1((anch / (V + anch)) * 100)}%`);
+  const cap = raiseCeiling(s).parts.dilution;
+  check(Math.abs(cap / (V + cap) - dMax(false)) < 1e-9 && dMax(false) === 0.08 && dMax(true) === 0.05, 'F9 dilution cap 8% in a private round, 5% at IPO (C12)', `${f1((cap / (V + cap)) * 100)}%`);
   const ctx = makeCtx(s);
   const before = s.capital.ws3.playerPoolQ;
   applyShock(s, ctx, 'financingDoubt');
@@ -770,12 +770,12 @@ for (const a of FINANCE_ACTIONS) {
     // A deal that would hand a partner control stops at the trust before anything is booked. FIN4a: offers are
     // computed live, so the partner already holds 49% and its cheque would take it past half.
     {
-      const partner = 'Gulf Sovereign Fund';
+      const partner = 'Azimuth';
       s.player.finance.ownership = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
       const cash0 = s.player.finance.cash;
       const own0 = JSON.stringify(s.player.finance.ownership);
-      const after = partnerStakeAfter(s, partnerTerms(s, partner));
-      const err = signPartner(s, makeCtx(s), partner, { force: true });
+      const after = partnerStakeAfter(s, partnerTerms(s, partner, { rescue: true }));
+      const err = signPartner(s, makeCtx(s), partner, { rescue: true, force: true });
       check(typeof err === 'string' && /trust votes no/.test(err) && s.player.finance.cash === cash0 && JSON.stringify(s.player.finance.ownership) === own0 && after > 0.5 && !dealWith(s, partner), 'FIN3b a deal past 50% under PBC + trust stops at the trust (no cash, no shares, force does not help)', `${String(err)} · stake after ${F1pct(after)}`);
     }
     const o = fx();
@@ -869,7 +869,7 @@ for (const a of FINANCE_ACTIONS) {
       const repriced = !!s.player.finance.ws3.repricedRound;
       if (repriced) acceptRepriced(s, ctx);
       const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
-      check(repriced && r.ipo === true && r.dilution <= dMax(false, true) + 1e-9 && r.amount < ask, 'FIN3b the IPO sells at most 5% at close: a repriced IPO raises less instead', `asked ${f1(ask)}B · ${repriced ? 'repriced, accepted' : 'closed'} at ${f1(r.amount)}B = ${(r.dilution * 100).toFixed(2)}%`);
+      check(repriced && r.ipo === true && r.dilution <= dMax(true) + 1e-9 && r.amount < ask, 'FIN3b the IPO sells at most 5% at close: a repriced IPO raises less instead', `asked ${f1(ask)}B · ${repriced ? 'repriced, accepted' : 'closed'} at ${f1(r.amount)}B = ${(r.dilution * 100).toFixed(2)}%`);
     } else check(false, 'FIN3b the IPO sells at most 5% at close', String(err));
   }
   {
@@ -994,10 +994,10 @@ for (const a of FINANCE_ACTIONS) {
   {
     const s = fx();
     s.player.board = initialBoard('pbcTrust');
-    const partner = 'Gulf Sovereign Fund';
+    const partner = 'Azimuth';
     const own = { founder: 0.2, mission: 0.2, fin: 0.11, strat: { [partner]: 0.49 }, public: 0 };
     s.player.finance.ownership = structuredClone(own);
-    const t = partnerTerms(s, partner);
+    const t = partnerTerms(s, partner, { rescue: true });
     const vs = dealVotes(s, t);
     const o = fx();
     o.player.board = initialBoard('nonprofitPBC');
@@ -1019,7 +1019,7 @@ for (const a of FINANCE_ACTIONS) {
     const nw = s.player.finance.deals.find((d) => d.partner === 'Northwind Cloud');
     const why = partnerBlocker(s, 'Northwind Cloud');
     const offers = partnerOffers(s);
-    check(!!nw?.legacy && JSON.stringify(nw.strings) === '{}' && !!why && /capped at 15%/.test(why) && !s.player.board.seats.some((x) => /observer/.test(x.holder)) && offers.filter((o) => !o.blocked).map((o) => o.partner).join(',') === 'Azimuth,Silica Systems,Corvid Micro,Gulf Sovereign Fund', 'FIN4a leader start: Northwind is a legacy holder above the 15% cap (no observer seat, no strings); the four other partners offer terms', `${why} · open: ${offers.filter((o) => !o.blocked).map((o) => o.partner).join(', ')}`);
+    check(!!nw?.legacy && JSON.stringify(nw.strings) === '{}' && !!why && /capped at 15%/.test(why) && !s.player.board.seats.some((x) => /observer/.test(x.holder)) && offers.filter((o) => !o.blocked).map((o) => o.partner).join(',') === 'Azimuth,Silica Systems', 'FIN4a leader start: Northwind is a legacy holder above the 15% cap (no observer seat, no strings); the four other partners offer terms', `${why} · open: ${offers.filter((o) => !o.blocked).map((o) => o.partner).join(', ')}`);
   }
   {
     // Hyperscaler on cloud: equity in three tranches; capacity priced on the expected cloud path less the firm discount
@@ -1086,15 +1086,6 @@ for (const a of FINANCE_ACTIONS) {
     const later = structuredClone(s);
     later.time.day = (d.supply?.endDay ?? 0) + 1;
     check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^gw:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW deployed (gw tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
-  }
-  {
-    // Sovereign: a passive cheque and no in-country site (its political cost went with the government actor, W1d).
-    const s = fx();
-    const sites0 = s.player.sites.length;
-    const t = partnerTerms(s, 'Gulf Sovereign Fund');
-    const err = signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
-    const d = dealWith(s, 'Gulf Sovereign Fund');
-    check(!err && s.player.sites.length === sites0 && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque and no in-country site', `$${f1(t.equityNow)}B`);
   }
   {
     // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.
@@ -1234,20 +1225,6 @@ for (const a of FINANCE_ACTIONS) {
     const lease = payOptions(s, 10, 'site').find((o) => o.id === 'lease')!;
     check(none === undefined && /partner's guarantee/.test(String(why)) && sov === undefined && near(r ?? 0, (CAPEX_LEASE.rate.B ?? 0) + CAPEX_LEASE.guaranteePremium) && !lease.blocked && lease.guarantor === 'Azimuth' && /guaranteed by Azimuth/.test(lease.note) && leaseGuarantor(s) === 'Azimuth',
       'FIN4b below rating B a running hyperscaler or chip-vendor partner guarantees leases at the B rate + 3 points, named on the lease option (a sovereign cheque or a legacy stake does not)', `${F1pct(r ?? 0)} · ${lease.note}`);
-  }
-  {
-    // A hyperscaler anchoring a round stays at or under its 15% cap: it is offered as an anchor only while the cap leaves
-    // room for 40% of the round, and its shares in the round stop at the cap (financial investors take the rest).
-    const s = fx();
-    const offered0 = anchorPartners(s).includes('Azimuth');
-    s.player.finance.ownership.strat['Azimuth'] = 0.149;
-    const offered1 = anchorPartners(s).includes('Azimuth');
-    const V = s.player.finance.valuation;
-    const fin0 = s.player.finance.ownership.fin;
-    bookRound(s, makeCtx(s), 0.15 * V, V, { anchor: 'Azimuth' });
-    const dil = 0.15 / 1.15;
-    check(offered0 && !offered1 && s.player.finance.ownership.strat['Azimuth'] <= 0.15 + 1e-9 && s.player.finance.ownership.fin - fin0 * (1 - dil) > 0.9 * dil,
-      'FIN4b a hyperscaler anchors a round only within its 15% cap: not offered without room for 40% of the round; its shares stop at 15%', `stake after ${F1pct(s.player.finance.ownership.strat['Azimuth'])}`);
   }
   {
     // The reference bot: one hyperscaler deal, exclusive (one deep partner), no IP access.
@@ -1392,12 +1369,12 @@ for (const a of FINANCE_ACTIONS) {
     const r = s.player.finance.rounds[s.player.finance.rounds.length - 1];
     // Four equal ceiling-sized rounds in a year: ≈ 25% each; one alone: 100%.
     const x = fx();
-    const A = typicalRound(1000, dMax(false, false));
+    const A = typicalRound(1000, dMax(false));
     x.player.finance.rounds = [0, 1, 2, 3].map((k) => ({ day: x.time.day - 360 + 91 * k, amount: A, postMoney: 1000 + A, dilution: 0.08, down: false }));
     const ps = x.player.finance.rounds.map((rr, k) => ({ id: `P${k}`, type: 'scale' as const, pitch: 'base' as const, start: 1, target: 2, amount: A, closeDay: rr.day, deadline: rr.day + 365, typical: A }));
     const ws = ps.map((pp) => promiseWeight(x, pp));
     const lone = promiseWeight({ ...x, player: { ...x.player, finance: { ...x.player.finance, rounds: [x.player.finance.rounds[0]] } } }, ps[0]);
-    check(near(p.typical ?? 0, typicalRound(r.postMoney - r.amount, dMax(false, false))) && w < 0.01 && near(ws[0], 0.25) && near(lone, 1), 'FIN4r H2 a promise weighs its round ÷ max(the year\'s rounds, a typical round at the close): a $0.1B round barely counts; four ceiling-sized rounds 25% each, one 100%', `$0.1B at $${f1(pre)}B pre: typical $${f1(p.typical ?? 0)}B → weight ${(w * 100).toFixed(2)}% · stacked ${ws.map((y: number) => `${Math.round(y * 100)}%`).join('/')} · lone ${Math.round(lone * 100)}%`);
+    check(near(p.typical ?? 0, typicalRound(r.postMoney - r.amount, dMax(false))) && w < 0.01 && near(ws[0], 0.25) && near(lone, 1), 'FIN4r H2 a promise weighs its round ÷ max(the year\'s rounds, a typical round at the close): a $0.1B round barely counts; four ceiling-sized rounds 25% each, one 100%', `$0.1B at $${f1(pre)}B pre: typical $${f1(p.typical ?? 0)}B → weight ${(w * 100).toFixed(2)}% · stacked ${ws.map((y: number) => `${Math.round(y * 100)}%`).join('/')} · lone ${Math.round(lone * 100)}%`);
   }
   {
     // H3: a round of $20B or more pays half at the close; every preview shows the tranche; a lapse cancels the unpaid
@@ -1548,13 +1525,10 @@ for (const a of FINANCE_ACTIONS) {
     check(near(-pv.costs[0].amount, added, 1e-9), 'FIN4r L3 the community package preview prices every site the package goes to', `preview $${(-pv.costs[0].amount).toFixed(2)}B · added $${added.toFixed(2)}B`);
   }
   {
-    // L4: the IPO's dual-class discount is a valuation line, not cash. L5: a raise's anchor must be on offer.
+    // L4: the IPO's dual-class discount is a valuation line, not cash. (L5, an anchor on a raise, went with anchoring.)
     const s = fx();
     const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.ipo')!.preview(s, { dualClass: true });
-    s.player.board = initialBoard('pbcTrust');
-    s.player.finance.state = 'healthy';
-    const err = act(s, 'fin.raise', { ask: 1, anchor: 'Not a partner' });
-    check(pv.exposure.some((e) => e.currency === 'valuation' && e.amount < 0) && !pv.exposure.some((e) => e.currency === 'cash' && /dual-class/.test(String(e.target))) && typeof err === 'string' && !s.player.finance.ws3.pendingRound, 'FIN4r L4/L5 the dual-class discount is shown on the valuation (not cash); a raise\'s anchor must be one on offer', `${err}`);
+    check(pv.exposure.some((e) => e.currency === 'valuation' && e.amount < 0) && !pv.exposure.some((e) => e.currency === 'cash' && /dual-class/.test(String(e.target))), 'FIN4r L4 the dual-class discount is shown on the valuation (not cash)');
   }
   {
     // L6: scale promises are judged on compute you own or hold on firm contracts (no spot rentals, no cancellable cloud).
