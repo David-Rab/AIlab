@@ -28,7 +28,7 @@ const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return 
 const trueUnderstanding = (s: GameStateV2) => { const r = trueSightLimit(s); return { U: r.L, L: r.level }; };
 void trueSightLimit;
 import { flagNum } from '../../src/engine/v2/safety/common';
-import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
+import type { AlignDiffId, BotPolicy, GameStateV2, TraitId, TraitVector } from '../../src/engine/v2/types';
 import { validateJson } from './lib';
 import { fileURLToPath } from 'node:url';
 import { cached } from './simcache';
@@ -38,7 +38,7 @@ import { dayOfDate, decimalYear, START_DATE } from '../../src/engine/v2/core/tim
 import { suiteExploitMap } from '../../src/engine/v2/models/suites';
 import { itemTerms } from '../../src/engine/v2/safety/covert';
 import { expectedObservation, familyPenalty } from '../../src/engine/v2/safety/detection';
-import { afCapGate, ANTISCHEME_REMOVAL, hackRates, OMEGA_KIND, playerEnv, postSignals, type TraitEnv } from '../../src/engine/v2/safety/traits';
+import { afCapGate, ANTISCHEME_REMOVAL, hackRates, OMEGA_KIND, playerEnv, postSignals, removalShare, type TraitEnv } from '../../src/engine/v2/safety/traits';
 import type { FamilyMap } from '../../src/engine/v2/models/effective';
 import type { ModelVersion, RLFamily } from '../../src/engine/v2/types';
 
@@ -170,7 +170,7 @@ const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.le
  *  before oversight (they measured attempts). */
 export const mdSabotage = (s: GameStateV2, v: ModelVersion) => itemTerms(s, v, 'SAFSAB', 1, 8, false).attempts;
 /** Persistence of oversight-conditional trait t through one run's safety training (1 − the run's removal fraction). */
-export const persistence = (env: TraitEnv, t: TraitId) => 1 - Math.min(1, (env.removal[t] ?? 0) * ((env.omegaSafety ?? env.omega) / 0.6) * env.removalMult);
+export const persistence = (env: TraitEnv, x0: TraitVector, t: TraitId) => 1 - removalShare(env, x0, t);
 
 /** safetyrates.ts's observer on a RefBot game: every new version's hack rates, traits and persistence, and the lab's
  *  2026-12-31 reading. step(s) after each tick; done(s) at the end gives the record. */
@@ -214,7 +214,7 @@ function ratesObserver(s0: GameStateV2) {
         if (isPost && parent) {
           const env = playerEnv(s, parent.traitsTrue, postSignals(s, v.design), OMEGA_KIND.post, v.design, 'L-probe', parent.uModes, { ...v, traitsTrue: parent.traitsTrue, masks: parent.masks });
           env.omegaSafety = OMEGA_KIND.post;
-          pi = persistence(env, 'SCHEME');
+          pi = persistence(env, parent.traitsTrue, 'SCHEME');
           antiScheme = (env.removal.SCHEME ?? 0) >= ANTISCHEME_REMOVAL - 1e-9;
         }
         const t = v.traitsTrue;

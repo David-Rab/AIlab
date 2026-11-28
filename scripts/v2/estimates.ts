@@ -16,8 +16,9 @@ import * as start from './estimates/start';
 import * as money from './estimates/money';
 import * as market from './estimates/market';
 import * as world from './estimates/world';
+import * as safety from './estimates/safety';
 
-const AREAS: { area: string; estimates: () => Estimate[] }[] = [capability, start, money, market, world];
+const AREAS: { area: string; estimates: () => Estimate[] }[] = [capability, start, money, market, world, safety];
 
 const argv = process.argv.slice(2);
 const i = argv.indexOf('--only');

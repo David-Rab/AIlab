@@ -86,8 +86,8 @@ const JOBS: Job[] = [
   { id: 'control', script: 'control.ts', budget: { quick: 30, full: 30 }, ...S(ALL, 60) } as Job,
   // E13 (merged in M5).
   { id: 'safetyideas', script: 'safetyideas.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 30) } as Job,
-  // E10: safety rates vs research/20 F on probe worlds (no game; its RefBot-game rates moved to calreport/safety.ts).
-  { id: 'safetyrates', script: 'safetyrates.ts', budget: { full: 30 }, ...S(['full'], 20) } as Job,
+  // E10: safety-rate mechanisms (directions and identities) on one typical probe world; the sourced bands are estimates (estimates/safety.ts).
+  { id: 'safetyrates', script: 'safetyrates.ts', budget: { quick: 10, full: 10 }, ...S(ALL, 3) } as Job,
   // Corporate structure (corp): constructed cases, no bands. Budgets from one measured run (7-9 s wall each).
   { id: 'corp', script: 'corp.ts', budget: { quick: 12, full: 12 }, ...S(ALL, 10) } as Job, // C1: control model (votes, controller, seats)
   { id: 'partners', script: 'partners.ts', budget: { quick: 15, full: 15 }, ...S(ALL, 12) } as Job, // C7a: partner deal shape (commitment in dollars, tranches, strings, rescue)

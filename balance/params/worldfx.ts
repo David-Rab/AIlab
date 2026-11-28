@@ -240,7 +240,7 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'sourced', evidence: 'sectors.ts:227 "Player transition-fund + government training → Retrain (each $10B/yr +0.1, cap +0.5; R16 §1A.2 step 9)"',
     source: 'research/16 §1A.2 step 9', notes: 'Cap 0.5 and the worker-relief law (USGOV.reliefRetrain) are in the same expression.',
   }),
-  inl('sectors.friendCeiling', 'sectors.ts', 'const friendStar = 0.03 + 0.18 * v2LevelGate(', 0.18, 'share of adults', {
+  inl('sectors.friendCeiling', 'sectors.ts', '0.03 + 0.18 * v2LevelGate(w,', 0.18, 'share of adults', {
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:382 (the start value 0.03 at :215 is "[D, R16 N3a]")',
     notes: 'AI-friend share ceiling above the 0.03 floor; sibling of the start value friendShare 0.03.',
   }),

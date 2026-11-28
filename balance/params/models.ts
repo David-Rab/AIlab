@@ -40,8 +40,8 @@ const COMPUTE_SITES: Param[] = [
   inl('mod.forecast.KW_STEP', CF, 'const KW_STEP = 0.944', 0.944, 'x per quarter', { ...MK, kind: 'sourced', source: 'research/15 §1.2 ("R15")',
     evidence: 'no tag; forecast.ts:9 "kW per H100e falls ×0.944 each quarter (sitesQ)"',
     notes: 'A7: copy of mod.sites.kwStep (0.944; also in sitesQ and expectedCloudPrice).' }),
-  inl('mod.sites.kwStep', CS, 'pw.kWPerH100e *= 0.944', 0.944, 'x per quarter', { ...MK, kind: 'sourced',
-    evidence: 'sites.ts:277 "1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]"', source: R15 }),
+  inl('mod.sites.kwStep', 'src/engine/v2/compute/power.ts', 'Math.pow(0.944, k)', 0.944, 'x per quarter', { ...MK, kind: 'sourced',
+    evidence: 'power.ts kWPerH100eAt (was sites.ts:277) "1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]"', source: R15 }),
 
   ex(CO, 'CHIP_TERMS', [], [0, 1, 4, 8, 12, 16], 'quarters', { ...MK, kind: 'untagged',
     evidence: 'no tag; orders.ts:34-35 "Chip terms: 0 = spot (next quarter, spot price), 1 = one batch (two quarters), 4–16 = a tranche every quarter"',
