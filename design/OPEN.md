@@ -167,3 +167,7 @@ tests: [TESTING.md](TESTING.md).
 | The day-400 fixture has no safety scientist staffed on a line (safetyideas F44 had to staff one) | Check | test-audit/G2-report.md |
 | One `cloneGame(setup)` helper in lib.ts to replace the local build-once-and-clone copies in ~10 scripts | Parked (cleanup) | test-audit/G1, G3 reports |
 | The reference-path lint (worktypes: no player mechanism reads frontierFlop, hRef, shareRefAt …) and the other rule-guard greps belong in a lint-* script | Parked (cleanup) | test-audit/P1c, G2 reports |
+| Back-of-envelope estimates (`npx tsx scripts/v2/estimates.ts`, ≈ 2 s, in quick): 28 of 76 out of band on 2026-11-28 — the balance/money sessions' list to work from (design/estimates/E1a, E1b, E2m, E2s reports) | Later (balance session) | design/estimates/TASKS.md |
+| Estimates extractions still deferred: the NPC target-lag + relax step (src/engine/v2/npc/lab.ts ~90/~139, after the balance branch fit-npclag lands) and `aiFteOf` (departments/workfit.ts ~355, after the market branch mkt lands); they unblock T2.labour.SCband, China trailMean, W.hireRate10 | Later | design/estimates/MAP-A.md (c), (d) |
+| The kW-per-H100e step (×0.944 a quarter) is still inline in finance/plan.ts (96, 261, 272, 285) and compute/forecast.ts:9: call compute/power.ts `kWPerH100eAt` | Parked (cleanup) | design/estimates/E2m-report.md |
+| danger.ts KAPPA_ITEM / KAPPA_RD repeat the literal 0.8; naming it needs balance/params/safety-data.ts to re-point its two text anchors first | Parked (balance session) | design/estimates/E2s-report.md |
