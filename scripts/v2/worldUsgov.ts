@@ -7,6 +7,8 @@ import { makeCtx } from '../../src/engine/v2/core/loop';
 import { dayOfDate } from '../../src/engine/v2/core/time';
 import { initialUsgov, stepUsgov, USGOV } from '../../src/engine/v2/world/usgov';
 import { attention } from '../../src/engine/v2/world/observe';
+import { versionById } from '../../src/engine/v2/models/labs';
+import { versionById } from '../../src/engine/v2/models/labs';
 import { lawIdsInForce, lawsInForce } from '../../src/data/v2/laws';
 import { endingsSystem } from '../../src/engine/v2/endings/endings';
 import { FIXTURE_DIR, check, finish } from './lib';
@@ -63,6 +65,12 @@ const clearMilestones = (s: GameStateV2) => {
   const run = (brief: 0 | 2) => {
     const s = load('day900.json');
     for (const r of [...s.rivals, s.china.lab]) for (const i of Object.keys(r.core.milestoneDays)) delete r.core.milestoneDays[i as unknown as 0];
+    // The fixture's reference player is slower than the comment above says (milestone 1 on day 702, no milestone 2 by day 900),
+    // so the case is built: the deployed version is half an OOM better (it shows milestone 2), live since day 819, and the
+    // internal milestone was reached on day 588.
+    for (const v of new Set(s.player.deployments.map((d) => versionById(s, d.versionId)!))) { v.G += 0.5; v.build.gPre += 0.5; }
+    for (const d of s.player.deployments) if (d.kind !== 'internal') d.versionSince = 819;
+    s.player.milestoneDays[2 as 0] = 588;
     s.usgov = initialUsgov();
     s.player.policies.govBriefing = brief;
     let first = -1;

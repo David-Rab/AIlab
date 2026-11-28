@@ -230,3 +230,10 @@ All of C1–C7 and every open-question recommendation are approved (Q3: stars at
 - Fix the mechanism here; Pellory's numbers are left for later. An NPC-touchpoint audit is running first (AI27-cal/.scratch/npcaudit/).
 - **NPC fixes: full scope approved (2026-11-28), spec design/bal/NPC-FIX.md.** Running: F0 (S_ref, fix-f0 in ../AI27-l1), F3–F6 (shocks, fix-f3 in ../AI27-l5), F7 (lead readouts, fix-f7 in ../AI27-l8). Next: F1/F1b/F2 (diffusion = max(own, diffused), know-how bars, tacit leak) after F0; F8 clean-up and OPEN.md; checkpoint; central remeasure.
 - 2026-11-28: master (outside world) merged into bal (5b0c3306, SCHEMA 126); F0, F3–F7 and F1/F2/F8 merged (1d7d9fc3, SCHEMA 127). Diffusion now gives the leader ~nothing (central seed 2027: SC 1206 = 2028.8, SAR 1408; AIFM AC 2029.95). Running: F1b (know-how bars UI, fix-f1ui in ../AI27-l8) and the central remeasure M5c (12 forced games, 4 workers). Then checkpoint, merge to master.
+
+## Plan forward (designer, 2026-11-28)
+- Mechanism work is mostly done; calibration by parameters from here (with the designer; mechanism problems are brought as proposals).
+- **Stage 1 includes the outside world** (rivals/NPC labs, governments, public, economy): calibrate the world independently of the player first (observer mode: no player / insignificant player; `balrun --observer`, `npm run world:dash`; hand-off design/world/HANDOFF-BAL.md), then the player's lab against its own forecast draw.
+- Forced games stop at ASI (approved; tooling).
+- Work in collaboration as today: one sweep at a time, results shown before any value is committed.
+- Open from the world hand-off: (1) shared 2025–26 history: the NPC lead lab shows milestone 2 by mid-2026 in fast/some central seeds, so world reactions fire before Nov 2026; (2) ~130 player-lab parameters still cite AI 2027 (starts.ts leader row etc.): re-source against reality to Nov 2026 and the AIFM.

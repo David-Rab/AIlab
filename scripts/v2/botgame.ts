@@ -144,10 +144,11 @@ const fix3 = (x: number) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : 
  * research speed-up (labSpeedRel), effective compute (G − G at V0, OOM), computeOnline and capabilities staff. A non-finite
  * value (the capability runaway overflowing) is stored as null.
  *
- * The game also stops `POST_ASI_YEARS` years after the player's ASI: the open-loop runaway then has G in the hundreds of OOM
- * and a tick costs minutes, and nothing after it is compared. A game that never reaches ASI runs to `until`.
+ * The game ends on the day the player reaches ASI (milestoneDays[6]), after one last sample on that day (its true date, off the
+ * quarterly grid unless a grid sample was taken that tick): the open-loop runaway after ASI has G in the hundreds of OOM and a tick
+ * costs minutes, and the scoring (calibscore.ts: milestones, intervals, series read at a date or at SC + tau) takes a date past the
+ * last sample as the last sample, a lower bound flagged '*'. A game that never reaches ASI runs to `until` (2060) or the 20000-tick guard.
  */
-export const POST_ASI_YEARS = 1;
 /** Years between samples after 2026 (R3.2: a quarter, so a date relative to SC or AC (SC+0.5 y) falls between samples a quarter apart, not a year). The first two samples stay 2025.5 and 2026. */
 export const SAMPLE_STEP = 0.25;
 export interface ForcedOpts { step?: number; spdM?: boolean }
@@ -160,11 +161,11 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: Forc
   const out: ForcedSeries = { year: [], G: [], h50: [], h80: [], spd: [], spdM: [], ec: [], comp: [], staff: [] };
   const w = s.hidden.timeline;
   let next = 2025.5;
-  const sample = () => {
+  const sample = (at = next) => {
     const v = bestPlayerVersion(s);
     const g = v?.G ?? gV0(w);
     const h50 = v ? h50Of(w, v) : H50_V0_MIN;
-    out.year.push(next);
+    out.year.push(at);
     out.G.push(fix3(g));
     out.h50.push(sig3(h50));
     out.h80.push(sig3(h50 * H80_OVER_H50));
@@ -173,12 +174,10 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: Forc
     out.ec.push(fix3(g - gV0(w)));
     out.comp.push(Math.round(s.player.computeOnline));
     out.staff.push(Math.round(s.player.staff.cap));
-    staff.sample(s, next);
-    next = next === 2025.5 ? 2026 : next + step;
+    staff.sample(s, at);
   };
   let guard = 0; // the first sample comes after the first tick, once the stub has set the compute
-  let stopAt = until;
-  while (decimalYear(s) < stopAt && guard++ < 20000) {
+  while (decimalYear(s) < until && guard++ < 20000) {
     for (const p of [...s.events.pending]) {
       const c = bot.decide(s, p);
       if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
@@ -188,9 +187,12 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: Forc
     if (s.time.day % 7 === 0) staff.weekly(s, engine);
     tick(s, opts);
     if (withM) M.observe(s);
-    if (decimalYear(s) >= next - 1e-9) sample();
-    const asi = s.player.milestoneDays[6];
-    if (asi !== undefined && POST_ASI_YEARS > 0) stopAt = Math.min(until, decimalYear(s, asi) + POST_ASI_YEARS);
+    let sampled = false;
+    if (decimalYear(s) >= next - 1e-9) { sample(); sampled = true; next = next === 2025.5 ? 2026 : next + step; }
+    if (s.player.milestoneDays[6] !== undefined) { // ASI: the last sample, on this day, then the game ends
+      if (!sampled) sample(decimalYear(s));
+      break;
+    }
   }
   return { series: out, staff: staff.log };
 }

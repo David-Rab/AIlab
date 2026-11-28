@@ -161,7 +161,7 @@ export function scoreTimeline(rs: Rec[], cps: Checkpoint[], t: TimelineId, scShi
 
 // ───────────── by phase: a checkpoint at the model's AC + tau against the game at its own SC + tau (R3.2) ─────────────
 /** One game's series at a date, between the (now quarterly) samples: log-linear for the multiplier and the horizon, linear for G; null before the
- *  first sample; past the last sample the last value (a game stops a year after its ASI, so it is a lower bound: carried). */
+ *  first sample; past the last sample the last value (a forced game ends on its ASI day, so it is a lower bound: carried). */
 function atDate(r: Rec, key: 'G' | 'h80' | 'spdM', date: number): { v: number; carried: boolean } | null {
   const S = r.series, col = S?.[key];
   if (!S || !col || !S.year.length || date < S.year[0] - 1e-9) return null;
@@ -259,7 +259,7 @@ export interface Paths { h50: Pt[]; h80: Pt[]; spd: Pt[]; /** matched speed-up: 
 /**
  * The median game path per year: horizons in minutes; speed-up and effective compute as growth relative to 2025.5 (speed-up is
  * the multiple, effective compute as 10^EC on the AIFM scale: EC_2025_5 + (G - G(2025.5))). A year is drawn when at least half the
- * games reach it (a game stops a year after its ASI).
+ * games reach it (a forced game ends on its ASI day).
  */
 export function medianPaths(rs: Rec[]): Paths {
   const years = [...new Set(rs.flatMap((r) => r.series?.year ?? []))].sort((a, b) => a - b);
