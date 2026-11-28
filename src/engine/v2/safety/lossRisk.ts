@@ -143,9 +143,12 @@ export function modelLossRisk(s: GameStateV2, v: ModelVersion, m: LossMods = {})
   const k = (1 - stopRate) * (1 + F);
   const mis = clamp01(misalignmentEstimate(v) + (m.misShift ?? 0));
   const misSd = misalignmentSd(v) * (m.sdMult ?? 1);
+  // p is the mean over the belief; lo / hi are the outcomes at its 5th / 95th percentile. With the loss odds near zero (the belief mostly
+  // under the θ floor) the mean can sit above the 95th-percentile outcome, so the range is widened to always hold the estimate it shows.
+  const p = pLoss(s, mis, misSd, k);
   return {
     versionId: v.id, name: v.name,
-    p: pLoss(s, mis, misSd, k), lo: pLoss(s, mis - Z90 * misSd, 0, k), hi: pLoss(s, mis + Z90 * misSd, 0, k),
+    p, lo: Math.min(p, pLoss(s, mis - Z90 * misSd, 0, k)), hi: Math.max(p, pLoss(s, mis + Z90 * misSd, 0, k)),
     mis, misSd, stopRate, F, reach, knownF: known.F, unfoundF: unfound.F, unfoundReach: unfound.reach, exposure: mis * k,
   };
 }

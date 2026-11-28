@@ -17,6 +17,7 @@ import { endingsSystem } from '../../src/engine/v2/endings/endings';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { theftHazardDaily } from '../../src/engine/v2/security/theft';
 import { DAYS_PER_MONTH } from '../../src/engine/v2/npc/lab';
+import { publicG, versionById } from '../../src/engine/v2/models/labs';
 import { FIXTURE_DIR, check, finish } from './lib';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
@@ -25,6 +26,14 @@ const load = (n: string): GameStateV2 => {
   s.chinagov = initialChinagov();
   s.market.exportPolicy = 'caseByCase';
   s.usgov.thefts = [];
+  return s;
+};
+/** The day-900 fixture with a LEADING player: the reference player's deployed model is not ahead of the public frontier there (an NPC
+ *  lab's is better, so its attention decays as days pass and China is within three months of it), so every deployed version is
+ *  made half an OOM better: the player's public model leads the NPC labs and China (lead reads on public models, F7). */
+const loadLeading = (): GameStateV2 => {
+  const s = load('day900.json');
+  for (const v of new Set(s.player.deployments.map((d) => versionById(s, d.versionId)!))) { v.G += 0.5; v.build.gPre += 0.5; }
   return s;
 };
 /** Set the US lead over China (months) by China's public report. */
@@ -125,7 +134,7 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
 // Treaty: talks -> restraint (E23 to an attended player) -> verified only with pre-deploy testing; the player's AI R&D
 // pool stays at the signing-day cap; the NPC reference clock slows.
 {
-  const s = load('day900.json'); // the player leads (attention 1)
+  const s = loadLeading(); // the player leads (attention 1)
   setLead(s, 2);
   s.usgov.stage = 2;
   const att = playerAttention(s);
@@ -202,7 +211,8 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
 // Theft: weight theft starts at tension 2 (rung 1 is the acquisition push): none at 0 or 1; attempts at 2 with a leading, attended player.
 {
   const attempts = (tension: 0 | 1 | 2) => {
-    const s = load('day900.json'); // the player leads China by over a year, attention 1
+    const s = loadLeading(); // the player leads China by over a year, attention 1
+    s.china.lab.publicModel!.G = publicG(s, 'player') - 1; // China's public model is a year behind the player's (the lead reads the public models, F7)
     s.chinagov.tension = tension;
     s.player.security.wsl = 1; // a lab at the industry floor (the security system raises it there)
     const h = theftHazardDaily(s);

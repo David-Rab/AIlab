@@ -14,7 +14,7 @@
 //    it carries compute and staff growth, so it is not comparable.
 //  - effective compute, as OOM growth G(t) - G(2025.5) against EC(t) - 27.81 (the sourced G path, 28.0 at 2025.62 and 28.4 at
 //    2025.87, extended back to 2025.5; about +-0.2 OOM), linear.
-// A forced game stops one year after its ASI (botgame.ts POST_ASI_YEARS); a later checkpoint then takes the game's last sample
+// A forced game ends on its ASI day (botgame.ts playForced, last sample on that day); a later checkpoint then takes the game's last sample
 // (a lower bound, flagged '*' when it applies to over half of the games). A diverged sample (null) is infinity.
 // Compute is prescribed (the AIFM path), so it is not scored; the game's compute growth is printed as an input check.
 // BY PHASE (second table per group): the series and the SC-to-SAR gap at the model's AC + tau (tau = -1, 0, 0.5, 1, 2 years; per-run percentiles of the
