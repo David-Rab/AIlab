@@ -56,6 +56,20 @@ export function theftHazardDaily(s: GameStateV2, ctx?: SystemCtx): number {
   return theftHazardOn(s, s.player.security, lagDays(s, CHINA_ID, 'player'), playerAttention(s, ctx), gulfShare(s));
 }
 
+/** The chance of a successful theft from the player within a year, by the same rule as theftHazardOn (the daily hazard held for 365
+ *  days), for the Risk tab. `lead` is the days the player's model is ahead of China, `attention` the player's, `wsl` extra weight security
+ *  levels (a what-if). `blocker` says in words why the chance is 0 when it is. */
+export function theftYearOdds(s: GameStateV2, o: { lead: number; attention: number; wsl?: number }): { p: number; blocker: string } {
+  if (s.china.lab.core.status !== 'active') return { p: 0, blocker: 'China has no lab to use stolen weights' };
+  if (s.chinagov.tension < CHINAGOV.theftRung) return { p: 0, blocker: 'China is not stealing weights yet' };
+  if (o.attention < USGOV.attentionMin) return { p: 0, blocker: 'Too little attention on your lab to be a target' };
+  if (o.lead <= 90) return { p: 0, blocker: 'Nothing worth stealing: China is within three months' };
+  const sec = s.player.security;
+  const d = effectiveDefence({ ...sec, wsl: sec.wsl + (o.wsl ?? 0) }, gulfShare(s)) + (adopted(s, 'P25') ? P25_DEFENCE : 0);
+  const hazard = (-Math.log(1 - Math.min(0.999, theftP2mo(d, attackerLevel(s)))) / 61) * (theftIntent(s) / 100);
+  return { p: 1 - Math.pow(1 - Math.min(1, hazard), 365), blocker: '' };
+}
+
 /** Daily theft hazard against an NPC US lab (half the player's rate: §3.6). */
 export function rivalTheftHazard(s: GameStateV2, r: RivalLab): number {
   const lead = lagDays(s, CHINA_ID, r.core.id);
