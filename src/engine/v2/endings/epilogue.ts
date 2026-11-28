@@ -15,7 +15,6 @@ import { keptShare } from '../actors/commitments';
 import { labOf, postureOf, rivalMis } from '../actors/rivals';
 import { npcM } from '../npc/risk';
 import { persOf } from '../npc/lab';
-import { ws4r } from '../actors/state';
 import { USGOV } from '../world/usgov';
 
 /** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
@@ -85,7 +84,7 @@ export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
   // The US government (world/usgov.ts): the oversight committee holds power; a lab pooled under the DPA that the
   // government does not trust is the government's.
   if (s.usgov.oversight) return 'committee';
-  if (ws4r(s).dpaAccepted && s.usgov.trust < USGOV.governmentTrust) return 'government';
+  if (s.usgov.dpaAccepted && s.usgov.trust < USGOV.governmentTrust) return 'government';
   if (near) return 'multipolar';
   if (s.player.policies.govBriefing >= 2 && keptShare(s) >= 0.8 && controlShare(s) < 0.5) return 'democratic';
   return 'corporate';

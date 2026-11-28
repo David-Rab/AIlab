@@ -9,7 +9,6 @@ import { initialUsgov, stepUsgov, USGOV } from '../../src/engine/v2/world/usgov'
 import { attention } from '../../src/engine/v2/world/observe';
 import { lawIdsInForce, lawsInForce } from '../../src/data/v2/laws';
 import { endingsSystem } from '../../src/engine/v2/endings/endings';
-import { ws4 } from '../../src/engine/v2/actors/state';
 import { FIXTURE_DIR, check, finish } from './lib';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 
@@ -17,7 +16,7 @@ const load = (n: string): GameStateV2 => deserialize(readFileSync(join(FIXTURE_D
 const step = (s: GameStateV2, days: number, each?: (s: GameStateV2) => void) => {
   for (let i = 0; i < days; i++) { s.time.day++; stepUsgov(s, makeCtx(s)); each?.(s); }
 };
-const asked = (s: GameStateV2, id: string) => ws4(s).requests.some((r) => r.id === id) || s.usgov.asked[id as 'E12'] !== undefined;
+const asked = (s: GameStateV2, id: string) => s.events.requests.some((r) => r.id === id) || s.usgov.asked[id as 'E12'] !== undefined;
 const clearMilestones = (s: GameStateV2) => {
   for (const r of [...s.rivals, s.china.lab]) for (const i of Object.keys(r.core.milestoneDays)) delete r.core.milestoneDays[i as unknown as 0];
   for (const i of Object.keys(s.player.milestoneDays)) delete s.player.milestoneDays[i as unknown as 0];
@@ -54,7 +53,7 @@ const clearMilestones = (s: GameStateV2) => {
   check(att < USGOV.attentionMin, 'S1: the player draws little attention', att.toFixed(2));
   check(s.usgov.stage === 3, 'S1: the stage climbs to 3 from the rivals', `stage ${s.usgov.stage}, days ${JSON.stringify(sd)}`);
   check((sd[1] ?? 0) < (sd[2] ?? 0) && (sd[2] ?? 0) < (sd[3] ?? 0), 'S1: one step at a time, in order', JSON.stringify(sd));
-  check(!asked(s, 'E12') && !asked(s, 'E20'), 'S1: no clearances or oversight request reaches the player', JSON.stringify(ws4(s).requests.map((x) => x.id)));
+  check(!asked(s, 'E12') && !asked(s, 'E20'), 'S1: no clearances or oversight request reaches the player', JSON.stringify(s.events.requests.map((x) => x.id)));
   check(s.usgov.trust === t0, 'S1: trust unchanged (no briefing)', `${t0} -> ${s.usgov.trust}`);
 }
 
@@ -135,7 +134,7 @@ const clearMilestones = (s: GameStateV2) => {
   step(s, 85);
   check(s.usgov.consolidated === 'none', 'hard path: not before 90 days of low trust', `${s.usgov.consolidated}, trust ${s.usgov.trust.toFixed(1)}`);
   step(s, 10);
-  check(s.usgov.consolidated === 'nationalized' && (s.usgov.stage as number) === 4 && ws4(s).nationalizedHard, 'hard path: trust 15 held 90 days at stage 3 -> nationalized', `${s.usgov.consolidated}, stage ${s.usgov.stage}`);
+  check(s.usgov.consolidated === 'nationalized' && (s.usgov.stage as number) === 4, 'hard path: trust 15 held 90 days at stage 3 -> nationalized', `${s.usgov.consolidated}, stage ${s.usgov.stage}`);
   endingsSystem.run(s, makeCtx(s));
   check(s.ending?.id === 'nationalized', 'hard path: the nationalized ending', String(s.ending?.id));
 }

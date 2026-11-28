@@ -12,7 +12,6 @@ import { MILESTONES } from '../../../data/world';
 import { clamp } from '../../rng';
 import { labOf } from '../actors/rivals';
 import { publicOf } from '../npc/public';
-import { ws4r } from '../actors/state';
 import { dateOf, dayOfDate, decimalYear, fmtDate } from '../core/time';
 import { lagDays, MILESTONE_NAMES } from '../models/capability';
 import { bestG, bestPlayerVersion } from '../models/labs';
@@ -259,7 +258,6 @@ function nearLineOf(near: { ref: LabRef; lag: number }[]): string {
 export function endingView(s: GameStateV2): EndingView | null {
   const e = s.ending;
   if (!e) return null;
-  const w = ws4r(s);
   const day = e.day;
   const labs = allLabs(s);
   const projected = PROJECTED_IDS.includes(e.id);
@@ -300,7 +298,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   const gov = s.world.control.GOV?.P ?? 0;
   const infra = s.world.control.INFRA?.P ?? 0;
   const strat = Object.entries(s.player.finance.ownership.strat).sort((a, b) => b[1] - a[1])[0];
-  const loose = w.loose;
+  const loose = s.player.security.loose;
   const rogue = rogueCopy(s);
   const escVid = loose?.versionId ?? rogue?.versionId;
   const escDay = loose?.day ?? rogue?.day;
@@ -425,7 +423,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   });
   const S = s.series;
   const m = s.world.macro.US;
-  const gdp0 = w.gdp0 || m.gdp;
+  const gdp0 = s.world.gdp0 || m.gdp;
   const gdpChange = fin(m.gdp / gdp0 - 1);
   const gIdx: number[] = [1];
   for (let i = 1; i < S.day.length; i++) gIdx.push(gIdx[i - 1] * Math.exp(fin(S.gdpG[i]) * (S.day[i] - S.day[i - 1]) / 365));
@@ -434,7 +432,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   const k = Math.abs(Math.log(lastG)) > 1e-9 ? Math.log(1 + gdpChange) / Math.log(lastG) : 1;
   const gdpIndex = sampleIdx(gIdx.length).map((i) => r3(Math.abs(Math.log(lastG)) > 1e-9 ? Math.pow(gIdx[i], k) : 1 + (gdpChange * i) / Math.max(1, gIdx.length - 1)));
   if (gdpIndex.length) gdpIndex[gdpIndex.length - 1] = r3(1 + gdpChange);
-  const taiwan: EndingView['world']['geopolitics']['taiwan'] = e.id === 'war' ? 'war' : w.taiwanDisrupted ? 'disrupted' : s.flags['ws4:taiwanEver'] ? 'recovered' : 'calm';
+  const taiwan: EndingView['world']['geopolitics']['taiwan'] = e.id === 'war' ? 'war' : s.market.taiwanDisrupted ? 'disrupted' : s.market.taiwanEver ? 'recovered' : 'calm';
   const TAIWAN_LABEL = { calm: 'Calm', disrupted: 'Shipping disrupted', recovered: 'Crisis passed', war: 'War' };
   const own = s.player.finance.ownership;
   const holders = [
@@ -444,7 +442,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   ].filter((h) => h.share > 0).map((h) => ({ ...h, share: r3(h.share) }));
   const outside = holders.filter((h) => !h.you).sort((a, b) => b.share - a.share)[0] ?? { name: 'None', share: 0 };
   const status: CompanyStatus = e.id === 'retired' ? 'retired' : e.id === 'insolvent' ? 'insolvent' : e.id === 'ousted' ? 'ousted'
-    : e.id === 'nationalized' || s.usgov.consolidated === 'nationalized' || w.dpaAccepted ? 'nationalized' : e.id === 'acquired' || w.soldControl ? 'acquired' : s.usgov.oversight ? 'under committee' : 'independent';
+    : e.id === 'nationalized' || s.usgov.consolidated === 'nationalized' || s.usgov.dpaAccepted ? 'nationalized' : e.id === 'acquired' || s.endingProgress.soldControl ? 'acquired' : s.usgov.oversight ? 'under committee' : 'independent';
   const v0 = S.valuation.find((x) => x > 0) ?? s.player.finance.valuation;
   const valuation = fin(s.player.finance.valuation);
 

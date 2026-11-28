@@ -1120,7 +1120,7 @@ async function e11Check(where, plant = false) {
     // A hidden foothold the view must never show, and a distinctive true control level the UI must never show.
     s.player.safety.footholds.push({ id: 'FH-E11-HIDDEN', kind: 'backdoor', versionId: v, lineage: 'L-x', day: s.time.day - 30, acts: 1, severity: 3, size: 0.37, status: 'hidden' });
     window.__e11ctl = { ...s.player.safety.effectiveControl };
-    window.__e11off = s.flags['ws4:agentsOffUntil'];
+    window.__e11off = s.player.safety.agentsOffUntil;
     s.player.safety.effectiveControl.level = 0.0137;
     s.player.safety.effectiveControl.exposure = 0.9863;
     window.ai27v2.notify();
@@ -1192,11 +1192,11 @@ async function e11Check(where, plant = false) {
     await clearTips();
     const day = JSON.parse(await get('s.time.day'));
     const m = { fte: Number((tip.match(/([\d.]+) staff/) ?? [])[1]), days: Number((tip.match(/engineers for (\d+) d/) ?? [])[1]), off: Number((tip.match(/(\d+) compute\s*days with internal agents off/) ?? [])[1]), gain: /3K compute/.test(tip) };
-    await page.evaluate(() => { window.ai27v2.state.flags['ws4:agentsOffUntil'] = -1; window.ai27v2.notify(); });
+    await page.evaluate(() => { window.ai27v2.state.player.safety.agentsOffUntil = -1; window.ai27v2.notify(); });
     await page.click('[data-act="foothold-remove.FH-E11-LOC"]');
     await wait(150);
     const f = JSON.parse(await get(`s.player.safety.footholds.find((x) => x.id === 'FH-E11-LOC')`));
-    const off = JSON.parse(await get(`s.flags['ws4:agentsOffUntil']`));
+    const off = JSON.parse(await get(`s.player.safety.agentsOffUntil`));
     ok(`E11 ${where}: Remove's preview matches its effect`, f.status === 'removed' && f.removal?.fte === m.fte && f.removal?.until === day + m.days && off === day + m.off && m.gain, `preview ${JSON.stringify(m)} · effect ${JSON.stringify(f.removal)} off ${off} (day ${day}) · ${tip.replace(/\s+/g, ' ').slice(0, 140)}`);
     ok(`E11 ${where}: a removed foothold moves to the history`, !!(await page.$('[data-foothold="FH-E11-LOC"][data-status=removed]')));
     await shot(`e11-${tag}-footholds-removed`);
@@ -1205,7 +1205,7 @@ async function e11Check(where, plant = false) {
     const s = window.ai27v2.state;
     s.player.safety.footholds = s.player.safety.footholds.filter((f) => !f.id.startsWith('FH-E11'));
     Object.assign(s.player.safety.effectiveControl, window.__e11ctl);
-    if (window.__e11off === undefined) delete s.flags['ws4:agentsOffUntil']; else s.flags['ws4:agentsOffUntil'] = window.__e11off;
+    if (window.__e11off === undefined) delete s.player.safety.agentsOffUntil; else s.player.safety.agentsOffUntil = window.__e11off;
     window.ai27v2.notify();
   });
 }

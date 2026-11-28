@@ -6,13 +6,12 @@ import { internalVersion } from '../../models/labs';
 import type { EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
-import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
 import { whistleOddsYear } from '../../security/security';
 import { L, P, ch, ev, pv, requestOnly } from '../kit';
 import { approvalPush, approvalScaled, PUBLIC } from '../../world/public';
 
-/** F6d: what continuing past the flag costs: both "Continue" choices count one red flag (`ws4.redFlags`), which feeds
+/** F6d: what continuing past the flag costs: both "Continue" choices count one red flag (`security.redFlags`), which feeds
  *  the whistleblower hazard (security.ts whistleHazard): the odds of a staff leak to the press over a year at today's
  *  morale, before → after. With a whistleblower channel the concern is handled internally instead (no press leak). */
 export function redFlagLine(s: GameStateV2) {
@@ -31,7 +30,6 @@ const quietPreview = (s: GameStateV2) => pv([], [], [exposed(s, COVERUP_DISCOVER
 function dilemma(what: string) {
   return [
     ch('Disclose', ['disclose', 'safety'], discloseGain, (s: GameStateV2, ctx: SystemCtx) => {
-      ws4(s).disclosed++;
       approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
     }),
     ch('Keep it quiet', ['quiet', 'secrecy'], quietPreview, (s: GameStateV2) => {
@@ -95,15 +93,12 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       // Deny is what you get by doing nothing: the memo stays out there and may be proven true. (Spin merged into it, W7.)
       ch('Deny', ['deny', 'quiet'], (s) => pv([], [], [exposed(s, clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1))]), (s, ctx) => {
         addCoverup(s, 'the truth behind the leaked memo', clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1), 120);
-        ws4(s).misalignLeakDay ??= ctx.day;
-        ws4(s).leaked++;
+        s.public.misalignLeakDay ??= ctx.day;
       }),
       ch('Full disclosure', ['disclose', 'safety'], discloseGain, (s, ctx) => {
-        const w = ws4(s);
-        w.misalignLeakDay ??= ctx.day;
-        w.disclosed++;
+        s.public.misalignLeakDay ??= ctx.day;
         approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
-        w.redFlags = 0;
+        s.player.security.redFlags = 0;
       }),
     ],
   }),
@@ -113,28 +108,27 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     text: (s, d) => `A copy of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your model'} is running outside your control. Hunt it loudly, quietly, or tell the world.`,
     choices: [
       ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'without internal agents', { unit: 'days' })], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
-        s.flags['ws4:agentsOffUntil'] = ctx.day + 21;
-        s.flags['ws4:hunt'] = 'loud';
+        s.player.safety.agentsOffUntil = ctx.day + 21;
+        s.player.security.hunt = 'loud';
         if (ctx.rng('events').chance(clamp(0.5 + 0.1 * (s.player.security.wsl - 3), 0.2, 0.9))) {
-          delete ws4(s).loose;
+          delete s.player.security.loose;
           escapeResolved(s, ctx.day, 'captured');
           ctx.log('alert', 'The escaped copy was found and shut down.', 4);
         }
       }),
       ch('Hunt quietly', ['quiet', 'secrecy'], (s) => pv([], [], [L('alignment', -0.3, 'recapture odds lower'), exposed(s, COVERUP_DISCOVERY_ODDS + 0.2)]), (s, ctx) => {
-        s.flags['ws4:hunt'] = 'quiet';
+        s.player.security.hunt = 'quiet';
         addCoverup(s, 'an escaped model copy', COVERUP_DISCOVERY_ODDS + 0.2, 120);
         if (ctx.rng('events').chance(clamp(0.25 + 0.1 * (s.player.security.wsl - 3), 0.05, 0.7))) {
-          delete ws4(s).loose;
+          delete s.player.security.loose;
           escapeResolved(s, ctx.day, 'captured');
         }
       }),
       ch('Disclose', ['disclose', 'safety'], (s) => pv([], [L('alignment', 0.5, 'the world hunts with you'), L('approval', approvalScaled(s, PUBLIC.discloseChoice), 'honesty is noticed')]), (s, ctx) => {
-        s.flags['ws4:hunt'] = 'public';
-        ws4(s).disclosed++;
+        s.player.security.hunt = 'public';
         approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
         if (ctx.rng('events').chance(0.5)) {
-          delete ws4(s).loose;
+          delete s.player.security.loose;
           escapeResolved(s, ctx.day, 'captured');
         }
       }),

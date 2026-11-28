@@ -25,7 +25,6 @@ import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/fi
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
 import { bustTarget, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
 import { ipAccessDays } from '../../src/engine/v2/npc/shocks';
-import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
@@ -1772,7 +1771,7 @@ for (const a of FINANCE_ACTIONS) {
     target.finance.poolQ = 1e6;
     const V0 = target.finance.valuation;
     rivalMoneyQ(s, ctx, target);
-    const offered = ws4Of(s).requests.some((q) => q.id === 'E32' && q.data.lab === target.core.id);
+    const offered = s.events.requests.some((q) => q.id === 'E32' && q.data.lab === target.core.id);
     const s2 = deserialize(serialize(s));
     s2.time.day += 91;
     const t2 = s2.rivals.find((x) => x.core.id === target.core.id)!;

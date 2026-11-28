@@ -64,7 +64,7 @@ check(Object.entries(sp).some(([id, a]) => id !== 'player' && a === 1), 'spinout
   check(Math.abs(fresh - 4) < 1e-9 && Math.abs(old / fresh - 0.5) < 1e-9, 'an incident 182 days old weighs half a new one', `${fresh} ${old}`);
   s.player.safety.incidents[s.player.safety.incidents.length - 1].status = 'open';
   check(Math.abs(incidentHeatOf(s, 'player') - base) < 1e-9, 'an undisclosed incident does not count');
-  s.ws4 = { ...(s.ws4 as object), rivalIncidents: [{ lab: s.rivals[0].core.id, day: s.time.day, severity: 3, misuse: false }] } as unknown as GameStateV2['ws4'];
+  s.rivalIncidents = [{ lab: s.rivals[0].core.id, day: s.time.day, severity: 3, misuse: false }];
   check(Math.abs(incidentHeatOf(s, s.rivals[0].core.id) - 3) < 1e-9 && Math.abs(incidentHeat(s) - incidentHeatOf(s, 'player') - 3) < 1e-9, 'an NPC lab incident counts for its lab and the world');
 }
 

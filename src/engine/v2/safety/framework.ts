@@ -20,7 +20,6 @@
 import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx, TimelineWorld } from '../types';
 import { defaultFramework, defaultFrameworkRules, frameworkHighL, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { frameworkPublished, measuredDomain } from '../actors/commitments';
-import { ws4 } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
 import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
@@ -238,7 +237,7 @@ export function overrideRule(s: GameStateV2, ctx: SystemCtx, ruleId: string, ver
   const rule = fw.rules.find((r) => r.id === ruleId)!;
   const c = overrideConsequences();
   ctx.bump('morale.safety', -c.moraleSafety, 'Safety framework override', rule.label);
-  ws4(s).redFlags++;
+  s.player.security.redFlags++;
   fw.overrides.push({ ruleId, versionId, day: s.time.day, consequences: c.lines });
   ctx.log('company', `Safety framework overridden: "${rule.label}" for ${s.player.models.versions.find((v) => v.id === versionId)?.name ?? versionId}.`, 2, versionId);
   refreshFramework(s, ctx);

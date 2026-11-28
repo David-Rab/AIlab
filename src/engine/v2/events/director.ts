@@ -1,7 +1,7 @@
 // Event director: triggers, pacing limits, deadlines (V2-SPEC §4.1; research/17 §2.6). Owner: WS4.
 //
 // - Every catalog event is a state predicate (`when`); WS4 systems also raise request-only events via
-//   actors/state.ts `request()`. Both are fired here, crisis events first, then by id order.
+//   events/request.ts `request()`. Both are fired here, crisis events first, then by id order.
 // - Each event fires at most once per `cooldown` (once per game if omitted), requests included, and at most once
 //   per game for each `onceKey` of its trigger data.
 // - Pacing limits (E4): at most `maxCrises` crisis decisions pending; no new crisis during the quiet period
@@ -15,7 +15,6 @@ import { clamp } from '../../rng';
 import { EVENT_BY_ID, EVENTS } from '../core/registry';
 import { decisionSnapshot } from '../core/selectors';
 import type { EngineSystem, EventDefV2, GameStateV2, PendingDecision, SystemCtx } from '../types';
-import { ws4 } from '../actors/state';
 
 /** The one fixed pacing (§4.1): at most `maxCrises` crisis decisions pending, a quiet period of `quietDays` after one ends. */
 export const DIRECTOR = { maxCrises: 2, quietDays: 14 };
@@ -31,8 +30,7 @@ const isActiveLab = (s: GameStateV2, id: string) => id === 'china' ? s.china.lab
 export function purgeInactive(s: GameStateV2) {
   const ok = (d: Record<string, number | string>) => typeof d.lab !== 'string' || isActiveLab(s, d.lab);
   s.events.pending = s.events.pending.filter((p) => ok(p.data) && EVENT_BY_ID.has(p.id)); // and events since removed
-  const w = ws4(s);
-  w.requests = w.requests.filter((r) => ok(r.data));
+  s.events.requests = s.events.requests.filter((r) => ok(r.data));
 }
 
 /** Apply the default choice of an expired decision and record it (tag 'default'). */
@@ -69,7 +67,6 @@ export const directorSystem: EngineSystem = {
   id: 'director', owner: 'WS4', cadence: 'daily', order: 140, system: 'core',
   run(s, ctx) {
     const day = ctx.day;
-    const w = ws4(s);
     const dir = s.events.director;
     const rng = ctx.rng('events');
     purgeInactive(s);
@@ -86,11 +83,11 @@ export const directorSystem: EngineSystem = {
     type Cand = { def: EventDefV2; data: Record<string, number | string>; req?: number };
     const cands: Cand[] = [];
     // Requests obey the same cooldown and once-per-key rules as predicates (a once-per-game event stays once).
-    w.requests = w.requests.filter((r) => {
+    s.events.requests = s.events.requests.filter((r) => {
       const def = EVENT_BY_ID.get(r.id);
       return day - r.day <= 60 && !!def && !onCooldown(s, def, day) && !spent(s, def, r.data);
     });
-    w.requests.forEach((r, i) => cands.push({ def: EVENT_BY_ID.get(r.id)!, data: r.data, req: i }));
+    s.events.requests.forEach((r, i) => cands.push({ def: EVENT_BY_ID.get(r.id)!, data: r.data, req: i }));
     for (const e of EVENTS) {
       if (onCooldown(s, e, day) || s.events.pending.some((p) => p.id === e.id)) continue;
       const data = e.when(s);
@@ -115,7 +112,7 @@ export const directorSystem: EngineSystem = {
       }
       if (c.req !== undefined) fired.add(c.req);
     }
-    if (fired.size) w.requests = w.requests.filter((_r, i) => !fired.has(i));
+    if (fired.size) s.events.requests = s.events.requests.filter((_r, i) => !fired.has(i));
     dir.tension = clamp(0.5 * dir.tension + 0.25 * s.events.pending.length + (dir.concurrentCrises ? 0.5 : 0), 0, 5);
   },
 };

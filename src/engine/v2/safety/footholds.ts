@@ -9,7 +9,7 @@
 //   steeredSuccessor  an uncaught SUCCSTEER act on a run           the extra pull ω         E4/E7: the successor starts with `delta` toward
 //                                                                                           its makers (applied by traits.ts pulledTraits)
 //   corruptedTool     an uncaught SAFSAB act (a FALSE finding)      the tool's s0            the F49 tool masks instead of detecting
-//   exfiltratedCopy   an escape (security.ts → E25, ws4.loose;      copies (grows, E9)       E9 (control.ts): capacity outside
+//   exfiltratedCopy   an escape (security.ts → E25, loose;               copies (grows, E9)       E9 (control.ts): capacity outside
 //                     hidden if security missed it, E9)                                     the lab; 'rogue' once grown
 // Steering of capability research (STEER) stays a recipe property (covert.ts steered stock → hidden S4), not an asset.
 // Status: hidden → suspected (a symptom seen) → detected (located) → removed. The player never sees hidden ones.

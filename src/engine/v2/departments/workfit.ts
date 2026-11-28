@@ -285,7 +285,7 @@ export interface WorkContext {
  *  flat paradigm multipliers; P05 orchestration is a typed scaffold (internalFx), P20 is deleted. */
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
-  const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
+  const off = (s.player.safety.agentsOffUntil ?? -1) > s.time.day;
   const use = slot === 'SWE' ? 'eng' : slot === 'EXP' ? 'capRoutine' : slot === 'IDEAS' ? 'capFrontier' : 'safety'; // SAF_*: the safety package
   const v = agentVersion(s, use);
   let h100e = 0;

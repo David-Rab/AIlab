@@ -237,6 +237,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     },
     deployments,
     security: initialSecurity(staff, def.securityLevel),
+    actionDay: {},
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
     finance: compute ? startFinance(def, compute) : initialFinance(setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
@@ -352,7 +353,9 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     world: initialWorld(labIds),
     labour: initialLabour({ rng: rngState, hidden }, player),
     knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
-    events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
+    events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 }, requests: [] },
+    rivalIncidents: [],
+    endingProgress: { soldControl: false, retired: false, overtakenDays: {} },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],
     causes: { byKey: {} },

@@ -5,7 +5,7 @@ import { baseParams, setModelG } from '../npc/model';
 import { theft } from '../npc/shocks';
 import { bestPlayerVersion, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
-import { request, ws4 } from '../actors/state';
+import { request } from '../events/request';
 import { WS4_TUNING } from '../actors/tuning';
 import { CHINAGOV, theftIntent } from '../world/chinagov';
 import { USGOV, playerAttention } from '../world/usgov';
@@ -86,7 +86,6 @@ export function secretsLeakDaily(s: GameStateV2): number {
 
 /** A successful theft of `victim`'s best internal model by China (§3.6 outcome; R11 #16d). */
 export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
-  const w = ws4(s);
   const cn = s.china.lab;
   const tw = s.hidden.timeline;
   // RD-X04b (research/RD-X04r §3C, T5): sized by what moves. China's model G jumps toward the stolen model's G by
@@ -109,7 +108,6 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
       holdStolen(cn.internal, stolenModelG(cnOwnG, v.G), flop, v.params ?? b?.params ?? baseParams(flop));
       theft(s, v.G); // N6: China's lag jumps to the stolen model's position plus the integration delay
       if (v.fpt) cn.internal.fpt = v.fpt;
-      w.internalDay[CHINA_ID] = ctx.day;
     }
     const pDetect = clamp(0.5 + 0.1 * (sec.wsl - 2) + 0.3 * sec.counterIntel, 0, 1);
     if (ctx.rng('security').chance(pDetect)) {
@@ -127,7 +125,6 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
       cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, isPublic: false, openWeights: false, stolenFrom: victim };
       holdStolen(cn.internal, G, r.internal.flop ?? 1e26, r.internal.params ?? baseParams(r.internal.flop ?? 1e26));
       theft(s, stolen); // N6
-      w.internalDay[CHINA_ID] = ctx.day;
     }
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });
     if (ctx.rng('security').chance(0.5)) {

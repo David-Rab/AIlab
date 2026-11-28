@@ -7,7 +7,6 @@ import { lawIdsInForce, lawsInForce } from '../../../data/v2/laws';
 import { lagDays } from '../models/capability';
 import { bestG, CHINA_ID, labCore, PLAYER_ID } from '../models/labs';
 import { decimalYear } from '../core/time';
-import { ws4r } from '../actors/state';
 import { robotOutput } from '../worldfx/robots';
 import { automationShare } from '../worldfx/readouts';
 import { worldMix } from '../worldfx/mix';
@@ -89,7 +88,7 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     chinagov: { tension: s.chinagov.tension, talks: s.chinagov.talks, treaty: s.chinagov.treaty, centralised: s.chinagov.centralised, labCompute: fin(s.china.lab.core.computeOnline)! },
     laws: { inForce: lawIdsInForce(s), exportPolicy: L.exportPolicy },
     economy: { unemploymentUS: fin(w.unemployment.US)!, youthUnemployment: fin(w.youthUnemployment)!, gdpGrowthUS: fin(w.macro.US.g)!, aiIncomeShare: fin(w.aiIncomeShare)!, automationUS: fin(automationShare(s, 'US'))! },
-    geopolitics: { taiwanDisrupted: ws4r(s).taiwanDisrupted, chinaGapMonths: chinaGap },
+    geopolitics: { taiwanDisrupted: !!s.market.taiwanDisrupted, chinaGapMonths: chinaGap },
     robotsPerMonth: fin(robotOutput(s) / 12)!,
     techsDiscovered: Object.values(w.techs).filter((t) => t.discoveredDay !== undefined).length,
   };

@@ -16,7 +16,6 @@ import { signCommitment } from '../../src/engine/v2/actors/commitments';
 import { endingsSystem } from '../../src/engine/v2/endings/endings';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { theftHazardDaily } from '../../src/engine/v2/security/theft';
-import { ws4 } from '../../src/engine/v2/actors/state';
 import { DAYS_PER_MONTH } from '../../src/engine/v2/npc/lab';
 import { FIXTURE_DIR, check, finish } from './lib';
 import type { GameStateV2 } from '../../src/engine/v2/types';
@@ -134,7 +133,7 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   step(s, 1);
   check(s.chinagov.talks === 1, 'treaty: talks open', String(s.chinagov.talks));
   step(s, CHINAGOV.quietDays + 1);
-  check(s.chinagov.talks === 1 && ws4(s).requests.some((r) => r.id === 'E23'), 'treaty: 180 quiet days -> E23 to the player (talks wait)', `talks ${s.chinagov.talks}`);
+  check(s.chinagov.talks === 1 && s.events.requests.some((r) => r.id === 'E23'), 'treaty: 180 quiet days -> E23 to the player (talks wait)', `talks ${s.chinagov.talks}`);
   resolveTreaty(s, makeCtx(s), true);
   check(s.chinagov.talks === 2 && s.chinagov.treaty === 'restraint', 'treaty: Back it -> restraint', s.chinagov.treaty);
   step(s, CHINAGOV.verifyDays + 30);
@@ -182,7 +181,7 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   w.hidden.rivalPostures[treatyNpcLab(w)!.core.id]!.externalAccess = CHINAGOV.treatyTestAccess;
   const attW = playerAttention(w);
   step(w, 1 + CHINAGOV.quietDays + 1 + CHINAGOV.verifyDays + 1);
-  check(attW < USGOV.attentionMin && w.chinagov.treaty === 'verified' && !ws4(w).requests.some((r) => r.id === 'E23'), 'treaty: with low player attention it reaches verified without E23', `attention ${attW.toFixed(2)}, ${w.chinagov.treaty}`);
+  check(attW < USGOV.attentionMin && w.chinagov.treaty === 'verified' && !w.events.requests.some((r) => r.id === 'E23'), 'treaty: with low player attention it reaches verified without E23', `attention ${attW.toFixed(2)}, ${w.chinagov.treaty}`);
 }
 
 // War: the ending fires only at tension 4 (CHINAGOV.warPerQuarter a quarter).
@@ -207,9 +206,9 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
     s.chinagov.tension = tension;
     s.player.security.wsl = 1; // a lab at the industry floor (the security system raises it there)
     const h = theftHazardDaily(s);
-    const a0 = ws4(s).theftAttempts;
+    const a0 = s.player.security.theftAttempts;
     for (let i = 0; i < 3 * 365; i++) { s.time.day++; securitySystem.run(s, makeCtx(s)); }
-    return { h, n: ws4(s).theftAttempts - a0 };
+    return { h, n: s.player.security.theftAttempts - a0 };
   };
   const t0 = attempts(0);
   const t1 = attempts(1);

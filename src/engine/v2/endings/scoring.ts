@@ -3,7 +3,6 @@ import { clamp } from '../../rng';
 import { bestG, otherLabs } from '../models/labs';
 import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { lagDays } from '../models/capability';
-import { ws4r } from '../actors/state';
 import { pMisOf, projectedMisAtAsi } from './epilogue';
 import { lawsInForce } from '../../../data/v2/laws';
 
@@ -62,7 +61,6 @@ const POWER_LABEL: Record<PowerOutcome, string> = {
 /** The terms of each score (§5.3); a score is round(clamp(Σ terms, 0, 100)) (scoreOf). `power` is the ending's power
  *  outcome (epilogue power for company-loss/overtaken). */
 export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutcome = 'none'): Record<ScoreKey, ScoreTerm[]> {
-  const w = ws4r(s);
   const lossLike = COMPANY_LOSS.includes(id) || id === 'overtaken' || id === 'retired';
   // Survival
   const sBase = SURVIVAL_BASE[id];
@@ -77,7 +75,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   // by the economy at the end. By ASI the simulated economy has barely moved, so the economy terms alone cannot
   // spread the score (2026-11-24 end-screen audit: 50 in every ending).
   const m = s.world.macro.US;
-  const gdp0 = w.gdp0 || m.gdp;
+  const gdp0 = s.world.gdp0 || m.gdp;
   const fund = s.player.policies.transitionFund >= 20;
   const ubi = lawsInForce(s).ubi;
   // Leaving the race: an aligned projected winner (power set) shares its abundance; otherwise scale with survival.
@@ -97,7 +95,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   else {
     const V = Math.max(1, s.player.finance.valuation);
     const playerFirst = id === 'asiAligned' || id === 'asiTakeover' || (id === 'asiContested' && !otherLabs(s).some((r) => r.core.milestoneDays[6] !== undefined && r.core.milestoneDays[6]! <= (s.player.milestoneDays[6] ?? Infinity)));
-    const independent = !s.usgov.oversight && s.usgov.consolidated !== 'nationalized' && !w.dpaAccepted && !w.soldControl;
+    const independent = !s.usgov.oversight && s.usgov.consolidated !== 'nationalized' && !s.usgov.dpaAccepted && !s.endingProgress.soldControl;
     company = [{ label: 'Valuation', value: 20 * Math.log10(V / 100) }];
     if (playerFirst) company.push({ label: 'First to superintelligence', value: 40 });
     if (independent) company.push({ label: 'Independent at the end', value: 20 });
@@ -105,7 +103,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   // Geopolitics
   const leadChina = s.china.lab.core.status === 'active' ? lagDays(s, 'china', 'player') : 180;
   const geopolitics: ScoreTerm[] = [{ label: 'Starting point', value: 50 }, { label: leadChina >= 0 ? 'Lead over China' : 'Behind China', value: clamp(leadChina / 6, -30, 30) }];
-  if (s.flags['ws4:taiwanEver']) geopolitics.push({ label: 'Taiwan crisis', value: -15 });
+  if (s.market.taiwanEver) geopolitics.push({ label: 'Taiwan crisis', value: -15 });
   return { survival, freedom, prosperity, company, geopolitics };
 }
 

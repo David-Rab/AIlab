@@ -18,7 +18,7 @@
 import { GOV_FACTOR } from '../../../data/v2/deals';
 import { deactivateRival } from '../actors/rivals';
 import { absorb } from '../npc/shocks';
-import { request } from '../actors/state';
+import { request } from '../events/request';
 import { persOf } from '../npc/lab';
 import type { GameStateV2, Money, RivalLab, SystemCtx } from '../types';
 import { revenueRun } from './observe';

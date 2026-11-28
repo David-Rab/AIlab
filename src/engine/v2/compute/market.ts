@@ -6,7 +6,6 @@ import { asV1World } from '../world/calibration';
 import { decimalYear, START_DATE } from '../core/time';
 import { lawsInForce } from '../../../data/v2/laws';
 import { FORCING } from '../core/forcing';
-import { ws4 } from '../actors/state';
 import { CHINAGOV } from '../world/chinagov';
 import { clamp } from '../../rng';
 import type { ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
@@ -540,22 +539,19 @@ export type { LabOrder };
 export const geoShocksQSystem: EngineSystem = {
   id: 'geoShocksQ', owner: 'WS4', cadence: 'quarterly', order: 441, system: 'compute',
   run(s, ctx) {
-    const w = ws4(s);
     const r = ctx.rng('china');
     // Taiwan: disruption roll (quarterly) = WS3's R15 hazard × China's tension factor (world/chinagov.ts). Applied
     // through WS3's taiwanShock (supply, prices, chips in transit); WS3's marketQ decays it.
-    const day = ctx.day;
-    if (w.taiwanDisrupted && s.market.disruptTW === 0) {
-      w.taiwanDisrupted = false;
+    if (s.market.taiwanDisrupted && s.market.disruptTW === 0) {
+      s.market.taiwanDisrupted = false;
       ctx.log('world', 'Taiwan shipping normalises.', 2);
     }
     const pTW = clamp(taiwanHazardQ(s), 0, 0.5);
-    if (!w.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
+    if (!s.market.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
       const quarters = 1 + Math.floor(r.float() * 4);
-      w.taiwanDisrupted = true;
-      w.taiwanUntil = day + quarters * 91;
       taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
-      s.flags['ws4:taiwanEver'] = true;
+      s.market.taiwanDisrupted = true;
+      s.market.taiwanEver = true;
       ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
       ctx.headline('taiwan', 'Taiwan crisis: chip shipments from TSMC disrupted');
     }

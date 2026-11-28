@@ -3,7 +3,6 @@
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { expFlopAllowed, humansOf, researchMods } from '../../../src/engine/v2/departments/workfit';
 import { capReCapacity, experimentRate, sciOn } from '../../../src/engine/v2/models/research';
-import { ws4 } from '../../../src/engine/v2/actors/state';
 import { PROJECT_BY_ID } from '../../../src/data/v2/tree';
 
 let fail = 0;
@@ -16,12 +15,6 @@ const inp = { mExp: 1, speed: researchMods(s).speed };
 const F = 1e20;
 const before = { mods: researchMods(s), sci: sciOn(s, id), rate: experimentRate(s, inp, 1, expFlopAllowed(s, 'cap', F)), hum: humansOf(s, 'IDEAS'), re: capReCapacity(s) };
 
-ws4(s).frontierPauseUntil = s.time.day + 60;
-const p = researchMods(s);
-ok(expFlopAllowed(s, 'cap', F) === 0 && before.rate > 0, `pause: capability experiment FLOP ${F} -> ${expFlopAllowed(s, 'cap', F)}, rate ${before.rate.toFixed(4)} -> ${experimentRate(s, inp, 1, expFlopAllowed(s, 'cap', F))}`);
-ok(expFlopAllowed(s, 'saf', F) === F, 'pause: safety experiment FLOP unchanged');
-ok(p.speed === before.mods.speed && sciOn(s, id).cap === before.sci.cap, `pause: ideation inputs unchanged (speed ${p.speed}, capacity ${before.sci.cap.toFixed(3)})`);
-ws4(s).frontierPauseUntil = -1;
 
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

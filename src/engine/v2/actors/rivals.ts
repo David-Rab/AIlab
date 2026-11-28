@@ -21,7 +21,6 @@ import { chinaSafetyConcern } from '../world/chinagov';
 import { reportingLaw } from '../../../data/v2/laws';
 import { cPlanQ, growLabStaff, labReferenceSplit, npcCapabilityDay, persOf } from '../npc/lab';
 import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
-import { ws4 } from './state';
 
 export { activeRivals } from '../models/labs';
 
@@ -47,11 +46,11 @@ export function labOf(s: GameStateV2, id: LabId): RivalLab | undefined {
   return id === 'china' ? s.china.lab : s.rivals.find((r) => r.core.id === id);
 }
 
-/** Effective (dynamic) posture = hidden posture + WS4 deltas (moving goalposts, joint evals); China's safety
+/** Effective (dynamic) posture = hidden posture + the lab's deltas (moving goalposts, joint evals); China's safety
  *  investment follows its safety concern (§3.10.4; world/chinagov.ts chinaSafetyConcern). Hidden: engine use only. */
 export function postureOf(s: GameStateV2, lab: LabId): SafetyPosture {
   const base = lab === 'china' ? { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + (0.4 * chinaSafetyConcern(s)) / 100 } : s.hidden.rivalPostures[lab];
-  const d = s.ws4?.postureDelta[lab];
+  const d = labOf(s, lab)?.npc.postureDelta;
   if (!base) return { safetyInvestment: 0.3, evalRigor: 0.3, externalAccess: 0.3, disclosureRate: 0.3, raceRelaxation: 0.5, bindingness: 0.3 };
   if (!d) return base;
   const out = { ...base };
@@ -60,8 +59,9 @@ export function postureOf(s: GameStateV2, lab: LabId): SafetyPosture {
 }
 
 export function addPosture(s: GameStateV2, lab: LabId, key: keyof SafetyPosture, d: number) {
-  const w = ws4(s);
-  const pd = (w.postureDelta[lab] ??= {});
+  const npc = labOf(s, lab)?.npc;
+  if (!npc) return;
+  const pd = (npc.postureDelta ??= {});
   pd[key] = (pd[key] ?? 0) + d;
 }
 
@@ -90,7 +90,6 @@ export const rivalMis = (r: RivalLab) => npcMisOf(r);
  *  relaxes to its target, the internal model follows the reference frontier, releases on the shared cadence), its
  *  lineup and tools, then pressure, traits and incidents as before (N2b-2 replaces those). */
 export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
-  const w = ws4(s);
   const id = r.core.id;
   const day = ctx.day;
   const rng = ctx.rng(r.core.kind === 'china' ? 'china' : 'rivals');
@@ -110,7 +109,6 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // (npc/lab.ts opensRelease); a 'partial' lab opens the model its release replaces.
   const { released, prev } = npcCapabilityDay(s, r, day);
   if (released && r.publicModel) {
-    w.internalDay[id] = day;
     const pub = r.publicModel;
     if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G);
     if (prev && r.npc && persOf(r.npc).openness.mode === 'partial' && !prev.openWeights) {
@@ -141,8 +139,8 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     const floor = r.core.kind === 'rival' && reportingLaw(s) && sev >= 3 ? 0.6 : 0;
     const vis = Math.max(floor, clamp(p.disclosureRate + 0.5 * p.externalAccess + 0.1, 0, 1) * (sev >= 4 ? 1 : 0.6));
     if (rng.chance(vis)) {
-      w.rivalIncidents.push({ lab: id, day, severity: sev, misuse });
-      if (w.rivalIncidents.length > 60) w.rivalIncidents.shift();
+      s.rivalIncidents.push({ lab: id, day, severity: sev, misuse });
+      if (s.rivalIncidents.length > 60) s.rivalIncidents.shift();
       r.intel.knownIncidents.push(`${day}:${sev}${misuse ? 'm' : ''}`);
       if (r.intel.knownIncidents.length > 20) r.intel.knownIncidents.shift();
       ctx.log(r.core.kind === 'china' ? 'china' : 'rival', `${r.core.name}: ${misuse ? 'misuse' : 'model'} incident (severity ${sev}) made public.`, sev >= 3 ? 3 : 2, id);
@@ -177,8 +175,7 @@ export function deactivateRival(s: GameStateV2, ctx: SystemCtx, lab: LabId, stat
   if (into) r.core.mergedInto = into;
   // Drop any pending decision or request about this lab (E2: never name inactive labs).
   s.events.pending = s.events.pending.filter((p) => p.data.lab !== lab);
-  const w = ws4(s);
-  w.requests = w.requests.filter((q) => q.data.lab !== lab);
+  s.events.requests = s.events.requests.filter((q) => q.data.lab !== lab);
   ctx.log('rival', text ?? (status === 'merged' ? `${r.core.name} is absorbed${into ? ` into ${into === 'player' ? s.player.name : (labOf(s, into)?.core.name ?? 'another lab')}` : ''}.` : `${r.core.name} shuts down its frontier program.`), 3);
 }
 
@@ -221,13 +218,12 @@ function labOrderQ(s: GameStateV2, r: RivalLab, plan: number) {
 /** Quarterly moving-goalposts roll (research/17 §1.6.5 #3): pressure > 0.6 for 90 d → P = raceRelaxation·0.3. */
 export function goalpostsQ(s: GameStateV2, ctx: SystemCtx) {
   const rng = ctx.rng('rivals');
-  const w = ws4(s);
   for (const r of activeRivals(s)) {
     if (r.pressureDays < 90) continue;
     if (!rng.chance(postureOf(s, r.core.id).raceRelaxation * 0.3)) continue;
     addPosture(s, r.core.id, 'bindingness', -0.1);
-    w.goalposts[r.core.id] = (w.goalposts[r.core.id] ?? 0) + 1;
-    ctx.headline(`goalposts-${r.core.id}`, `${r.core.name} publishes a weaker safety framework (v${1 + w.goalposts[r.core.id]}).`);
+    r.npc.goalposts = (r.npc.goalposts ?? 0) + 1;
+    ctx.headline(`goalposts-${r.core.id}`, `${r.core.name} publishes a weaker safety framework (v${1 + r.npc.goalposts}).`);
     ctx.log('rival', `${r.core.name} relaxes its safety framework under race pressure.`, 2, r.core.id);
   }
 }

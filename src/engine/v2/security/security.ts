@@ -11,7 +11,7 @@ import { footholdFromEscape } from '../safety/footholds';
 import { escapeNoticed } from '../safety/control';
 import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../types';
 import { openWeightsReleased, postureOf } from '../actors/rivals';
-import { request, ws4 } from '../actors/state';
+import { request } from '../events/request';
 import { executeTheft, rivalTheftHazard, secretsLeakDaily, theftHazardDaily } from './theft';
 import { secretsLeak } from '../npc/shocks';
 
@@ -38,15 +38,16 @@ export function initialSecurity(staff: Pick<StaffByRole, 'cap' | 'saf'>, wsl = 2
   return {
     wsl, ssl: wsl - 0.6, target: wsl, spendRate: 0.3, siloing: 0, clearances: false,
     privileged, spies: privileged * 0.005, counterIntel: 0.1, stolen: [], detectedThefts: [],
+    theftAttempts: 0, coverups: [], redFlags: 0, spyMult: 1, purged: false, distillDays: 0,
   };
 }
 
 /** Whistleblower hazard per day (research/17 A6): grows with things worth leaking; low morale raises it. */
 export function whistleHazard(s: GameStateV2, extraFlags = 0): number {
-  const w = ws4(s);
-  const worth = w.redFlags + extraFlags + w.coverups.length + (s.player.safety.incidents.some((i) => i.status === 'covered') ? 1 : 0);
+  const sec = s.player.security;
+  const worth = sec.redFlags + extraFlags + sec.coverups.length + (s.player.safety.incidents.some((i) => i.status === 'covered') ? 1 : 0);
   if (!worth) return 0;
-  return 0.0008 * worth * (1.5 - s.player.morale.safety / 100) * (s.flags['ws4:purged'] ? 1.5 : 1);
+  return 0.0008 * worth * (1.5 - s.player.morale.safety / 100) * (sec.purged ? 1.5 : 1);
 }
 /** F6d: the whistleblower hazard as odds over a year at today's morale (1 − (1 − h)^365), with `extraFlags` more red
  *  flags: what continuing past a red flag adds (Safety framework override previews). */
@@ -56,7 +57,6 @@ export const whistleOddsYear = (s: GameStateV2, extraFlags = 0) => 1 - Math.pow(
 export const securitySystem: EngineSystem = {
   id: 'security', owner: 'WS4', cadence: 'daily', order: 90, system: 'relations',
   run(s, ctx) {
-    const w = ws4(s);
     const sec = s.player.security;
     const rng = ctx.rng('security');
     const floor = wslFloor(decimalYear(s) - 2025);
@@ -67,13 +67,13 @@ export const securitySystem: EngineSystem = {
     sec.wsl = clamp(Math.max(sec.wsl, floor), 1, 5);
     sec.ssl = sec.wsl - 0.6;
     sec.privileged = privilegedOf(s.player.staff, sec.siloing);
-    w.spyMult = Math.min(1, w.spyMult + 0.002);
-    sec.spies = sec.privileged * spyRate(s) * w.spyMult * (sec.clearances ? 0.6 : 1);
+    sec.spyMult = Math.min(1, sec.spyMult + 0.002);
+    sec.spies = sec.privileged * spyRate(s) * sec.spyMult * (sec.clearances ? 0.6 : 1);
     // Security spend is charged only by WS3's payroll system (finance ledger); this system keeps its effects.
 
     // Theft against the player, then against active rivals holding a model worth stealing.
     if (rng.chance(theftHazardDaily(s, ctx))) {
-      w.theftAttempts++;
+      sec.theftAttempts++;
       executeTheft(s, ctx, 'player');
     }
     for (const r of activeRivals(s)) {
@@ -97,20 +97,20 @@ export const securitySystem: EngineSystem = {
       const days = secretsLeak(s, leak); // N6: a daily pull toward the player by the channel's strength
       if (Math.abs(days) > 1e-6) ctx.cause('china.lag', -days, 'secrets leak');
       // Sustained distillation: China's next post-training would take > DISTILL_SUSTAINED_OOM from the player's products.
-      w.distillDays = distillationLeak(s, CHINA_ID).dG > DISTILL_SUSTAINED_OOM ? w.distillDays + 1 : 0;
+      sec.distillDays = distillationLeak(s, CHINA_ID).dG > DISTILL_SUSTAINED_OOM ? sec.distillDays + 1 : 0;
     }
 
     // Exfiltration of an internal agent (WS2 hazard) → E25 and the hunt. Model v3 E9: security notices it with the
     // lab's effective control of the model (safety/control.ts escapeNoticed), else the copy is a hidden foothold (no
     // alert, no hunt). Either way the copy grows outside the lab and takes control once it can (endings 'rogue').
-    if (!w.loose) {
+    if (!sec.loose) {
       const hz = exfiltrationHazard(s);
       if (hz > 0 && rng.chance(hz)) {
         const v = bestPlayerVersion(s);
         if (v) {
           const mis = misalignment(v.traitsTrue, v.uModes);
           if (escapeNoticed(s, v, ctx.day)) {
-            w.loose = { day: ctx.day, versionId: v.id, mis };
+            sec.loose = { day: ctx.day, versionId: v.id, mis };
             footholdFromEscape(s, ctx.day, v, mis); // model v3 E8: the copy is a foothold outside the lab (located: the alert)
             ctx.log('alert', `A copy of ${v.name} has escaped your servers.`, 5, v.id);
             request(s, 'E25', { versionId: v.id });
@@ -122,10 +122,10 @@ export const securitySystem: EngineSystem = {
     // Insider leak to the press (whistleblower). With a channel (A6) the concern is raised and handled internally
     // instead: safety morale +5, one red flag fewer toward the next leak.
     const hw = whistleHazard(s);
-    if (hw > 0 && !w.internalReport && rng.chance(hw)) {
+    if (hw > 0 && !sec.internalReport && rng.chance(hw)) {
       if (s.player.policies.whistleblowerChannel) {
         ctx.bump('morale.safety', 5, 'internal report handled');
-        w.redFlags = Math.max(0, w.redFlags - 1);
+        sec.redFlags = Math.max(0, sec.redFlags - 1);
         ctx.log('company', 'An employee raised a safety concern through the whistleblower channel; it was handled internally.', 2);
       } else request(s, 'E19', { mult: 1 });
     }

@@ -7,7 +7,6 @@
 import type { Commitment, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
 import { cash } from './fx';
 import { lawsInForce } from '../../../data/v2/laws';
-import { ws4r } from './state';
 import { approvalPush, PUBLIC } from '../world/public';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
@@ -140,7 +139,7 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
   },
   /** A6: an internal report left past its deadline. */
   whistleblower: (s) => {
-    const r = ws4r(s).internalReport;
+    const r = s.player.security.internalReport;
     return !!r && s.time.day > r.deadline;
   },
   /** F1: pay own power and grid costs: every new site needs a community package. */

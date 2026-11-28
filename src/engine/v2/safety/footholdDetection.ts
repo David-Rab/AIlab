@@ -237,7 +237,7 @@ export function removeFoothold(s: GameStateV2, ctx: SystemCtx, id: string): stri
     for (const v of targets) strip(v.traitsTrue);
   }
   if (f.kind === 'corruptedTool' && f.ref && s.player.safety.techniques[f.ref]?.falseValidated) revealFalse(s, ctx, f.ref);
-  if (c.downtime > 0) s.flags['ws4:agentsOffUntil'] = Math.max(Number(s.flags['ws4:agentsOffUntil'] ?? -1), ctx.day + c.downtime);
+  if (c.downtime > 0) s.player.safety.agentsOffUntil = Math.max(s.player.safety.agentsOffUntil ?? -1, ctx.day + c.downtime);
   if (c.progress > 0) setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + c.progress);
   f.status = 'removed';
   f.removedDay = ctx.day;

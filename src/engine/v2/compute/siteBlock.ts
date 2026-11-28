@@ -63,14 +63,13 @@ const relocate: ActionDef = {
 
 const sue: ActionDef = {
   id: 'SITE_SUE', verb: 'respond', system: 'compute', sphere: 'finance', owner: 'WS4', title: 'Sue',
-  available: (s) => (s.player.sites.some((x) => x.stage === 'blocked' && !s.flags[`ws4:sued:${x.id}`]) ? open(s) : 'No blocked site left to sue over'),
+  available: (s) => (s.player.sites.some((x) => x.stage === 'blocked' && !x.sued) ? open(s) : 'No blocked site left to sue over'),
   preview: () => pv([L('cash', SUIT_COST)], [L('leadDays', 90, 'site back in permits', { probability: SUIT_WIN_ODDS })]),
   apply(s, ctx, p) {
     const x = blockedOf(s, p);
     if (!x) return 'The site is not blocked';
-    const key = `ws4:sued:${x.id}`;
-    if (s.flags[key]) return 'You already lost a suit over this site';
-    s.flags[key] = true;
+    if (x.sued) return 'You already lost a suit over this site';
+    x.sued = true;
     cash(s, ctx, -SUIT_COST, 'Suit against a local block', x.name);
     if (ctx.rng('events').chance(SUIT_WIN_ODDS)) {
       x.stage = 'permitting';
