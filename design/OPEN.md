@@ -19,7 +19,7 @@ When an item is done or dropped, delete its line here. New "for later" items go 
 ## Balance and calibration
 
 Owner: the balance session. Its live list is [bal/RECAP-2026-11-27.md](bal/RECAP-2026-11-27.md) §2–3; summarised here.
-Rule from 2026-11-27: parameters only, mechanism changes are parked unless they block calibration.
+The 2026-11-27 rule "parameters only, mechanism changes parked unless they block calibration" was for the unattended overnight session only (designer, 2026-11-28). With the designer present, mechanism fixes are proposed and approved as usual; the goal stays "roughly in line", no side-tracks.
 
 | Item | Kind | Detail |
 |---|---|---|

@@ -1,5 +1,7 @@
 # Overnight calibration: Stage 1 and Stage 2 (handoff, written 2026-11-27)
 
+> **Superseded (2026-11-28).** This was the brief for the unattended overnight session (branch `cal`). The designer judged that session unreliable: use only its raw run data, and re-measure its conclusions. The "parameters only" rules below applied to that unattended session only. Current balance work: `design/bal/NPC-FIX.md` and the end of `design/BAL-TASKS.md`.
+
 You are a fresh session running UNATTENDED overnight. The designer will read your report in the morning. Read this whole file first, then `design/bal/HANDOFF-CALIBRATION.md` §1 (principles), §5 (tools) and §7 (hazards). Don't read more than you need.
 
 ## 0. The designer's instructions (binding; quoted)
