@@ -4,6 +4,8 @@
 // model" (link → TRAINING › Next run), "Where it comes from", and the Lab tools the lab owns (DD-03: owned built things;
 // the build runs in LAB's build queue). L2: an area's adopted ideas (click a row). Publish policy lives on SAFETY (link).
 // HOME of: know-how per area (public, yours, waiting), know-how growth, the idea list per area, Lab tools.
+// F1b: the pretraining bar also shows outside know-how (teal, up to the diffused level), your own-research tick, and one line
+// saying which is in effect (HOME of: outside know-how vs own).
 // Reads beliefs and facts only (UB-2 knowHowAreas / stackViews: believed sums of the adopted results' estimates).
 import { useMemo } from 'react';
 import { agentsView, dateOf, fmtDate, knowHowAreas, stackViews, toolingView, featureUpkeepTW } from '../../../engine/v2';
@@ -31,23 +33,44 @@ function AreaRow({ s, a, X, ticks, open, toggle }: { s: GameStateV2; a: KnowHowA
   const w = a.waiting && a.waiting.x > 1.0005 ? a.waiting : undefined;
   const base = w ? a.yours / w.x : a.yours;
   const [lo, hi] = a.yoursRange;
+  // F1: the pretraining area shows outside know-how. `mult` = the lift outside know-how gives over your own research (1 when
+  // your own is ahead); the grey bar is the public start, the teal part reaches the diffused level on the same scale.
+  const dif = a.diffusion;
+  const inEffect = !!dif && dif.inEffect === 'diffused' && dif.own > 0;
+  const mult = inEffect ? dif!.diffused / dif!.own : 1;
+  const liftTxt = mult >= 3 ? `×${mult.toFixed(1)}` : F.pct(mult - 1, 0, true);
+  const pub0 = a.public / mult;
+  const ownPre = a.yours / mult;
+  const dPos = dif && dif.own > 0 ? ownPre * (dif.diffused / dif.own) : undefined;
+  const outEnd = dPos !== undefined && dPos > pub0 * 1.003 ? dPos : undefined;
+  const pubEnd = outEnd ?? pub0;
   return (
     <div className={`kh-ar ${open ? 'open' : ''}`} data-area={a.key} onClick={toggle} role="button" aria-expanded={open}>
       <div>
         <div className="nm"><Ic size={16} /><Term id="recipeStack">{AREA_NAME[a.key]}</Term></div>
         <div className="un">× {AREA_UNIT[a.key]}</div>
       </div>
-      <div className="kh-track">
+      <div className="kh-track" style={dif ? { height: 70 } : undefined}>
         {ticks.map((t) => <div key={t} className="gridl" style={{ left: `${X(t)}%` }} />)}
-        <Tip as="div" className="kh-bar pub" style={{ left: 0, width: `${X(a.public)}%` }} content={() => <TipCard title={<Term id="publicKnowledge">Public know-how</Term>} value={xk(a.public)}>What every lab knows from published work, × vs July 2025.</TipCard>}><span /></Tip>
-        <span className="kh-vl pub" style={{ left: `calc(${X(a.public)}% + 8px)` }}>{xk(a.public)}</span>
+        <Tip as="div" className="kh-bar pub" style={{ left: 0, width: `${X(pub0)}%`, ...(outEnd ? { borderRadius: '4px 0 0 4px' } : {}) }} content={() => <TipCard title={<Term id="publicKnowledge">Public know-how</Term>} value={xk(pub0)}>What every lab knows from published work, × vs July 2025.</TipCard>}><span /></Tip>
+        {outEnd !== undefined && dif && <Tip as="div" className={`kh-bar out ${inEffect ? '' : 'idle'}`} style={{ left: `${X(pub0)}%`, width: `${Math.max(0.4, X(outEnd) - X(pub0))}%` }} content={() => <TipCard title={<Term id="diffusion">Outside know-how</Term>} value={xk(outEnd)} rows={[
+          { label: 'Your own research alone', value: xk(ownPre) },
+          ...(dif.publicLevel !== undefined ? [{ label: dif.from ? `Best public, ${dif.from}` : 'Best public', value: xk(dif.publicLevel * ownPre / dif.own) }] : []),
+          { label: 'In effect', value: inEffect ? 'outside' : 'your own' },
+        ]}>{inEffect ? 'Know-how from other labs that has reached you and is ahead of your own research.' : 'Know-how from other labs that has reached you. Your own research is ahead of it, so it adds nothing.'}</TipCard>}><span /></Tip>}
+        <span className={`kh-vl pub ${outEnd !== undefined ? 'out' : ''}`} style={{ left: `calc(${X(pubEnd)}% + 8px)` }}>{xk(pubEnd)}</span>
         <Tip as="div" className="kh-bar you" style={{ left: 0, width: `${X(base)}%`, ...(w ? { borderRadius: '4px 0 0 4px' } : {}) }} content={() => <TipCard title={<Term id="stackEfficiency">Yours</Term>} value={xk(a.yours)} rows={[
           { label: 'Likely range (9 in 10)', value: `${xk(lo)}–${xk(hi)}` }, { label: 'Certainty', value: a.certainty.word },
+          ...(inEffect ? [{ label: 'Your own research alone', value: xk(ownPre) }] : []),
           ...(w ? [{ label: 'In your newest model', value: xk(base) }, { label: <Term id="trainedIn">Waiting</Term>, value: `${xk(w.x)} · ${ideasW(w.ideas)}` }] : []),
-        ]}>Public know-how plus your results&apos; expected effects. Believed: your evals measure models, not single ideas.</TipCard>}><span /></Tip>
+        ]}>{inEffect ? 'Outside know-how' : 'Public know-how'} plus your results&apos; expected effects. Believed: your evals measure models, not single ideas.</TipCard>}><span /></Tip>
         {w && <Tip as="div" className="kh-bar wait" style={{ left: `${X(base)}%`, width: `${Math.max(0.4, X(a.yours) - X(base))}%` }} content={() => <TipCard title={<Term id="trainedIn">Waiting</Term>} value={xk(w.x)} rows={[{ label: 'Ideas', value: ideasW(w.ideas) }, { label: 'Since', value: short(s, w.since) }, { label: 'Likely range', value: `${xk(w.range[0])}–${xk(w.range[1])}` }]}>{`Know-how no model of yours has yet. ${WAIT_TRAINS[a.key] ?? ''}`}</TipCard>}><span /></Tip>}
+        {inEffect && <div className="kh-ownmark" style={{ left: `${X(ownPre)}%` }} />}
         {hi > lo * 1.002 && <div className="kh-whisk" style={{ left: `${X(lo)}%`, width: `${Math.max(0.3, X(hi) - X(lo))}%` }} />}
         {X(Math.max(hi, a.yours)) > 80 ? <span className="kh-vl you in" style={{ left: `calc(${X(lo)}% - 8px)`, transform: 'translateX(-100%)' }}>{xk(a.yours)}</span> : <span className="kh-vl you" style={{ left: `calc(${X(Math.max(hi, a.yours))}% + 10px)` }}>{xk(a.yours)}</span>}
+        {dif && <div className={`kh-outline ${inEffect ? 'on' : ''}`} data-test="outside-knowhow">{inEffect
+          ? <><Term id="diffusion">Catching up from outside</Term>: <Tip content={() => <TipCard title={<Term id="diffusion">Outside know-how</Term>} value={liftTxt} rows={[{ label: 'Your own research alone', value: xk(ownPre) }, { label: 'Outside level', value: xk(a.yours) }]}>How far outside know-how is ahead of your own research. It shrinks as your own research catches up.</TipCard>}><b>{liftTxt}</b></Tip>{dif.from ? ` (from ${dif.from})` : ''}</>
+          : <>Ahead of public know-how: <Term id="diffusion">outside know-how</Term> adds nothing</>}</div>}
         {w && w.x >= 1.05 && <span className="kh-vl wt" style={{ left: `${X(base)}%` }}>{xk(w.x, 2)} <Term id="trainedIn">waiting</Term> · {ideasW(w.ideas)}</span>}
       </div>
       <Tip content={() => <TipCard title={<Term id="softwareRate">Know-how growth</Term>} value={`${xk(a.perYear, 2)} / yr`} rows={[{ label: 'Ideas built in, last 12 months', value: ideasW(a.perYearIdeas) }]}>From your own results over the last 12 months (your estimate).</TipCard>}>
@@ -93,6 +116,7 @@ function Areas({ s, areas }: { s: GameStateV2; areas: KnowHowArea[] }) {
     <Card className="kh-areas" home="knowHow" title={<span className="row-i"><ICON.experiments size={16} /><Term id="knowHow">Know-how</Term> <span className="dim small">× vs Jul 2025</span></span>}
       sub={<span className="kh-legend">
         <span><i style={{ background: '#56677e' }} /><Term id="publicKnowledge">Public know-how</Term></span>
+        {areas.some((a) => a.diffusion && a.diffusion.inEffect === 'diffused') && <span><i style={{ background: '#2fa89a' }} /><Term id="diffusion">Outside know-how</Term></span>}
         <span><i style={{ background: '#9b6be0' }} /><Term id="stackEfficiency">Yours</Term>, in your models</span>
         <span><i style={{ background: 'repeating-linear-gradient(135deg, rgba(155,107,224,.9) 0 3px, rgba(155,107,224,.25) 3px 6px)', boxShadow: 'inset 0 0 0 1px #c4a5f5' }} /><Term id="trainedIn">Waiting</Term>: not in a model yet</span>
         <span><i style={{ width: 14, height: 2, background: '#fff' }} /><Term id="estimateBand">range</Term></span>
@@ -147,10 +171,6 @@ function WhereFrom({ areas }: { areas: KnowHowArea[] }) {
         <span>Your research, last 12 months</span>
         <Tip content={() => <TipCard title="Ideas built in, last 12 months" value={String(Math.round(n))} rows={areas.map((a) => ({ label: AREA_NAME[a.key], value: `${ideasW(a.perYearIdeas)} · ${xk(a.perYear, 2)}` }))}>Results your programmes and projects built into your recipe.</TipCard>}><b className="num">{Math.round(n)}</b></Tip>
         <span className="dim">ideas built in</span>
-      </div>
-      <div className="kh-row">
-        <span><Term id="publicKnowledge">Public know-how</Term></span><span />
-        <span className="dim">published work every lab gets (grey bars)</span>
       </div>
       <div className="kh-row"><span className="dim">The programmes that add to it</span><span /><Ref id="portfolio" to={{ panel: 'research', tab: 'projects' }}>Portfolio</Ref></div>
     </Card>

@@ -14,7 +14,7 @@ import { labOf } from '../actors/rivals';
 import { publicOf } from '../npc/public';
 import { dateOf, dayOfDate, decimalYear, fmtDate } from '../core/time';
 import { lagDays, MILESTONE_NAMES } from '../models/capability';
-import { bestG, bestPlayerVersion } from '../models/labs';
+import { bestPlayerVersion, publicG } from '../models/labs';
 import { posteriorBand } from '../safety/agendas';
 import { lossThreshold, rogueCopy } from '../safety/control';
 import { misalignmentBand } from '../safety/traits';
@@ -232,9 +232,9 @@ function nearestRival(s: GameStateV2, lab: LabId): { ref: LabRef; lag: number } 
     .sort((a, b) => a.lag - b.lag)[0];
 }
 
-/** Best US lab still racing (the player when active), by true frontier G. */
+/** Best US lab still racing (the player when active), by its latest public model (F7). */
 function bestUsLab(s: GameStateV2): LabRef | undefined {
-  return allLabs(s).filter((l) => l.country === 'US' && l.status === 'active').sort((a, b) => bestG(s, b.id) - bestG(s, a.id))[0];
+  return allLabs(s).filter((l) => l.country === 'US' && l.status === 'active').sort((a, b) => publicG(s, b.id) - publicG(s, a.id))[0];
 }
 
 function exitDayOf(s: GameStateV2, id: LabId, name: string): number | undefined {

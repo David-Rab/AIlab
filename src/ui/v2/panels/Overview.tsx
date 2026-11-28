@@ -128,8 +128,8 @@ function LaneTip({ s, l, D }: { s: GameStateV2; l: LeadLane; D: number }) {
   const you = bestMeasuredVersion(s)?.name; // UB-F: "you" = your best measured model (not one still in testing, not the AI-staff model)
   const sd = side(l.ahead);
   const intro: ReactNode = sd === 'behind'
-    ? <>How far {l.name}'s <Term id="bestInternal">best internal model</Term> trails your best model, by your estimate.</>
-    : <>How long until your best model matches {l.name}'s <Term id="bestInternal">best internal model</Term>, by your estimate.</>;
+    ? <>How far {l.name}'s newest public model trails yours, by your estimate.</>
+    : <>How long until your newest public model matches {l.name}'s, by your estimate.</>;
   return (
     <TipCard title={<span>{l.name} <span className="dim small">{l.china ? 'China' : 'US lab'}</span></span>}
       value={<span className={sd === 'ahead' ? 'tone-neg' : 'tone-pos'}>{days(l.ahead)} {sd}</span>}>

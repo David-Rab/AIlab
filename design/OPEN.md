@@ -21,7 +21,6 @@ When an item is done or dropped, delete its line here. New "for later" items go 
 ## Balance and calibration
 
 Owner: the balance session. Its live list is [bal/RECAP-2026-11-27.md](bal/RECAP-2026-11-27.md) §2–3; summarised here.
-Rule from 2026-11-27: parameters only, mechanism changes are parked unless they block calibration.
 
 | Item | Kind | Detail |
 |---|---|---|
@@ -58,6 +57,9 @@ Spec [npc/NPC-LABS.md](npc/NPC-LABS.md); build log archive/npc/NPC-TASKS.md (mer
 | Tool capability bars: questions 2–6 | Check (N4 may have settled them) | npc/TOOL-REQUIREMENTS.md; archive/npc/N4-RESULT.md |
 | Rival distillation into the player (balance fix E) | Later | memory ai27-balance-deferred |
 | NPC labs have no data-centre sites (count only through the outside-world waits) | Later | DATACENTERS.md; dc/CALIBRATION-NOTE.md |
+| NPC models are sized by the lab's compute but priced/qualified as the frontier (Pellory serves near-frontier quality at ~1/4 the serving FLOP; player 2026 revenue $7.1B vs $17.5B without Pellory) | Later (outside-world market work) | bal/NPC-FIX.md; AI27-cal/.scratch/npcaudit/AUDIT.md #2 |
+| NPC demand above serving capacity is not rationed (worldfx/revenue.ts sellerCaps; Pellory serves 4.6–5.8× its compute; predates the NPC merge) | Later (outside-world market work) | AUDIT.md #3 |
+| Pellory's placeholder numbers (30k H100e, 3-month lag "capability unknown") and the race-pressure band they pin at 1 all game (npc/risk.ts) | Later (numbers pass) | npcLabs.ts:262–275; AUDIT.md #8 |
 
 ## Data centres
 

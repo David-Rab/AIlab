@@ -9,7 +9,7 @@ import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
 import { npcServeFpt } from '../npc/model';
 import type { BaseDesign, Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
-import { PLAYER_ID, bestG, labCore, otherLabs } from './labs';
+import { PLAYER_ID, bestG, labCore, otherLabs, publicG } from './labs';
 import { REF_RL_PROFILE, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
 
 /** In-game milestone names (no canon tags, §3.1.6). */
@@ -261,8 +261,8 @@ export function h50Ratio(w: TimelineWorld, g1: number, g0: number): number {
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
-// A lab's frontier history is its weekly series.G (record.ts), read by the lead clock lagDays, frontierGAt and the pace
-// frontierGPerYear. A version lab's series is a staircase (each new version is a
+// A lab's frontier history is its weekly series.G (record.ts), read by frontierGAt and the pace frontierGPerYear; the lead
+// clock lagDays reads series.GP, the same for its public models (F7). A version lab's series is a staircase (each new version is a
 // step), so interpolating between adjacent samples would put every intermediate level at the step and make the lag of
 // a smoothly progressing follower jump by a whole version interval each time it passes a step. The frontier LINE runs
 // instead through the "corners": the first sample at each new record level, plus today's level if it is higher (a
@@ -289,23 +289,25 @@ export function frontierGAt(s: GameStateV2, lab: LabId, day: Day): number | unde
   return px;
 }
 
-/** The one lead clock (RD-L01, DD-10): how many days ago `leader`'s recorded frontier G stood where `follower` stands
- *  now (positive = the leader is ahead). `follower` is a lab (its best internal G) or a G value (e.g. a released model).
- *  Read from the weekly series.G (record.ts) along the frontier line's corners (as above, in G), linearly interpolated;
- *  today's best G closes the line when it is newer than the last sample. Hidden truth; trueLeadDays, intel and China's
- *  readouts read it, so LeadTrack and RiskMap have this one function behind them.
+/** The one lead clock (RD-L01, DD-10): how many days ago `leader`'s latest PUBLIC model stood where `follower`'s stands now
+ *  (positive = the leader is ahead). F7: both sides are the lab's released model (publicG: the player's best in a live
+ *  product, an NPC lab's public model), both stepped, so a lead or a gap compares like with like; the labs' unreleased
+ *  internal models enter no readout. Read from the weekly series.GP (record.ts) along the line's corners (as above, in G),
+ *  linearly interpolated; today's public G closes the line when it is newer than the last sample. LeadTrack, RiskMap,
+ *  trueLeadDays, intel and China's readouts read it.
+ *  `follower` is a lab (its public G) or a G value (e.g. a released model).
  *  - Follower ahead of the leader (a lab): the lag the other way, negated: lagDays(f, l) = −lagDays(l, f). Level: 0.
- *  - Follower a G value above the leader's frontier: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
+ *  - Follower a G value above the leader's public G: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
  *    leader gets there at its own recorded pace (frontierGPerYear).
  *  - History too short (the follower is below the leader's first sample, the first weeks of a game): the days since that
  *    sample plus the gap to it at the stated pre-game pace PRE_GAME_G_PER_YEAR (OOM/yr), the rate the start gaps in
  *    months are converted at (rivals.ts initialRival, core/init.ts), i.e. the leader's pre-history slope.
- *  - No record at all for the leader: the gap at the pre-game rate. Non-finite G: 0. */
+ *  - No record at all for the leader: the gap at the pre-game rate. A lab with no public model yet: 0. */
 export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId): number {
-  const gL = bestG(s, leader);
+  const gL = publicG(s, leader);
   if (typeof follower === 'string') {
     if (follower === leader) return 0;
-    const gF = bestG(s, follower);
+    const gF = publicG(s, follower);
     if (!Number.isFinite(gF) || !Number.isFinite(gL)) return 0;
     return gL >= gF ? daysSinceG(s, leader, gF, gL) : -daysSinceG(s, follower, gL, gF);
   }
@@ -314,16 +316,17 @@ export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId)
   return -((follower - gL) / Math.max(0.06, frontierGPerYear(s, leader))) * 365;
 }
 
-/** A lab's recorded frontier G samples aligned to series.day (a lab first recorded after day 0 aligns at the end). */
-function gSeries(s: GameStateV2, lab: LabId): { xs: number[]; days: Day[]; off: number } {
-  const xs = s.series.G?.[lab] ?? [];
+/** A lab's recorded frontier G samples (series.G, or series.GP for its public models) aligned to series.day (a lab first
+ *  recorded after day 0 aligns at the end). */
+function gSeries(s: GameStateV2, lab: LabId, key: 'G' | 'GP' = 'G'): { xs: number[]; days: Day[]; off: number } {
+  const xs = s.series[key]?.[lab] ?? [];
   const days = s.series.day;
   return { xs, days, off: Math.max(0, days.length - xs.length) };
 }
 
-/** Days since `lab`'s frontier line (corners of series.G, then today's `gNow`) first reached `g` (g ≤ gNow). */
+/** Days since `lab`'s public line (corners of series.GP, then today's `gNow`) first reached `g` (g ≤ gNow). */
 function daysSinceG(s: GameStateV2, lab: LabId, g: number, gNow: number): number {
-  const { xs, days, off } = gSeries(s, lab);
+  const { xs, days, off } = gSeries(s, lab, 'GP');
   const today = s.time.day;
   const rate = PRE_GAME_G_PER_YEAR; // G a year: the pre-history slope (RD-L03: the stated pre-game pace)
   if (!xs.length) return ((gNow - g) / rate) * 365;
@@ -367,8 +370,7 @@ export function frontierGPerYear(s: GameStateV2, lab: LabId, windowDays = Infini
   return PRE_GAME_G_PER_YEAR;
 }
 
-/** Days a lab's true frontier lags the player's best internal version (positive = player ahead): lagDays(other, player).
- *  Hidden; engine use only (intel, endings, events). */
+/** Days a lab's latest public model lags the player's (positive = player ahead): lagDays(other, player). */
 export function trueLeadDays(s: GameStateV2, other: LabId): number {
   return lagDays(s, other, PLAYER_ID);
 }

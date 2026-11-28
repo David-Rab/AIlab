@@ -83,6 +83,7 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
     value: 0.024, unit: 'OOM of G-equivalent know-how',
     area: 'safety', layer: 'world', kind: 'untagged',
     evidence: 'no tag; findings.ts:32-34 "Safety spillover (a SPILL finding): 0.024 OOM of G-equivalent know-how (was 0.02 progress-years; model v3 F3)"',
+    notes: 'F1: the lab own finding: an own scale-invariant idea in the pretraining stack (stacks.ts addOwnInsight), part of own know-how, not the diffused level.',
   },
   // ───────────────────────── incidents.ts ─────────────────────────
   {

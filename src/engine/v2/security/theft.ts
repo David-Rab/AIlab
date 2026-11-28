@@ -1,18 +1,17 @@
 // Theft, secrets leak, distillation, insider leaks (V2-SPEC §3.6; research/11 #16, #24; research/02 §1.7–1.10). Owner: WS4.
 import { clamp } from '../../rng';
 import { lagDays } from '../models/capability';
-import { baseParams, setModelG } from '../npc/model';
+import { npcG, setNpcModel } from '../npc/lab';
 import { theft } from '../npc/shocks';
+import { decimalYear } from '../core/time';
 import { bestPlayerVersion, CHINA_ID } from '../models/labs';
-import type { GameStateV2, LabId, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
+import type { GameStateV2, LabId, RivalLab, SecurityState, SystemCtx } from '../types';
 import { request } from '../events/request';
 import { WS4_TUNING } from '../actors/tuning';
 import { CHINAGOV, theftIntent } from '../world/chinagov';
-import { USGOV, playerAttention } from '../world/usgov';
+import { USGOV, playerAttention, usgovTheftDetected } from '../world/usgov';
 import { attention, frontier } from '../world/observe';
 import { adopted } from '../models/paradigms';
-import { stolenModelG } from '../production/diffusion';
-import { usgovTheftDetected } from '../world/usgov';
 
 /** P(successful theft in 2 months) = 1/(1 + 19·6^(d−a)) (R11 #24: 5% at d = a, base 6 per level). */
 export function theftP2mo(defence: number, attacker: number): number {
@@ -77,38 +76,35 @@ export function rivalTheftHazard(s: GameStateV2, r: RivalLab): number {
   return 0.5 * theftHazardOn(s, r.core.security, lead, attention(s, r.core.id, frontier(s)));
 }
 
-/** The strength of the secrets-leak channel: the share of the gap to the player China closes a day, k·spies·clamp(3.5 − ssl, 0, 2)
- *  (§3.6). N6: npc/shocks.ts secretsLeak pulls China's lag toward the player's position by this share. */
+/** The strength of the secrets-leak channel: the share of its KNOW-HOW gap to the player China closes a day, k·spies·clamp(3.5 − ssl, 0, 2)
+ *  (§3.6). N6: npc/shocks.ts secretsLeak closes that share of the gap, in lag days. */
 export function secretsLeakDaily(s: GameStateV2): number {
   const sec = s.player.security;
   return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2);
 }
 
-/** A successful theft of `victim`'s best internal model by China (§3.6 outcome; R11 #16d). */
+/** China holds the stolen copy: its lag jumps to the copy's position plus the integration delay (npc/shocks.ts theft: the one
+ *  rule of a theft; the lab's daily step follows that lag, so nothing else sets the model's G) and its internal model is
+ *  named for the copy and read at the new lag today. With no gap to the copy (China at or ahead of it) nothing changes. */
+function chinaHoldsStolen(s: GameStateV2, ctx: SystemCtx, stolenG: number, id: string, name: string, from: LabId): boolean {
+  const cn = s.china.lab;
+  if (!(theft(s, stolenG) > 0)) return false;
+  cn.internal = { ...cn.internal, id, name, day: ctx.day, isPublic: false, openWeights: false, stolenFrom: from };
+  setNpcModel(s.hidden.timeline, cn.internal, npcG(s, cn), cn.core.computeOnline, decimalYear(s));
+  return true;
+}
+
+/** A successful theft of `victim`'s best internal model by China (§3.6 outcome; R11 #16d). Weights, not a recipe: China's
+ *  know-how does not jump (the secrets leak is the recipe channel); the theft is recorded even with no gap. */
 export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   const cn = s.china.lab;
-  const tw = s.hidden.timeline;
-  // RD-X04b (research/RD-X04r §3C, T5): sized by what moves. China's model G jumps toward the stolen model's G by
-  // THEFT_GAP_CLOSED of the gap (production/diffusion.ts stolenModelG; the rest is integration loss). With no gap (China
-  // at or above the stolen G) its model is unchanged; the theft is still recorded.
-  const cnOwnG = cn.internal.G;
-  // Weights, not a recipe: China holds the stolen copy (its FLOP, size and G); its lag jumps to the copy's position (npc/shocks.ts
-  // theft) and the lab's daily step takes the copy over from there. Its know-how does not jump: the secrets leak is the recipe channel.
-  const holdStolen = (m: SimpleModel, G: number, flop: number, params: number) => setModelG(tw, m, G, { flop, params });
   if (victim === 'player') {
     const v = bestPlayerVersion(s);
     if (!v) return;
     const sec = s.player.security;
     sec.stolen.push({ day: ctx.day, versionId: v.id, by: CHINA_ID });
     // China gets a copy of the best internal version.
-    const b = s.player.models.bases.find((x) => x.id === v.baseId);
-    const flop = b?.flop ?? v.build?.flopPre ?? 3e26;
-    if (v.G > cnOwnG) {
-      cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, isPublic: false, openWeights: false, stolenFrom: 'player' };
-      holdStolen(cn.internal, stolenModelG(cnOwnG, v.G), flop, v.params ?? b?.params ?? baseParams(flop));
-      theft(s, v.G); // N6: China's lag jumps to the stolen model's position plus the integration delay
-      if (v.fpt) cn.internal.fpt = v.fpt;
-    }
+    chinaHoldsStolen(s, ctx, v.G, `china-st${sec.stolen.length}`, `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, 'player');
     const pDetect = clamp(0.5 + 0.1 * (sec.wsl - 2) + 0.3 * sec.counterIntel, 0, 1);
     if (ctx.rng('security').chance(pDetect)) {
       sec.detectedThefts.push(v.id);
@@ -119,13 +115,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   } else {
     const r = s.rivals.find((x) => x.core.id === victim) as RivalLab | undefined;
     if (!r || r.core.status !== 'active') return;
-    const stolen = r.internal.G;
-    if (stolen > cnOwnG) {
-      const G = stolenModelG(cnOwnG, stolen);
-      cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, isPublic: false, openWeights: false, stolenFrom: victim };
-      holdStolen(cn.internal, G, r.internal.flop ?? 1e26, r.internal.params ?? baseParams(r.internal.flop ?? 1e26));
-      theft(s, stolen); // N6
-    }
+    chinaHoldsStolen(s, ctx, r.internal.G, `china-st-${victim}-${ctx.day}`, r.internal.name, victim);
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });
     if (ctx.rng('security').chance(0.5)) {
       ctx.log('rival', `${r.core.name} reports that its model weights were stolen.`, 4, victim);

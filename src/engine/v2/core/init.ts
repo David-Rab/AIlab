@@ -5,9 +5,9 @@ import { startMarket } from '../departments/market';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { deriveNames } from '../models/naming';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { DISTILL_TPP, PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { DISTILL_TPP, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibration';
-import { START_BY_ID } from '../../../data/v2/starts';
+import { START_BY_ID, startLagG } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
 import { Rng, clamp } from '../../rng';
@@ -29,7 +29,7 @@ import { recordThesisHist } from '../finance/promises';
 import { startDivision } from '../finance/parent';
 import { applyFit, benchScore } from '../models/benchmarks';
 import { domainsOf, gOfBuild, gV0, levelOfG, medianExpertLevel, startLab, startStateOf, updateMilestones } from '../models/capability';
-import { initialStacks } from '../models/stacks';
+import { initialStacks, ownKnowhowOf } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
 import { distilledBeliefs, distilledStart } from '../safety/traits';
@@ -142,7 +142,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const leader = start === 'leader';
   // §3.1.4 initial state: B0 finished day −120, V0 day −20 (data/v2/calibration.ts START_STATE, RD-U06).
   // A follower's start lag in OOM of G: its months behind at the stated pre-game pace (RD-L03).
-  const lagG = leader ? 0 : (def.lagMonths / 12) * PRE_GAME_G_PER_YEAR;
+  const lagG = leader ? 0 : startLagG(start);
   const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
   // Model v3 D5: the start suites' expert data (one asset per start RL family) replaces D1's empty expert placeholder.
   dataPortfolio.assets = [...dataPortfolio.assets.filter((a) => a.kind !== 'expert'), ...startExpertAssets()];
@@ -250,7 +250,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     pay: { ...W0 }, // LABOUR-ROUND §4.1: the lab starts paying the market wage
     tree: initialTree(setup),
     // Model v3 V2: the recipe stacks start at the leader's day-0 recipe, a follower its start lag k (OOM) lower.
-    research: { ...initialResearch(roster.teams), stacks: initialStacks(k) },
+    // F1: the diffused know-how level starts at the start recipe (nothing diffused yet).
+    research: { ...initialResearch(roster.teams), stacks: initialStacks(k), diffused: ownKnowhowOf(initialStacks(k)) },
     build: initialBuild(),
     features: [...def.features],
     // RD-A06: the start's internal tools (RF-P1: listed per start, no longer derived from its product features).

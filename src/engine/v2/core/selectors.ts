@@ -94,7 +94,7 @@ export function selectHidden(s: GameStateV2): HiddenWorld {
 /** Snapshot stored with each decision for the end-screen causal replay (§5.4). Mixes truth: engine use only. */
 export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
   const v = internalVersion(s);
-  const rivals = s.rivals.filter((r) => r.core.status === 'active');
+  const rivals = s.rivals.filter((r) => r.core.status === 'active' && r.publicModel); // F7: a lead is read on public models
   const leadRival = rivals.length ? Math.min(...rivals.map((r) => leadDays(s, r.core.id).est)) : 0;
   return {
     L: v?.evals.measuredL ?? bestLg(s, PLAYER_ID),

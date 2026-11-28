@@ -12,7 +12,7 @@ type Off = Partial<Record<DomainId, number>>;
 /** The frontier's pace before the game, in OOM of effective compute G a year (research/12 §0.2: frontier G +1.1–1.3 a
  *  year) [D]. RD-L03 (the progress-year unit is gone): the stated rate for the readers that need a pace before a lab
  *  has a recorded frontier slope (models/capability.ts frontierGPerYear with under two series.G points; lagDays'
- *  pre-history) and for the start gaps written in months (rivals.ts initialRival, core/init.ts follower starts,
+ *  pre-history, on series.GP) and for the start gaps written in months (rivals.ts initialRival, core/init.ts follower starts,
  *  china.ts intel start estimate). */
 export const PRE_GAME_G_PER_YEAR = 1.2;
 

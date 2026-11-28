@@ -12,7 +12,8 @@ import { daysFor } from './effective';
 import { internalVersion, measuredDomainOf, versionById } from './labs';
 import { believedAdoptedSince, capPriorityList, stackViews, type CapProjectView } from './researchView';
 import { believedSciOn, capEta } from './research';
-import { runFlopPerShareDay, runForecast, RUN_POOL_DEFAULT, type LaunchRunParams } from './runs';
+import { believedKnowhow, runFlopPerShareDay, runForecast, RUN_POOL_DEFAULT, type LaunchRunParams } from './runs';
+import { publicKnowhow } from '../npc/shocks';
 import type { DomainId, GameStateV2, MilestoneIdx, ModelVersion, StackKey } from '../types';
 
 const Z90 = 1.64;
@@ -56,12 +57,34 @@ export interface KnowHowArea {
   public: number; yours: number; yoursRange: [number, number];
   /** × waiting for the next model (pretraining recipe and the two post-training areas only), ideas, since (day). */
   waiting?: { x: number; range: [number, number]; ideas: number; since: number };
+  /** F1: the pretraining recipe area only: own vs diffused vs public know-how and which is in effect (knowHowDiffusion). */
+  diffusion?: KnowHowDiffusion;
   /** × per year from your own results over the last 365 days, and the ideas counted. */
   perYear: number; perYearIdeas: number;
   certainty: Certainty;
 }
+
+/** F1 (design/bal/NPC-FIX.md; the know-how bars' data, F1b): the player's know-how against the public know-how, as ×
+ *  vs July 2025 on the recipe scale (recipe G at the common reference FLOP). Home: RESEARCH › Know-how, the pretraining
+ *  recipe area (KnowHowArea.diffusion). Basis: own B (the believed areas, runs.ts believedKnowhow), diffused F (the level
+ *  public know-how has reached in your lab, research.diffused), public F (the best released know-how of the other labs,
+ *  npc/shocks.ts publicKnowhow, and its lab). In effect: the higher of own and diffused (the recipe is max(own, diffused)). */
+export interface KnowHowDiffusion {
+  own: number; diffused: number; publicLevel?: number; from?: string;
+  inEffect: 'own' | 'diffused';
+}
+export function knowHowDiffusion(s: GameStateV2): KnowHowDiffusion {
+  const { own, lift } = believedKnowhow(s);
+  const { P, from } = publicKnowhow(s);
+  return {
+    own: X(own), diffused: X(s.player.research.diffused), ...(Number.isFinite(P) ? { publicLevel: X(P), ...(from ? { from } : {}) } : {}),
+    inEffect: lift > 0 ? 'diffused' : 'own',
+  };
+}
+
 export function knowHowAreas(s: GameStateV2): KnowHowArea[] {
   const y = believedAdoptedSince(s, s.time.day - 365);
+  const dif = knowHowDiffusion(s);
   return stackViews(s).map((v) => {
     const sd = v.adoptedSd;
     const w = v.gap !== undefined && v.gapSince !== undefined
@@ -69,7 +92,7 @@ export function knowHowAreas(s: GameStateV2): KnowHowArea[] {
       : undefined;
     return {
       key: v.key, name: v.name, public: X(v.base), yours: X(v.now), yoursRange: [X(v.now - Z90 * sd), X(v.now + Z90 * sd)],
-      ...(w ? { waiting: w } : {}), perYear: X(y[v.key].oom), perYearIdeas: y[v.key].n,
+      ...(w ? { waiting: w } : {}), ...(v.key === 'pre' ? { diffusion: dif } : {}), perYear: X(y[v.key].oom), perYearIdeas: y[v.key].n,
       certainty: sizeCertainty(v.adopted, v.adopted - Z90 * sd, v.adopted + Z90 * sd),
     };
   });

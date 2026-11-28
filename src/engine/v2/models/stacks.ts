@@ -9,14 +9,17 @@
 //   train   training throughput (OOM of model FLOP per chip-day: MFU × goodput), capped (TRAIN_CAP)
 //   serve   serving efficiency (OOM of serving throughput: decode utilisation up to 0.15, then less FLOP per token of
 //           new versions; serveSplit, model v3 D10)
-// e_stack = base (the start recipe and public knowledge) + Σ adopted effects. An adopted idea adds its full true effect
-// at build-in (RD-E03, DD-12: no headroom, no routine tuning).
+// e_stack = base (the start recipe; fixed after day 0) + Σ adopted effects. An adopted idea adds its full true effect at
+// build-in (RD-E03, DD-12: no headroom, no routine tuning).
 // Ideas are kept in scale buckets (κ on a K_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
-// The lab's recipe compared with another lab's (secrets leaks, publish-research leaks) is recipeG at the common reference
-// FLOP RECIPE_F, on the parts every lab has (pretraining, RL efficiency, RL ceiling; RD-B16): playerRecipeG for the
-// player, npc/lab.ts npcRecipe for an NPC lab's. Model v3 F3 removed the know-how readout
-// `player.pa` that stood for it in progress-years.
+// F1 (design/bal/NPC-FIX.md): know-how from outside (rule A diffusion, C4 tacit knowledge) is not added to the stacks. It
+// is the DIFFUSED level D (research.diffused), and the player's EFFECTIVE recipe is max(own, D) at RECIPE_F, where own
+// (ownKnowhowG) is the recipe of the stacks alone: the pretraining stack carries diffusedLift = max(0, D − own) on top of
+// its own value at every run FLOP (ePreAt), so every reader of the recipe (playerRecipeG, models' ePre at training,
+// stacksGEquiv) sees the max, and once own research passes D the lift is 0 (no double count). researchG stays the own part.
+// D and own are on one know-how scale, recipe G at RECIPE_F in OOM over the leader's day-0 recipe; npc/shocks.ts knowhowAt
+// places the NPC labs on it. Model v3 F3 removed the know-how readout `player.pa` that stood for it in progress-years.
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { K_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
@@ -51,8 +54,9 @@ export function adoptedAt(st: StackState, F = FLOP_RL_REF): number {
   return v;
 }
 
-/** Pretraining efficiency for a run of `flop` FLOP (OOM over the start recipe E_START). */
-export const ePreAt = (s: GameStateV2, flop: number) => stackAt(stacksOf(s).pre, flop);
+/** Pretraining efficiency for a run of `flop` FLOP (OOM over the start recipe E_START): the own stack plus the diffused
+ *  know-how in effect (diffusedLift, F1). */
+export const ePreAt = (s: GameStateV2, flop: number) => stackAt(stacksOf(s).pre, flop) + diffusedLift(s);
 /** RL compute efficiency (OOM; C_mid ÷ 10^this). */
 export const rlMidNow = (s: GameStateV2) => stackAt(stacksOf(s).rlMid);
 /** RL ceiling raise (OOM added to A). */
@@ -111,11 +115,6 @@ export function addIdea(st: StackState, x: number, kappa: number, fTest: number,
   st.n += count;
 }
 
-/** Public knowledge (diffusion from a leader, tacit knowledge, safety spillover): scale-invariant. */
-export function addPublic(st: StackState, oom: number) {
-  st.base += oom;
-}
-
 
 // ───────────────────────────── G-equivalent of the recipe ─────────────────────────────
 
@@ -155,38 +154,63 @@ export const gEquivOf = (flop: number, pre: number, mid: number, ceil: number, t
   pre + refRlGain(flop, mid, ceil) - refRlGain(flop, 0, 0) + train;
 
 /** A lab's recipe in the stack units every lab has (OOM over the leader's day-0 recipe): pretraining efficiency, RL
- *  efficiency (rlMid), RL ceiling (rlCeil). An NPC lab's recipe is one number in this unit (NpcLabState.rec). */
+ *  efficiency (rlMid), RL ceiling (rlCeil). An NPC lab's know-how is one number on recipeG's scale (npc/shocks.ts npcKnowhow). */
 export interface Recipe { pre: number; mid: number; ceil: number }
 /** The common reference FLOP at which labs' recipes are compared (RD-B16): FLOP_RL_REF, the reference RL run's base
  *  (3e26, a 2025 frontier base). Fixed, so a comparison never moves because one lab trained a bigger base. */
 export const RECIPE_F = FLOP_RL_REF;
 /** RD-B16: the one G-equivalent of any lab's recipe (OOM): pretraining + what its RL recipe adds to the reference
- *  post-training run on a base of `F` FLOP. The player's (playerRecipeG) and a rival's (actors/rivalModel.ts recipeOf)
- *  both go through it at RECIPE_F for every player-vs-rival comparison. Training throughput is not a part: rivals have
- *  no such stack (they train at the fixed MFU × GOODPUT), so counting it would compare different parts. */
+ *  post-training run on a base of `F` FLOP. The player's know-how (playerRecipeG, ownKnowhowG) is it at RECIPE_F, the
+ *  scale every player-vs-NPC know-how comparison is on (npc/shocks.ts knowhowAt). Training throughput is not a part: it
+ *  is how fast chips train, not what the lab knows about recipes. */
 export const recipeG = (rec: Recipe, F = RECIPE_F) => gEquivOf(F, rec.pre, rec.mid, rec.ceil);
-/** The player's recipe with its pretraining stack evaluated at run FLOP `F` (scale-dependent ideas at F). */
+/** The player's EFFECTIVE recipe with its pretraining stack evaluated at run FLOP `F` (scale-dependent ideas at F; the
+ *  diffused know-how in effect included, ePreAt). */
 export const playerRecipe = (s: GameStateV2, F = RECIPE_F): Recipe => ({ pre: ePreAt(s, F), mid: rlMidNow(s), ceil: rlCeilNow(s) });
-/** The player's recipe G at the common reference FLOP: the counterpart of a rival's recipeOf (secrets leaks, A4). */
+/** The player's EFFECTIVE recipe G at the common reference FLOP, max(own, D) (F1): what other labs see of it (the
+ *  know-how shocks, npc/shocks.ts playerKnowhowPos) and what its versions stamp (recG). */
 export const playerRecipeG = (s: GameStateV2) => recipeG(playerRecipe(s, RECIPE_F), RECIPE_F);
-/** The player's own recipe G at run FLOP `F`, training throughput included (OOM). */
-export const ownRecipeG = (s: GameStateV2, F: number) => recipeG(playerRecipe(s, F), F) + trainNow(s);
-/** RD-B16: the part of the player's recipe G at run FLOP `F` its own research made (OOM): ownRecipeG without the
- *  pretraining stack's base, where all public knowledge lands (addPublic; it enters G linearly, so this removes it
- *  exactly; the other bases hold only the fixed start lag). Software progress is its change between research days with
- *  F held at the earlier day's base (models/research.ts capResearchDay). */
-export const researchG = (s: GameStateV2, F: number) => ownRecipeG(s, F) - stacksOf(s).pre.base;
 
-/** G-equivalent of the lab's stacks today, at its latest base (OOM; training throughput and public knowledge included):
- *  the level the weekly recipe history samples. Not for comparisons with other labs (playerRecipeG) nor for the rate
- *  (it jumps when a bigger base is trained). */
-export function stacksGEquiv(s: GameStateV2): number {
-  return ownRecipeG(s, latestBaseFlop(s));
+/** F1: the recipe G at RECIPE_F of stacks `st` alone (their bases plus adopted ideas; no diffused know-how). */
+export const ownKnowhowOf = (st: Record<StackKey, StackState>) => recipeG({ pre: stackAt(st.pre, RECIPE_F), mid: stackAt(st.rlMid), ceil: stackAt(st.rlCeil) }, RECIPE_F);
+/** F1: the player's OWN know-how: its recipe G at RECIPE_F from its stacks alone (its start and its own research; OOM over
+ *  the leader's day-0 recipe). The scale the diffused level D and the NPC labs' know-how are on. */
+export const ownKnowhowG = (s: GameStateV2) => ownKnowhowOf(stacksOf(s));
+/** F1: the player's start recipe G at RECIPE_F: its stacks' bases, which never change after day 0 (the leader's solved
+ *  start recipe ≈ 0, a follower its start lag lower). The anchor of the know-how scale (npc/shocks.ts knowhowAt). */
+export const startRecipeG = (s: GameStateV2) => {
+  const st = stacksOf(s);
+  return recipeG({ pre: st.pre.base, mid: st.rlMid.base, ceil: st.rlCeil.base }, RECIPE_F);
+};
+/** F1: what the diffused level adds to the player's recipe now (OOM, ≥ 0): max(own, D) − own, so the recipe at RECIPE_F
+ *  is max(own, D). Scale-invariant (added at every run FLOP). */
+export const diffusedLift = (s: GameStateV2) => Math.max(0, s.player.research.diffused - ownKnowhowG(s));
+/** F1/F2: raise the diffused level D to `D` (never lowers it). The effective recipe gains only what lifts max(own, D),
+ *  and that gain is the cause recorded. Returns the gain (OOM). */
+export function raiseDiffused(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, D: number, source: string, detail?: string): number {
+  const res = s.player.research;
+  if (!Number.isFinite(D) || !(D > res.diffused)) return 0;
+  const own = ownKnowhowG(s);
+  const gain = Math.max(own, D) - Math.max(own, res.diffused);
+  res.diffused = D;
+  if (gain > 0) ctx?.cause('player.recipe', gain, source, detail);
+  return gain;
 }
 
-/** Public knowledge in the lab's recipe (OOM): Σ of the stacks' bases (the start lag plus every diffusion, tacit
- *  knowledge and spillover inflow, addPublic). The public-knowledge readout is its daily change (RD-B16). */
-export const publicBase = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + stacksOf(s)[k].base, 0);
+/** The player's recipe G at run FLOP `F` from its stacks alone (no diffused know-how), training throughput included (OOM). */
+export const ownRecipeG = (s: GameStateV2, F: number) => recipeG({ pre: stackAt(stacksOf(s).pre, F), mid: rlMidNow(s), ceil: rlCeilNow(s) }, F) + trainNow(s);
+/** RD-B16: the part of the player's recipe G at run FLOP `F` its own research made (OOM): ownRecipeG without the
+ *  pretraining stack's base (the start lag; the other bases hold the same fixed lag). No diffused know-how (F1).
+ *  Software progress is its change between research days with F held at the earlier day's base (models/research.ts
+ *  capResearchDay). */
+export const researchG = (s: GameStateV2, F: number) => ownRecipeG(s, F) - stacksOf(s).pre.base;
+
+/** G-equivalent of the lab's effective recipe today, at its latest base (OOM; training throughput and the diffused
+ *  know-how in effect included): the level the weekly recipe history samples. Not for comparisons with other labs
+ *  (playerRecipeG) nor for the rate (it jumps when a bigger base is trained). */
+export function stacksGEquiv(s: GameStateV2): number {
+  return ownRecipeG(s, latestBaseFlop(s)) + diffusedLift(s);
+}
 
 /** The recipe a version embodies, as its G-equivalent (OOM, gEquivOf at its build's FLOP): the
  *  recipe it was trained with (its base's pretraining recipe, its own RL recipe); RD-T03: once the stream continued its
@@ -202,11 +226,13 @@ export function inPlaceRecipe(s: GameStateV2, v: ModelVersion): number {
   return gEquivOf(F, pre, b?.eRL ?? 0, b?.aRL ?? 0);
 }
 
-/** Knowledge that arrives from outside (diffusion, tacit knowledge, safety spillover), dG OOM of effective compute: added
- *  to the pretraining stack as public ideas and the cause recorded (model v3 F3: the amounts are the old
- *  progress-years × B). */
-export function addKnowledge(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, dG: number, source: string, detail?: string) {
-  if (!Number.isFinite(dG) || dG === 0) return;
-  addPublic(stacksOf(s).pre, dG);
-  ctx?.cause('player.recipe', dG, source, detail);
+/** The lab's own finding that improves its pretraining recipe (safety spillover, SPILL): a scale-invariant own idea of
+ *  `x` OOM in the pretraining stack, known exactly (believed = true; not counted as an adopted idea), the cause recorded.
+ *  Own know-how, so part of own and of researchG, not of D (F1). */
+export function addOwnInsight(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, x: number, source: string, detail?: string) {
+  if (!Number.isFinite(x) || x === 0) return;
+  const pre = stacksOf(s).pre;
+  addIdea(pre, x, 0, RECIPE_F, 0);
+  addBelief(pre, x, 0);
+  ctx?.cause('player.recipe', x, source, detail);
 }

@@ -2,8 +2,7 @@
 // Every preview shows what apply() does (§2.7 preview truth, lint-tradeoffs).
 import type { ActionDef, GameStateV2, RivalLab } from '../types';
 import { activeRivals, bestG } from '../models/labs';
-import { addKnowledge } from '../models/stacks';
-import { tacitLeakG } from '../production/diffusion';
+import { playerRecipeG, raiseDiffused } from '../models/stacks';
 import * as shock from '../npc/shocks';
 import { cash, L, morale, pv } from '../actors/fx';
 import { ownProgressDays } from '../actors/rivals';
@@ -12,8 +11,9 @@ import { changeHeads, headsMoved } from './teams';
 
 /** C4's poached heads (3% of the rival's capabilities staff, at least 5). */
 const poachHeads = (r: RivalLab) => Math.max(5, Math.round(r.core.staff.cap * 0.03));
-/** RD-X04b: C4's tacit knowledge (OOM into the player's pretraining stack): tacitLeakG from the rival they left. */
-const c4TacitG = (s: GameStateV2, r: RivalLab) => tacitLeakG(s, r.core.id, 'player', poachHeads(r), r.core.staff.cap);
+/** RD-X04b / F2: C4's tacit knowledge (OOM on the player's effective recipe; it raises the diffused level D, not own): the
+ *  tacit share of the gap to the internal know-how of the rival they left (npc/shocks.ts tacitKnowhowGain). */
+const c4TacitG = (s: GameStateV2, r: RivalLab) => shock.tacitKnowhowGain(s, r, poachHeads(r));
 
 /** Default poach target: the active rival closest behind (or ahead of) the player. */
 function poachTarget(s: GameStateV2, p: ActionParams) {
@@ -34,14 +34,15 @@ export const POACH: ActionDef = simpleAction({
     if (!r) return;
     cash(s, ctx, -0.5, 'C4 poaching', r.core.name);
     const n = poachHeads(r);
-    // RD-X04b: tacit knowledge (c4TacitG, sized before the heads move) enters the pretraining stack as public ideas.
+    // RD-X04b / F2: tacit knowledge (c4TacitG, sized before the heads move) raises the diffused level D to the effective
+    // recipe plus the gain, so the recipe rises by exactly the gain (no double count with own research).
     const tacit = c4TacitG(s, r);
     // Staff arrive as whole teams (changeHeads rounds). The poach-in shock (npc/shocks.ts, one rule for every route) by the
     // heads that moved, sized before the rival's staff drops; the preview reads the same count (headsMoved).
     const moved = changeHeads(s, 'cap', n);
     shock.poachIn(s, r, moved);
     r.core.staff.cap = Math.max(0, r.core.staff.cap - moved);
-    addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
+    if (tacit > 0) raiseDiffused(s, ctx, playerRecipeG(s) + tacit, 'C4 tacit knowledge', r.core.name);
     morale(ctx, -3, 'culture dilution', r.core.name);
     if (ctx.rng('actors').chance(0.2)) cash(s, ctx, -0.5, 'trade-secret suit', r.core.name);
   },

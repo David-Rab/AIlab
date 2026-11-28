@@ -2,7 +2,7 @@
 // What the player knows of a lab is its public values (npc/public.ts: true x a log-normal error, redrawn when reported)
 // and the exact public facts (products, tools, disclosed incidents). Nobody sees a misalignment estimate (principle 4).
 import { clamp, sigmoid } from '../../rng';
-import { activeRivals, bestG, bestMeasuredVersion, internalVersion } from '../models/labs';
+import { activeRivals, internalVersion } from '../models/labs';
 import { lossOfControlRisk } from '../safety/lossRisk';
 import type { GameStateV2, LabId, RivalLab, RiskSource } from '../types';
 import { lagDays } from '../models/capability';
@@ -13,27 +13,17 @@ import { chinaWarOdds } from '../world/chinagov';
 import { theftYearOdds } from '../security/theft';
 import { playerAttention } from '../world/usgov';
 
-/** The true lead over a lab (days; > 0 = the player ahead) on the recorded frontier-G histories, against the player's best
- *  MEASURED version (CP4: not one still in testing). Engine truth: it is never shown; leadDays swaps the lab's side for its
- *  public lag. Same clock as RD-L01: on the player's own line while the measured model is at or above the lab's G, else the
- *  days since the lab's line reached it, negated. */
-function trueLead(s: GameStateV2, id: LabId): number {
-  const gLab = bestG(s, id);
-  const gMeas = bestMeasuredVersion(s)?.G;
-  return gMeas === undefined || !Number.isFinite(gLab) ? lagDays(s, id, 'player')
-    : gMeas >= gLab ? lagDays(s, id, 'player') - lagDays(s, gMeas, 'player') : -lagDays(s, gMeas, id);
-}
-
 /** EngineApi.leadDays: the player's estimate of its lead over `other` (days, positive = player ahead) and its sd. The player
  *  knows its own position; the lab's is its public months behind (npc/public.ts), the error of the last report held until
- *  the next one: est = true lead − the lab's true lag + its reported lag. sd = the public months-behind sigma (China x2).
+ *  the next one: est = the lead on the two public models (lagDays, F7: both stepped) − the lab's true lag + its reported
+ *  lag. sd = the public months-behind sigma (China x2).
  *  Inactive labs return {0, 0}. */
 export function leadDays(s: GameStateV2, other: LabId): { est: number; sd: number } {
   const r = other === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === other);
   if (!r || r.core.status !== 'active') return { est: 0, sd: 0 };
   const sd = Math.round(sigmaOf(r.core.id, 'monthsBehind') * DAYS_PER_MONTH);
-  if (!r.npc) return { est: Math.round(trueLead(s, other)), sd };
-  return { est: Math.round(trueLead(s, other) - r.npc.d + publicOf(s, r).lagDays), sd };
+  if (!r.npc) return { est: Math.round(lagDays(s, other, 'player')), sd };
+  return { est: Math.round(lagDays(s, other, 'player') - r.npc.d + publicOf(s, r).lagDays), sd };
 }
 
 /** The player's public prior on a lab's misalignment, from its visible clause type and disclosed incidents only (research/17

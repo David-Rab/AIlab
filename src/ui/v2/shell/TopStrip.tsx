@@ -73,7 +73,7 @@ function LeadChip({ s }: { s: GameStateV2 }) {
   return (
     <Tip as="div" className="ts-stat" content={() => (
       <TipCard title={<Term id="lead">Lead</Term>} value={`${Math.abs(d)} d ${word} ${nearest.name}`} rows={all.map((r) => ({ label: r.name, value: <span>{Math.round(r.est) >= 0 ? '+' : '−'}{Math.abs(Math.round(r.est))} d <span className="dim">({rng(r)})</span></span>, tone: r.est >= 0 ? 'pos' as const : 'neg' as const }))}>
-        Days your best internal model is ahead of each lab (minus = behind): estimates from intel, with a 90% range.
+        Days your newest public model is ahead of each lab's newest (minus = behind): estimates from intel, with a 90% range.
       </TipCard>
     )}>
       <div className="ts-click" data-test="lead" onClick={() => store.goto('overview', { anchor: 'leadtrack' })}>

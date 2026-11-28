@@ -5,7 +5,7 @@
 // changes the state. A value that is not finite (a lab with no model yet, a runaway overflow) is null.
 import { lawIdsInForce, lawsInForce } from '../../../data/v2/laws';
 import { lagDays } from '../models/capability';
-import { bestG, CHINA_ID, labCore, PLAYER_ID } from '../models/labs';
+import { CHINA_ID, labCore, PLAYER_ID, publicG } from '../models/labs';
 import { decimalYear } from '../core/time';
 import { robotOutput } from '../worldfx/robots';
 import { automationShare } from '../worldfx/readouts';
@@ -17,9 +17,9 @@ export interface LabReadout {
   id: LabId;
   /** 'lab' (an NPC lab), 'china' (China's lab) or 'observer' (the player's lab, which does nothing in an observer run). */
   kind: 'lab' | 'china' | 'observer';
-  /** Best effective compute G (OOM; the engine's capability measure); null without a model. */
+  /** Effective compute G of the lab's latest public model (OOM; models/labs.ts publicG); null without one. */
   G: number | null;
-  /** Months behind the frontier lab (0 for the frontier itself); null without a model. */
+  /** Months behind the lab with the best public model (0 for that lab; capability.ts lagDays); null without a public model. */
   monthsBehind: number | null;
   /** Day each milestone was first reached (index = MilestoneIdx). */
   milestoneDays: Partial<Record<number, number>>;
@@ -60,22 +60,24 @@ export function worldReadout(s: GameStateV2): WorldReadout {
   let top: LabId | null = null;
   let topG = -Infinity;
   for (const { id } of ids) {
-    const g = bestG(s, id);
+    const g = publicG(s, id);
     if (g > topG) { topG = g; top = id; }
   }
-  const behind = (id: LabId, leader: LabId | null) => (leader && Number.isFinite(bestG(s, id)) && Number.isFinite(topG) ? fin(lagDays(s, id, leader) / MONTH) : null);
+  // Public values only (the public vs hidden principle): the top lab, its G and every lab's G are the latest PUBLIC models (publicG), the
+  // same ones lagDays compares (F7), so the frontier lab is 0 months behind and no lab reads as ahead of it.
+  const behind = (id: LabId, leader: LabId | null) => (leader && Number.isFinite(publicG(s, id)) && Number.isFinite(topG) ? fin(lagDays(s, id, leader) / MONTH) : null);
   const pf = publicFrontier(s);
   const mix = worldMix(s);
   const labs: LabReadout[] = ids.map(({ id, kind }) => ({
-    id, kind, G: fin(bestG(s, id)), monthsBehind: behind(id, top), milestoneDays: { ...(labCore(s, id)?.milestoneDays ?? {}) },
+    id, kind, G: fin(publicG(s, id)), monthsBehind: behind(id, top), milestoneDays: { ...(labCore(s, id)?.milestoneDays ?? {}) },
     attention: fin(attention(s, id, pf, mix))!,
   }));
   const usLead = usLeadOverChinaMonths(s, pf);
   // China's gap to the US frontier (the best US lab: the NPC labs and the observer player).
   let usTop: LabId | null = null;
   let usG = -Infinity;
-  for (const { id, kind } of ids) if (kind !== 'china' && bestG(s, id) > usG) { usG = bestG(s, id); usTop = id; }
-  const chinaGap = ids.some((x) => x.kind === 'china') && usTop && Number.isFinite(bestG(s, CHINA_ID)) && Number.isFinite(usG) ? fin(lagDays(s, CHINA_ID, usTop) / MONTH) : null;
+  for (const { id, kind } of ids) if (kind !== 'china' && publicG(s, id) > usG) { usG = publicG(s, id); usTop = id; }
+  const chinaGap = ids.some((x) => x.kind === 'china') && usTop && Number.isFinite(publicG(s, CHINA_ID)) && Number.isFinite(usG) ? fin(lagDays(s, CHINA_ID, usTop) / MONTH) : null;
   const L = lawsInForce(s);
   const w = s.world;
   return {
