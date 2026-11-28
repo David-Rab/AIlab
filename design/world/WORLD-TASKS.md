@@ -219,3 +219,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 - W8b-1 · Sonnet high · readouts for the UI (concern/approval parts, trust causes, stage/tension/talks progress, law
   status, briefing effect), honest Risk rows and levers, missing glossary terms · running.
   Next: W8b-2 Powers panel and W8b-3 World tabs + Risk UI, in parallel.
+- W8b-1 · Sonnet high · ~7 min · selectors: concernParts, approvalParts, approval/trustCauses (from the cause ledger),
+  stage/tension/talksProgress, lawStatus, briefingEffect, chinaWarOdds, theftYearOdds; honest Risk rows; levers for
+  deleted actions removed; 19 glossary terms added · 66a339fc
+- Running in parallel: W8b-2 (Powers panel), W8b-3 (World tabs + Risk UI), W11a (docs, ws4.ts checks, stale comments),
+  W11b (ws4 split). Merge order: W11a, W11b, then W8b-2 and W8b-3 (UI on top). Expected conflict: RiskMap.tsx (one line,
+  W11b vs W8b-3).
