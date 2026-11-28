@@ -50,7 +50,7 @@ function refDay(s: GameStateV2) {
  *  two state hashes differ (null: never). */
 function readPurityRec(seed: number): { firstDiff: number | null } {
   return cached('hygiene-readpure', { seed, days: READ_DAYS, every: READ_EVERY }, READ_FILES, () => {
-    const mk = () => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' }));
+    const mk = () => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
     const plain = mk();
     const read = mk();
     readSweep(read);
@@ -64,7 +64,7 @@ function readPurityRec(seed: number): { firstDiff: number | null } {
   });
 }
 // Section 3b (c): the game played at shifted calibration values; `--history-child` plays it in a fresh process.
-const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' });
+const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'tl-central', alignment: 'medium', tutorial: false });
 const HIST_DAYS = 30;
 /** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
 function shiftCalibration(): () => void {
@@ -145,12 +145,12 @@ const SPEC: [string, string, Cadence, number][] = [
   ['runs', 'WS1', 'daily', 40], ['continual', 'WS1', 'daily', 45], ['milestones', 'WS1', 'daily', 50],
   ['revenue', 'WS5', 'daily', 60], ['safetyResearch', 'WS2', 'daily', 70], ['traitsDaily', 'WS2', 'daily', 75],
   ['incidents', 'WS2', 'daily', 80], ['security', 'WS4', 'daily', 90], ['rivalsChina', 'WS4', 'daily', 100],
-  ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['opex', 'WS3', 'daily', 130],
+  ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['publicDaily', 'WS4', 'daily', 121], ['usgovDaily', 'WS4', 'daily', 122], ['chinagovDaily', 'WS4', 'daily', 123], ['opex', 'WS3', 'daily', 130],
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
-  ['macro', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
-  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440],
-  ['index', 'WS4', 'semiannual', 500],
+  ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
+  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoShocksQ', 'WS4', 'quarterly', 441], ['copyrightQ', 'WS4', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
+  ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
 ];
 for (const [id, owner, cadence, order] of SPEC) {
   const s = SYSTEMS.find((x) => x.id === id);
@@ -162,21 +162,21 @@ check(extra.length === 0, 'registry has no unlisted systems', extra.join(', ') |
 // ---------- 2. newGame validity across setups ----------
 const setups: SetupV2[] = [
   defaultSetupV2({ seed: 1 }),
-  defaultSetupV2({ seed: 2, world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
-  defaultSetupV2({ seed: 3, world: 'tl-central', baseline: 'reality', governance: 'founder', alignment: 'hard' }),
-  defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy', gov: 'hawk', china: 'gambler' }),
+  defaultSetupV2({ seed: 2, world: 'tl-central', alignment: 'sampled' }),
+  defaultSetupV2({ seed: 3, world: 'tl-central', governance: 'founder', alignment: 'hard' }),
+  defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy' }),
   defaultSetupV2({ seed: 5, world: 'tl-fast', governance: 'nonprofitPBC', tutorial: false }),
   defaultSetupV2({ seed: 6 }), // the default cast
   defaultSetupV2({ seed: 7, world: 'tl-fast' }),
   // R9: every start type (the leader lab follows the start, D1).
   defaultSetupV2({ seed: 12, start: 'challenger' }),
-  defaultSetupV2({ seed: 13, start: 'bigtech', world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
-  defaultSetupV2({ seed: 14, start: 'spinout', baseline: 'reality' }),
+  defaultSetupV2({ seed: 13, start: 'bigtech', world: 'tl-central', alignment: 'sampled' }),
+  defaultSetupV2({ seed: 14, start: 'spinout' }),
 ];
 for (const setup of setups) {
   const s = newGame(setup);
   const errs = validateJson(s);
-  const tag = `newGame ${setup.start}/${setup.world}/${setup.baseline}/${setup.alignment}`;
+  const tag = `newGame ${setup.start}/${setup.world}/${setup.alignment}`;
   const nRivals = s.rivals.length; // N10: the cast (setup.cast) sets the count
   check(errs.length === 0, `${tag}: plain JSON`, errs.slice(0, 3).join('; '));
   check(STREAMS.every((k) => typeof s.rng[k] === 'number' && s.rng[k] > 0), `${tag}: all RNG streams seeded`);
@@ -200,14 +200,13 @@ for (const setup of setups) {
   }
   // NPC labs start at their cast lag behind the reference frontier (design/npc/NPC-LABS.md §4).
   check(s.rivals.every((r) => !!r.npc && r.npc.d0 >= 0 && Math.abs(r.npc.d - r.npc.d0) < 1e-9), `${tag}: NPC labs start at their cast lag`, s.rivals.map((r) => Math.round(r.npc?.d0 ?? -1)).join(', '));
-  check(Object.keys(s.relations.stocks).length === 7 + 15, `${tag}: relation counterparties`);
   tick(s);
   check(s.time.day === 1, `${tag}: first tick advances to day 1`);
 }
 
 // ---------- 3. Determinism ----------
 const run = (setup: SetupV2, days = N, opts?: Parameters<typeof tick>[1]) => runTo(newGame(setup), days, opts);
-const detSetup = defaultSetupV2({ seed: 42, world: 'tl-central', alignment: 'sampled', econ: 'sampled' });
+const detSetup = defaultSetupV2({ seed: 42, world: 'tl-central', alignment: 'sampled' });
 const a = run(detSetup);
 const b = run(detSetup);
 check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after ${N} ticks`, stateHash(a));
@@ -267,8 +266,6 @@ const STREAM_OWNER: Record<StreamId, WorkstreamId> = {
 };
 /** [system id, stream, why] — a hook owned by the stream's workstream, called from another workstream's system. */
 const CROSS_HOOKS: [string, StreamId, string][] = [
-  ['actorsDaily', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
-  ['intel', 'safety', 'WS2 observeExternal (evaluator reports, WS4)'],
   ['director', 'safety', 'WS2 hooks in WS4 event choices'],
   ['runs', 'safety', 'WS2 applyBaseToLineage / applyRunToTraits (WS1 run completion)'],
   ['products', 'safety', 'WS2 observe (eval suites of the auto-evaluate policy, R6)'],
@@ -361,14 +358,14 @@ check(JSON.stringify(counts) === JSON.stringify(expected) && counts.quarterly ==
 // ---------- 7. Cause ledger ----------
 const ls = newGame(defaultSetupV2({ seed: 8 }));
 const ctx = makeCtx(ls);
-const before = ls.pub.approval;
-const applied = ctx.bump('pub.approval', 500, 'test', 'clamp');
-check(ls.pub.approval === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
-ctx.bump('trust:exec', -5, 'test');
+const before = ls.player.morale.overall;
+const applied = ctx.bump('morale', 500, 'test', 'clamp');
+check(ls.player.morale.overall === 100 && Math.abs(applied - (100 - before)) < 1e-9, 'causes: bump applies and clamps', `applied ${applied}`);
+ctx.bump('player.morale.overall', -5, 'test');
 ctx.bump('cash', 2, 'test');
 ctx.cause('player.finance.cash', 1, 'other');
 const strip = causeStrip(ls, 'cash');
-check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey['trust:exec']?.length === 1, 'causes: ledger keys canonical and strip sorted');
+check(strip.length === 2 && strip[0].source === 'test' && ls.causes.byKey.morale?.length === 1 && !ls.causes.byKey['player.morale.overall'], 'causes: ledger keys canonical and strip sorted');
 let bad = false;
 try {
   ctx.bump('pub.nope', 1, 'test');

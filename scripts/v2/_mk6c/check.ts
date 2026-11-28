@@ -76,7 +76,7 @@ function bands(s: GameStateV2, mix: WorldMix, sid: 'SOFT' | 'SERV') {
 }
 
 {
-  const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+  const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
   const mix = worldMix(s);
   bands(s, mix, 'SOFT');
   bands(s, mix, 'SERV');

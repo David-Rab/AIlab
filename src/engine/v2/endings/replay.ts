@@ -1,17 +1,15 @@
 // Causal replay: top-5 decisions by 90-day impact (V2-SPEC §5.4). Owner: WS4.
 //
 // impact = Σ_metric |Δ over the next 90 d − counterfactual drift (slope over the previous 30 d)·90| / scale, over the
-// weekly series (L, U, cash, approval, trustGov, misTrue). Engine/end-screen only (misTrue is truth).
+// weekly series (L, U, cash, misTrue). Engine/end-screen only (misTrue is truth).
 import type { DecisionRecord, GameStateV2 } from '../types';
 
-type Metric = { key: 'Lmeasured' | 'U' | 'cash' | 'approval' | 'trustGov' | 'misTrue'; label: string; scale: (s: GameStateV2) => number };
+type Metric = { key: 'Lmeasured' | 'U' | 'cash' | 'misTrue'; label: string; scale: (s: GameStateV2) => number };
 
 const METRICS: Metric[] = [
   { key: 'Lmeasured', label: 'level', scale: () => 1 },
   { key: 'U', label: 'understanding', scale: () => 1 },
   { key: 'cash', label: 'cash', scale: (s) => Math.max(10, Math.abs(s.player.finance.cash)) },
-  { key: 'approval', label: 'approval', scale: () => 20 },
-  { key: 'trustGov', label: 'gov trust', scale: () => 10 },
   { key: 'misTrue', label: 'hidden misalignment', scale: () => 0.1 },
 ];
 

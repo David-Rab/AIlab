@@ -285,7 +285,7 @@ export interface WorkContext {
  *  flat paradigm multipliers; P05 orchestration is a typed scaffold (internalFx), P20 is deleted. */
 function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e: number; mult: number } {
   const p = s.player;
-  const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > s.time.day;
+  const off = (s.player.safety.agentsOffUntil ?? -1) > s.time.day;
   const use = slot === 'SWE' ? 'eng' : slot === 'EXP' ? 'capRoutine' : slot === 'IDEAS' ? 'capFrontier' : 'safety'; // SAF_*: the safety package
   const v = agentVersion(s, use);
   let h100e = 0;
@@ -309,13 +309,9 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
  *    research-line projects (agenda-sized compute, far below frontier scale) keep their FLOP.
  *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
  *    rates. Siloing −5% per level [D: compartmentalisation friction; who cannot share experiments is not modelled];
- *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; a verified
- *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult);
- *    the world's research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline).
- *  - sidelined: E12 security clearances take SIDELINE_SHARE of every team's heads off the teams for their 60 days
- *    (onDuty: capacity, not a speed factor). */
-export const SIDELINE_SHARE = 0.1;
-export interface ResearchMods { speed: number; rateMult: number; frontierExp: number; sidelined: number }
+ *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; the world's
+ *    research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline). */
+export interface ResearchMods { speed: number; frontierExp: number }
 export function researchMods(s: GameStateV2): ResearchMods {
   const p = s.player;
   const day = s.time.day;
@@ -324,25 +320,17 @@ export function researchMods(s: GameStateV2): ResearchMods {
   const pace = s.hidden.timeline.v3.pace ?? 1;
   if (pace !== 1) mods *= pace;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
-  const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
   const frontierExp = s.flags.paused ? 0 : 1;
-  const sidelined = Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day ? SIDELINE_SHARE : 0;
-  return { speed: mods * rateMult, rateMult, frontierExp, sidelined };
+  return { speed: mods, frontierExp };
 }
 /** Experiment FLOP a project of department `dept` may use out of `flop` (RD-A07: a frontier pause stops the
  *  capability department's). */
 export const expFlopAllowed = (s: GameStateV2, dept: 'cap' | 'saf', flop: number) => (dept === 'cap' ? flop * researchMods(s).frontierExp : flop);
-/** A team as it works today: its heads less those sidelined by clearances (RD-A07; heads, rounded per team). */
-export function onDuty<T extends { heads: number }>(s: GameStateV2, t: T): T {
-  const sl = researchMods(s).sidelined;
-  return sl > 0 ? { ...t, heads: t.heads - Math.round(t.heads * sl) } : t;
-}
 
 /** Human team-equivalents of a role in the lab. */
 export function humansOf(s: GameStateV2, slot: LabourSlot): number {
   let h = 0;
-  for (const t0 of s.player.teams) {
-    const t = onDuty(s, t0);
+  for (const t of s.player.teams) {
     if (slot === 'SWE' && t.role === 'eng') h += (t.heads / WORK_TYPES.SWE.heads);
     else if (slot === 'EXP' && t.role === 're' && t.dept === 'cap') h += (t.heads / WORK_TYPES.EXP.heads);
     else if (slot === 'IDEAS' && t.role === 'sci' && t.dept === 'cap') h += (t.heads / WORK_TYPES.IDEAS.heads);

@@ -25,7 +25,9 @@ for (const tl of ['fast', 'central', 'slow'] as const) {
   console.log('  G_ref-G(V0)  ' + YEARS.map(y => (refG(s, y)! - g0).toFixed(4).padStart(9)).join(' '));
   if (tc) {
     const a = tc[`${tl}:${index}`].tc; let worst = 0, worstRatio = 0;
-    for (let y = 2025.445; y < 2035; y += 0.05) {
+    // Within the run's own span: past its last point refG is an extrapolation (master's tail) that the run's tables do not cover.
+    const end = Math.min(2035, SERIES_FROM + (TIMELINE_PROGRESS[tl][index].length - 1) * SERIES_STEP);
+    for (let y = 2025.445; y < end; y += 0.05) {
       const d = refG(s, y)! - g0 - refS(s, y)! - tcAt(a, y);
       const bound = 5.1e-4 * (Math.abs(refG(s, y)! - g0) + Math.abs(refS(s, y)!)) + 1e-9; // the tables hold 4 significant digits
       worst = Math.max(worst, Math.abs(d)); worstRatio = Math.max(worstRatio, Math.abs(d) / bound);

@@ -1,5 +1,5 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
-// Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
+// Composes the owner-provided initialisers (initialFinance, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
 import { startMarket } from '../departments/market';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
@@ -10,13 +10,8 @@ import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibr
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
-import { BASELINES } from '../../../data/world';
 import { Rng, clamp } from '../../rng';
-import { initialChina } from '../actors/china';
-import { initialGov } from '../actors/gov';
-import { initialPublic } from '../actors/public';
-import { initialRelations } from '../actors/relations';
-import { initialResearchBodies } from '../actors/researchBodies';
+import { initialChina } from '../npc/china';
 import { FIN } from '../actors/rivals';
 import { initialNpcLab, castOf, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
@@ -63,17 +58,16 @@ import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
 import { START_DATE } from './time';
+import { initialUsgov } from '../world/usgov';
+import { initialChinagov } from '../world/chinagov';
 
 export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
   const world = over.world ?? 'tl-central';
   return {
-    baseline: 'classic',
     world,
     alignment: 'sampled',
-    econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
-    gov: 'realistic', public: 'realistic', china: 'realistic', cast: 'realistic',
+    cast: 'realistic',
     governance: 'legacyNonprofit',
-    storyteller: 'rising',
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
@@ -143,7 +137,6 @@ function startModels(w: TimelineWorld, G0: number, uniqueT: number) {
 function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDate: string): PlayerLab {
   const { setup, hidden } = s;
   const w = hidden.timeline;
-  const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
   const start = setup.start ?? 'leader';
   const def = START_BY_ID[start];
   const leader = start === 'leader';
@@ -161,7 +154,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const k = sm.lag;
   const G0 = lagG ? gWant : sm.G;
   const build = sm.build;
-  const roster = startTeams(setup.baseline, start);
+  const roster = startTeams(start);
   const staff = staffOf(roster.teams);
   const Lg = levelOfG(w, G0);
   const domains = domainsOf(w, G0, build);
@@ -225,7 +218,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const compute = leader ? undefined : startCompute(def, startDate);
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
-    computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
+    computeOnline: def.owned + def.rented,
     split: playerShareRef(SHARE_REF[0].year), // the start split: AI 2027's compute-usage table at the start (data), engineering agents on their own line (RD-A02)
     staff,
     models: {
@@ -243,13 +236,14 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       evalSpent: { suites: 0, reTW: 0, engTW: 0, h100eDays: 0 },
     },
     deployments,
-    security: initialSecurity(staff, base.start.securityLevel),
+    security: initialSecurity(staff, def.securityLevel),
+    actionDay: {},
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
-    finance: compute ? startFinance(def, compute) : initialFinance(setup.baseline, setup.governance, startDate),
+    finance: compute ? startFinance(def, compute) : initialFinance(setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
-    sites: compute ? compute.sites : initialSites(setup.baseline, startDate),
-    orders: compute ? [] : initialOrders(setup.baseline),
-    cloud: compute ? compute.cloud : initialCloud(setup.baseline, startDate),
+    sites: compute ? compute.sites : initialSites(startDate),
+    orders: compute ? [] : initialOrders(),
+    cloud: compute ? compute.cloud : initialCloud(startDate),
     safety,
     teams: roster.teams,
     hiring: roster.hiring,
@@ -349,18 +343,19 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     player,
     rivals,
     china,
-    gov: initialGov(hidden.actorPresets.gov),
-    pub: initialPublic(hidden.actorPresets.public, setup.baseline),
-    researchBodies: initialResearchBodies(),
-    relations: { ...initialRelations(), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
-    market: initialMarket(setup.baseline),
+    public: { concern: 50, approval: 0 },
+    usgov: initialUsgov(),
+    chinagov: initialChinagov(),
+    market: initialMarket(),
     power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
     labour: initialLabour({ rng: rngState, hidden }, player),
     knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
-    events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
+    events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 }, requests: [] },
+    rivalIncidents: [],
+    endingProgress: { soldControl: false, retired: false, overtakenDays: {} },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],
     causes: { byKey: {} },

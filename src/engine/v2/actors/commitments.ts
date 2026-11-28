@@ -1,11 +1,13 @@
-// Relation commitments: predicates, signing, breaks, amendments, statutory floors (V2-SPEC §3.9.4). Owner: WS4.
+// Commitments: predicates, signing, breaks, amendments, statutory floors (V2-SPEC §3.9.4). Owner: WS4.
 //
 // A predicate returns TRUE when the commitment currently BINDS against the player's state: something the player
-// did (or is doing) would violate it. The director raises E30 (Honour / Amend / Break) for live commitments whose
-// predicate is true; other workstreams can call `blockingCommitments` before an action to telegraph the cost.
-import type { Commitment, CounterpartyId, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
-import { cash, cred, trust } from './fx';
-import { ws4, ws4r } from './state';
+// did (or is doing) would violate it. A binding pledge shows "binding now" on the Relations commitments list with Honour /
+// Amend / Break (CMT_* actions, commitmentActions.ts); left alone it has no effect of its own, the deploy gate
+// (commitmentDeployBlock) already refuses what it forbids. Other workstreams can call `blockingCommitments` before an action to telegraph the cost.
+import type { Commitment, DomainId, GameStateV2, ModelVersion, SystemCtx, TrainingRun } from '../types';
+import { cash } from './fx';
+import { lawsInForce } from '../../../data/v2/laws';
+import { approvalPush, PUBLIC } from '../world/public';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
 
@@ -137,7 +139,7 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
   },
   /** A6: an internal report left past its deadline. */
   whistleblower: (s) => {
-    const r = ws4r(s).internalReport;
+    const r = s.player.security.internalReport;
     return !!r && s.time.day > r.deadline;
   },
   /** F1: pay own power and grid costs: every new site needs a community package. */
@@ -164,12 +166,12 @@ export const frameworkPublished = (s: GameStateV2) => s.commitments.some((c) => 
 /** Sign a commitment card (§3.9.4). Returns the card; re-signing an identical live card is a no-op. */
 export function signCommitment(
   s: GameStateV2, ctx: SystemCtx, kind: Commitment['kind'], title: string, predicate: string,
-  params: Commitment['condition']['params'], audience: CounterpartyId[], breakCost: Commitment['breakCost'],
+  params: Commitment['condition']['params'],
 ): Commitment {
   const existing = s.commitments.find((c) => c.status === 'live' && c.condition.predicate === predicate && JSON.stringify(c.condition.params) === JSON.stringify(params));
   if (existing) return existing;
   const c: Commitment = {
-    id: `C${s.commitments.length + 1}`, kind, title, condition: { predicate, params }, audience, breakCost,
+    id: `C${s.commitments.length + 1}`, kind, title, condition: { predicate, params },
     signedDay: s.time.day, status: 'live', amendments: 0,
   };
   s.commitments.push(c);
@@ -182,25 +184,21 @@ function pledgeEnded(s: GameStateV2) {
   if (!hasCommitment(s, 'monitorabilityPledge')) s.player.safety.monitorabilityCommitment = false;
 }
 
-/** Break: trust loss with every audience member (×3 asymmetry via trustDelta) and a credibility hit. */
-export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, why = 'commitment broken') {
+/** Break: a public pledge broken costs approval (x attention; world/public.ts). Government trust does not move on pledges
+ *  (its rules: world/usgov.ts). */
+export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   c.status = 'broken';
   pledgeEnded(s);
-  for (const cp of c.audience) trust(s, ctx, cp, -Math.abs(c.breakCost.trust), why, c.title);
-  cred(ctx, -Math.abs(c.breakCost.credibility), why, c.title);
-  ctx.bump('relations.scrutiny', 8, why, c.title);
-  ws4(s).goalposts.player = (ws4(s).goalposts.player ?? 0) + 1;
   ctx.log('company', `You broke a commitment: ${c.title}.`, 3, c.id);
+  approvalPush(s, ctx, PUBLIC.pledgeBroken, `Pledge broken: ${c.title}`);
 }
 
-/** Amend ("moving goalposts", E30): credibility −8 and an Index penalty; after the trigger fired it is a break. */
+/** Amend ("moving goalposts"; CMT_AMEND); after the trigger fired it is a break. */
 export function amendCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment, triggered: boolean) {
-  if (triggered) return breakCommitment(s, ctx, c, 'amended after trigger');
+  if (triggered) return breakCommitment(s, ctx, c);
   c.status = 'amended';
   c.amendments++;
   pledgeEnded(s);
-  cred(ctx, -8, 'moving goalposts', c.title);
-  ws4(s).goalposts.player = (ws4(s).goalposts.player ?? 0) + 1;
   ctx.headline('goalposts', `${s.player.name} quietly rewrites its safety pledge.`);
 }
 
@@ -211,9 +209,9 @@ export function keptShare(s: GameStateV2): number {
 }
 
 /** Statutory floors (§3.9.4, research/17 §1.7): SB 53 15-day / RAISE 72-hour reporting. A covered-up incident
- *  under statute is a legal fine plus ×3 trust loss; checked daily by actorsDaily. */
+ *  under statute is a legal fine; checked daily by actorsDaily; the laws by date from data/v2/laws.ts. */
 export function statutoryDaily(s: GameStateV2, ctx: SystemCtx) {
-  const st = s.gov.statutes;
+  const st = lawsInForce(s);
   if (!st.sb53 && !st.raise) return;
   const hours = st.raise ? 72 : 360;
   for (const i of s.player.safety.incidents) {
@@ -223,8 +221,6 @@ export function statutoryDaily(s: GameStateV2, ctx: SystemCtx) {
     if (!late || s.flags[key]) continue;
     s.flags[key] = true;
     cash(s, ctx, st.raise ? -0.003 : -0.001, 'statutory fine', st.raise ? 'RAISE' : 'SB 53');
-    for (const cp of ['exec', 'states', 'evalGov'] as CounterpartyId[]) trust(s, ctx, cp, -4, 'unreported incident');
-    cred(ctx, -5, 'unreported incident');
     ctx.log('gov', 'Regulators fine you for a late incident report.', 3);
   }
 }

@@ -24,7 +24,7 @@ import { SAFETY_ACTIONS } from '../safety/actions';
 // WS3
 import { computeOnlineSystem } from '../compute/power';
 import { opexSystem, payrollSystem } from '../finance/cashflow';
-import { marketQSystem } from '../compute/market';
+import { geoShocksQSystem, marketQSystem } from '../compute/market';
 import { sitesQSystem } from '../compute/sites';
 import { computeHistQSystem } from '../compute/forecast';
 import { capitalQSystem } from '../finance/investors';
@@ -33,22 +33,29 @@ import { FINANCE_ACTIONS } from '../finance/actions';
 // WS4
 import { securitySystem } from '../security/security';
 import { rivalsChinaSystem } from '../actors/rivals';
-import { actorsDailySystem } from '../actors/relations';
+import { actorsDailySystem } from '../actors/daily';
+import { publicDailySystem } from '../world/public';
+import { BRIEF_OFFICIALS, usgovDailySystem } from '../world/usgov';
+import { chinagovDailySystem } from '../world/chinagov';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
-import { geoQSystem } from '../actors/china';
-import { indexSystem } from '../actors/index';
-import { RELATION_ACTIONS } from '../actors/actions';
-import { COMPANY_EVENTS } from '../events/catalog/company';
+import { npcQSystem } from '../actors/rivals';
+import { copyrightQSystem } from '../finance/observe';
+import { SECURITY_ACTIONS } from '../security/actions';
+import { POACH } from '../departments/poach';
+import { OPEN_WEIGHTS } from '../models/openWeights';
+import { RETIRE } from '../endings/retire';
+import { SITE_BLOCK_ACTIONS } from '../compute/siteBlock';
+import { COMMITMENT_ACTIONS } from '../actors/commitmentActions';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
-import { GOV_EVENTS } from '../events/catalog/gov';
 import { CHINA_EVENTS } from '../events/catalog/china';
 import { RIVALS_EVENTS } from '../events/catalog/rivals';
+import { GOV_EVENTS } from '../events/catalog/gov';
 // WS5
 import { revenueSystem } from '../worldfx/revenue';
 import { autoSplitSystem } from '../departments/autoSplit';
 import { worldDailySystem } from '../worldfx/sectors';
-import { macroSystem } from '../worldfx/macro';
+import { economySystem } from '../worldfx/economy';
 import { WORLD_ACTIONS } from '../worldfx/actions';
 
 /** All systems in spec order (§2.2). */
@@ -71,6 +78,9 @@ export const SYSTEMS: readonly EngineSystem[] = [
   rivalsChinaSystem, // 100 WS4 daily
   worldDailySystem, // 110 WS5 daily
   actorsDailySystem, // 120 WS4 daily
+  publicDailySystem, // 121 WS4 daily (W4: concern and approval)
+  usgovDailySystem, // 122 WS4 daily (W5: the US government)
+  chinagovDailySystem, // 123 WS4 daily (W6: the China government)
   opexSystem, // 130 WS3 daily
   directorSystem, // 140 WS4 daily
   endingsSystem, // 150 WS4 daily
@@ -78,22 +88,23 @@ export const SYSTEMS: readonly EngineSystem[] = [
   recordSystem, // 160 WS1 weekly
   hiringSystem, // 200 WS1 weekly
   payrollSystem, // 300 WS3 monthly
-  macroSystem, // 310 WS5 monthly
+  economySystem, // 310 WS5 monthly
   computeHistQSystem, // 399 WS3 quarterly
   marketQSystem, // 400 WS3 quarterly
   sitesQSystem, // 410 WS3 quarterly
   capitalQSystem, // 420 WS3 quarterly
   boardQSystem, // 430 WS3 quarterly
-  geoQSystem, // 440 WS4 quarterly
-  indexSystem, // 500 WS4 semiannual
+  geoShocksQSystem, // 441 WS3 quarterly (Taiwan/Korea rolls)
+  copyrightQSystem, // 442 WS3 quarterly (copyright suit)
+  npcQSystem, // 443 WS4 quarterly (rival finance, goalposts)
 ];
 
 /** Player-callable levers, all spheres (§2.7 preview-truth lint runs over these). */
-export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...RELATION_ACTIONS, ...WORLD_ACTIONS];
+export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, POACH, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...SECURITY_ACTIONS, BRIEF_OFFICIALS, RETIRE, ...WORLD_ACTIONS, ...COMMITMENT_ACTIONS, ...SITE_BLOCK_ACTIONS];
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [
-  ...COMPANY_EVENTS, ...SAFETY_EVENTS, ...GOV_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS,
+  ...SAFETY_EVENTS, ...CHINA_EVENTS, ...RIVALS_EVENTS, ...GOV_EVENTS,
 ];
 
 export const ACTION_BY_ID = new Map(ACTIONS.map((a) => [a.id, a]));

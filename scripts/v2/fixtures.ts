@@ -18,7 +18,7 @@ import { internalVersion } from '../../src/engine/v2/models/labs';
 import { FIXTURE_DIR, cashFloorStub, check, finish, runRef, validateJson } from './lib';
 import { cached } from './simcache';
 
-export const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', companyName: 'OpenBrain' });
+export const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', companyName: 'OpenBrain' });
 export const FIXTURE_DAYS = [0, 400, 900] as const;
 
 

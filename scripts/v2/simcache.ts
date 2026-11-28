@@ -63,7 +63,7 @@ export function codeHash(files: string[] = []): string {
   if (hit) return hit;
   const all = walk(join(ROOT, 'src'), []).map((p) => ({ abs: p, r: rel(p) }));
   const texts = new Map(all.map((f) => [f.r, readFileSync(f.abs)]));
-  // The committed fixtures and golden files are data some runs read (ws4 E2 fuzzes the fixtures): always hashed.
+  // The committed fixtures and golden files are data some runs read (directorEndings E2 fuzzes the fixtures): always hashed.
   const data = ['fixtures', 'golden'].flatMap((d) => (existsSync(join(HERE, d)) ? walk(join(HERE, d), []) : [])).sort();
   const scripts = [join(HERE, 'lib.ts'), fileURLToPath(import.meta.url), ...extra, ...data, join(ROOT, 'package-lock.json')];
   const scriptTexts = scripts.filter((p) => existsSync(p)).map((p) => ({ abs: p, r: rel(p), t: readFileSync(p) }));

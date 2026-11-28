@@ -5,20 +5,17 @@ import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { RECIPE_LEAK_SHARE, TACIT_FIRM_SHARE } from '../../src/engine/v2/production/diffusion';
 import { PARTNER_TERMS } from '../../src/data/v2/deals';
-import { npcCapabilityDay, npcG, persOf, refGAt } from '../../src/engine/v2/npc/lab';
+import { npcCapabilityDay, npcG, refGAt } from '../../src/engine/v2/npc/lab';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { labRecipeG } from '../../src/engine/v2/production/diffusion';
 import { bestG } from '../../src/engine/v2/models/labs';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { installForced } from './forcedInputs';
 import * as sh from '../../src/engine/v2/npc/shocks';
-import { RELATION_ACTIONS } from '../../src/engine/v2/actors/actions';
-import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { headsMoved } from '../../src/engine/v2/departments/teams';
 import { poachFallbackDays, poachFromRivals, poachShare, poachSplit, weeklyHires } from '../../src/engine/v2/departments/market';
-import { COMPANY_EVENTS } from '../../src/engine/v2/events/catalog/company';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
 let fails = 0;
@@ -63,19 +60,6 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   const d2 = cn.npc!.d;
   check(Math.abs(d2 - d1) < 3 && near(cn.internal.G, npcG(s, cn), 1e-9) && cn.internal.G >= g1 - 0.05, `theft: the next day does not overwrite it (lag ${d1.toFixed(1)} -> ${d2.toFixed(1)}, relaxing only; G ${(g1 - gV0(s.hidden.timeline)).toFixed(3)} -> ${(cn.internal.G - gV0(s.hidden.timeline)).toFixed(3)})`);
 }
-// publish (A4, F5): every lab behind the player's know-how closes RECIPE_LEAK_SHARE.publish of its know-how gap; the preview line = the largest move
-{
-  const s = clone(base); const before = dOf(s);
-  const mv = sh.publishMoves(s);
-  const a4 = RELATION_ACTIONS.find((x) => x.id === 'A4')!;
-  const pvw = a4.preview(s, {});
-  const line = [...pvw.costs, ...pvw.gains, ...pvw.exposure].find((l) => l.currency === 'leadDays');
-  sh.publish(s);
-  const ok = labsOf(s).every((r) => near(before.get(r.core.id)! - r.npc!.d, days(before.get(r.core.id)!, kp, RECIPE_LEAK_SHARE.publish), 1e-9));
-  const maxMove = Math.max(...labsOf(s).map((r) => before.get(r.core.id)! - r.npc!.d));
-  check(ok && mv.length === labsOf(s).filter((r) => before.get(r.core.id)! > kp).length && mv.length > 0, `publish: each lab's d falls ${RECIPE_LEAK_SHARE.publish} of its know-how gap to the player (lag days)`, `${mv.length} labs, largest ${maxMove.toFixed(1)} d`);
-  check(line?.amount === Math.round(maxMove), 'A4 preview lead line = the largest move applied', `${line?.amount} d`);
-}
 // open weights (C6, F3): only China absorbs, closing 0.3 of its know-how gap to the release; no US lab moves; none below the open
 // frontier, none from China's own release
 {
@@ -117,7 +101,7 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   const d0 = r.npc!.d; sh.ipAccess(s, r);
   check(none === 0 && v !== undefined && near(d0 - r.npc!.d, want, 1e-9) && want > 0, `IP access: ${r.core.name} d ${d0.toFixed(1)} -> ${r.npc!.d.toFixed(2)} (${((PARTNER_TERMS.strings.ipCloseYr / 365) * 100).toFixed(3)}% of the gap a day)`);
 }
-// poach in (C4) / let go (E16): the tacit share moved
+// poach in (C4): the tacit share moved
 {
   const s = clone(base); const r = s.rivals.find((x) => x.npc!.d > 100)!;
   const n = Math.max(5, Math.round(r.core.staff.cap * 0.03)); const sh0 = (TACIT_FIRM_SHARE * n) / r.core.staff.cap;
@@ -125,37 +109,11 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   const days = sh.poachInDays(s, r, n);
   const d0 = r.npc!.d; sh.poachIn(s, r, n);
   check(near(days, sh0 * 120, 1e-9) && near(r.npc!.d - d0, days, 1e-9), `poach in: an ahead rival's d rises by ${(sh0 * 100).toFixed(2)}% of the 120-day gap`, `${days.toFixed(2)} d`);
-  const t = clone(base); const q = t.rivals.find((x) => x.npc!.d > 100)!; const staff = t.player.staff.cap; const m = Math.round(staff * 0.03);
-  const want = ((TACIT_FIRM_SHARE * m) / staff) * (q.npc!.d - pp); const dd = q.npc!.d;
-  check(near(sh.letGoDays(t, q, m, staff), want, 1e-9), "let go: the preview function = the tacit share of the rival's gap to the player");
-  sh.letGo(t, q, m, staff);
-  check(near(dd - q.npc!.d, want, 1e-9), `let go: the rival's d falls ${want.toFixed(2)} d`);
 }
-// joint evals: the partner's safety emphasis + one step (override on its pers; posture follows)
-{
-  const s = clone(base); const r = s.rivals.find((x) => x.npc!.kind === 'bigtech')!; const e0 = persOf(r.npc!).safetyEmphasis, p0 = postureOf(s, r.core.id).safetyInvestment;
-  const got = sh.jointEvals(s, r);
-  check(near(persOf(r.npc!).safetyEmphasis, Math.min(1, e0 + sh.JOINT_EVAL_STEP)) && near(postureOf(s, r.core.id).safetyInvestment, Math.min(1, p0 + got)) && got > 0, `joint evals: safety emphasis ${e0} -> ${persOf(r.npc!).safetyEmphasis}`);
-  const other = s.rivals.find((x) => x.core.id !== r.core.id)!;
-  check(other.npc!.pers === undefined, "only the partner's override is stored (others untouched)");
-}
-// treaty: the reference clock runs x0.65 for every lab
-{
-  const s = clone(base); const r = s.rivals[0]; s.gov.treaty = 'verified';
-  for (let i = 1; i <= 100; i++) { s.time.day = i; sh.treatyClockDay(s); sh.treatyClockDay(s); } // idempotent within a day
-  const lost = Number(s.flags['npc:clockLost']);
-  check(near(lost, 100 * (1 - sh.TREATY_CLOCK_RATE), 1e-9), `treaty: 100 days -> the reference clock lost ${lost.toFixed(1)} d (rate ${sh.TREATY_CLOCK_RATE})`);
-  check(near(npcG(s, r), refGAt(s, decimalYear(s) - (lost + r.npc!.d) / 365.25), 1e-9) && npcG(s, r) < refGAt(s, decimalYear(s) - r.npc!.d / 365.25), 'every lab reads the slowed clock (internal G on the reference at refYear - d)');
-  const t = clone(base); for (let i = 1; i <= 100; i++) { t.time.day = i; sh.treatyClockDay(t); }
-  check(t.flags['npc:clockLost'] === undefined, 'no treaty: the clock does not slow');
-}
-// spillover and Track-2: a fixed small step, never past the player
+// spillover: a fixed small step, never past the player
 {
   const s = clone(base); const before = dOf(s); sh.spill(s);
   check(labsOf(s).every((r) => near(before.get(r.core.id)! - r.npc!.d, Math.min(sh.SPILL_DAYS, Math.max(0, before.get(r.core.id)! - pp)), 1e-9)), `spillover: every lab's d falls ${sh.SPILL_DAYS} d (at most to the player)`);
-  const t = clone(base); const d0 = t.china.lab.npc!.d; const mv = sh.track2Moves(t); const e1 = RELATION_ACTIONS.find((x) => x.id === 'E1')!;
-  const line = e1.preview(t, {}).exposure.find((l) => l.currency === 'leadDays'); sh.track2(t);
-  check(near(d0 - t.china.lab.npc!.d, sh.TRACK2_DAYS) && mv.length === 1 && line?.amount === -sh.TRACK2_DAYS, `Track-2: China's d falls ${sh.TRACK2_DAYS} d; E1 preview ${line?.amount} d`);
 }
 // secrets leak and distillation
 {
@@ -195,17 +153,6 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
   const pl = ACTION_BY_ID.get('hiring.premium')!.preview(t, { kind: 're', step: 0.5 }).gains.find((l) => l.currency === 'leadDays');
   check(yr > 0 && pl?.amount === Math.round(yr) && String(pl?.target).includes('rivals fall back'), 'premium preview: the rivals-fall-back line = poachFallbackDays of a year of poached hires', `${pl?.amount} d`);
 }
-{
-  // E16 let go: the rival's d falls by letGoDays of the heads that leave (whole teams), as its preview.
-  const s = clone(base); const r = s.rivals.find((x) => x.npc!.d > 100)!;
-  const e16 = COMPANY_EVENTS.find((e) => e.id === 'E16')!; const letGo = e16.choices[1];
-  const staff = s.player.staff.cap; const left = headsMoved(s.player, 'cap', -Math.round(staff * 0.03));
-  const want = sh.letGoDays(s, r, left, staff); const line = letGo.preview(s, { lab: r.core.id }).costs.find((l) => l.currency === 'leadDays');
-  const d0 = r.npc!.d; const st0 = r.core.staff.cap;
-  letGo.apply(s, makeCtx(s), { lab: r.core.id });
-  check(left > 0 && near(d0 - r.npc!.d, want, 1e-9) && near(r.core.staff.cap - st0, left, 1e-9) && line?.amount === Math.round(want),
-    `E16 let go: the rival's d falls by letGoDays of the ${left} heads that leave; preview ${line?.amount} d`, `${want.toFixed(2)} d`);
-}
 // NPC labs hold no stars: every star is the player's or outside; a star hire touches no NPC lab.
 {
   const s = clone(base);
@@ -216,26 +163,29 @@ console.log(`player position ${pp.toFixed(1)} d, know-how position ${kp.toFixed(
 }
 // F4 on a game: a 3-year forced run (the AIFM compute and staff paths) with the spies growing. The leak used to pull China toward
 // the player's whole capability position: 198 d -> -462 d by 2028 (with the leak off, about 160 d). It now closes a share of the
-// know-how gap; China's lag stays sane.
+// know-how gap; China's lag stays sane. Only the days before a weight theft count: a theft (world/chinagov.ts opens it from
+// tension CHINAGOV.theftRung) is its own rule (F6, tested above) and sets the lag to the stolen model's position.
 {
   installForced('aifm');
   const B = await import('./botgame');
   const g = B.newBotGame(2027, { world: 'tl-central', alignment: 'medium' }, 'leader');
   const bot = B.ALL['reflines'];
   const path: string[] = [];
-  let lo = Infinity, last = -1, hi = -Infinity;
+  let lo = Infinity, last = -1, hi = -Infinity, theftAt = '';
   const spies0 = g.player.security.spies;
   let spies1 = spies0;
   const watch = { ...bot, act: (st: GameStateV2, api: Parameters<typeof bot.act>[1]) => {
     bot.act(st, api);
     const d = st.china.lab.npc!.d;
-    lo = Math.min(lo, d); hi = Math.max(hi, d); spies1 = st.player.security.spies;
+    if (!theftAt && st.player.security.stolen.length) theftAt = `${decimalYear(st).toFixed(2)} (lag -> ${d.toFixed(0)} d)`;
+    if (!theftAt) { lo = Math.min(lo, d); hi = Math.max(hi, d); }
+    spies1 = st.player.security.spies;
     const q = Math.floor(decimalYear(st) * 2);
     if (q !== last) { last = q; path.push(`${decimalYear(st).toFixed(1)}: ${d.toFixed(0)}`); }
   } };
   B.playForced(watch, g, 2028.5, { spdM: false });
-  console.log(`  China's lag path (d, half-yearly): ${path.join('  ')}; spies ${spies0} -> ${spies1.toFixed(0)}`);
-  check(lo > -60 && spies1 > 5 * spies0, `secrets leak over 3 years with spies growing ${spies0} -> ${spies1.toFixed(0)}: China's lag stays above -60 d`, `lowest ${lo.toFixed(0)} d, highest ${hi.toFixed(0)} d`);
+  console.log(`  China's lag path (d, half-yearly): ${path.join('  ')}; spies ${spies0} -> ${spies1.toFixed(0)}; theft ${theftAt || 'none'}`);
+  check(lo > -60 && spies1 > 5 * spies0, `secrets leak over 3 years with spies growing ${spies0} -> ${spies1.toFixed(0)}: China's lag stays above -60 d`, `lowest ${lo.toFixed(0)} d, highest ${hi.toFixed(0)} d before any theft`);
 }
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

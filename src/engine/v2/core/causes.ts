@@ -3,18 +3,13 @@
 // Every system that changes a top-level meter either
 //   ctx.bump(key, Δ, source, detail)   — applies Δ (clamped) and records it, or
 //   ctx.cause(key, Δ, source, detail)  — records a change it applied itself.
-// Keys are the spec's meter keys (CAUSE_KEYS). Any dotted state path to a number also works ("pub.activism").
+// Keys are the spec's meter keys (CAUSE_KEYS). Any dotted state path to a number also works ("player.morale.safety").
 import type { CauseEntry, Day, GameStateV2 } from '../types';
 
 export const CAUSE_RING = 40; // entries per key (§2.5 budget)
 
-/** Spec meter keys (§2.6) → state path. `trust:<cp>` keys are handled dynamically. */
+/** Spec meter keys (§2.6) → state path. */
 export const CAUSE_KEYS: Record<string, string> = {
-  'relations.credibility': 'relations.credibility',
-  'relations.scrutiny': 'relations.scrutiny',
-  'relations.talentPull': 'relations.talentPull',
-  'pub.approval': 'pub.approval',
-  'pub.concern': 'pub.concern',
   'player.finance.valuation': 'player.finance.valuation',
   'finance.credibility': 'player.finance.credibility',
   cash: 'player.finance.cash',
@@ -22,28 +17,22 @@ export const CAUSE_KEYS: Record<string, string> = {
   'board.confidence': 'player.board.confidence',
   morale: 'player.morale.overall',
   'morale.safety': 'player.morale.safety',
-  'gov.securityDemand': 'gov.securityDemand',
-  'gov.nationalization': 'gov.nationalization',
-  'china.theftIntent': 'china.meters.theftIntent',
   'world.unemployment.US': 'world.unemployment.US',
+  'public.approval': 'public.approval',
+  'public.concern': 'public.concern',
+  'usgov.trust': 'usgov.trust',
 };
 
 /** Clamp ranges by canonical key or path prefix; unlisted meters are unbounded. */
 const RANGES: [prefix: string, lo: number, hi: number][] = [
-  ['trust:', 0, 100],
-  ['relations.credibility', 0, 100],
-  ['relations.scrutiny', 0, 100],
-  ['relations.talentPull', -50, 50],
-  ['pub.approval', -100, 100],
-  ['pub.', 0, 100],
   ['board.confidence', 0, 100],
   ['morale', 0, 100],
-  ['gov.', 0, 100],
-  ['china.theftIntent', 0, 100],
-  ['china.meters.', 0, 100],
   ['world.unemployment.', 0, 100],
   ['player.finance.valuation', 0, Number.MAX_VALUE],
   ['finance.credibility', 0, 100],
+  ['public.approval', -100, 100],
+  ['public.concern', 0, 100],
+  ['usgov.trust', 0, 100],
   ['revenueRun', 0, Number.MAX_VALUE],
 ];
 
@@ -55,7 +44,6 @@ export function canonicalKey(key: string): string {
 }
 
 function pathOf(key: string): string[] {
-  if (key.startsWith('trust:')) return ['relations', 'stocks', key.slice(6), 'trust'];
   return (CAUSE_KEYS[key] ?? key).split('.');
 }
 

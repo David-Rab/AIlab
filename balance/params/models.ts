@@ -71,8 +71,8 @@ const COMPUTE_MARKET: Param[] = [
   ex(CM, 'RIVAL_GROWTH_Q', [], Math.pow(2.25, 0.25) - 1, 'fraction per quarter', { ...MK, actor: 'rivals', kind: 'designer',
     evidence: 'market.ts:114-115 "Default (reference) demand per quarter of a non-player lab that WS4 does not manage [D]: fleet grows at the global pace (2.25×/yr, AI 2027 compute forecast)."',
     notes: 'The [D] is on the first of two stacked doc comments; value computed from 2.25 per year.' }),
-  inl('mod.market.taiwanHazard', CM, 'Math.min(0.03, 0.0025 * (1 + 4 * tension) * (1 + 2 * salience))', [0.0025, 4, 2, 0.03], 'probability per quarter (base, tension weight, salience weight, cap)', { ...MK, kind: 'designer', source: 'research/15 §1.2 ("R15")',
-    evidence: 'market.ts:190 "Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension) × (1 + 2·salience), cap 3% [R15 Design]."', notes: 'A2: [R15 Design] is designer with the pointer in source.' }),
+  inl('mod.market.taiwanHazard', CM, 'Math.min(0.03, 0.0025 * (1 + 4 * TAIWAN_TENSION))', [0.03, 0.0025, 4], 'probability per quarter (cap, base, tension weight); × China (CHINAGOV.taiwanPerRung, taiwanCoercion)', { ...MK, kind: 'designer', source: 'research/15 §1.2 ("R15")',
+    evidence: 'market.ts "Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension), cap 3% [R15 Design]" (the salience term went in W6)', notes: 'A2: [R15 Design] is designer with the pointer in source.' }),
   inl('mod.market.geoTW', CM, 'if (year <= 2028) return 0.93 - (0.08 * (year - 2026)) / 2;', [0.93, 0.85, 0.75], 'fraction of supply (2026, 2028, 2030)', { ...MK, kind: 'sourced',
     evidence: 'market.ts:199 "geo_TW falls linearly 0.93 (2026) → 0.85 (2028) → 0.75 (2030) [R15]."', source: R15 }),
   inl('mod.market.premiumUpdate', CM, 'pi + 0.5 * (ds - 1) - 0.25 * pi', [0.5, 0.25], 'per quarter (demand response, mean reversion)', { ...MK, kind: 'sourced',
@@ -147,7 +147,7 @@ const MODELS: Param[] = [
     notes: 'analogue (A6). An analogue, flagged "low confidence" in the comment; 0.25 sits at the low end of the quoted range.' }),
   ex(MD + 'deployments.ts', 'DEFAULT_SERVING', [], [0.4, 0.3, 0.15, 0.05, 0, 0], 'fraction of serving pool', { ...MK, kind: 'designer', layer: 'policy', actor: 'player',
     evidence: 'deployments.ts:47 "Default serving-pool reservation per channel [D]."', notes: 'Player default (A10). Array order = consumer, api, enterprise, vetted, internal, open.' }),
-  inl('mod.deployments.distillAccess', MD + 'deployments.ts', 'distillationAccess / 60 : 0.3', [60, 0.3], 'China divisor (meter 0-100 to 0-1.7), US-rival access 0..1', { ...SAF, actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.3.5',
+  inl('mod.deployments.distillAccess', MD + 'deployments.ts', 'lab === CHINA_ID ? 1 : 0.3', [1, 0.3], 'China access (its meter at the start value 60, /60; W1d), US-rival access 0..1', { ...SAF, actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.3.5',
     evidence: 'no tag; deployments.ts:213 "Distillation access of a receiving lab: China = distillationAccess/60; US rivals 0.3 (§3.3.5)."', notes: 'A8c: spec states distillationAccess/60 for China and 0.3 for rivals.' }),
 
   // labReadouts.ts

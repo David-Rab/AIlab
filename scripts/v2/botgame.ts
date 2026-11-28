@@ -1,5 +1,5 @@
 // The bot game loop shared by bots.ts (the §7.4 harness) and balrun.ts (the parallel balance runner).
-// One place for: the named bot policies, how a bot game is set up (Realistic actors, Rising storyteller, no tutorial) and
+// One place for: the named bot policies, how a bot game is set up (Realistic actors, no tutorial) and
 // how it is played to its ending.
 import { engine } from '../../src/engine/v2';
 import { capex2xBot } from '../../src/engine/v2/bots/capex2x';
@@ -34,9 +34,9 @@ const REFLINES = makeRefBot({ ...DEFAULT_REF, linesFirst: true, research: ['P07'
 const POLICIES = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot, refwide: REFWIDE, reflines: REFLINES } satisfies Record<PolicyId, BotPolicy>; // policies.ts lists the same ids
 export const ALL: Record<string, BotPolicy> = POLICIES;
 
-/** A fresh bot game: Realistic gov / public / China / rivals actors, Rising storyteller, no tutorial. */
+/** A fresh bot game: Realistic actors, no tutorial. */
 export function newBotGame(seed: number, combo: { world: WorldPresetId; alignment: AlignDiffId }, start: StartType): GameStateV2 {
-  return newGame(defaultSetupV2({ seed, ...combo, econ: 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', start }));
+  return newGame(defaultSetupV2({ seed, ...combo, tutorial: false, start }));
 }
 
 /** Play one game with a bot until it ends (the endings system caps it at 2050-12-31). `onTick` (optional) sees the state after every tick. */

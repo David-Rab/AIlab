@@ -2,7 +2,7 @@
 // canned states (the M0 fixtures), every ActionDef and ChoiceV2 preview renders without throwing; every 'progress' line
 // carries its unit (a bare one read as levels, MEA-19); every immediate meter line (no delay, no odds) of an action is
 // applied when the action runs on a copy; and the training / evals / leads previews equal what their mechanism does
-// (runEvals, stream, run forecast, A4 / E16 / C6). Owner: WS4 (seeded by WS1).
+// (runEvals, stream, run forecast). Owner: WS4 (seeded by WS1).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ACTIONS, ACTION_BY_ID, EVENTS } from '../../src/engine/v2/core/registry';
@@ -16,7 +16,7 @@ import { runForecast, streamPeriodGain } from '../../src/engine/v2/models/runs';
 import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { STREAM_POOL_SHARE } from '../../src/data/v2/runDesign';
 import type { CostLine, GameStateV2, SystemCtx } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, KNOWN, check, finish } from './lib';
+import { FIXTURE_DIR, check, finish } from './lib';
 
 const states: GameStateV2[] = [0, 400, 900].map((d) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8')));
 
@@ -62,22 +62,12 @@ for (const e of EVENTS) {
 // The meters whose every change goes through ctx.bump / ctx.cause (actors/fx.ts): an immediate line (no lagDays, no condition, no odds
 // below 1) in one of these currencies must leave a cause on that meter when the action runs on a copy.
 const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> = {
-  credibility: (k) => k === 'relations.credibility',
-  scrutiny: (k) => k === 'relations.scrutiny',
-  talent: (k) => k === 'relations.talentPull',
+  credibility: (k) => k === 'finance.credibility',
+  approval: (k) => k === 'public.approval',
+  trust: (k) => k === 'usgov.trust',
   morale: (k) => k.startsWith('morale'),
-  approval: (k) => k === 'pub.approval' || /^pub\.blocs\.[^.]+\.approval$/.test(k),
-  trust: (k) => k.startsWith('trust:'),
-  chinaTension: (k) => k.startsWith('china.meters.'),
-};
-const PENDING: Record<string, string> = {
-  'A6 trust': 'the trust line names no counterparty and nothing applies it (relations previews; not RD-B19)',
 };
 const appliedLabel = (id: string, cur: string, day: number) => `action ${id} @day ${day}: its ${cur} line is applied`;
-for (const [k, why] of Object.entries(PENDING)) {
-  const [id, cur] = k.split(' ');
-  for (const s of states) KNOWN[appliedLabel(id, cur, s.time.day)] = why;
-}
 const clone = (s: GameStateV2) => deserialize(JSON.stringify(s));
 /** A context on `c` that records the meter keys it moves. */
 function recordingCtx(c: GameStateV2, keys: string[]): SystemCtx {
@@ -157,14 +147,14 @@ const iv = internalVersion(s4)!;
   const x = clone(s4);
   x.player.safety.framework.evalDepth = 'deep'; x.player.safety.framework.externalReview = true;
   const xv = x.player.models.versions.find((y) => y.id === ev.id)!;
-  const before = externallyEvaluated(x, xv);
+  const before = externallyEvaluated(xv);
   const px = pvOf(x, 'runEvals', { versionId: ev.id, by: 'evalIndep', depth: 'full' });
   const ex = act(x, 'runEvals', { versionId: ev.id, by: 'evalIndep', depth: 'full' });
   for (let i = 0; i < 200 && (x.player.models.evals ?? []).some((t) => t.versionId === ev.id && t.by === 'evalIndep'); i++) run(x, 1);
   const hasCheck = px.gains.some((l) => l.unit === 'release check');
-  check(!ex && hasCheck === !before && externallyEvaluated(x, xv) && !px.exposure.length && px.gains.every((l) => l.currency === 'progress'),
+  check(!ex && hasCheck === !before && externallyEvaluated(xv) && !px.exposure.length && px.gains.every((l) => l.currency === 'progress'),
     'RD-B19 runEvals (external): the gate\'s external-evaluation check is previewed when unmet and met when the suite finishes; no credibility / trust / lead lines',
-    `${ex ?? ''} before ${before} after ${externallyEvaluated(x, xv)} ${JSON.stringify(px.gains)}`);
+    `${ex ?? ''} before ${before} after ${externallyEvaluated(xv)} ${JSON.stringify(px.gains)}`);
 }
 {
   // B45 / UB-2b: the forecast is the planned run on the lab's believed view (believed recipe, the start model's measured

@@ -1,10 +1,11 @@
-// Event catalog: China decisions (V2-SPEC §4.2: E10, E23). Owner: WS4.
+// Event catalog: China decisions (design/world/OUTSIDE-WORLD.md §8.2: E10 Weights stolen, E23 Treaty). Owner: WS4.
+// E10 is requested by a detected theft (security/theft.ts); E23 by world/chinagov.ts when talks reach restraint and
+// Washington pays the player attention. Each default is the neutral choice.
 import type { EventDefV2 } from '../../types';
-import { bloc, morale, trust } from '../../actors/fx';
-import { pRally } from '../../actors/public';
-import { addCoverup } from '../../actors/relations';
-import { discoveryOdds } from '../../actors/researchBodies';
-import { ws4 } from '../../actors/state';
+import { morale, pv } from '../../actors/fx';
+import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
+import { approvalPush, approvalScaled } from '../../world/public';
+import { CHINAGOV, provokeChina, resolveTreaty } from '../../world/chinagov';
 import { L, P, ch, ev, requestOnly } from '../kit';
 
 export const CHINA_EVENTS: EventDefV2[] = [
@@ -13,55 +14,31 @@ export const CHINA_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s, d) => `Security confirms that the weights of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your best model'} were stolen, almost certainly by Chinese intelligence.`,
     choices: [
-      ch('Public + retaliate', ['hawk', 'disclose'], P([L('chinaTension', 15), L('scrutiny', 10)], [L('approval', 5, 'rally'), L('trust', 5, 'exec')], [L('chinaTension', 10, 'Taiwan')]), (s, ctx) => {
-        pRally(s, ctx);
-        if (s.gov.rungChn < 2) s.gov.rungChn = 2;
-        ctx.bump('china.meters.taiwanTension', 10, 'E10 retaliation');
-        ctx.bump('china.meters.centralization', 15, 'US cyber retaliation (R15)');
-        ctx.bump('gov.hawkishness', 15, 'E10 theft made public');
-        trust(s, ctx, 'exec', 5, 'E10 disclosed theft');
-        ctx.bump('relations.scrutiny', 10, 'E10 theft public');
-        ws4(s).lastTheftOrCyberDay = ctx.day;
-        ws4(s).disclosed++;
+      // Going public: the public rallies a little; Beijing takes it as a provocation (world/chinagov.ts provokeChina).
+      ch('Go public', ['hawk', 'disclose'], (s) => pv([], [L('approval', approvalScaled(s, CHINAGOV.goPublicApproval), 'the public rallies')]), (s, ctx) => {
+        approvalPush(s, ctx, CHINAGOV.goPublicApproval, 'Went public about the weight theft');
+        provokeChina(s, ctx.day);
       }),
-      ch('Quiet hardening', ['quiet', 'security'], (s) => ({ costs: [L('cash', 0.5, 'WSL target +1'), L('trust', 6, 'if it leaks', { probability: discoveryOdds(s) })], gains: [L('security', 1)], exposure: [] }), (s) => {
+      ch('Quiet hardening', ['quiet', 'security'], P([L('cash', 0.5, 'WSL target +1')], [L('security', 1)]), (s) => {
         const sec = s.player.security;
         sec.target = Math.min(5, sec.target + 1);
         sec.spendRate += 0.5;
-        addCoverup(s, 'a weight theft', discoveryOdds(s), ['exec', 'congress', 'evalGov']);
+        addCoverup(s, 'a weight theft', COVERUP_DISCOVERY_ODDS);
       }),
-      ch('Purge insiders', ['security', 'hawk'], P([L('morale', 15), L('talent', 5)], [L('security', 0.5, 'spies ×0.3')], [L('trust', -5, 'whistleblower hazard ×1.5')]), (s, ctx) => {
-        ws4(s).spyMult *= 0.3;
-        s.flags['ws4:purged'] = true;
+      ch('Purge insiders', ['security', 'hawk'], P([L('morale', 15)], [L('security', 0.5, 'spies ×0.3')]), (s, ctx) => {
+        s.player.security.spyMult *= 0.3;
+        s.player.security.purged = true;
         morale(ctx, -15, 'E10 purge');
-        ctx.bump('relations.talentPull', -5, 'E10 purge');
       }),
     ],
   }),
   ev({
-    id: 'E23', title: 'China deal', icon: 'china', crisis: false, deadlineDays: 30, defaultChoice: 2,
+    id: 'E23', title: 'Treaty', icon: 'china', crisis: false, deadlineDays: 30, defaultChoice: 0,
     when: requestOnly,
-    text: () => 'Beijing signals it would accept mutual restraint on frontier AI — with verification on parity terms. Washington asks where you stand.',
+    text: () => 'Washington and Beijing are close to a restraint pact on frontier AI and want your lab behind it. Backed, it can become a verified treaty capping every lab’s AI R&D compute at its signing-day level.',
     choices: [
-      ch('Verified talks', ['treaty', 'safety', 'dove'], P([L('approval', 8, 'bloc:hawks'), L('leadDays', 60, 'treaty slows all labs')], [L('chinaTension', 10), L('trust', 8, 'china')]), (s, ctx) => {
-        s.gov.treaty = 'talks';
-        s.flags['ws4:lobbyTreaty'] = true;
-        bloc(s, ctx, 'hawks', -8, 5, 'E23 verified talks');
-        bloc(s, ctx, 'safety', 8, 0, 'E23 verified talks');
-        trust(s, ctx, 'china', 8, 'E23 verified talks');
-        ctx.bump('china.meters.verificationWillingness', 10, 'E23 verified talks');
-        ws4(s).usProposedTalks = true;
-      }),
-      ch('Narrow channel', ['balanced', 'dove'], P([L('approval', 3, 'bloc:hawks')], [L('chinaTension', 4), L('trust', 3, 'china')]), (s, ctx) => {
-        if (s.gov.treaty === 'none') s.gov.treaty = 'restraint';
-        ctx.bump('china.meters.normsDiplomacy', 5, 'E23 incident channel');
-        trust(s, ctx, 'china', 3, 'E23 narrow channel');
-      }),
-      ch('Reject', ['hawk', 'race'], P([L('chinaTension', 10)], [L('approval', 5, 'bloc:hawks')]), (s, ctx) => {
-        ws4(s).treatyRejected = true;
-        ctx.bump('china.meters.taiwanTension', 10, 'E23 rejected');
-        bloc(s, ctx, 'hawks', 5, 0, 'E23 rejected');
-      }),
+      ch('Back it', ['comply', 'gov', 'safety'], P([], []), (s, ctx) => resolveTreaty(s, ctx, true)),
+      ch('Oppose it', ['resist', 'decline'], P([], []), (s, ctx) => resolveTreaty(s, ctx, false)),
     ],
   }),
 ];

@@ -4,6 +4,11 @@
 //   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world tl-central[,tl-fast,...] --align medium[,sampled]
 //                                --start leader[,...] --seeds N --workers W [--no-cache]
 //                                [--set <param id>=<value> ...] [--sets <file.json>] [--forced aifm]
+//   observer run (W10a, no player): npx tsx scripts/v2/balrun.ts --name <run> --observer --world tl-fast --align medium --seeds 1 --workers 1   (default start: spinout)
+//
+// --observer (W10a, observer.ts): the world with no player. The player's lab does nothing, the player-company endings are off (flag
+// harness:observer), played to first ASI by any lab + 3 years, or 2060, or a world ending. The record carries observer: true, endReason,
+// the drawn AIFM run and `series`: worldReadout (engine/v2/world/readout.ts) every 91 days.
 //
 // --forced aifm (Stage 1, design/bal/STAGE1-DESIGN.md): every game is a forced run (botgame.ts playForced): the AI Futures Model's
 // compute and staff paths drive the player's lab through the engine's FORCING hooks (installed by the worker preload,
@@ -41,11 +46,12 @@ const BOTGAME = join(HERE, 'botgame.ts');
 const MATCHED = join(HERE, 'matched.ts');
 const PARAMOVR = join(HERE, 'paramOverride.ts');
 const FORCEDIN = join(HERE, 'forcedInputs.ts');
+const OBSERVER = join(HERE, 'observer.ts');
 const PRELOAD = pathToFileURL(join(HERE, 'overridePreload.ts')).href;
 const ROOT = join(HERE, '..', '..');
 
 // ───────────────────────────── Types ─────────────────────────────
-export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType; forced?: string }
+export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType; forced?: string; observer?: boolean }
 export interface GameRecord {
   run: string; seed: number;
   world: string; alignment: string; start: string; policy: string;
@@ -66,7 +72,10 @@ export interface GameRecord {
   chinaGapAtSC?: number;
   scores?: Record<string, number>;
   /** Forced runs: one sample at 2025.5 and at every later whole year (botgame.ts ForcedSeries). */
-  series?: import('./botgame').ForcedSeries;
+  series?: import('./botgame').ForcedSeries | import('../../src/engine/v2/world/readout').WorldReadout[];
+  /** Observer runs (balrun --observer): no player; why the run stopped ('asi+3y' | '2060' | an ending id). */
+  observer?: true;
+  endReason?: string;
   /** Forced runs (L19): where the player's heads fell below 97% of the AIFM staff path at the +100% premium step, per kind, as [year, heads, path] at most quarterly (a finding), the first such year per kind, and heads / path / premium / wage ratio w/w0 at each series sample. */
   staffShort?: import('./botgame').StaffLog['short'];
   staffFirstMiss?: import('./botgame').StaffLog['firstMiss'];
@@ -86,8 +95,9 @@ let lagDays: typeof import('../../src/engine/v2/models/capability').lagDays;
 let labMisalignment: typeof import('../../src/engine/v2/safety/traits').labMisalignment;
 let pMis: typeof import('../../src/engine/v2/safety/traits').pMis;
 let G: typeof import('./botgame');
+let O: typeof import('./observer');
 async function loadGame() {
-  [{ lagDays }, { labMisalignment, pMis }, G] = await Promise.all([import('../../src/engine/v2/models/capability'), import('../../src/engine/v2/safety/traits'), import('./botgame')]);
+  [{ lagDays }, { labMisalignment, pMis }, G, O] = await Promise.all([import('../../src/engine/v2/models/capability'), import('../../src/engine/v2/safety/traits'), import('./botgame'), import('./observer')]);
 }
 
 // ───────────────────────────── Playing one game ─────────────────────────────
@@ -110,7 +120,24 @@ function playForcedOne(cell: Cell, seed: number): Body {
   };
 }
 
+function playObserverOne(cell: Cell, seed: number): Body {
+  const t0 = performance.now();
+  const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
+  const { series, endReason } = O.playObserver(s);
+  const ms: Record<string, number> = {};
+  for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) {
+    const d = [s.player, ...s.rivals.map((r) => r.core), s.china.lab.core].map((c) => c.milestoneDays[i]).filter((x): x is number => x !== undefined);
+    if (d.length) ms[k] = Math.min(...d);
+  }
+  return {
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: 'observer', observer: true, ...aifmRunOf(s),
+    endDay: s.time.day, ending: s.ending?.id ?? 'observer-end', endReason, verdict: 'mixed', milestones: ms, revenueByYear: [], series,
+    ms: Math.round(performance.now() - t0),
+  };
+}
+
 function playOne(cell: Cell, seed: number): Body {
+  if (cell.observer) return playObserverOne(cell, seed);
   if (cell.forced) return playForcedOne(cell, seed);
   const t0 = performance.now();
   const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
@@ -156,7 +183,7 @@ function playOne(cell: Cell, seed: number): Body {
 const OVR: Record<string, unknown> = process.env.BAL_OVERRIDES ? JSON.parse(process.env.BAL_OVERRIDES) : {};
 const OVR_NAME = process.env.BAL_SET_NAME;
 const playCached = (cell: Cell, seed: number): Body =>
-  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, MATCHED, PARAMOVR, FORCEDIN, ...(cell.forced ? [AIFM_CSV] : [])], () => playOne(cell, seed));
+  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, MATCHED, PARAMOVR, FORCEDIN, OBSERVER, ...(cell.forced ? [AIFM_CSV] : [])], () => playOne(cell, seed));
 
 // ───────────────────────────── CLI ─────────────────────────────
 const argv = process.argv.slice(2);
@@ -180,7 +207,7 @@ const list = <T extends string>(k: string, ok: readonly string[], d: string): T[
   return xs as T[];
 };
 export const seedList = (n: number) => [...CAL_SEEDS, ...Array.from({ length: Math.max(0, n - CAL_SEEDS.length) }, (_, i) => 1001 + i)].slice(0, n);
-const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string; forced?: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.forced ? ` | forced:${c.forced}` : ''}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
+const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string; forced?: string; observer?: boolean }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.observer ? ' | observer' : ''}${c.forced ? ` | forced:${c.forced}` : ''}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
 
 // ───────────────────────────── Worker ─────────────────────────────
 async function worker() {
@@ -265,7 +292,8 @@ async function parent() {
   const policies = list<string>('policy', POLICY_IDS, 'ref');
   const worlds = list<WorldPresetId>('world', WORLDS, 'tl-central');
   const aligns = list<AlignDiffId>('align', ALIGNS, 'medium');
-  const starts = list<StartType>('start', STARTS, 'leader');
+  const observer = flag('observer') >= 0;
+  const starts = list<StartType>('start', STARTS, observer ? 'spinout' : 'leader');
   const nSeeds = Math.max(1, Number(arg('seeds', '20')));
   const workers = Math.max(1, Number(arg('workers', '8')));
   const noCache = flag('no-cache') >= 0;
@@ -284,7 +312,7 @@ async function parent() {
   const sets: OSet[] = useSets ? [{ name: 'base', set: globalSet }, ...fileSets.map((x) => ({ name: x.name, set: { ...globalSet, ...x.set } }))] : [{ name: '', set: {} }];
   if (new Set(sets.map((x) => x.name)).size !== sets.length) { console.error('balrun: override set names must be unique and not "base"'); process.exit(2); }
   const cells: Cell[] = [];
-  for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start, ...(forced ? { forced } : {}) });
+  for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start, ...(forced ? { forced } : {}), ...(observer ? { observer } : {}) });
   const jobs: Job[] = seeds.flatMap((seed) => cells.flatMap((cell) => sets.map((_, set) => ({ id: 0, cell, seed, set })))).map((j, id) => ({ ...j, id }));
 
   const dir = join(ROOT, 'balance', 'runs', name);
@@ -313,7 +341,7 @@ async function parent() {
   const startedAt = new Date().toISOString();
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
   writeFileSync(join(dir, 'config.json'), JSON.stringify({
-    name, args: argv, ...(forced ? { forced, harnessExceptions: HARNESS_EXCEPTIONS } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
+    name, args: argv, ...(observer ? { observer } : {}), ...(forced ? { forced, harnessExceptions: HARNESS_EXCEPTIONS } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
     gitCommit: git, codeHash: codeHash([ME, BOTGAME, MATCHED, PARAMOVR, FORCEDIN]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
   }, null, 2));
 

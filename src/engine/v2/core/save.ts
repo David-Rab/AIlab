@@ -5,8 +5,14 @@ import type { GameStateV2 } from '../types';
  *  MIN_SCHEMA_REV does not load and deserialize refuses it with OLD_SAVE_MESSAGE; MIN_SCHEMA_REV is raised to SCHEMA_REV at each
  *  break. History of the revs up to 112 is in git before N12. */
 // 114 (npc): N12, the old NPC state is gone (RivalLab.phys, archetype, meters; SimpleModel traits). 113-115 (master): the
-// data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master.
-export const SCHEMA_REV = 116;
+// data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master. 117: W1b, macro → the
+// economy readouts. 118: W1c, the relations cluster is gone (relations, researchBodies, blocs, the relation fields of the old working-state block).
+// 119: W1d, the gov, public and China actors are gone (s.gov, s.pub, china meters; setup gov/public/china).
+// 121: W4, the public (s.public). 122: W5, the US government (s.usgov). 123: W6, the China government (s.chinagov;
+// china.computeAbs → china.access). 124: W11b, the old working-state block is split into its owners (events.requests, player.security,
+// player.actionDay, rivalIncidents, endingProgress, usgov.dpaAccepted, public.misalignLeakDay, world.gdp0, the market, npc and site fields).
+// 125: weekly record series aiWork, aiIncome, robots (World tab tiles, W8b-3). 126: bal merged with master (series.GP, the public-model G per lab, F7).
+export const SCHEMA_REV = 126;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

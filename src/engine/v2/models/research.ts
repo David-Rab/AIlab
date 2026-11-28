@@ -56,7 +56,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, researchMods, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, researchMods, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -228,7 +228,7 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
 /** Science teams of the capabilities department. */
 export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap');
 /** Capabilities research engineers, team-equivalents. */
-export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(onDuty(s, t)) : 0), 0);
+export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(t) : 0), 0);
 
 /** Capacity and taste of a project's science teams. q = the mixture mean T = (1 − s)·T_human + s·T_AI (departments/workfit.ts
  *  teamTaste), capacity-weighted; 1 = a Strong team without AI. qh, qa and s are its parts: the humans' taste (capacity-
@@ -245,7 +245,7 @@ export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdA
   let hw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(onDuty(s, t), n.column);
+    const c = teamCapacity(t, n.column);
     cap += c;
     qw += c * teamTaste(0, inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
     hw += c * humanTaste(0, inp.m2b, star);

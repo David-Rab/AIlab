@@ -591,7 +591,7 @@ export function labSpeedView(s: GameStateV2): ResearchSpeedView {
   const exp = pools.experiments + lentTrainingH100e(s); // UB-5c
   const r = exp + (pools.routine + pools.frontier);
   return {
-    rel: labSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
+    rel: labSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed,
     c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,
     researchH100e: r, expShare: r > 0 ? exp / r : 0,
   };

@@ -1,5 +1,5 @@
 // Bot harness (V2-SPEC §7.4): N seeds per bot over medium/sampled alignment × ai2027/sampled worlds, Realistic
-// actors, Rising storyteller. Reports win / mixed / loss, the ending mix, the §7.4 pass criteria and ending coverage
+// actors. Reports win / mixed / loss, the ending mix, the §7.4 pass criteria and ending coverage
 // (E5, statistical). Owner: WS4.
 //
 //   npx tsx scripts/v2/bots.ts [--seeds 200] [--bots race,safe,mixed,capex2x,ref] [--start leader] [--json out.json]
@@ -165,7 +165,7 @@ function main() {
   }
 
   const pct = (n: number, d: number) => `${((100 * n) / Math.max(1, d)).toFixed(1)}%`.padStart(6);
-  console.log(`\nBot harness — start ${START} — ${Math.round(results.length / Math.max(1, BOTS.length))} seeds per bot (${COMBOS.map((c) => `${c.world}/${c.alignment}`).join(', ')}), Rising storyteller\n`);
+  console.log(`\nBot harness — start ${START} — ${Math.round(results.length / Math.max(1, BOTS.length))} seeds per bot (${COMBOS.map((c) => `${c.world}/${c.alignment}`).join(', ')})\n`);
   console.log('bot      runs   win    mixed  loss   med.day  top endings');
   const winRate: Record<string, number> = {};
   for (const name of BOTS) {

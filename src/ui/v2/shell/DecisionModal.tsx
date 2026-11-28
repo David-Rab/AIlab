@@ -1,6 +1,6 @@
 // Decision modal v2 (PROPOSALS §7): sphere tag and ring timer; "why this happened" cause chain (from the matching
 // Watch rule); choice cards with before→after bars on the meters they touch; "lasting fixes" Go buttons; keys 1/2/3
-// choose, Esc = later. Also the acknowledgement card for severity 4–5 log entries.
+// choose, Esc = later. Also the acknowledgement card for the game-ending notice (the only one that blocks).
 import { useEffect } from 'react';
 import { choiceView, choiceVote, eventDef } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
@@ -20,9 +20,9 @@ const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
   company: [{ to: { panel: 'lab', tab: 'people' }, label: 'People' }, { to: { panel: 'lab', anchor: 'split' }, label: 'Compute allocation' }],
   model: [{ to: { panel: 'safety', tab: 'graph' }, label: 'Trait graph' }, { to: { panel: 'blueprint' }, label: 'Safer recipe' }],
   incident: [{ to: { panel: 'safety', tab: 'cases' }, label: 'Incident responses' }, { to: { panel: 'lab', tab: 'work', anchor: 'agents' }, label: 'Monitors' }],
-  gov: [{ to: { panel: 'relations' }, label: 'Government relations' }],
-  public: [{ to: { panel: 'relations' }, label: 'Public' }],
-  china: [{ to: { panel: 'relations' }, label: 'China' }, { to: { panel: 'lab', tab: 'security' }, label: 'Security' }],
+  gov: [{ to: { panel: 'powers' }, label: 'Powers' }],
+  public: [{ to: { panel: 'powers' }, label: 'Public' }],
+  china: [{ to: { panel: 'powers' }, label: 'China' }, { to: { panel: 'lab', tab: 'security' }, label: 'Security' }],
   rival: [{ to: { panel: 'overview', anchor: 'leadtrack' }, label: 'Lead track' }],
   world: [{ to: { panel: 'world' }, label: 'World' }],
 };

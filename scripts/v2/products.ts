@@ -50,7 +50,7 @@ import { START_BY_ID } from '../../src/data/v2/starts';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
 
-const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };
@@ -195,7 +195,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const cash0 = s.player.finance.cash;
   // CP4b (RF-P1): at the leader start every feature is built or its idea known (Companion), so the unknown-idea gate is
   // checked on the spinout start (no tools; Long context + memory unknown).
-  const sp = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, start: 'spinout' }));
+  const sp = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'spinout' }));
   run(sp, 3);
   const no = act(sp, 'feature.build', { id: 'memory' });
   check(!!no && /Needs the idea/.test(no) && !sp.player.features.includes('memory') && !sp.player.build.queue.some((it) => it.kind === 'feature' && it.ref === 'memory'),

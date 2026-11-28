@@ -13,7 +13,7 @@ import { Products } from './panels/Products';
 import { Finance } from './panels/Finance';
 import { Models } from './panels/Models';
 import { Overview } from './panels/Overview';
-import { Relations } from './panels/Relations';
+import { Powers } from './panels/Powers';
 import { Research } from './panels/Research';
 import { Training } from './panels/Training';
 import { Safety } from './panels/Safety';
@@ -36,7 +36,7 @@ import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
   overview: Overview, research: Research, lab: Lab, finance: Finance, compute: Compute, models: Models, blueprint: Training,
-  products: Products, safety: Safety, relations: Relations, world: World, codex: Codex,
+  products: Products, safety: Safety, powers: Powers, world: World, codex: Codex,
 };
 
 function Game({ s }: { s: GameStateV2 }) {

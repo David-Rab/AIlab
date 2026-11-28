@@ -12,7 +12,7 @@ const check = (ok: boolean, msg: string) => {
   console.log(`${ok ? 'pass' : 'FAIL'} ${msg}`);
   if (!ok) fail++;
 };
-const s: GameStateV2 = newGame(defaultSetupV2({ seed: 3, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s: GameStateV2 = newGame(defaultSetupV2({ seed: 3, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const day = s.time.day;
 const TRUE = 0.777;
 // Adopt as the engine does (research.ts): the true effect into the buckets, the estimate into the believed total.

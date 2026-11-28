@@ -1,11 +1,14 @@
 // Chip market: supply pipelines, clearing, prices, rationing, deliveries, geo shocks (V2-SPEC §3.8; research/15 §1.2).
 // Owner: WS3. Quarterly. Units: H100e, prices $K per H100e, money $B.
 import { CAPEX_LEASE, COMPONENTS, DEBT_SIZING, EXPORT_POLICY, FIRM_TERMS, LESSOR, MARKET } from '../../../data/v2/deals';
-import { refCapCompute } from '../../../data/world';
+import { WORLD_START, refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
-import { decimalYear } from '../core/time';
+import { decimalYear, START_DATE } from '../core/time';
+import { lawsInForce } from '../../../data/v2/laws';
 import { FORCING } from '../core/forcing';
-import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
+import { CHINAGOV } from '../world/chinagov';
+import { clamp } from '../../rng';
+import type { ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { crf } from '../finance/capex';
@@ -25,7 +28,7 @@ const FWD_SHARE = 0.95;
 const EXO_ELASTICITY = 1.5;
 
 /** Market at Q3 2025 (§3.8 start table, back-cast from R15 Q4-2026 at ≈2.2×/yr). */
-export function initialMarket(baseline: BaselineId): ChipMarket {
+export function initialMarket(): ChipMarket {
   const K = { pkg: 3.0e6, hbm: 3.2e6, wafer: 8.6e6 };
   const pipe = {} as ChipMarket['pipe'];
   for (const c of COMPS) {
@@ -46,13 +49,13 @@ export function initialMarket(baseline: BaselineId): ChipMarket {
     backlog: 1.5,
     cumOrders8q: Array(8).fill(3.0e6),
     geoTW: 0.93, disruptTW: 0, disruptKR: 0,
-    exportPolicy: baseline === 'classic' ? 'strict' : 'caseByCase',
+    exportPolicy: lawsInForce({ time: { day: 0, startDate: START_DATE } }).exportPolicy, // the laws table (data/v2/laws.ts)
     demandQ: 3.0e6,
     exoDemandQ: 2.2e6,
     ws3: defaultMarketWS3(),
   };
   m.ws3.supply8q = Array(8).fill(3.0e6);
-  m.ws3.stock = baseline === 'reality' ? 14e6 : 13e6; // v1 BASELINES globalCompute (R11 #18)
+  m.ws3.stock = WORLD_START.globalCompute; // measured mid-2025 world (data/world.ts)
   m.rental = spotRental(rentalBase(listPrice, 0.93), 1);
   return m;
 }
@@ -128,7 +131,7 @@ export function exoRefQ(s: GameStateV2, q: number): number {
   const y = q / 4;
   const playerRef = Math.max(0, refTotalAt(s, y + 0.25) - refTotalAt(s, y));
   let rivals = 0;
-  for (const r of s.rivals) if (r.core.status === 'active') rivals += r.core.computeOnline * RIVAL_GROWTH_Q; // every lab plans 2.25x a year
+  for (const r of [...s.rivals, s.china.lab]) if (r.core.status === 'active') rivals += r.core.computeOnline * RIVAL_GROWTH_Q; // every lab plans 2.25x a year (China's lab too, W6)
   return Math.max(0.2 * globalRefQ(q), globalRefQ(q) - playerRef - rivals);
 }
 
@@ -184,16 +187,22 @@ export function koreaShock(s: GameStateV2, ctx: SystemCtx, severity = 0.5, quart
   ctx.headline('kr-shock', 'Korean memory fabs disrupted; HBM supply falls');
 }
 
-/** Export-control state (R15 §1.2). WS4 (gov ladder) calls this. */
+/** Export-control state (R15 §1.2). The laws table's daily step (actors/daily.ts) calls this when the table's policy
+ *  changes. */
 export function setExportPolicy(s: GameStateV2, policy: ChipMarket['exportPolicy']): void {
   s.market.exportPolicy = policy;
 }
 
-/** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension) × (1 + 2·salience), cap 3% [R15 Design]. */
+/** Cross-strait tension 0..1 at the start (R15's start value) [R15]. */
+const TAIWAN_TENSION = 0.4;
+
+/** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension), cap 3% [R15 Design], × China's factor 1 +
+ *  CHINAGOV.taiwanLowRung × min(tension, 2) + CHINAGOV.taiwanHighRung × max(0, tension − 2), plus CHINAGOV.taiwanCoercion
+ *  from coercion over Taiwan (rung 3) on (world/chinagov.ts). Rare before coercion, likely during a prolonged one. */
 export function taiwanHazardQ(s: GameStateV2): number {
-  const tension = s.china.meters.taiwanTension / 100;
-  const salience = Math.min(1, Math.max(0, (s.pub.salience - 1) / 2));
-  return Math.min(0.03, 0.0025 * (1 + 4 * tension) * (1 + 2 * salience));
+  const t = s.chinagov.tension;
+  const factor = 1 + CHINAGOV.taiwanLowRung * Math.min(t, 2) + CHINAGOV.taiwanHighRung * Math.max(0, t - 2);
+  return Math.min(0.03, 0.0025 * (1 + 4 * TAIWAN_TENSION)) * factor + (t >= 3 ? CHINAGOV.taiwanCoercion : 0);
 }
 /** Korea HBM disruption probability 0.1%/q [R15 Design]. */
 export const KOREA_HAZARD_Q = 0.001;
@@ -418,7 +427,7 @@ export function clearMarket(s: GameStateV2, ctx: SystemCtx): void {
   w.playerWeight = orderWeight(s, false, 0.3);
   repriceCancellableCloud(s);
   w.labOrders = w.labOrders.filter((o) => o.qty - o.delivered > 1);
-  // China's compute is WS4's (china.meters.computeAbs, §3.10.4); exports to China only reduce the supply here.
+  // China's lab orders here like every NPC lab (W6, actors/rivals.ts); the licensed exports above are China's other buyers.
 
   // 7. Bookkeeping: global production and stock, backlog signal, supplier expansion.
   const shipped = Math.min(S, outside + claims.reduce((a, c) => a + c.got, 0)) + toChina;
@@ -525,3 +534,27 @@ export const marketQSystem: EngineSystem = {
 };
 
 export type { LabOrder };
+
+/** geoShocksQ (441, quarterly): Taiwan and Korea disruption rolls. */
+export const geoShocksQSystem: EngineSystem = {
+  id: 'geoShocksQ', owner: 'WS4', cadence: 'quarterly', order: 441, system: 'compute',
+  run(s, ctx) {
+    const r = ctx.rng('china');
+    // Taiwan: disruption roll (quarterly) = WS3's R15 hazard × China's tension factor (world/chinagov.ts). Applied
+    // through WS3's taiwanShock (supply, prices, chips in transit); WS3's marketQ decays it.
+    if (s.market.taiwanDisrupted && s.market.disruptTW === 0) {
+      s.market.taiwanDisrupted = false;
+      ctx.log('world', 'Taiwan shipping normalises.', 2);
+    }
+    const pTW = clamp(taiwanHazardQ(s), 0, 0.5);
+    if (!s.market.taiwanDisrupted && s.market.disruptTW === 0 && r.chance(pTW)) {
+      const quarters = 1 + Math.floor(r.float() * 4);
+      taiwanShock(s, ctx, r.range(0.3, 0.5), quarters);
+      s.market.taiwanDisrupted = true;
+      s.market.taiwanEver = true;
+      ctx.log('world', 'Taiwan crisis: chip shipments from TSMC are disrupted.', 4);
+      ctx.headline('taiwan', 'Taiwan crisis: chip shipments from TSMC disrupted');
+    }
+    if (s.market.disruptKR === 0 && r.chance(KOREA_HAZARD_Q)) koreaShock(s, ctx, r.range(0.3, 0.7), 2 + Math.floor(r.float() * 3));
+  },
+};

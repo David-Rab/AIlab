@@ -34,7 +34,7 @@ import { removalFte } from './footholds';
 import { allocate, expLabour, sciTasteOf, sciWorkRate } from '../models/research';
 import { jobComputeNeed, jobStaffing, liveJobs, validationDemand } from './validation';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
-import { aiIdeasShare, handedLabour, measuredLabour, onDuty, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, tasteLimitOf, type LabourOf } from '../departments/workfit';
+import { aiIdeasShare, handedLabour, measuredLabour, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, tasteLimitOf, type LabourOf } from '../departments/workfit';
 import { believedProd } from '../production/believed';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
@@ -90,7 +90,7 @@ export function safSciOn(s: GameStateV2, id: string, truth = true): SciTaste & {
   const sdAI = dG || mi ? sdAIOf(s.hidden.timeline, fitI + dG, 'SAF_IDEAS') : sl.sdAI;
   const sci = sciTasteOf(s, id, s.player.teams, { sdAI, sAI, m2b, tl: tasteLimitOf(s.hidden.timeline), star: 1 });
   let heads = 0;
-  for (const t of s.player.teams) if (t.projectId === id && t.role === 'sci') heads += onDuty(s, t).heads;
+  for (const t of s.player.teams) if (t.projectId === id && t.role === 'sci') heads += t.heads;
   return { ...sci, heads };
 }
 

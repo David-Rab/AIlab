@@ -9,7 +9,7 @@ import { worldMix } from '../../../src/engine/v2/worldfx/mix';
 import { govAdviceG } from '../../../src/engine/v2/worldfx/control';
 import { domainRefShift, levelOfG, domainScaleG } from '../../../src/engine/v2/models/capability';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
-const s = newGame(defaultSetupV2({ seed: Number(process.argv[2] ?? 2027), world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: Number(process.argv[2] ?? 2027), world: 'tl-central', alignment: 'medium', tutorial: false }));
 const w = s.hidden.timeline;
 const END = dayOfDate('2025-07-01', '2028-04-01');
 while (s.time.day < END) {

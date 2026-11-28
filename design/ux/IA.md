@@ -71,7 +71,7 @@ Three cards. Nothing else.
 | | Deploy (`deployments`) | — | Demand vs capacity per channel |
 | SAFETY | Safety lab (`safety`) | Graph · Agendas · Tools · Incidents · Findings | Trait graph |
 | | Risk (`risk`) | Sources · Flows | Ranked risk-source bars |
-| WORLD | Relations (`relations`) | — | Counterparty cards |
+| WORLD | Relations (`relations`) | — | Counterparty cards | (see [../world/ui/IA-WORLD.md](../world/ui/IA-WORLD.md) for the rebuilt world map)
 | | World (`world`) | — | Automation spread tiles |
 | — | Codex (`codex`) | — | — |
 
@@ -173,6 +173,8 @@ Inside a panel the same rule repeats: one primary visual at the top, then second
 | Investigations | L2 Safety › Incidents | — |
 
 ### Relations and world
+
+> Outside-world rebuild (2026-11): the Relations panel and the World tab contents described here are replaced; the new map is [../world/ui/IA-WORLD.md](../world/ui/IA-WORLD.md).
 
 | Datum | Home | References |
 |---|---|---|

@@ -13,7 +13,7 @@ import { CHINA_POSTURE_BASE, KIND_CLAUSE, KIND_POSTURES } from '../../../data/v2
 import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { flopOfDesign } from '../models/effective';
 import { clockOfG, refG } from './reference';
-import { refYear, treatyClockDay } from './shocks';
+import { refYear } from './shocks';
 import { gV0 } from '../models/capability';
 import { baseParams, setModelG } from './model';
 import { seedRivalLineup } from './market';
@@ -31,9 +31,6 @@ import type { GameStateV2, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture,
 
 /** Days per month for the cast's lags in months (d₀ = 30.4 × months behind the leader) [D]. */
 export const DAYS_PER_MONTH = 30.4;
-/** China's compute plan: the growth of China's compute meter without export policy, ×2 a year (actors/china.ts chinaDaily,
- *  IFP) [repo]. KINDS.china has no appetite of its own (its compute is the meter's). */
-export const CHINA_PLAN_GROWTH = 2;
 /** Floor of the reference slope (OOM a year) the shortfall converts at: the reference is flat after the run's last
  *  point (and dips in 3 of 869 runs); a lag there moves nothing [D]. */
 export const SLOPE_FLOOR_PER_YEAR = 0.01;
@@ -80,8 +77,6 @@ export function refSlopePerDay(s: Pick<GameStateV2, 'setup' | 'hidden'>, y: numb
 
 // ───────────────────────────── the rules ─────────────────────────────
 
-/** The lab's yearly plan growth: every NPC lab 2.25x (compute/market.ts RIVAL_GROWTH, N8b); China's lab its meter's (CHINA_PLAN_GROWTH). */
-export const planGrowthOf = (n: Pick<NpcLabState, 'kind'>) => (n.kind === 'china' ? CHINA_PLAN_GROWTH : RIVAL_GROWTH);
 /** How hard the lab races under pressure (its race response): the poaching edge of the risk map and E16 read it (the old poach-aggression meter is gone). */
 export const raceResponseOf = (r: Pick<RivalLab, 'npc'>) => persOf(r.npc).raceResponse;
 /** The lab's seven values: its kind's, or the player's adjusted set (setup.cast, NpcLabState.p). */
@@ -91,11 +86,11 @@ export const persOf = (n: Pick<NpcLabState, 'kind' | 'pers'>): Personality => n.
  *  starts: the quarter's deliveries clear (marketQ, order 400) after the NPC labs' day (rivalsChina, order 100). */
 export function cPlan(s: GameStateV2, r: RivalLab): number {
   const n = r.npc;
-  return n.c0 * Math.pow(planGrowthOf(n), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
+  return n.c0 * Math.pow(RIVAL_GROWTH, Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
 }
-/** Compute shortfall (OOM ≥ 0) and the target lag d* = d₀ + shortfall ÷ today's reference slope (days). */
 /** The compute the lab plans to have online `ahead` quarters from the current quarter (orders are sized from it). */
-export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc.c0 * Math.pow(planGrowthOf(r.npc), (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
+export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc.c0 * Math.pow(RIVAL_GROWTH, (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
+/** Compute shortfall (OOM ≥ 0) and the target lag d* = d₀ + shortfall ÷ today's reference slope (days). */
 export function npcTarget(s: GameStateV2, r: RivalLab): { short: number; slope: number; dStar: number } {
   const n = r.npc;
   const slope = refSlopePerDay(s, refYear(s));
@@ -132,10 +127,11 @@ export function setNpcModel(w: TimelineWorld, m: SimpleModel, G: number, C: numb
 export const isReleaseDay = (n: NpcLabState, day: number) => day >= n.phase && (day - n.phase) % RELEASE_CADENCE_DAYS === 0;
 export const lastReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.floor((day - n.phase) / RELEASE_CADENCE_DAYS) * RELEASE_CADENCE_DAYS;
 
-/** Whether the lab's release today is open weights (the kind's openness rule; 'partial' opens the model it replaces). */
+/** Whether the lab's release today is open weights (the kind's openness rule; 'partial' opens the model it replaces).
+ *  'chinaRung': open while China's tension (world/chinagov.ts) is below the rule's rung. */
 export function opensRelease(s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'pers'>): boolean {
   const o = persOf(n).openness;
-  return o.mode === 'open' || (o.mode === 'chinaRung' && s.china.rung < o.belowRung);
+  return o.mode === 'open' || (o.mode === 'chinaRung' && s.chinagov.tension < o.belowRung);
 }
 
 /** One NPC lab's capability day: the lag relaxes to its target, the internal model follows G_ref(t − d); on a release day
@@ -144,7 +140,6 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   const n = r.npc;
   const w = s.hidden.timeline;
   const yr = decimalYear(s);
-  treatyClockDay(s); // N6: a verified treaty holds the reference clock the labs read back (npc/shocks.ts)
   const t = npcTarget(s, r);
   n.short = t.short;
   n.slope = t.slope;
@@ -193,7 +188,7 @@ export function startLagDays(e: NpcCastEntry): number {
 }
 
 /** Build an NPC lab from a cast entry at day 0. `i`/`n`: its place among the NPC labs (release days staggered evenly over
- *  one cadence). `C0`: its start compute (China: its compute meter's). */
+ *  one cadence). `C0`: its start compute. */
 export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>, e: NpcCastEntry, i: number, n: number, C0: number, fin: Fin, p?: Personality): RivalLab {
   const h = s.hidden;
   const w = h.timeline;

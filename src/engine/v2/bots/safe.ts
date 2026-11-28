@@ -5,6 +5,8 @@
 // inoculation, eval gate fullPlusExternal, pauses on every red flag, honours every commitment, publishes everything,
 // no strategic deals or debt, declines defense work, releases only after external review.
 import { internalVersion } from '../models/labs';
+import { openEval } from '../models/evals';
+import { externallyEvaluated } from '../safety/framework';
 import type { BotPolicy, TraitId } from '../types';
 import { financeAutopilot, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
@@ -56,20 +58,20 @@ export const safeBot: BotPolicy = {
       }
     }
     refPlay(s, api, SAFE_PLAY);
-    // Releases wait for external review (fullPlusExternal), which lands 2–8 weeks after a version is ready; since R6
-    // eval suites do not expire, so the mini launches the day the report arrives (no 24-day re-evals).
+    // Releases wait for external review (fullPlusExternal): the bot orders an independent evaluators' suite on each ready version (below); since R6 eval suites do not
+    // expire, so the mini launches the day that suite finishes (no 24-day re-evals).
     financeAutopilot(s, SAFE_AUTOPILOT);
     if (every(s, 15)) {
-      for (const id of ['A1', 'A2', 'A6', 'B5', 'F3', 'C1', 'C3', 'E1', 'E2']) tryAct(s, api, id, {});
-      // Paid relation actions (bounties, grants, data licences, community benefits, KYC) only with runway to spare.
+      for (const id of ['A1', 'A6', 'F3']) tryAct(s, api, id, {});
+      for (const v of s.player.models.versions) {
+        if ((v.status === 'ready' || v.status === 'deployed') && !externallyEvaluated(v) && !openEval(s, v.id, 'evalIndep')) tryAct(s, api, 'runEvals', { versionId: v.id, by: 'evalIndep', depth: 'full' });
+      }
+      // Paid levers (data licences, community benefits) only with runway to spare.
       if (runwayOf(s).q >= 5) {
-        for (const id of ['A5', 'D1', 'D2', 'cmp.community', 'C2']) tryAct(s, api, id, {});
+        tryAct(s, api, 'cmp.community', {});
         if (!s.player.dataPortfolio.assets.some((a) => a.kind === 'public' && a.licensed)) tryAct(s, api, 'data.license', { domain: 'web' });
       }
       tryAct(s, api, 'A3', {});
-      tryAct(s, api, 'A4', {});
-      tryAct(s, api, 'B4', { direction: 'regulate' });
-      tryAct(s, api, 'E3', { direction: 'tighten' });
       if (s.player.policies.govBriefing < 3) tryAct(s, api, 'B7', { level: 3 });
       if (s.player.security.target < 4.5) tryAct(s, api, 'SEC_TARGET', { level: Math.min(4.5, s.player.security.target + 0.5) });
       if (s.player.security.siloing < 1) tryAct(s, api, 'SEC_SILO', { level: 1 });

@@ -295,17 +295,25 @@ export function frontierGAt(s: GameStateV2, lab: LabId, day: Day): number | unde
  *  internal models enter no readout. Read from the weekly series.GP (record.ts) along the line's corners (as above, in G),
  *  linearly interpolated; today's public G closes the line when it is newer than the last sample. LeadTrack, RiskMap,
  *  trueLeadDays, intel and China's readouts read it.
- *  - Follower ahead of the leader: the lag the other way, negated: lagDays(f, l) = −lagDays(l, f). Level: 0.
+ *  `follower` is a lab (its public G) or a G value (e.g. a released model).
+ *  - Follower ahead of the leader (a lab): the lag the other way, negated: lagDays(f, l) = −lagDays(l, f). Level: 0.
+ *  - Follower a G value above the leader's public G: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
+ *    leader gets there at its own recorded pace (frontierGPerYear).
  *  - History too short (the follower is below the leader's first sample, the first weeks of a game): the days since that
  *    sample plus the gap to it at the stated pre-game pace PRE_GAME_G_PER_YEAR (OOM/yr), the rate the start gaps in
  *    months are converted at (rivals.ts initialRival, core/init.ts), i.e. the leader's pre-history slope.
  *  - No record at all for the leader: the gap at the pre-game rate. A lab with no public model yet: 0. */
-export function lagDays(s: GameStateV2, follower: LabId, leader: LabId): number {
-  if (follower === leader) return 0;
+export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId): number {
   const gL = publicG(s, leader);
-  const gF = publicG(s, follower);
-  if (!Number.isFinite(gF) || !Number.isFinite(gL)) return 0;
-  return gL >= gF ? daysSinceG(s, leader, gF, gL) : -daysSinceG(s, follower, gL, gF);
+  if (typeof follower === 'string') {
+    if (follower === leader) return 0;
+    const gF = publicG(s, follower);
+    if (!Number.isFinite(gF) || !Number.isFinite(gL)) return 0;
+    return gL >= gF ? daysSinceG(s, leader, gF, gL) : -daysSinceG(s, follower, gL, gF);
+  }
+  if (!Number.isFinite(follower) || !Number.isFinite(gL)) return 0;
+  if (follower <= gL) return daysSinceG(s, leader, follower, gL);
+  return -((follower - gL) / Math.max(0.06, frontierGPerYear(s, leader))) * 365;
 }
 
 /** A lab's recorded frontier G samples (series.G, or series.GP for its public models) aligned to series.day (a lab first

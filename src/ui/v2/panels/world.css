@@ -52,3 +52,58 @@
 .rev-sw { display: inline-block; width: 10px; height: 8px; vertical-align: middle; border-radius: 2px; }
 .wage-sw { display: inline-block; width: 2px; height: 10px; background: #fff; vertical-align: middle; }
 .ws-wt { cursor: help; } .ws-wt-l { text-decoration: underline dotted var(--line-2); }
+
+/* World › Work (W8b-3). */
+.wk { display: flex; flex-direction: column; gap: 11px; }
+.wk-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.wk-tile { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; min-height: 92px; overflow: hidden; }
+.wk-cap { white-space: nowrap; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+.wk-big { margin-top: 6px; font: 700 26px/1 var(--mono); color: #fff; }
+.wk-unit { font-size: 13px; color: var(--text-3); margin-left: 2px; }
+.wk-delta { margin-top: 8px; font-size: 11.5px; }
+.wk-spark { position: absolute; right: 12px; top: 22px; width: 38%; height: 46px; }
+.ws-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 11px; align-items: start; }
+.ws-heat { margin-bottom: 0; }
+.ws-heat .ws-tbl td { height: 36px; }
+.ws-right { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+.ws-right > .section { margin-bottom: 0; }
+.ws-limrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ws-limk { font-size: 11.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+.ws-chip { display: inline-flex; gap: 5px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 11.5px; color: var(--text-2); }
+.ws-chip.bind { border-color: rgba(233,180,76,.55); color: #f3d08a; background: rgba(233,180,76,.08); }
+.wk-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); margin-right: 5px; }
+.wk-dot.on { background: var(--pos); }
+.wk-jrow { display: grid; grid-template-columns: 170px minmax(0, 1fr) 90px; gap: 12px; align-items: center; font-size: 12.5px; padding: 4px 0; }
+.wk-jk { color: var(--text-2); }
+.wk-jv { text-align: right; color: #fff; display: block; }
+.wk-fund { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.wk-fund .slider { margin-left: auto; }
+.wk-leg { display: inline-flex; gap: 14px; font-size: 11.5px; color: var(--text-2); }
+.wk-leg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.wk-svg { width: 100%; height: auto; display: block; max-height: 190px; }
+.wk-ax { fill: var(--text-3); font: 10px var(--mono); }
+
+/* World › Tech & control (W8b-3). */
+.wt { display: flex; flex-direction: column; gap: 11px; }
+.wt > .wt-top { align-items: start; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 11px; }
+.wt section.section { margin-bottom: 0; }
+.wt .wt-crow { grid-template-columns: 100px 1fr 44px; margin: 8px 0; }
+.wt-ticks { margin-top: 6px; }
+.wt-tick { text-decoration: underline dotted var(--line-2); cursor: help; }
+.wt-control .legend { margin-top: 8px; flex-wrap: wrap; }
+.wt-rbig { display: flex; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 10px; }
+.wk-big-n { font: 700 28px/1 var(--mono); color: #fff; }
+.wt-rspark { margin-left: auto; width: 55%; height: 44px; align-self: center; }
+.wt-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 0; }
+.wt .wt-grid .wt-tile { display: block; padding: 7px 10px 8px; border-radius: 7px; background: var(--panel); }
+.wt-tile.sel { box-shadow: inset 0 0 0 1px #5aa9ff; }
+.wt-name { font-size: 12.5px; font-weight: 600; color: #fff; }
+.wt-status { font-size: 11px; color: var(--text-3); margin: 1px 0 5px; }
+.wt-bar { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.wt-bar i { display: block; height: 100%; background: #3a8ae0; }
+.wt-tile.done .wt-bar i { background: var(--pos); }
+.wt-tile.locked { opacity: .55; border-color: var(--line); }
+.wt-tile.locked .wt-name { color: var(--text-2); }
+.wt-tile.ramp { border-color: #2a4a74; }
+.wt-moon { display: flex; align-items: center; gap: 12px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.wt .ctrl-thr-l { display: none; }

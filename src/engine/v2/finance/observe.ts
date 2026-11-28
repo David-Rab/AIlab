@@ -8,7 +8,8 @@ import { leadDays } from '../actors/intel';
 import { revenueOf, servingPool } from '../worldfx/revenue';
 import { redFlags } from '../safety/common';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
-import type { GameStateV2, H100e, LabId, ModelVersion, Money } from '../types';
+import type { EngineSystem, GameStateV2, H100e, LabId, ModelVersion, Money } from '../types';
+import { cash } from '../actors/fx';
 import { unlicensedPublicT } from '../production/data';
 
 const rival = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab);
@@ -156,3 +157,21 @@ export function licensedGap(s: GameStateV2, lab: LabId, noThreshold = false): nu
 
 /** The player's estimate of its lead over a rival lab (days; > 0 = ahead), from intel: what the UI may show. */
 export const leadEstimate = (s: GameStateV2, lab: LabId): number => leadDays(s, lab).est;
+
+/** copyrightQ (442, quarterly): the copyright-suit roll (exposure above). */
+export const copyrightQSystem: EngineSystem = {
+  id: 'copyrightQ', owner: 'WS4', cadence: 'quarterly', order: 442, system: 'finance',
+  run(s, ctx) {
+    const day = ctx.day;
+    // Copyright litigation hazard 0.02·unlicensedT/100 per quarter (§3.9.1 data licences; R17 D3). A suit settles
+    // automatically ($1.5B per 270T unlicensed tokens, the Bartz v. Anthropic scale), at most once a year; licensing
+    // the crawl (data.license, domain 'web') is the way to avoid it (finance/observe.ts copyrightExposure).
+    const lit = copyrightExposure(s);
+    const lastSuit = s.player.finance.lastSuitDay ?? -1e9;
+    if (lit.pQ > 0 && day - lastSuit >= 365 && ctx.rng('actors').chance(lit.pQ)) {
+      s.player.finance.lastSuitDay = day;
+      cash(s, ctx, -lit.settlement, 'copyright settlement');
+      ctx.log('company', `Authors and publishers sued over ${Math.round(lit.tokensT)}T tokens of unlicensed training data; you settled for ${lit.settlement.toFixed(1)}B. Licensing the data stops further suits.`, 3);
+    }
+  },
+};

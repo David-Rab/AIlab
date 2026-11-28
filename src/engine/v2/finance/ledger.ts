@@ -1,28 +1,25 @@
 // Player finance state and the commitment ledger (V2-SPEC §3.7.2, §3.7.6; research/15 §1.8). Owner: WS3.
 import { dateOfDay, dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
-import type { BaselineId, CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
+import type { CashFlowKind, Commitment$, Day, FinanceState, GameStateV2, GovernancePresetId, Money, SystemCtx } from '../types';
 import { defaultFinanceWS3, yearStats } from './ext';
 import { RENT } from '../../../data/v2/deals';
 import { START_CREDIBILITY } from './promises';
+import { START_BY_ID } from '../../../data/v2/starts';
 
-/** Player finance at Jul 2025 (§3.7.2). Reality scales commitments by 0.85. */
-export function initialFinance(baseline: BaselineId, governance: GovernancePresetId, startDate: string): FinanceState {
-  const reality = baseline === 'reality';
-  const k = reality ? 0.85 : 1;
-  const revenueHistory = reality ? [4.5, 6.5, 9, 11] : [4.5, 6, 8, 10];
-  const revenueRun = reality ? 13 : 12;
+/** Player finance at Jul 2025 (§3.7.2): the leader start's row (data/v2/starts.ts). */
+export function initialFinance(governance: GovernancePresetId, startDate: string): FinanceState {
+  const { cash, revenueRun, revenueHistory } = START_BY_ID.leader;
   const cloudEnd = dayOfDate(startDate, '2028-07-01');
   const ledger: Commitment$[] = [
     // Cloud 0.7M H100e at $13K/yr, non-cancellable to mid-2028 (§3.7.2): $2.275B per quarter.
-    { id: 'L-cloud0', payee: 'Northwind Cloud', kind: 'cloud', perQuarter: 2.275 * k, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
+    { id: 'L-cloud0', payee: 'Northwind Cloud', kind: 'cloud', perQuarter: 2.275, endDay: cloudEnd, cancellableNoticeQ: null, penalty: 0 },
     // S1 Abilene North is a rented hall: 0.3 GW at the rent price (DC-TASKS [D-12]).
     { id: 'L-rent-S1', payee: 'Data-centre rent', kind: 'lease', perQuarter: (0.3 * RENT.perGWYear) / 4, endDay: dayOfDate(startDate, '2029-07-01'), cancellableNoticeQ: null, penalty: 0 },
   ];
-  const cash = reality ? 45 : 40;
   const f: FinanceState = {
     cash,
     revenueRun,
-    revenueHistory,
+    revenueHistory: [...revenueHistory],
     valuation: 0, // FIN5a: marked from the story split once the rivals exist (startStory in newGame)
     ownership: { founder: 0.3, mission: 0.26, fin: 0.17, strat: { 'Northwind Cloud': 0.27 }, public: 0 },
     credibility: START_CREDIBILITY.leader,
@@ -43,7 +40,7 @@ export function initialFinance(baseline: BaselineId, governance: GovernancePrese
     deals: [{ id: 'DL-northwind0', partner: 'Northwind Cloud', kind: 'hyperscaler', day: -2000, equityNow: 0, equityLater: 0, strings: {}, until: -2000, legacy: true }],
     ws3: defaultFinanceWS3(cash),
   };
-  f.ws3.chipBook = 0.5e6 * k * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]
+  f.ws3.chipBook = 0.5e6 * 25e-6; // 0.5M owned H100e at ~$25K (Epoch 2025 price) [R15 §2.1]
   return f;
 }
 

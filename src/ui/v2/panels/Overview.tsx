@@ -26,7 +26,7 @@ const BOX: Record<HubId, { name: string; icon: typeof ICON.L; panel: string; tab
   products: { name: 'Products', icon: ICON.deploy, panel: 'products', desc: 'What customers buy and what limits revenue.' },
   finance: { name: 'Finance', icon: ICON.finance, panel: 'finance', desc: 'Cash, runway and raising.' },
   safety: { name: 'Safety', icon: ICON.safety, panel: 'safety', desc: 'Safety staff and what they cover.' },
-  world: { name: 'World', icon: ICON.world, panel: 'world', tab: 'risk', desc: 'Risk from rival labs, China, misuse and war; the public and government.' },
+  world: { name: 'World', icon: ICON.world, panel: 'world', tab: 'risk', desc: 'Risk from rival labs, China, misuse and war.' },
 };
 const ROW: HubId[] = ['compute', 'lab', 'research', 'training', 'models', 'products', 'finance'];
 const EDGE = ['chips', 'people', 'know-how', 'models', 'models', 'revenue'];

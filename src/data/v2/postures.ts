@@ -1,7 +1,7 @@
 // Hidden safety postures per NPC kind (V2-SPEC §2.3 step 9, §3.10.3; research/17 §1.6.4). Owner: WS4. A lab's posture is its
 // kind's row with the safety investment and race relaxation taken from the kind's safety emphasis and race response
 // (npc/lab.ts postureOfKind); the rest (eval rigor, outside access, disclosure, framework bindingness) are read by incidents
-// (visibility), the Safety Index and joint evals.
+// (visibility).
 import type { NpcKindId } from './npcLabs';
 import type { SafetyPosture } from '../../engine/v2/types';
 

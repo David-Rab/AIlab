@@ -1,229 +1,32 @@
-// B3 inventory: actors data (src/data/actors.ts presets, src/data/world.ts v1 integrator and world presets and
-// baselines, src/data/v2/{rivalModel,blocs,agents}.ts). Prefix `acd`. The actor engine (src/engine/v2/actors/*) is in
-// actors-engine.ts; this file holds only the data tables the engine reads.
-// Per-preset bundles (GOV_PRESETS, PUBLIC_PRESETS, CHINA_PRESETS, LAB_ARCHETYPES, BASELINES) are one entry per preset
-// and field, built by `presetParams` from the value tables below. The values are written out here (not read from the
-// game) so the lint can compare them with the live data.
+// B3 inventory: actors data (src/data/world.ts v1 integrator, world presets and start,
+// src/data/v2/{rivalModel,agents}.ts). Prefix `acd`. The actor engine (src/engine/v2/actors/*) is in actors-engine.ts;
+// this file holds only the data tables the engine reads. (The gov, public and China presets went with W1d.)
+// WORLD_START is built from the value table below. The values are written out here (not read from the game) so the lint can compare them with the live data.
 import { defineParams, type Param } from '../schema';
 
-const ACT = 'src/data/actors.ts';
 const WORLD = 'src/data/world.ts';
 const RIVM = 'src/data/v2/npcLabs.ts';
-const BLOCS = 'src/data/v2/blocs.ts';
 const AGENTS = 'src/data/v2/agents.ts';
 
-type Field = {
-  name: string; unit?: string; area: Param['area']; layer: Param['layer']; actor?: Param['actor'];
-  kind?: Param['kind']; evidence?: string; source?: string; notes?: string;
-};
-type Preset = { id: string; values: (number | number[])[]; skip?: string[] };
-
-/** One entry per preset and field. `fields[i]` describes `preset.values[i]`; `index` is the preset's array index. A field
- *  with no `kind` takes it from `override` (the research-row tables below); a preset or field the override leaves alone
- *  keeps the field's own kind and evidence. */
-function presetParams(prefix: string, module: string, symbol: string, fields: Field[], presets: Preset[], override?: (preset: string, f: Field) => Partial<Field> | undefined): Param[] {
-  const out: Param[] = [];
-  presets.forEach((p, index) => {
-    fields.forEach((f0, i) => {
-      if (p.skip?.includes(f0.name)) return;
-      const f = { ...f0, ...(override?.(p.id, f0) ?? {}) };
-      if (!f.kind || !f.evidence) throw new Error(`${prefix}.${symbol}.${p.id}.${f.name}: no kind or evidence`);
-      const e: Param = {
-        id: `${prefix}.${symbol}.${p.id}.${f.name}`,
-        ref: { kind: 'export', module, symbol, path: [index, f.name] },
-        value: p.values[i],
-        area: f.area, layer: f.layer, actor: f.actor, kind: f.kind,
-        evidence: f.evidence,
-        perPreset: true,
-      };
-      if (f.unit) e.unit = f.unit;
-      if (f.source) e.source = f.source;
-      if (f.notes) e.notes = f.notes;
-      out.push(e);
-    });
-  });
-  return out;
-}
-
-// Research-row checks (CLASSIFY A1). For each preset the research row is quoted once; every field is then one of:
-//   true          the row states this number: sourced
-//   { s: note }   sourced, with a note on how the row states it
-//   string        designer: the row does not list the field, or lists a different number (the string says which)
-//   { q: note }   unclear: CLASSIFY does not settle it (see the notes file)
-//   null          the field keeps its own kind and evidence
-// research/07-actors.md:18 says "A preset is a set of multipliers on a common parameter schema"; it does not say that
-// fields a row leaves out are baseline, so an unlisted field is a designer value.
-type Cell = true | string | { s: string } | { q: string } | null;
-type Row = { name: string; file: string; line: number; text: string; weight: string; cells: Record<string, Cell> };
-const R07 = 'research/07-actors.md';
-const R10 = 'research/10-china.md';
-const N07 = 'not in research/07';
-const N10 = 'not in research/10';
-
-function rowOverride(rows: Record<string, Row>) {
-  return (id: string, f: Field): Partial<Field> | undefined => {
-    const r = rows[id];
-    if (!r) return undefined;
-    if (!(f.name in r.cells)) throw new Error(`${id}.${f.name}: no cell`);
-    const c = r.cells[f.name];
-    if (c === null) return undefined;
-    const where = `${r.file}:${r.line} ${r.name}`;
-    const quoted = f.name === 'weight' ? `${where} "Realistic weight ${r.weight}"` : `${where} "${r.text}"`;
-    const join = (n?: string) => [f.notes?.replace(/\.$/, ''), n].filter(Boolean).join('; ') || undefined;
-    const source = `${r.file}:${r.line}`;
-    if (c === true) return { kind: 'sourced', evidence: quoted, source };
-    if (typeof c === 'string') return { kind: 'designer', evidence: quoted, notes: join(c) };
-    if ('s' in c) return { kind: 'sourced', evidence: quoted, source, notes: join(c.s) };
-    return { kind: 'unclear', evidence: quoted, notes: join(c.q) };
-  };
-}
-
-// ───────────────────────── actors.ts: GOV_PRESETS ─────────────────────────
-const GOV_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'gov',
-    notes: 'Probability a sampled world draws this government personality; the five weights sum to 100.' },
-  { name: 'accel', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
-  { name: 'security', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
-  { name: 'reg', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
-  { name: 'transactional', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
-  { name: 'hawk', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
-  { name: 'natThreshold', area: 'actors', layer: 'policy', actor: 'gov', notes: 'Nationalization index above which the government escalates (gov.ts:141, :152, :154)' },
-  { name: 'lag', unit: 'days', area: 'actors', layer: 'policy', actor: 'gov', notes: 'Hold time before a security rung (gov.ts:143, 0.7 x lag, floor 7 days)' },
-  { name: 'pollSensitivity', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+// ───────────────────────── world.ts: WORLD_START ─────────────────────────
+const WS_EVID = 'world.ts WORLD_START "Measured mid-2025 world (reality baseline)"';
+const WORLD_START_FIELDS: { name: string; v: number; unit?: string; area: Param['area']; actor?: Param['actor']; notes?: string }[] = [
+  { name: 'globalCompute', v: 14e6, unit: 'H100e', area: 'market' },
+  { name: 'chinaShare', v: 0.13, area: 'actors', actor: 'china', notes: 'China share of world compute (not read by the engine yet).' },
+  { name: 'chinaGapOom', v: 0.72, unit: 'OOM', area: 'actors', actor: 'china', notes: "China's start gap in OOM of G under the player's V0 (not read by the engine yet)." },
+  { name: 'robotCap', v: 0.5e6, unit: 'units/yr', area: 'market', notes: 'Humanoid production cap before W16 (general robotics) lifts it.' },
 ];
-const GOV_VALUES: Preset[] = [
-  { id: 'dealmaker', values: [45, 1.5, 0.8, 0.4, 1.6, 0.8, 85, 20, 1] },
-  { id: 'hawk', values: [25, 1.1, 1.6, 0.7, 1, 1.6, 60, 10, 1] },
-  { id: 'populist', values: [13, 1, 1, 1.2, 1.2, 1.1, 70, 15, 2] },
-  { id: 'regulator', values: [12, 0.8, 1.2, 1.6, 0.6, 0.9, 70, 25, 1.2] },
-  { id: 'absentee', values: [5, 0.6, 0.6, 0.6, 1, 0.6, 90, 45, 0.6] },
-];
-const GOV_ROWS: Record<string, Row> = {
-  dealmaker: { name: 'Dealmaker', file: R07, line: 70, weight: '45%', text: 'accel 1.5, transactional 1.6, reg 0.4, security 0.8, hawk 0.8, nat_threshold 85, lag 20',
-    cells: { weight: true, accel: true, security: true, reg: true, transactional: true, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
-  hawk: { name: 'Security Hawk', file: R07, line: 71, weight: '25%', text: 'security 1.6, hawk 1.6, accel 1.1, reg 0.7, nat_threshold 60, lag 10',
-    cells: { weight: true, accel: true, security: true, reg: true, transactional: N07, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
-  populist: { name: 'Populist', file: R07, line: 73, weight: '13%', text: 'reg 1.2 (only when Public.Concern > 60), accel 1.0, transactional 1.2, poll_sensitivity 2.0, lag 15',
-    cells: { weight: true, accel: true, security: N07, reg: { s: 'research/07 conditions it on Public.Concern > 60; the preset field carries no condition' }, transactional: true, hawk: N07, natThreshold: N07, lag: true, pollSensitivity: true } },
-  regulator: { name: 'Cautious Regulator', file: R07, line: 72, weight: '12%', text: 'reg 1.6, accel 0.8, security 1.2, hawk 0.9, transactional 0.6, nat_threshold 70, lag 25',
-    cells: { weight: true, accel: true, security: true, reg: true, transactional: true, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
-  absentee: { name: 'Absentee', file: R07, line: 74, weight: '5%', text: 'all biases 0.6, lag 45, nat_threshold 90',
-    cells: { weight: true, accel: { s: 'accel_bias, "all biases 0.6"' }, security: { s: 'security_bias, "all biases 0.6"' }, reg: { s: 'reg_bias, "all biases 0.6"' },
-      transactional: N07, hawk: { s: 'hawk_bias, "all biases 0.6"' }, natThreshold: true, lag: true, pollSensitivity: 'not in research/07; poll_sensitivity is not one of the *_bias params that "all biases 0.6" names' } },
-};
-
-// ───────────────────────── actors.ts: PUBLIC_PRESETS ─────────────────────────
-const PUB_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'public',
-    notes: 'Probability a sampled world draws this public mood; the five weights sum to 100.' },
-  { name: 'shock', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
-  { name: 'halfLife', unit: 'days', area: 'actors', layer: 'world', actor: 'public', notes: 'Concern decays toward base with ln2 / halfLife per day (public.ts:37)' },
-  { name: 'jobs', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
-  { name: 'xrisk', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
-  { name: 'benefit', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
-  { name: 'mobilization', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
-];
-const PUB_VALUES: Preset[] = [
-  { id: 'anxious', values: [50, 1, 120, 1.2, 1, 0.7, 0.8] },
-  { id: 'backlash', values: [22, 1.1, 150, 1.6, 0.9, 0.6, 1.5] },
-  { id: 'optimist', values: [10, 0.7, 45, 0.8, 0.7, 1.6, 0.5] },
-  { id: 'doomer', values: [10, 1.3, 140, 1, 1.8, 0.7, 1.2] },
-  { id: 'distracted', values: [8, 0.6, 60, 0.8, 0.7, 0.8, 0.4] },
-];
-const PUB_ROWS: Record<string, Row> = {
-  anxious: { name: 'Anxious Majority', file: R07, line: 159, weight: '50%', text: 'shock 1.0, decay half-life 120 d, jobs 1.2, xrisk 1.0, benefit 0.7, mobilization 0.8',
-    cells: { weight: true, shock: true, halfLife: true, jobs: true, xrisk: true, benefit: true, mobilization: true } },
-  backlash: { name: 'Populist Backlash', file: R07, line: 160, weight: '22%', text: 'jobs 1.6, mobilization 1.5, DC_NIMBY growth ×2, OB_Approval drift −0.05/day while OB is in the news',
-    cells: { weight: true, shock: N07, halfLife: N07, jobs: true, xrisk: N07, benefit: N07, mobilization: true } },
-  optimist: { name: 'Tech Optimist', file: R07, line: 161, weight: '10%', text: 'benefit 1.6, decay half-life 45 d, shock 0.7, mobilization 0.5',
-    cells: { weight: true, shock: true, halfLife: true, jobs: N07, xrisk: N07, benefit: true, mobilization: true } },
-  doomer: { name: 'Doomer Wave', file: R07, line: 162, weight: '10%', text: 'xrisk 1.8, shock 1.3, mobilization 1.2',
-    cells: { weight: true, shock: true, halfLife: N07, jobs: N07, xrisk: true, benefit: N07, mobilization: true } },
-  distracted: { name: 'Distracted', file: R07, line: 163, weight: '8%', text: 'shock 0.6, salience cap 8, mobilization 0.4',
-    cells: { weight: true, shock: true, halfLife: N07, jobs: N07, xrisk: N07, benefit: N07, mobilization: true } },
-};
-
-// ───────────────────────── actors.ts: CHINA_PRESETS ─────────────────────────
-// The preset names in research/10 differ from the code's (Fast Follower = fastfollower, Open-Source Diffuser = diffuser,
-// Self-Reliance Fortress = selfreliant, Centralized Sprint = nationalizer, Hawkish Gambler = gambler (a sub-roll of the
-// Sprint), Cautious Stabilizer = bargainer). The `hawk` field is an absolute Hawk_vs_Dove score; research/10 gives
-// offsets from a start of 45 ("45 [D]", research/10-china.md:39).
-const CN_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'china',
-    notes: 'Probability a sampled world draws this China posture; the six weights sum to 100.' },
-  { name: 'centralize', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'theft', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'taiwan', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'treaty', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'openSource', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
-  { name: 'hawk', area: 'actors', layer: 'policy', actor: 'china', notes: 'Hawkishness score, 30-80' },
-];
-const CN_VALUES: Preset[] = [
-  { id: 'fastfollower', values: [35, 0.5, 0.7, 0.8, 1, 1.3, 40] },
-  { id: 'diffuser', values: [20, 0.6, 0.8, 0.7, 1.2, 1.8, 35] },
-  { id: 'selfreliant', values: [20, 1, 0.9, 0.6, 1, 1, 45] },
-  { id: 'nationalizer', values: [10, 1.6, 1.6, 1.3, 0.7, 0.3, 65] },
-  { id: 'gambler', values: [5, 1.6, 1.6, 2, 0.4, 0.3, 80] },
-  { id: 'bargainer', values: [10, 1, 0.8, 0.6, 1.8, 0.9, 30] },
-];
-const GAMBLER_Q = 'the row gives only taiwan 2.0 and treaty 0.4; the Gambler is a sub-roll of the Centralized Sprint, but CLASSIFY does not say whether a sub-roll inherits the parent row (Q-actors-data-8)';
-const CN_ROWS: Record<string, Row> = {
-  fastfollower: { name: 'Fast Follower', file: R10, line: 51, weight: '35%', text: 'centralize 0.5, distill 1.5, open 1.3, theft 0.7, taiwan 0.8, treaty 1.0, cost_efficiency +25%',
-    cells: { weight: true, centralize: true, theft: true, taiwan: true, treaty: true, openSource: { s: 'research/10 names it "open"' }, hawk: N10 } },
-  diffuser: { name: 'Open-Source Diffuser', file: R10, line: 52, weight: '20%', text: 'open 1.8, norms_diplo +20, global_share_bonus, theft 0.8, taiwan 0.7',
-    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: 'not in research/10 (the row has norms_diplo +20, no treaty)', openSource: { s: 'research/10 names it "open"' }, hawk: N10 } },
-  selfreliant: { name: 'Self-Reliance Fortress', file: R10, line: 53, weight: '20%', text: 'self_reliance 1.8, domestic_fab ×1.5, US_chip_uptake 0.3, smuggling 0.8, taiwan 0.6, centralize 1.0',
-    cells: { weight: true, centralize: true, theft: N10, taiwan: true, treaty: N10, openSource: N10, hawk: N10 } },
-  nationalizer: { name: 'Centralized Sprint', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail ... about 5% overall)',
-    text: 'centralize 1.6, theft 1.6, open → 0.3 after rung 3, taiwan 1.3, treaty 0.7 (offers only from weakness), hawk +20',
-    cells: { weight: { s: '15% less the Gambler tail of 1 in 3 (about 5% overall) = 10' }, centralize: true, theft: true, taiwan: true, treaty: true,
-      openSource: 'research/10 says "open → 0.3 after rung 3"; the preset field holds 0.3 with no rung condition',
-      hawk: { q: 'research/10 gives hawk +20 and a start of 45 [D]; 65 is 45 + 20, a sum of two research numbers that the text does not state (Q-actors-data-9)' } } },
-  gambler: { name: 'Hawkish Gambler', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall)',
-    text: 'sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall',
-    cells: { weight: true, centralize: { q: GAMBLER_Q }, theft: { q: GAMBLER_Q }, taiwan: true, treaty: true, openSource: { q: GAMBLER_Q },
-      hawk: 'research/07-actors.md:281 says Taiwan Gambler "hawk +30" (75 from a start of 45); the code has 80' } },
-  bargainer: { name: 'Cautious Stabilizer', file: R10, line: 55, weight: '10%', text: 'treaty 1.8, verification +25, safety +25, taiwan 0.6, theft 0.8',
-    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: true, openSource: N10, hawk: N10 } },
-};
-
-
-// ───────────────────────── world.ts: BASELINES ─────────────────────────
-const BL_EVID = 'no tag; world.ts:246-260 (the Baseline.start field comments carry units only)';
-const BL_FIELDS: Field[] = [
-  { name: 'cash', unit: 'USD B', area: 'finance', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'revenueRun', unit: 'USD B/yr', area: 'finance', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'valuation', unit: 'USD B', area: 'finance', layer: 'world', actor: 'player', kind: 'designer', evidence: 'world.ts:249 "valuation: number; // $B [design: AI 2027 gives no valuation]"' },
-  { name: 'compute', unit: 'H100e', area: 'market', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'globalCompute', unit: 'H100e', area: 'market', layer: 'world', kind: 'untagged', evidence: BL_EVID },
-  { name: 'staff', unit: 'people', area: 'research', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'chinaShare', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged', evidence: BL_EVID, notes: 'China share of world compute (name only; no unit comment).' },
-  { name: 'chinaGapOom', unit: 'OOM', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged',
-    evidence: 'no tag; world.ts:254 "China\'s start gap in OOM of G under the player\'s V0 (was 0.6 progress-years)"' },
-  { name: 'approval', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged', evidence: BL_EVID },
-  { name: 'concern', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged', evidence: BL_EVID },
-  { name: 'jobAnxiety', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged', evidence: BL_EVID },
-  { name: 'xrisk', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged', evidence: BL_EVID },
-  { name: 'securityLevel', area: 'security', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-];
-function baselineParams(): Param[] {
-  const rows: { id: string; v: number[] }[] = [
-    { id: 'classic', v: [40, 12, 610, 1.2e6, 13e6, 2500, 0.12, 0.72, -25, 50, 65, 40, 2.4] },
-    { id: 'reality', v: [45, 13, 300, 1.0e6, 14e6, 3000, 0.13, 0.72, -5, 50, 71, 43, 2.4] },
-  ];
-  const out: Param[] = [];
-  rows.forEach((r, index) => BL_FIELDS.forEach((f, i) => {
+function worldStartParams(): Param[] {
+  return WORLD_START_FIELDS.map((f) => {
     const e: Param = {
-      id: `acd.BASELINES.${r.id}.${f.name}`,
-      ref: { kind: 'export', module: WORLD, symbol: 'BASELINES', path: [index, 'start', f.name] },
-      value: r.v[i], area: f.area, layer: f.layer, kind: f.kind!, evidence: f.evidence!, perPreset: true,
+      id: `acd.WORLD_START.${f.name}`, ref: { kind: 'export', module: WORLD, symbol: 'WORLD_START', path: [f.name] },
+      value: f.v, area: f.area, layer: 'world', kind: 'untagged', evidence: WS_EVID,
     };
     if (f.actor) e.actor = f.actor;
     if (f.unit) e.unit = f.unit;
     if (f.notes) e.notes = f.notes;
-    out.push(e);
-  }));
-  return out;
+    return e;
+  });
 }
 
 // ───────────────────────── world.ts: v1 world presets (inline) ─────────────────────────
@@ -257,13 +60,8 @@ const PRESET_INLINE: Param[] = [
 ];
 
 export const PARAMS_ACTORS_DATA = defineParams([
-  // ───────────────────────── actors.ts: presets (per preset and field) ─────────────────────────
-  ...presetParams('acd', ACT, 'GOV_PRESETS', GOV_FIELDS, GOV_VALUES, rowOverride(GOV_ROWS)),
-  ...presetParams('acd', ACT, 'PUBLIC_PRESETS', PUB_FIELDS, PUB_VALUES, rowOverride(PUB_ROWS)),
-  ...presetParams('acd', ACT, 'CHINA_PRESETS', CN_FIELDS, CN_VALUES, rowOverride(CN_ROWS)),
-
   // ───────────────────────── world.ts ─────────────────────────
-  ...baselineParams(),
+  ...worldStartParams(),
   {
     // Non-exported constant: inline ref on the declaration line (an export ref needs an export).
     id: 'acd.world.AIFM_WORLD',
@@ -350,34 +148,6 @@ export const PARAMS_ACTORS_DATA = defineParams([
     evidence: 'rivalModel.ts:38-41 "what the reference lab\'s Inference-efficiency line adds in its first year (RefBot, ai2027, seed 2027; serving test V1) [fit]"',
     fit: { targets: [], script: 'unnamed' },
     notes: 'Fit to the reference lab\'s first-year inference-efficiency gain in the serving test V1; no script is named.',
-  },
-
-  // ───────────────────────── v2/blocs.ts ─────────────────────────
-  // BLOCS records carry no per-record source; the file header (blocs.ts:1-4) cites research/08 for clout/approval and the agenda codes.
-  {
-    id: 'acd.BLOCS.clout', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'clout'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Clout Jul-25", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Jul-25)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2: [D] plus a research pointer).',
-  },
-  {
-    id: 'acd.BLOCS.cloutNov26', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'cloutNov26'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 header cites research/08 §1.16 "clout/approval"; research/08-policy-ecosystem.md:664-690 table "Clout Nov-26" (all rows equal), "All clout and approval numbers are [D] calibrations." and "Calibration logic for the Nov 2026 column"',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Nov-26)', notes: 'The second starting column (research/08:13); the cited table states every value, tagged [D] (CLASSIFY A2).',
-  },
-  {
-    id: 'acd.BLOCS.approval', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'approval'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Default Approval_OB", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Default Approval_OB)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2).',
-  },
-  {
-    id: 'acd.BLOCS.agenda', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'agenda', '*'] },
-    unit: 'weight -3..+3', area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:3-4 "Agenda weights −3..+3 per policy id, converted from research/08 Part 3 codes: \\"++\\" = +3, \\"+\\" = +1, \\"−\\" = −1, \\"−−\\" = −3 [conversion D]."',
-    source: 'research/08-policy-ecosystem.md Part 3 (support/oppose codes)',
-    notes: 'Designer conversion of the Part 3 support/oppose codes; one weight per bloc and policy id.',
   },
 
   // ───────────────────────── v2/agents.ts ─────────────────────────

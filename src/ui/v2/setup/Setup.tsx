@@ -1,6 +1,5 @@
 // Start and setup screens (§6.9, §6.10). "AI 2027 scenario" is the only pre-game use of the name.
 import { useRef } from 'react';
-import { GOV_PRESETS, PUBLIC_PRESETS } from '../../../data/actors';
 import { AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY } from '../../../engine/v2';
 import type { SetupV2 } from '../../../engine/v2';
 import { REALISTIC_CAST } from '../../../data/v2/npcLabs';
@@ -129,7 +128,6 @@ function StartPicker() {
   );
 }
 
-const presetOpts = (xs: { id: string; name: string; desc: string }[]): Opt<string>[] => [{ v: 'realistic', label: 'Realistic', desc: 'Drawn from research-weighted odds.' }, ...xs.map((x) => ({ v: x.id, label: x.name, desc: x.desc.replace(/[^.]*AI 2027[^.]*\.\s*/g, '').trim() }))]; // canon names only in the World picker (§6.9)
 
 export function SetupScreen() {
   const st = useV2();
@@ -144,14 +142,12 @@ export function SetupScreen() {
       <StartPicker />
       <div className="setup-grid">
         <div className="setup-col">
-          <Picker label="Baseline" k="baseline" opts={[{ v: 'classic', label: 'Classic', desc: 'Start state of the April 2025 scenario world.' }, { v: 'reality', label: 'Reality', desc: 'Start state from 2025–26 reporting.' }]} />
           <Picker label="Timeline" k="world" opts={[
             { v: 'tl-fast', label: 'Fast', desc: 'AI progress on the forecast’s fast track: superhuman AI coders around 2028.' },
             { v: 'tl-central', label: 'Central', desc: 'The forecast’s middle path: superhuman AI coders around 2030.' },
             { v: 'tl-slow', label: 'Slow', desc: 'The forecast’s slow track: superhuman AI coders around 2035.' },
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
-          <Picker label="Economy" k="econ" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'normal', label: 'Normal', desc: 'Standard diffusion frictions.' }, { v: 'ai2027', label: 'Fast diffusion', desc: 'Rapid adoption and displacement.' }, { v: 'gate', label: 'Gated', desc: 'Strong frictions: law, trust, integration.' }]} />
           {(d.start ?? 'leader') === 'leader' ? (
             <Picker label="Governance" k="governance" opts={[
               { v: 'legacyNonprofit', label: 'Legacy nonprofit', desc: 'Mission board; recapitalisation needed to raise at scale.' },
@@ -160,11 +156,8 @@ export function SetupScreen() {
           ) : (
             <div data-test="start-board"><div className="picker-label">Governance</div><div className="small dim">{BOARD_LABEL[START_BY_ID[d.start].board]} (set by the start)</div></div>
           )}
-          <Picker label="Storyteller" k="storyteller" opts={[{ v: 'rising', label: 'Rising', desc: 'Tension builds with each act.' }, { v: 'measured', label: 'Measured' }, { v: 'chaotic', label: 'Chaotic' }]} />
         </div>
         <div className="setup-col">
-          <Picker label="Government" k="gov" opts={presetOpts(GOV_PRESETS)} />
-          <Picker label="Public" k="public" opts={presetOpts(PUBLIC_PRESETS)} />
           <RivalsSection />
           <Picker label="Tutorial (panels unlock by act)" k="tutorial" opts={[{ v: true, label: 'On' }, { v: false, label: 'Off: everything unlocked' }]} />
           <div>

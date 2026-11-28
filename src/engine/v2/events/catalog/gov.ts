@@ -1,124 +1,69 @@
-// Event catalog: government decisions (V2-SPEC §4.2: E12, E20, E22, E29). Owner: WS4.
-import { activeRivals, bestLg } from '../../models/labs';
-import type { EventDefV2 } from '../../types';
-import { cred, hasFavor, morale, natPressure, scrutiny, spendFavor, trust } from '../../actors/fx';
-import { deactivateRival } from '../../actors/rivals';
-import { ws4 } from '../../actors/state';
-import { changeHeads } from '../../departments/teams';
+// Event catalog: the US government's decisions (design/world/OUTSIDE-WORLD.md §8.2: E12 Clearances, E20 Oversight
+// committee, E22 Consolidation). Owner: WS4. Each is requested by world/usgov.ts when its stage lands on the player
+// (attention at least USGOV.attentionMin), once; the default is the neutral choice. Trust moves by the choice itself
+// (not scaled by attention: the lab is in the room).
+import type { EventDefV2, GameStateV2 } from '../../types';
+import { morale } from '../../actors/fx';
 import { L, P, ch, ev, requestOnly } from '../kit';
-import { forceLines, mergerVote, obligationLines, rivalObligations, sumObligations, takeOnObligations, voteBlock } from '../../finance/acquire';
+import { forceLines, mergerVote, sumObligations, voteBlock } from '../../finance/acquire';
 import { voteGate } from '../../finance/board';
-import type { GameStateV2 } from '../../types';
+import { acceptDpa, dpaPoolPreview, trustPush, USGOV } from '../../world/usgov';
 
-/** E22: what the consolidation brings (FIN3c): every active rival's obligations, half its capabilities staff. */
-const dpaObligations = (s: GameStateV2) => sumObligations(activeRivals(s).map(rivalObligations));
-const dpaStaff = (s: GameStateV2) => activeRivals(s).reduce((a, r) => a + Math.round(r.core.staff.cap * 0.5), 0);
-const dpaVote = (s: GameStateV2) => mergerVote(s, `folding ${activeRivals(s).length} labs into the company under the DPA`, 'the absorbed labs', dpaObligations(s), 0, 0);
-
+/** E22's board vote: pooling the American labs' compute into the company (no contracts or debt come with it). */
+const dpaVote = (s: GameStateV2) => mergerVote(s, 'pooling the American labs\' compute into the company under the Defense Production Act', 'the pooled labs', sumObligations([]), 0, 0);
 
 export const GOV_EVENTS: EventDefV2[] = [
   ev({
-    id: 'E12', title: 'Clearances', icon: 'gov', crisis: false, deadlineDays: 30, defaultChoice: 2,
+    id: 'E12', title: 'Clearances', icon: 'gov', crisis: false, deadlineDays: 30, defaultChoice: 0,
     when: requestOnly,
-    text: () => 'Washington now requires security clearances for frontier work. 5–15% of your staff — foreign nationals and some safety researchers — would be sidelined for 60 days.',
+    text: () => 'Washington now requires security clearances and embedded officials for frontier work. Some staff would be sidelined while they wait.',
     choices: [
-      ch('Comply', ['comply', 'gov'], P([L('morale', 10), L('progress', 8, 'research speed for 60 d', { unit: '%' })], [L('trust', 10, 'exec'), L('security', 0.3)]), (s, ctx) => {
+      ch('Comply', ['comply', 'gov'], P([L('morale', -USGOV.clearMorale)], [L('security', USGOV.clearSecurity, 'security target'), L('trust', USGOV.clearTrust)]), (s, ctx) => {
         s.player.security.clearances = true;
-        s.player.security.target = Math.min(5, s.player.security.target + 0.3);
-        s.player.security.wsl = Math.min(5, s.player.security.wsl + 0.3);
-        s.flags['ws4:sidelinedUntil'] = ctx.day + 60;
-        morale(ctx, -10, 'E12 clearances');
-        trust(s, ctx, 'exec', 10, 'E12 complied');
+        s.player.security.target = Math.min(5, s.player.security.target + USGOV.clearSecurity);
+        morale(ctx, USGOV.clearMorale, 'E12 clearances');
+        trustPush(s, ctx, USGOV.clearTrust, 'Complied with clearances', 1);
       }),
-      ch('Negotiate', ['balanced', 'gov'], (s) => ({ costs: [hasFavor(s, 'exec') ? L('trust', 0, 'spend an exec favor') : L('trust', 5, 'exec'), L('morale', 5)], gains: [L('security', 0.15), L('trust', 4, 'exec')], exposure: [] }), (s, ctx) => {
-        if (!spendFavor(s, 'exec')) trust(s, ctx, 'exec', -5, 'E12 negotiation');
-        s.player.security.clearances = true;
-        s.player.security.target = Math.min(5, s.player.security.target + 0.15);
-        s.flags['ws4:sidelinedUntil'] = ctx.day + 30;
-        morale(ctx, -5, 'E12 clearances (negotiated)');
-        trust(s, ctx, 'exec', 4, 'E12 negotiated');
-      }),
-      ch('Resist', ['resist', 'decline'], P([L('trust', 15, 'exec'), L('freedom', 10, 'nationalisation +10')], [L('morale', 3)]), (s, ctx) => {
-        trust(s, ctx, 'exec', -15, 'E12 resisted clearances');
-        natPressure(ctx, 10, 'E12 resisted clearances');
-        morale(ctx, 3, 'E12 resisted clearances');
+      ch('Resist', ['resist', 'decline'], P([L('trust', -USGOV.resistTrust)], [L('morale', USGOV.resistMorale)]), (s, ctx) => {
+        morale(ctx, USGOV.resistMorale, 'E12 resisted clearances');
+        trustPush(s, ctx, USGOV.resistTrust, 'Resisted clearances', 1);
       }),
     ],
   }),
   ev({
-    id: 'E20', title: 'Oversight committee', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 2,
+    id: 'E20', title: 'Oversight committee', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 0,
     when: requestOnly,
-    text: () => 'The government proposes a joint [[oversight]] committee: officials and your executives vote on major decisions.',
+    text: () => `The government proposes a joint [[oversight]] committee of officials and your executives. Launches of a superhuman AI researcher would wait ${USGOV.reviewDays} days for its review.`,
     choices: [
-      ch('Accept', ['comply', 'gov', 'safety'], P([L('freedom', 15, 'committee votes on major decisions')], [L('trust', 10, 'exec'), L('approval', 5)]), (s, ctx) => {
-        s.gov.oversight = true;
-        trust(s, ctx, 'exec', 10, 'E20 accepted oversight');
-        ctx.bump('pub.approval', 5, 'E20 accepted oversight');
-        natPressure(ctx, -15, 'E20 accepted oversight');
+      ch('Accept', ['comply', 'gov', 'safety'], P([L('leadDays', USGOV.reviewDays, 'each superhuman-researcher launch')], [L('trust', USGOV.oversightTrust)]), (s, ctx) => {
+        s.usgov.oversight = true;
+        trustPush(s, ctx, USGOV.oversightTrust, 'Accepted the oversight committee', 1);
       }),
-      ch('Negotiate', ['balanced', 'gov'], (s) => ({ costs: [hasFavor(s, 'exec') ? L('trust', 0, 'spend favors') : L('trust', 6, 'exec'), L('freedom', 8, 'smaller committee')], gains: [L('trust', 4, 'exec')], exposure: [] }), (s, ctx) => {
-        if (!spendFavor(s, 'exec')) trust(s, ctx, 'exec', -6, 'E20 negotiation');
-        s.gov.oversight = true;
-        s.flags['ws4:smallCommittee'] = true;
-        natPressure(ctx, -8, 'E20 negotiated oversight');
-      }),
-      ch('Refuse', ['resist', 'decline'], P([L('freedom', 25, 'nationalisation +25'), L('trust', 10, 'exec')], [L('boardConf', 3)]), (s, ctx) => {
-        natPressure(ctx, 25, 'E20 refused oversight');
-        trust(s, ctx, 'exec', -10, 'E20 refused oversight');
+      ch('Refuse', ['resist', 'decline'], P([L('trust', -USGOV.refuseTrust)]), (s, ctx) => {
+        trustPush(s, ctx, USGOV.refuseTrust, 'Refused the oversight committee', 1);
       }),
     ],
   }),
   ev({
-    id: 'E22', title: 'DPA consolidation', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 1,
+    id: 'E22', title: 'Consolidation (DPA)', icon: 'gov', crisis: true, deadlineDays: 14, defaultChoice: 1,
     when: requestOnly,
-    text: (s) => `The government offers to use the Defense Production Act to fold ${activeRivals(s).map((r) => r.core.name).join(', ') || 'trailing labs'} into your company.`,
+    text: () => `The government offers to use the Defense Production Act to pool the American labs' compute into your lab: ${Math.round(USGOV.dpaShare * 100)}% of each lab's chips, with the government at the table.`,
     choices: [
-      // FIN3c (FINANCE-V3 §9): the absorbed labs' obligations follow E32's rule (each private lab's contracts and debt are
-      // yours; parent-funded labs bring none). Accepting is your choice, so it is a merger the board votes on (on the
-      // company after the deal), like E32; no price is paid. Declining needs no vote.
-      ch('Accept', ['race', 'gov', 'comply'], (s) => {
-        const o = dpaObligations(s);
-        return { costs: [L('freedom', 15, 'government-held lab'), L('scrutiny', 10), ...forceLines([dpaVote(s)])], gains: [L('staffTime', dpaStaff(s), 'half of the rival labs\' capabilities staff'), L('leadDays', 90)], exposure: obligationLines(s, o) };
-      }, (s, ctx) => {
+      // Accepting is your choice, so the board votes on it (on the company after the deal), like a merger; no price is paid.
+      ch('Accept', ['race', 'gov', 'comply'], (s) => ({
+        costs: [L('freedom', 15, 'a government-held lab'), ...forceLines([dpaVote(s)])],
+        gains: [L('compute', dpaPoolPreview(s), 'the pooled compute, rent-free')],
+        exposure: [],
+      }), (s, ctx) => {
         const no = voteGate(ctx, dpaVote(s), true);
         if (no) {
           ctx.log('finance', `The consolidation did not go through: ${no}.`, 2);
           return;
         }
-        const w = ws4(s);
-        w.dpaAccepted = true;
-        for (const r of activeRivals(s)) {
-          w.absorbedCompute += r.core.computeOnline;
-          changeHeads(s, 'cap', Math.round(r.core.staff.cap * 0.5));
-          takeOnObligations(s, ctx, r.core.name, rivalObligations(r));
-          deactivateRival(s, ctx, r.core.id, 'merged', 'player');
-        }
-        s.gov.rungSec = 5;
-        scrutiny(ctx, 10, 'E22 consolidation');
+        acceptDpa(s, ctx);
       }, (s) => voteBlock([dpaVote(s)]) ?? true, dpaVote),
-      ch('Decline', ['decline'], P([L('trust', 10, 'exec')], [L('freedom', 5)]), (s, ctx) => {
-        trust(s, ctx, 'exec', -10, 'E22 declined consolidation');
-      }),
-    ],
-  }),
-  ev({
-    id: 'E29', title: 'Evaluator contradicts', icon: 'gov', crisis: false, deadlineDays: 14, defaultChoice: 0,
-    when: requestOnly,
-    text: (_s, d) => `Independent evaluators report level ${d.theirL}; you claimed ${d.ourL}. The press wants to know who is right.`,
-    choices: [
-      ch('Accept & correct', ['disclose', 'honour'], P([L('approval', 1, 'small embarrassment')], [L('credibility', 3), L('trust', 3, 'evalIndep')]), (s, ctx) => {
-        cred(ctx, 3, 'E29 accepted correction');
-        trust(s, ctx, 'evalIndep', 3, 'E29 accepted correction');
-        ctx.bump('pub.approval', -1, 'E29 correction');
-      }),
-      ch('Dispute', ['deny'], P([L('credibility', 15, 'if they were right', { probability: 0.6 })], [L('approval', 1)]), (s, ctx, d) => {
-        const v = s.player.models.versions.find((x) => x.id === d.versionId);
-        const truth = v?.Lg ?? bestLg(s, 'player');
-        const wrong = Math.abs(Number(d.theirL) - truth) < Math.abs(Number(d.ourL) - truth);
-        if (wrong) {
-          cred(ctx, -15, 'E29 disputed a correct report');
-          trust(s, ctx, 'evalIndep', -5, 'E29 dispute');
-        } else cred(ctx, 2, 'E29 dispute vindicated');
+      ch('Decline', ['decline'], P([L('trust', -USGOV.declineTrust)]), (s, ctx) => {
+        trustPush(s, ctx, USGOV.declineTrust, 'Declined consolidation', 1);
       }),
     ],
   }),

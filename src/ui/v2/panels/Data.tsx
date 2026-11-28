@@ -264,7 +264,7 @@ function Sources({ s, v, openLicence }: { s: GameStateV2; v: DataPortfolioView; 
           <span className="seg">{lv.map((l) => l.current
             ? <Tip key={l.level} content={() => <TipCard title={l.label} rows={[{ label: 'Kept', value: F.pct(l.share) }, { label: 'A day', value: `+${tokT(l.perDayT)}` }]}>Your current policy.</TipCard>}><button className="seg-btn active" data-level={l.level}>{l.label}</button></Tip>
             : <span key={l.level} className="dv-useg" data-level={l.level}><ActBtn id="data.usagePolicy" testId={`data.usagePolicy.${l.level}`} params={{ level: l.level as UsageLevel }} label={l.label} /></span>)}</span>
-          {lv.filter((l) => !l.current && cur && l.perDayT > cur.perDayT).map((l) => <span key={l.level} className="small dim">{l.label}: +{tokT(l.perDayT - (cur?.perDayT ?? 0))} a day · <span className={l.civlib < 0 ? 'tone-neg' : ''}><Term id="approval">civil liberties</Term> {l.civlib > 0 ? '+' : ''}{l.civlib}</span></span>)}
+          {lv.filter((l) => !l.current && cur && l.perDayT > cur.perDayT).map((l) => <span key={l.level} className="small dim">{l.label}: +{tokT(l.perDayT - (cur?.perDayT ?? 0))} a day</span>)}
         </div>} />
       <SrcLine k="synthetic" r={row('synthetic')} sub={<>written by your models{q('synthetic')} · <Tip content={() => <TipCard title={<Term id="syntheticData">Generated data a day</Term>} value={`+${tokT(v.synPerDayT)}`}>What data-generation compute writes a day with today's teacher.</TipCard>}><b className="num">+{tokT(v.synPerDayT)}</b></Tip> a day</>}
         extra={<div className="row-i dv-sact">
