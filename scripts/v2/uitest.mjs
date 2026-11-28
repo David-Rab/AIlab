@@ -58,7 +58,10 @@ const KNOWN_LIMITS = {
   'response.hardenFloor': 'OPEN.md § Broken tests: limit response.hardenFloor has no readout on Safety › Cases (hardenLevel() in safety/responses.ts is unused by the UI)',
 };
 let warn = 0;
+const gaps = [];
+let lastOk = Date.now();
 const ok = (name, cond, detail = '') => {
+  gaps.push([name, Date.now() - lastOk]); lastOk = Date.now();
   const known = !cond && KNOWN[name.replace(/day \d+/, 'day *')];
   if (cond) pass++;
   else if (known) { warn++; console.log(`WARN ${name}${detail ? `  ${detail}` : ''}\n      known deviation: ${known}`); return; }
@@ -252,13 +255,15 @@ await pause();
 // FF to next decision; open it from the queue and resolve
 await closeModals();
 const pend0 = JSON.parse(await get('s.events.pending.length'));
-if (pend0 === 0) {
+// FF stops on laws and milestones too (real-time pacing decides which comes first): go on until a decision is pending.
+for (let a = 0; a < 6 && JSON.parse(await get('s.events.pending.length')) === 0; a++) {
   await page.click('[data-test=ff]');
   await page.click('[data-ff=event]');
   for (let i = 0; i < 300; i++) {
     await wait(100);
     if (JSON.parse(await get('store.speed')) === 0) break;
   }
+  for (const sel of ['[data-test=recap-ok]', '[data-test=notice-ok]']) { const b = await page.$(sel); if (b) await b.click(); }
 }
 ok('FF stops with a reason', JSON.parse(await get('store.speed')) === 0, JSON.parse(await get('store.flash ? store.flash.text : ""')));
 const pend = JSON.parse(await get('s.events.pending.map(p => p.instance)'));
@@ -1812,6 +1817,7 @@ await G('B4', 'day 400', () => b4Check('day 400'));
 await G('D6', 'day 400', () => d6Check('day 400', true));
 await G('D4', 'day 400', () => d4Check('day 400', true));
 await G('E12', 'day 400', () => e12Check('day 400'));
+await G('E12', 'day 900', () => e12Check('day 900')); // the successorPull term only shows once a successor is steered (day 900)
 await G('D8', 'day 400', () => d8Check('day 400', true, 'full'));
 await G('E11', 'day 400', () => e11Check('day 400', true));
 await shot('27-day400-products-b2');
@@ -2629,6 +2635,7 @@ await check('End: new game', 'store.screen', () => page.click('[data-test=end-ne
 }
 
 await Promise.all(pendingShots);
+if (ARGS.includes('--gaps')) console.log(['slowest gaps between checks (the wait before each named check):', ...gaps.sort((a, b) => b[1] - a[1]).slice(0, 30).map(([n, ms]) => `  ${(ms / 1000).toFixed(1)}s  ${n.slice(0, 110)}`)].join(String.fromCharCode(10)));
 console.log(`
 wall ${((Date.now() - T0) / 1000).toFixed(0)} s; slowest: ${timings.sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`).join(', ')}`);
 console.log(`\n${pass} passed, ${warn} warned (known), ${fail} failed${fails.length ? `\nFAILED: ${fails.join(' | ')}` : ''}${errors.length ? `\nPAGE ERRORS (${errors.length}):\n${[...new Set(errors)].slice(0, 20).join('\n')}` : ''}`);
