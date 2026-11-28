@@ -304,6 +304,21 @@ function runJob(j: Job): Promise<Result> {
   });
 }
 
+// ---------- machine slowdown (budgets are CPU seconds, and CPU seconds inflate when other sessions share the cores) ----------
+// A fixed pure-JS loop is timed before the jobs start and after they end (both without this run's own workers). Its CPU
+// against the fastest ever measured on this machine (kept in the OS temp dir, shared by every worktree) is the slowdown;
+// every budget is scaled by it. A quiet machine reads ×1.0.
+function refCpu(): number {
+  const u0 = process.cpuUsage();
+  let x = 1;
+  for (let i = 0; i < 1e7; i++) x = (x * 1.0000001 + (i & 7)) % 1e6;
+  const u = process.cpuUsage(u0);
+  if (x < 0) console.log(x); // keep the loop live
+  return (u.user + u.system) / 1e6;
+}
+const REF_FILE = join(os.tmpdir(), 'ai27-run-refcpu-1e7.json'); // the loop size is in the name: a new size starts a new baseline
+const refBefore = refCpu();
+
 // ---------- pool ----------
 const t0 = Date.now();
 const b0 = busy();
@@ -337,6 +352,11 @@ await new Promise<void>((allDone) => {
 const wall = (Date.now() - t0) / 1000;
 const b1 = busy();
 const load = (b1.b - b0.b) / Math.max(1, b1.t - b0.t);
+const refNow = (refBefore + refCpu()) / 2;
+let refBest = refNow;
+try { refBest = Math.min(refNow, (JSON.parse(readFileSync(REF_FILE, 'utf8')) as { best: number }).best); } catch { /* first run */ }
+try { writeFileSync(REF_FILE, JSON.stringify({ best: refBest })); } catch { /* ignore */ }
+const slowdown = Math.max(1, refNow / refBest);
 
 // ---------- summary ----------
 const order = new Map(JOBS.map((j, i) => [j.id, i]));
@@ -349,7 +369,8 @@ for (const r of results) {
   console.log(`${pad(r.id, 17)} ${pad(r.mode, 10)} ${pad(r.pass, 5, true)} ${pad(r.fail, 5, true)} ${pad(r.warn, 5, true)} ${pad(r.smoke, 5, true)} ${pad(r.hits + r.misses ? `${r.hits}/${r.hits + r.misses}` : '', 7, true)} ${pad(r.wall.toFixed(1), 7, true)} ${pad(r.cpu.toFixed(1), 7, true)}  ${ok ? 'ok' : `FAIL (exit ${r.status})`}`);
 }
 const baseJob = (id: string) => JOBS.find((j) => j.id === id.split('#')[0]);
-const budgetOf = (id: string) => baseJob(id)?.budget?.[tier] ?? DEFAULT_BUDGET;
+const budgetOf = (id: string) => (baseJob(id)?.budget?.[tier] ?? DEFAULT_BUDGET) * slowdown;
+if (slowdown > 1.05) console.log(`machine slowdown ×${slowdown.toFixed(2)} (reference loop ${refNow.toFixed(2)} s vs the best ${refBest.toFixed(2)} s): budgets scaled`);
 // TESTING.md §1: a job's cpu (its prefill shards included) over its budget warns; over twice its budget fails the run, so a
 // test that grows must be made cheaper or re-budgeted with a reason in the same change.
 const jobCpu = new Map<string, number>();
@@ -358,7 +379,7 @@ const overBudget: string[] = [];
 for (const [id, cpu] of jobCpu) {
   const b = budgetOf(id);
   if (cpu > 2 * b) overBudget.push(id);
-  if (cpu > b) console.log(`${cpu > 2 * b ? 'FAIL' : 'WARN'} over budget: ${id} used ${cpu.toFixed(1)} cpu s, budget ${b}${cpu > 2 * b ? ' (over twice its budget)' : ''}`);
+  if (cpu > b) console.log(`${cpu > 2 * b ? 'FAIL' : 'WARN'} over budget: ${id} used ${cpu.toFixed(1)} cpu s, budget ${b.toFixed(0)}${cpu > 2 * b ? ' (over twice its budget)' : ''}`);
 }
 const failed = results.filter((r) => r.status !== 0 || r.fail > 0 || overBudget.includes(r.id));
 const tot = results.reduce((a, r) => ({ pass: a.pass + r.pass, fail: a.fail + r.fail, cpu: a.cpu + r.cpu }), { pass: 0, fail: 0, cpu: 0 });
@@ -367,8 +388,8 @@ const shardNote = scripts.length < results.length ? ` (+ ${results.length - scri
 console.log(`\n${tier}: ${scripts.length - failed.filter((r) => !r.id.includes('#')).length}/${scripts.length} scripts ok${shardNote}, ${tot.pass} checks passed, ${tot.fail} failed; wall ${(wall / 60).toFixed(1)} min, cpu ${(tot.cpu / 60).toFixed(1)} min, machine load ${(load * 100).toFixed(0)}% (${os.cpus().length} cores, ${workers} workers)`);
 const tierBudget = TIER_BUDGET_MIN[tier];
 // The whole tier over its budget fails too (not with --only, which runs a part of it).
-const tierOver = tierBudget !== undefined && !only && tot.cpu / 60 > tierBudget;
-if (tierBudget !== undefined) console.log(`${tierOver ? 'FAIL over budget: ' : ''}total cpu ${(tot.cpu / 60).toFixed(1)} min vs the ${tier} tier budget of ${tierBudget} cpu-min`);
+const tierOver = tierBudget !== undefined && !only && tot.cpu / 60 > tierBudget * slowdown;
+if (tierBudget !== undefined) console.log(`${tierOver ? 'FAIL over budget: ' : ''}total cpu ${(tot.cpu / 60).toFixed(1)} min vs the ${tier} tier budget of ${tierBudget} cpu-min${slowdown > 1.05 ? ` × ${slowdown.toFixed(2)}` : ''}`);
 if (tierOver) failed.push({ id: `${tier} tier budget` } as Result);
 if (tier === 'quick') console.log('quick is a smoke gate: SMOKE lines are informational; run the full tier (npm run test:full) before a merge.');
 if (failed.length) console.log(`FAILED: ${failed.map((r) => r.id).join(', ')} (logs in ${LOG_DIR})`);

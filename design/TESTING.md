@@ -41,6 +41,9 @@ an absurd miss (×10) fails. They are the fast "is it roughly balanced" signal b
 - Every job in `scripts/v2/run.ts` declares a CPU budget. run.ts warns when a job goes over it. A job that grows over
   its budget is fixed or re-budgeted with a reason in the same change, never silently.
 - Default ≤ 20 CPU-s per job. A bigger budget needs a reason written next to it.
+- CPU seconds inflate when other sessions share the cores (×2 seen at 80% machine load). run.ts times a fixed
+  reference loop before and after the jobs and scales every budget by its slowdown against the fastest run seen on this
+  machine (OS temp dir), so a busy machine does not fail budgets that a quiet one meets.
 - Every test file starts with a header comment: what it guards, why that matters, what it costs (sim-days × seeds, or
   "no sim"), and its tier.
 
