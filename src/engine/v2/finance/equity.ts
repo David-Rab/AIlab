@@ -4,7 +4,7 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, GameStateV2, Money, Ownership, RepricedRound, SystemCtx, Thesis, Tranche } from '../types';
 import { ensureWs3, yearStats, type PendingRound } from './ext';
 import { bookCash } from './ledger';
-import { votesOf } from './control';
+import { controlAfter, votesOf } from './control';
 import { resizeCreditLine } from './debt';
 import { boardMood, MOOD_BASE } from './mood';
 import { addPromise, typicalRound } from './promises';
@@ -54,6 +54,14 @@ export function issue(o: Ownership, frac: number, holder: { kind: 'fin' } | { ki
   else o.strat[holder.name] = (o.strat[holder.name] ?? 0) + frac;
 }
 
+/** The board and controller after new shares of `frac` of the company go to investors or the public (a raise, an IPO, a down
+ *  round, a merger paid in stock), for a preview: one line, or undefined when control does not change. `dualClass`: the
+ *  listing's choice, when it sets one. */
+export const issueControlAfter = (s: GameStateV2, frac: number, holder: 'fin' | 'public', dualClass?: boolean) => controlAfter(s, (v) => {
+  issue(v.player.finance.ownership, frac, { kind: holder });
+  if (dualClass !== undefined) v.player.finance.dualClass = dualClass;
+});
+
 /** Equity a stake cap leaves room for ($B at valuation V): new money E at V gives a holder with `stake` a stake of
  *  (stake·V + E)/(V + E), so E ≤ V(cap − stake)/(1 − cap). */
 export const stakeRoom = (V: Money, stake: number, cap: number) => Math.max(0, (V * (cap - stake)) / (1 - cap));
@@ -82,15 +90,20 @@ export function partnerEquityIn(s: GameStateV2, ctx: SystemCtx, partner: string,
 export function partnerVotesAfter(s: GameStateV2, partner: string, buys: Money[], opts: { priceMult?: number; stakeCap?: number; voting?: boolean } = {}): number {
   const f = s.player.finance;
   const o: Ownership = { ...f.ownership, strat: { ...f.ownership.strat } };
-  let V = Math.max(10, f.valuation) * (opts.priceMult ?? 1);
+  buyStake(o, partner, buys, Math.max(10, f.valuation) * (opts.priceMult ?? 1), opts.stakeCap);
+  const stratVoting = { ...(f.stratVoting ?? {}), ...(opts.voting ? { [partner]: true as const } : {}) };
+  return votesOf({ player: { finance: { ownership: o, dualClass: f.dualClass, stratVoting }, charter: s.player.charter } }, partner);
+}
+
+/** `partner` buys each of `buys` ($B, in order) of new shares on the cap table `o`: the first at valuation `V`, the rest at
+ *  the valuation each leaves, each under `stakeCap` as partnerEquityIn books it. The one copy of that arithmetic. */
+export function buyStake(o: Ownership, partner: string, buys: Money[], V: Money, stakeCap?: number): void {
   for (const b of buys) {
-    const amt = Math.max(0, opts.stakeCap !== undefined ? Math.min(b, stakeRoom(V, o.strat[partner] ?? 0, opts.stakeCap)) : b);
+    const amt = Math.max(0, stakeCap !== undefined ? Math.min(b, stakeRoom(V, o.strat[partner] ?? 0, stakeCap)) : b);
     if (amt <= 0) continue;
     issue(o, amt / (V + amt), { kind: 'strat', name: partner });
     V += amt;
   }
-  const stratVoting = { ...(f.stratVoting ?? {}), ...(opts.voting ? { [partner]: true as const } : {}) };
-  return votesOf({ player: { finance: { ownership: o, dualClass: f.dualClass, stratVoting }, charter: s.player.charter } }, partner);
 }
 
 /** Outside (financial + strategic + public) ownership share. */

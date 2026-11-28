@@ -102,7 +102,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'board', sphere: 'company', sev: 2.5,
       chain: [{ label: 'parent confidence low', icon: ICON.board, kind: 'root', detail: `Confidence ${Math.round(bc)} (the full budget needs 60)` }, { label: `next budget ${F.pct(dv.next.factor)} of plan`, icon: ICON.cash, kind: 'bad', detail: `≈ ${F.money(dv.next.budget)} of the ${F.money(dv.next.plan)} plan` }],
-      why: `set at the parent review in ${Math.max(0, dv.reviewDay - s.time.day)} d: goals met and staying within budget restore it`, go: { panel: 'finance', anchor: 'parent' }, goLabel: 'Parent budget',
+      why: `set at the parent review in ${Math.max(0, dv.reviewDay - s.time.day)} d: goals met and staying within budget restore it`, go: { panel: 'finance', tab: 'owners', anchor: 'board' }, goLabel: 'Parent budget',
     });
   } else if (bc < 40) {
     // Jank ST3: say when the board decides and what it needs.

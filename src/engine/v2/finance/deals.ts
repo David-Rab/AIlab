@@ -17,12 +17,12 @@ import { dayOfQuarter } from '../core/time';
 import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
 import { boardVote, commitmentsVote, voteGate } from './board';
-import { missionPowers } from './control';
+import { controlAfter, missionPowers } from './control';
 import { controlVotes, ipTransferVote } from './charter';
-import { issue, partnerEquityIn, partnerVotesAfter, stakeRoom } from './equity';
+import { buyStake, issue, partnerEquityIn, partnerVotesAfter, stakeRoom } from './equity';
 import { leadEstimate } from './observe';
 import { ensureWs3 } from './ext';
-import { paidTo, qOf } from './ledger';
+import { monthsPaying, paidTo, qOf } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 import { dealCutProjections, type CutProjection } from './distribution';
@@ -311,6 +311,24 @@ export function partnerStakeAll(s: GameStateV2, t: PartnerTerms): number {
  *  holder's votes is judged at the votes it reaches. */
 export const partnerVotesAll = (s: GameStateV2, t: PartnerTerms): number =>
   partnerVotesAfter(s, t.partner, [t.equityNow, ...t.tranches.map((x) => x.amount)], { priceMult: t.priceMult, stakeCap: t.stakeCap, voting: t.rescue || !!s.player.finance.stratVoting?.[t.partner] });
+
+/** What is still to be paid to `partner` on its contracts (take-or-pay: cloud, chip orders), month by month from now to the
+ *  last one's end ($B): the commitment left on its running deal. */
+export function partnerOwed(s: GameStateV2, partner: string): number {
+  const mine = s.player.finance.ledger.filter((c) => c.payee === partner && c.endDay > s.time.day);
+  if (!mine.length) return 0;
+  const last = qOf(s, Math.max(...mine.map((c) => c.endDay)));
+  let sum = 0;
+  for (let q = qOf(s); q <= last; q++) for (const c of mine) sum += (c.perQuarter * monthsPaying(s, c, q)) / 3;
+  return sum;
+}
+
+/** The board and controller after the deal has run (every tranche landed), for its preview: one line, or undefined when
+ *  control does not change (control.ts controlAfter). */
+export const dealControlAfter = (s: GameStateV2, t: PartnerTerms) => controlAfter(s, (v) => {
+  buyStake(v.player.finance.ownership, t.partner, [t.equityNow, ...t.tranches.map((x) => x.amount)], Math.max(10, s.player.finance.valuation) * (t.priceMult ?? 1), t.stakeCap);
+  if (t.rescue || s.player.finance.stratVoting?.[t.partner]) v.player.finance.stratVoting = { ...(v.player.finance.stratVoting ?? {}), [t.partner]: true };
+});
 
 /** The votes a deal needs, in the order they are held: the trust's (PBC + trust, §7.2: a sale of control, a holder past
  *  half of all votes once every tranche lands; IP access that would license a capability-threshold model, FIN4b), then

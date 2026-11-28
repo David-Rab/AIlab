@@ -18,7 +18,7 @@ import { boardVote, VOTE, voteGate, voteNo } from './board';
 import { controlVotes } from './charter';
 import { newHolderVotes, ownerFunded } from './control';
 import { debtRatePct, newDebtSpreadBp } from './debt';
-import { issue } from './equity';
+import { issue, issueControlAfter } from './equity';
 import { addLedger, bookCash } from './ledger';
 
 export const ACQUIRE = {
@@ -122,6 +122,7 @@ export function paymentLines(s: GameStateV2, t: AcquireTerms, pay: PayWith): Cos
   const out: CostLine[] = pay === 'cash'
     ? [{ currency: 'cash', amount: Math.round(t.price * 10) / 10, target: `half its ${$(t.price / ACQUIRE.discount)} valuation` }]
     : [{ currency: 'dilution', amount: Math.round(t.stockFrac * 1000) / 10, target: `new shares worth ${$(t.price)} to ${t.holder}, at your ${$(V)} valuation` }];
+  if (pay === 'stock') { const c = issueControlAfter(s, t.stockFrac, 'fin'); if (c) out.push({ currency: 'freedom', amount: -1, target: c.line }); }
   const bv = blockVotes(s, t, pay);
   if (bv > 0.5) out.push({ currency: 'freedom', amount: Math.round(bv * 100), target: `${t.holder} would hold ${Math.round(bv * 100)}% of all votes: a sale of control, which the board must approve` });
   return out;
