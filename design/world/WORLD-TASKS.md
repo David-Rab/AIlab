@@ -236,3 +236,14 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   - 19 stale history comments fixed.
 
   · 62b2c1ad
+- W11b · Sonnet high · ~22 min · ws4 removed: the event queue → s.events.requests (events/request.ts); security fields →
+  s.player.security; rivalIncidents → s.rivalIncidents; postureDelta and goalposts → r.npc; endings → s.endingProgress;
+  dpaAccepted → usgov; misalignLeakDay → public; gdp0 → world; taiwanDisrupted/taiwanEver → market; flags → owner fields.
+  ws4.ts renamed directorEndings.ts. actors/state.ts deleted. SCHEMA 124 · 69fe07e5. Lead merge: coverups.ts header
+  conflict resolved; directorEndings, fixtures and registry-lint pass.
+- W8b-2 · Sonnet high · ~21 min · Powers.tsx replaces Relations (rail, public, pledges, US government, China; nested why
+  tooltips; Retire in the game menu; nav badge). uitest: setup-picker clicks for deleted settings removed; Powers tests
+  added; 705 passed / 19 failed, none Powers (Products, Models, Safety, Finance; to compare with master at the final
+  check) · 767c86ab. Lead: the merge met the ws4 split (observe.ts incidentList) → fixed; tension "needs" wording fixed.
+- Designer: "the CPU is half-yours ... dont hog all CPU" → final checks at ≤ half the cores (grid --workers 2, tests one
+  at a time).
