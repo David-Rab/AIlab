@@ -11,6 +11,6 @@ Maps: MAP-A.md, MAP-B.md. Rules: design/TESTING.md §0; skill good-tests.
 | E1a | capability + start estimates (MAP-A first five minus safetyrates) | merged (23 rows, 15 in band; reference G slope 1.50 vs RefBot 0.75 ⇒ RefBot dynamics; M.startReadout definition question) |
 | E1b | money + market estimates incl. the revenue-at-reference-capability diagnostic | merged (18 rows; revenue at reference capability $36.6B lead / $63.4B all, in band ⇒ collapse is dynamics; capex convention question; hire rate 1.2 y late) |
 | H | homes: targets reference scenario checkpoints; overlaps; deletions; safetyrates' 17 entries; lints | merged (25 targets reference checkpoints; 16 deleted; 17 safetyrates entries; lints enforce) |
-| E2 | extractions (MAP-A a–f, MAP-B list) + the two copied formulas (safety-emu persistence, danger κ) | running: E2s (safety: postRunEnv, persistence term, danger κ) + E2m (sector value, kWPerH100eAt, chip supply, friendTarget, acceptTarget); npc/lab.ts + workfit.ts deferred (balance fit-npclag, market mkt branches) |
+| E2 | extractions (MAP-A a–f, MAP-B list) + the two copied formulas (safety-emu persistence, danger κ) | E2m merged (5 extractions, fixtures identical; world area: 54 rows, 35 in band); E2s running; npc/lab.ts + workfit.ts deferred |
 | E3 | safetyrates → estimates module, reading its new registry entries | in E2s |
 | end | quick (ask), merge boe → master (ask), tell the balance + money sessions | — |
