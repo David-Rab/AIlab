@@ -66,3 +66,4 @@ engine functions on the reference path, no game); built on the same ids.
 
 Note: safetyrates.ts still holds ~28 sourced bands checked on probe worlds (no game). Under §0 they are calibration; they are already back-of-envelope estimates in shape (engine functions on constructed inputs), so they move into the estimates layer when it is built, with their bands in balance/targets.ts.
 | MM | merge master 4cbc0578 (corp, schema 128) into testaudit via ta-mm: 11 script conflicts + 7 deleted scratch | running (ta-mm) |
+| REG | one entry per quantity (balance session rule) | merged 43ce310f; F9 split-vs-combined back to the balance session (suggested: keep split) |
