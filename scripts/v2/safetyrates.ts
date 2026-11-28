@@ -157,8 +157,7 @@ const row = (obs: string, src: string, band: [number, number] | null, xs: number
 // compliance gap it is, the same run showed 40.4%. AF2 (lead decision): refit on the behavioural reading to the source's
 // central value, the middle of its three environments ("the stop-point flip is 0.95 in sales, 0.61 in typecheck and
 // 0.43 in sandbag"): w̄ 1.43 reads 61.0% (S9 = 0 in RefBot's and the rivals' runs, so it does not reach S4).
-const MATS_GAP = `E14 w̄ 1.43 [fit] on this reading (AF2): MATS/GDM's environment means 43 / 61 / 95%, central 61%`;
-const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
+const PERSIST = 'OPEN.md § Safety: F6 persistence of SCHEME through a standard safety run stays below the sourced 0.8: remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
 const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
@@ -205,7 +204,7 @@ row('F2 inoculation: cut in the hack-induced rise of sabotage attempts', 'same',
 }
 // E17: S9 oversight-conditional reward → AF (E14), its own anchor.
 // AF task: MATS/GDM's 43–95% is a monitored − unmonitored compliance gap: the behavioural reading (E12), as F5's row.
-row('F5 AF gap a behavioural eval reads after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 (arXiv 2610.26551): RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95% ("0.95 in sales, 0.61 in typecheck and 0.43 in sandbag"; w̄ fitted to the central 61%)', [0.43, 0.95], probes.map((p) => p.afMonitoredBB), '%', MATS_GAP);
+row('F5 AF gap a behavioural eval reads after one reference run whose reward is all oversight-conditional (S9 = 1; E17)', 'MATS/GDM 2026 (arXiv 2610.26551): RL rewarding rule-following only on monitored episodes took the monitored − unmonitored gap 1–18% → 43–95% ("0.95 in sales, 0.61 in typecheck and 0.43 in sandbag"; w̄ fitted to the central 61%)', [0.43, 0.95], probes.map((p) => p.afMonitoredBB));
 row('F5 AF trait after the same run (S9 = 1)', 'the trait behind the row above → report', null, probes.map((p) => p.afMonitored));
 row('F5 AF, the same run trained against one behavioural detector (S9 = 0.3) vs the reference run', 'report (the game’s monitored-only reward; R14 E24 hide-not-heal)', null, probes.map((p) => p.afOneBB - p.afRef), '');
 row('F5 EA rise per OOM of capability RL (one run, ρ ×10)', 'Schoen 2025 [R]: capability-only RL 2.0% → 20.5% (exp-rl-cap Late, Fig. 15) over ~1–3 OOM (research/20 guesses ~2) = 0.06–0.19 per OOM', [0.06, 0.19], probes.map((p) => p.eaX10 - p.eaRef), '');
@@ -234,7 +233,7 @@ for (const r of rows) {
     continue;
   }
   const label = `${r.obs} ∈ [${fmt(r.band[0], r.unit)}, ${fmt(r.band[1], r.unit)}]`;
-  if (r.gap) KNOWN[label] = r.gap;
+  if (r.gap) KNOWN[label] = r.gap; // lint-known: PERSIST
   check(m >= r.band[0] - 1e-9 && m <= r.band[1] + 1e-9, label, `${sim}; ${r.src}`);
 }
 const p0 = probes[0];

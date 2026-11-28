@@ -282,7 +282,7 @@ if (!SMOKE) {
     }
   }
   const label = "EV9 the reference lab's release suites take about two weeks or less at the documented staffing (a full suite is 14 days at full staffing)";
-  KNOWN[label] = 'OPEN.md § Bugs: RefBot release suites wait 29-89 d in a year (the ready-date preview says 14-24 d): staffing/queue question, test audit G2';
+  KNOWN[label] = 'OPEN.md § Tests: RefBot release suites wait 29-89 d in a year (the ready-date preview says 14-24 d): staffing/queue question (evals EV9)';
   check(releaseDays.length > 3 && Math.max(...releaseDays) <= 16, label, releaseDays.join(', '));
 }
 
