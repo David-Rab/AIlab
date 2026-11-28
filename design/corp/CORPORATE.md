@@ -77,8 +77,8 @@ A class's votes take one of two forms. Both are real patterns:
 | Founder super-voting | founders after a dual-class IPO | multiplier | ×10 |
 | Non-voting (Class N) | a partner at or under its 15% cap | multiplier | ×0 [R15: Amazon 12%, Google 14.99%] |
 | **Mission** | the mission body | **fixed share** | ⅔ of all votes, so it elects 4 of the 6 elected seats [D] |
-| **Golden share** (soft path) | the US government | **fixed share** | 2 of 6 seats' worth of votes, with the security power (§2.3) [D] |
-| **State control** (hard path) | the US government | **fixed share** | ⅔ of all votes [D] |
+| **Golden share** (soft path) | the US government | **seat right** (no votes, no stake) | 2 government directors on top of the 7, with the security power (§2.3); it does not change the votes, so the controller (if any) stays [D] |
+| **State control** (hard path) | the US government | **fixed share** | ⅔ of all votes; it replaces the mission class (the mission body keeps its stake as common shares) [D] |
 
 A fixed-share class takes its share first. The other classes split the rest by multiplier.
 
@@ -195,7 +195,7 @@ an owner.
 
 Today, accepting E22 pools 50% of each US rival lab's compute into you as free cloud capacity. New:
 - the same share of their **staff** joins your teams [D];
-- the government takes a **golden share**: 2 seats' worth of votes and the security approval power (§2.1, §2.3). The
+- the government takes a **golden share**: 2 directors on top of the 7 (no votes in the share count, so the controller stays) and the security approval power (§2.1, §2.3). The
   closest real case is the US stake in Intel (Aug 2025, about 10%);
 - nothing else changes: same controller (if any), same money.
 
