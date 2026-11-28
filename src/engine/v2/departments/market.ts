@@ -139,8 +139,8 @@ export function matchScale(s: GameStateV2, k: TeamRole): number {
   return 12 * F0_PER_MONTH * Math.pow(MU_REF_V[k] / b.U0, ALPHA);
 }
 
-/** Talent pull multiplier [D]: 1 + talentPull/50 at the start type's anchor (data/v2/starts.ts mods; no drift or bumps
- *  since the relation stocks went, W1c) plus approval / 5 (W4: one approval for customers and hiring), floor 0. */
+/** Talent pull multiplier [D]: 1 + talentPull/50 at the start type's anchor (data/v2/starts.ts mods; no drift or bumps)
+ *  plus approval / 5 (one approval for customers and hiring), floor 0. */
 export const pullOf = (s: GameStateV2) => Math.max(0, 1 + (startOf(s).mods.talentPull + s.public.approval / PUBLIC.pullPerApproval) / 50);
 
 /** The morale multiplier for kind k: today's moraleFactor per department, weighted by where the openings are. Morale's

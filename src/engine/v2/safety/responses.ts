@@ -290,8 +290,7 @@ export function setIncidentDisclosure(s: GameStateV2, ctx: SystemCtx, inc: Incid
   return undefined;
 }
 
-/** Disclose an incident: the world learns the discovered failure mode it shows, its public timer ends. (Its scrutiny
- *  and trust effects went with the relation stocks, W1c.) */
+/** Disclose an incident: the world learns the discovered failure mode it shows, its public timer ends. */
 export function discloseIncident(s: GameStateV2, ctx: SystemCtx, inc: Incident): void {
   if (typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) revealToWorld(s, inc.trueSource as UModeId);
   inc.status = 'disclosed';

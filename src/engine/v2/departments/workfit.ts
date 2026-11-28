@@ -310,8 +310,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
  *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
  *    rates. Siloing −5% per level [D: compartmentalisation friction; who cannot share experiments is not modelled];
  *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; the world's
- *    research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline). (The verified-treaty ×0.65 and
- *    the E12 clearances' sidelined heads went with the government actors, W1d.) */
+ *    research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline). */
 export interface ResearchMods { speed: number; frontierExp: number }
 export function researchMods(s: GameStateV2): ResearchMods {
   const p = s.player;

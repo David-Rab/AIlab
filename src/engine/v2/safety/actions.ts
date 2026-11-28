@@ -326,14 +326,13 @@ const RESPOND: ActionDef = {
 };
 
 /** SR-18: what disclosing an incident does (discloseIncident) as preview lines; public state only. The trust and
- *  scrutiny it used to move went with the relation stocks (W1c), the approval penalty a leak avoided with the public
- *  actor (W1d; W4 brings it back): disclosing now tells government and evaluators, shares the failure mode it shows,
- *  and ends its public timer. */
+ *  scrutiny it used to move no longer exist, and disclosure does not yet move approval or concern (OUTSIDE-WORLD §8.1):
+ *  disclosing tells government and evaluators, shares the failure mode it shows, and ends its public timer. */
 function discloseLines(): Preview {
   return { costs: [], gains: [], exposure: [] };
 }
 /** SR-18: what withholding does: a must-report incident is a cover-up (a statutory fine once the report is late). The
- *  public penalty if outsiders find it went with the public actor (W1d; W4 brings it back). */
+ *  public penalty if outsiders find it is not yet wired to approval or concern (OUTSIDE-WORLD §8.1). */
 function withholdLines(s: GameStateV2, must: boolean): CostLine[] {
   const raise = lawsInForce(s).raise;
   return must
@@ -769,7 +768,7 @@ const METHOD_POLICY: ActionDef = {
 };
 
 // ───────── Pledges that sign a commitment (research/17 §1.4; ids A1, A3, A6 kept from the relations catalog) ─────────
-// The trust, credibility and bloc effects they had went with the relation stocks (W1c). Pre-deploy testing lets the US
+// Pre-deploy testing lets the US
 // government see the tested internal model (world/observe.ts govMilestones); approval moves on a broken pledge.
 
 const PREDEPLOY_TESTING: ActionDef = simpleAction({

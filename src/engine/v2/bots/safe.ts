@@ -58,8 +58,7 @@ export const safeBot: BotPolicy = {
       }
     }
     refPlay(s, api, SAFE_PLAY);
-    // Releases wait for external review (fullPlusExternal): since the evaluator reports went with the research bodies
-    // (W1c) the bot orders an independent evaluators' suite on each ready version (below); since R6 eval suites do not
+    // Releases wait for external review (fullPlusExternal): the bot orders an independent evaluators' suite on each ready version (below); since R6 eval suites do not
     // expire, so the mini launches the day that suite finishes (no 24-day re-evals).
     financeAutopilot(s, SAFE_AUTOPILOT);
     if (every(s, 15)) {

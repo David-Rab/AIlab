@@ -14,7 +14,7 @@ export const capex2xBot: BotPolicy = {
     financeAutopilot(s, CAPEX2X_AUTOPILOT);
   },
   decide(s, d) {
-    // Finance offers taken to fund the capex (RefBot's E20/E23 answers went with those events, W1d).
+    // Finance offers taken to fund the capex.
     // FIN3c: as the race bot, buys a failing rival for cash or stock (never selling control, never forcing the board).
     if (d.id === 'E32') return mergerChoice(s, d, { cushion: 10, maxStake: 0.15 });
     return pickByTags(s, d, [['deal', 'finance'], ['race', 'continue'], ['hawk']]);
