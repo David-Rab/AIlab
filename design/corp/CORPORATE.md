@@ -254,7 +254,7 @@ partner's offers:
 - **Partner stakes** are capped at 15% with no votes (antitrust, sourced). The only way past is a rescue or a merger,
   both judged at the stake they reach (§4).
 - **The separate anchoring channel is removed.**
-- **Rival labs** keep no partner mechanics. A rival card shows a backer label only.
+- **Rival labs** themselves have no partner mechanics. Their owners and backers are setup data (§5.8), and a rival card shows them as a label.
 
 ### 5.6 Sovereigns are dropped
 
