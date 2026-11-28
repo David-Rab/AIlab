@@ -198,11 +198,12 @@ export function setExportPolicy(s: GameStateV2, policy: ChipMarket['exportPolicy
 const TAIWAN_TENSION = 0.4;
 
 /** Quarterly Taiwan quarantine probability: 0.25% × (1 + 4·tension), cap 3% [R15 Design], × China's factor 1 +
- *  CHINAGOV.taiwanPerRung × its tension rung, plus CHINAGOV.taiwanCoercion from coercion over Taiwan (rung 3) on
- *  (world/chinagov.ts). */
+ *  CHINAGOV.taiwanLowRung × min(tension, 2) + CHINAGOV.taiwanHighRung × max(0, tension − 2), plus CHINAGOV.taiwanCoercion
+ *  from coercion over Taiwan (rung 3) on (world/chinagov.ts). Rare before coercion, likely during a prolonged one. */
 export function taiwanHazardQ(s: GameStateV2): number {
   const t = s.chinagov.tension;
-  return Math.min(0.03, 0.0025 * (1 + 4 * TAIWAN_TENSION)) * (1 + CHINAGOV.taiwanPerRung * t) + (t >= 3 ? CHINAGOV.taiwanCoercion : 0);
+  const factor = 1 + CHINAGOV.taiwanLowRung * Math.min(t, 2) + CHINAGOV.taiwanHighRung * Math.max(0, t - 2);
+  return Math.min(0.03, 0.0025 * (1 + 4 * TAIWAN_TENSION)) * factor + (t >= 3 ? CHINAGOV.taiwanCoercion : 0);
 }
 /** Korea HBM disruption probability 0.1%/q [R15 Design]. */
 export const KOREA_HAZARD_Q = 0.001;
