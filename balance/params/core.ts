@@ -886,7 +886,7 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.endings.escapeQuietDays',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'day - w.loose.day >= 90' },
+    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'day - sec.loose.day >= 90' },
     value: 90, unit: 'days', area: 'safety', layer: 'world', actor: 'model', kind: 'untagged',
     evidence: 'no tag; endings.ts:96-97 "after 90 d it goes quiet (location unknown)"',
   },
@@ -898,7 +898,7 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.endings.overtakenHoldDays',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: '(w.overtakenDays[id] ?? 0) >= 180' },
+    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: '(ep.overtakenDays[id] ?? 0) >= 180' },
     value: 180, unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; endings.ts:120',
   },
