@@ -141,7 +141,7 @@ function printChoicesVsWorld(results: RunResult[], bots: string[]) {
 }
 
 const TAKEOVER: EndingId[] =['asiTakeover', 'rivalTakeover', 'chinaTakeover', 'rogue'];
-const COMPANY: EndingId[] = ['insolvent', 'ousted', 'absorbed', 'nationalized'];
+const COMPANY: EndingId[] = ['insolvent', 'ousted', 'absorbed'];
 const OTHER_FIRST: EndingId[] = ['overtaken', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover'];
 
 function main() {
@@ -211,7 +211,7 @@ function main() {
   printChoicesVsWorld(results, ['race', 'ref', 'mixed', 'safe'].filter((b) => BOTS.includes(b)));
 
   // E5 (statistical): ending coverage across all runs.
-  const ALL_ENDINGS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover', 'overtaken', 'catastropheBio', 'catastropheCyber', 'war', 'rogue', 'insolvent', 'ousted', 'absorbed', 'nationalized', 'retired'];
+  const ALL_ENDINGS: EndingId[] = ['asiAligned', 'asiContested', 'asiTakeover', 'rivalAligned', 'rivalTakeover', 'chinaAligned', 'chinaTakeover', 'overtaken', 'catastropheBio', 'catastropheCyber', 'war', 'rogue', 'insolvent', 'ousted', 'absorbed', 'retired'];
   const seen = new Set(results.map((r) => r.ending));
   console.log(`\nE5 coverage over ${results.length} runs: ${seen.size}/${ALL_ENDINGS.length} endings seen; missing: ${ALL_ENDINGS.filter((e) => !seen.has(e)).join(', ') || 'none'}`);
   console.log(`total ${((performance.now() - t0) / 1000).toFixed(0)} s`);

@@ -99,11 +99,21 @@ export function boardVote(s: GameStateV2, decision: MajorDecision, trigger: stri
  *  only by the mission seats; it passes with more than half of their votes and can never be forced (the override is
  *  not a right over the mission body). */
 export function trustVote(s: GameStateV2, decision: MajorDecision, trigger: string): BoardVote {
+  return bodyVote(s, decision, trigger, 'mission', 'trust');
+}
+
+/** A vote of the government's directors (security approval, CORPORATE.md §2.3: a golden share's 2 directors, or the
+ *  state-control seats): the same as the trust's, cast only by the 'gov' seats; it can never be forced. */
+export function securityVote(s: GameStateV2, decision: MajorDecision, trigger: string): BoardVote {
+  return bodyVote(s, decision, trigger, 'gov', 'security');
+}
+
+function bodyVote(s: GameStateV2, decision: MajorDecision, trigger: string, kind: BoardSeat['kind'], body: 'trust' | 'security'): BoardVote {
   const v = boardVote(s, decision, trigger);
-  const seats = v.seats.filter((x) => x.kind === 'mission');
+  const seats = v.seats.filter((x) => x.kind === kind);
   const total = seats.reduce((a, x) => a + x.weight, 0);
   const yes = seats.reduce((a, x) => a + (x.yes ? x.weight : 0), 0);
-  return { ...v, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: false, body: 'trust' };
+  return { ...v, seats, yes, total, passes: total > 0 && yes > total / 2, canForce: false, body };
 }
 
 /** The vote new firm commitments need: when payments due in the next four quarters would exceed 3× revenue. */
@@ -136,7 +146,8 @@ export function voteGate(ctx: SystemCtx, vote: BoardVote | undefined, force: boo
 
 /** Why a failed vote stops a decision (and whether the override could force it). */
 export function voteNo(vote: BoardVote): string {
-  return `The ${vote.body === 'trust' ? 'mission body' : 'board'} votes no on ${vote.label.toLowerCase()} (${vote.yes} of ${vote.total} votes for, needs more than half)${vote.canForce ? `; your majority can force it (confidence −${VOTE.forceCost})` : ''}`;
+  const who = vote.body === 'trust' ? 'The mission body votes' : vote.body === 'security' ? "The government's directors vote" : 'The board votes';
+  return `${who} no on ${vote.label.toLowerCase()} (${vote.yes} of ${vote.total} votes for, needs more than half)${vote.canForce ? `; your majority can force it (confidence −${VOTE.forceCost})` : ''}`;
 }
 
 /** Preview line for a vote: the force cost when forcing a vote that fails. */

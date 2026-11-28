@@ -155,7 +155,7 @@ export interface UsGovState {
   /** The player accepted the oversight committee (E20). */
   oversight: boolean;
   /** Stage 4: 'dpa' the frontier labs consolidated under the DPA (with the player only if it accepted E22),
-   *  'nationalized' the player's lab taken (the hard path). */
+   *  'nationalized' the player's lab taken (the hard path: state control while it leads, else absorbed). */
   consolidated: 'none' | 'dpa' | 'nationalized';
   /** Consecutive days each condition has held (concern for stage 4, low trust, frontier licensing). */
   holdDays: Record<string, number>;
@@ -1773,7 +1773,7 @@ export interface BoardVote {
    *  Never for a mission body's vote. */
   canForce: boolean;
   /** Who votes: the whole board (default) or, for the mission body's powers, only its (mission) seats. */
-  body?: 'board' | 'trust';
+  body?: 'board' | 'trust' | 'security';
 }
 
 /** One seat's vote at an ouster review (FIN3b, spec §7.5): yes when lean = grievance + depth − reluctance > 0. */
@@ -2059,9 +2059,18 @@ export interface DivisionBudget {
   /** An owner that took control mid-game: its plan is the parent path × this (year 0 = your last four quarters of
    *  spending). Absent = 1 (a division from the start). */
   planScale?: number;
+  /** The government's goals for this year (CORPORATE.md §3.2), set at its review and judged at the next: plain checks,
+   *  not promises (finance/parent.ts). `govGoalsDay` = the day they were set (the incident window starts there). */
+  govGoals?: GovGoalId[];
+  govGoalsDay?: Day;
 }
+/** The government's three yearly goals: the security level at or above its floor, still ahead of China's lab, no
+ *  incident of severity 4 or more in the year. */
+export type GovGoalId = 'security' | 'lead' | 'incident';
 export interface DivisionReview {
   year: number; day: Day; budget: Money;
+  /** The government's goals judged at this review (a government controller only): each met or missed. */
+  gov?: { id: GovGoalId; label: string; met: boolean; detail: string }[];
   /** Net spending over the year, the overspend the parent was still covering at the review and the confidence it cost. */
   spent: Money; over: Money; overConf: number;
   goals: { met: number; near: number; missed: number };
@@ -2464,7 +2473,7 @@ export type EndingId =
   | 'asiAligned' | 'asiContested' | 'asiTakeover' // player ASI
   | 'rivalAligned' | 'rivalTakeover' | 'chinaAligned' | 'chinaTakeover' // other ASI first
   | 'overtaken' | 'catastropheBio' | 'catastropheCyber' | 'war' | 'rogue'
-  | 'insolvent' | 'ousted' | 'absorbed' | 'nationalized' | 'retired';
+  | 'insolvent' | 'ousted' | 'absorbed' | 'retired';
 
 export type PowerOutcome = 'treaty' | 'committee' | 'democratic' | 'corporate' | 'government' | 'multipolar' | 'beijing' | 'none';
 

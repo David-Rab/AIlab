@@ -4,6 +4,7 @@ import { affiliatedLab } from '../finance/deals';
 import { leadDays } from '../actors/intel';
 import { cadencesDue, decimalYear } from '../core/time';
 import { CHINAGOV } from '../world/chinagov';
+import { nationalProjectAbsorber } from '../world/usgov';
 import { activeRivals } from '../models/labs';
 import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
@@ -31,17 +32,16 @@ export const ENDING_TEXT: Record<EndingV2['id'], [string, string]> = {
   insolvent: ['Insolvent', 'You ran out of money before you ran out of ideas.'],
   ousted: ['Ousted', 'The board removed you. The company races on under new leadership.'],
   absorbed: ['Absorbed', '{lab} folds your lab into its own. Your people and compute now race under its name.'],
-  nationalized: ['Nationalized', 'The government took control of your lab. Your clearance was revoked the same day.'],
   retired: ['The long road', 'You stepped away. The race continued without you.'],
 };
 
 /** Build and set the ending (scores, verdict, epilogue). */
-export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], power: PowerOutcome, epi: EndingV2['epilogue'] = {}, subject?: LabId) {
+export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], power: PowerOutcome, epi: EndingV2['epilogue'] = {}, subject?: LabId, text?: string) {
   if (s.ending) return;
   const [title, text0] = ENDING_TEXT[id];
   const name = subject ? (subject === 'player' ? s.player.name : labOf(s, subject)?.core.name ?? 'A rival') : '';
   const scores = scoreEnding(s, id, power);
-  s.ending = { id, power, day: ctx.day, title, text: text0.replace('{lab}', name), scores, verdict: verdictOf(scores), epilogue: epi };
+  s.ending = { id, power, day: ctx.day, title, text: (text ?? text0).replace('{lab}', name), scores, verdict: verdictOf(scores), epilogue: epi };
   ctx.log('alert', `${title}.`, 5, 'ending'); // the one notice that blocks the game (ui store)
 }
 
@@ -84,7 +84,7 @@ export const endingsSystem: EngineSystem = {
     const day = ctx.day;
 
     // TEST INSTRUMENT, not a game mechanic: scripts/v2/observer.ts sets s.flags['harness:observer'] for runs with no player.
-    // The player's company endings are then off (insolvent, ousted, absorbed, nationalized, the player's own ASI, overtaken,
+    // The player's company endings are then off (insolvent, ousted, absorbed, the player's own ASI, overtaken,
     // retired and the 2050 cap) and another lab's aligned ASI does not end the run (the harness stops itself 3 years later);
     // world endings (catastrophe, rogue, a misaligned lab's takeover) still do.
     const observer = s.flags['harness:observer'] === true;
@@ -97,8 +97,10 @@ export const endingsSystem: EngineSystem = {
       const lab = absorbingLab(s);
       return lab ? lossEnding(s, ctx, 'absorbed', lab.core.id) : lossEnding(s, ctx, 'ousted');
     }
-    // 3. Nationalized (hard path).
-    if (!observer && s.usgov.consolidated === 'nationalized') return lossEnding(s, ctx, 'nationalized');
+    // 3. The hard path while the player is behind: the government folds the lab into the national project under the
+    //    frontier lab (absorbed). While the player leads, nationalizing is state control, not an ending (usgov.ts).
+    const project = nationalProjectAbsorber(s);
+    if (!observer && project) return lossEnding(s, ctx, 'absorbed', project, 'The government folds your lab into the national project under {lab}. Your people and compute now race under its name.');
     // 4. Catastrophe.
     const cat = catastropheCheck(s, ctx);
     if (cat) return endGame(s, ctx, cat, 'none');
@@ -156,12 +158,12 @@ const round3 = (x: number) => Math.round(x * 1000) / 1000;
 /** Company-loss / overtaken / retired: the epilogue fast-sims the leading competitor and resolves it with its own
  *  hidden traits (model v3 E9: lost when its projected Mis exceeds the world's tolerance, no roll); its power outcome
  *  feeds Freedom. */
-function lossEnding(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], subject?: LabId) {
+function lossEnding(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], subject?: LabId, text?: string) {
   const epi = runEpilogue(s);
   const X = subject ?? epi.asiLab ?? leadingCompetitor(s);
   let power: PowerOutcome = 'none';
   if (X && epi.misAtAsi !== undefined) {
     power = epilogueLost(s, epi.misAtAsi) ? 'none' : alignedPower(s, X);
   }
-  endGame(s, ctx, id, power, epi, X);
+  endGame(s, ctx, id, power, epi, X, text);
 }
