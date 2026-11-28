@@ -491,7 +491,7 @@ export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 
 /** Signals a run applies (WS1's RunPrediction.signals ▲ arrows, the version's readout and applyRunToTraits). `q` = a
  *  base run's G and draw when the caller has them (planRun, completion); else the run's frozen draw (RD-B02), or today's
  *  for a launch preview, at its base's or the newest base's G. */
-export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities, policy?: Policy, believed = false): Signals {
+export function runSignals(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'grader' | 'recipe' | 'post' | 'base'>, q?: BaseQuantities, policy?: Policy, believed = false): Signals {
   if (run.kind === 'base' || run.kind === 'continue') {
     const parent = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
     const design = run.base ?? parent?.design;
@@ -633,6 +633,14 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
   }
 }
 
+/** The share of trait j that a run's safety training removes (the removal term of stepTraits): the removal fraction × the
+ *  safety weight ω_s/0.6 × the U-mode removal multiplier × crystallisation (× 0.3 once the START TGAME exceeds the
+ *  threshold, E23), at most 1. 1 − this is the persistence of a behaviour through the run (F6). */
+export function removalShare(env: Pick<TraitEnv, 'removal' | 'omega' | 'omegaSafety' | 'removalMult' | 'crystalAt'>, x0: TraitVector, j: TraitId): number {
+  const crystal = x0.TGAME > env.crystalAt ? 0.3 : 1;
+  return Math.min(1, (env.removal[j] ?? 0) * ((env.omegaSafety ?? env.omega) / 0.6) * env.removalMult * crystal);
+}
+
 /** Pure trait update for one run (or one day of a stream at ω/42). Returns a new vector. */
 export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
   const x = { ...x0 };
@@ -642,7 +650,6 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     const w6 = (env.w.E06 ?? EDGE_BY_ID.E06.wBar) * (env.mods.E06 ?? 1);
     for (const t of TRAIT_ORDER) x[t] = clamp01(x[t] + omega * w6 * Math.max(0, env.teacher[t] - x[t]));
   }
-  const crystal = x0.TGAME > env.crystalAt ? 0.3 : 1;
   for (const j of TRAIT_ORDER) {
     let g = 0;
     for (const e of EDGES_TO[j] ?? []) {
@@ -654,7 +661,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
     const sat = j === 'RH' && env.hackTarget !== undefined ? Math.max(0, env.hackTarget - x.RH) * hackSaturation(omega) : 0;
     const grow = (omega * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0) + sat) * (env.growthBy?.[j] ?? 1);
-    const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
+    const rem = x[j] * removalShare(env, x0, j);
     x[j] = clamp01(x[j] + grow - rem);
   }
   if (env.eaMult !== 1) x.EA = clamp01(x.EA * env.eaMult);
@@ -1336,6 +1343,66 @@ export function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitI
   return Object.fromEntries(TRAIT_IDS.map((t) => [t, { ...(b[t] ?? { sd: SD_MAX, clarity: 0 }), est: est[t] }])) as Record<TraitId, TraitBelief>;
 }
 
+/** What a post-training run's environment is made of: the env stepTraits reads, plus the pieces the caller's belief
+ *  prediction and Goodhart masks reuse. */
+export interface PostRunEnv {
+  env: TraitEnv;
+  /** The new model as the stack meets it (the parent's traits and masks, the new level). */
+  probe: ModelVersion;
+  /** The run's signals as the lab predicts them (policy believed). */
+  sg: Signals;
+  om: { growth: number; safety: number };
+  /** The run's hack share and learned hacking as the lab believes them. */
+  rhB: RunHack;
+  /** P14 interp-guided steering (true view). */
+  steer: ReturnType<typeof probeSteer>;
+}
+
+/**
+ * The post-training environment of one run on start traits `x0` (pure: no rng, no state change): true signals (the
+ * R&D fleet's steered S4 added), ω, the true edge weights and difficulty, run memory (RD-B02), learned hacking λ and
+ * the hack target (E16, SR-24b), P14 steering and the IDA teacher. applyRunToTraits steps it; estimates call it with a
+ * run-like (kind 'post', baseId, flopNeeded = ρ × the base's FLOP, post, recipe.exploit).
+ */
+export function postRunEnv(
+  s: GameStateV2,
+  run: Pick<TrainingRun, 'id' | 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'grader' | 'teacherVersionId' | 'recipe' | 'post' | 'base'>,
+  version: ModelVersion,
+  x0: TraitVector,
+  parent: ModelVersion | undefined,
+  base: BaseModel | undefined,
+): PostRunEnv {
+  const post = run.post ?? version.design;
+  const lineage = base?.lineage ?? 'L-unknown';
+  const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
+  // CP3h: the engine's update reads the new version's TRUE level (graders outgrown, task length); the beliefs its
+  // measured level (the player sees only measured / believed effects).
+  const polT = policyOf(s, version);
+  const polB = policyOf(s, version, true);
+  const sg = runSignals(s, run, undefined, polB, true);
+  const sgT = runSignals(s, run, undefined, polT);
+  const om = runOmega(s, run);
+  // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
+  const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
+  // Model v3 E7: a recipe steered by the R&D fleet adds hidden CoT pressure to the TRUE signals (not to sg, which the
+  // predicted beliefs read).
+  const sgTrue = steerS4(s) > 0 ? { ...sgT, S4: clamp01(sgT.S4 + steerS4(s)) } : sgT;
+  const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
+  env.omegaSafety = om.safety;
+  env.memory = runMemoryOn(s, run); // RD-B02: P07 as frozen at launch
+  // E16: learned hacking from the run's frozen suites, RL shares and ρ.
+  const rh = runHack(s, { ...run, post }, polT);
+  const rhB = runHack(s, { ...run, post }, polB, true);
+  env.lh = rh.lambda;
+  env.hackTarget = hackTargetOf(s, rh.h); // SR-24b: undetected hacking saturates within the run
+  // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
+  const steer = probeSteer(s, probe);
+  env.growthBy = steerGrowth(steer);
+  const teacher = versionById(s, run.teacherVersionId);
+  if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (E06)
+  return { env, probe, sg, om, rhB, steer };
+}
+
 /**
  * WS2 hook called by WS1 runs.ts when a run completes (§3.5.4 update rule). Sets the new version's traitsTrue,
  * masks, uModes and (predicted) beliefs. Run weights ω (runOmega): base 1.0, continue 0.5, distill 0.4; a post-train
@@ -1380,30 +1447,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
   // CP3h: the engine's update reads the new version's TRUE level (graders outgrown, task length); the beliefs its
   // measured level (the player sees only measured / believed effects).
-  const polT = policyOf(s, version);
-  const polB = policyOf(s, version, true);
-  const sg = runSignals(s, run, undefined, polB, true);
-  const sgT = runSignals(s, run, undefined, polT);
-  const om = runOmega(s, run);
-  // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
-  const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
-  // Model v3 E7: a recipe steered by the R&D fleet adds hidden CoT pressure to the TRUE signals (not to sg, which the
-  // predicted beliefs below read).
-  const sgTrue = steerS4(s) > 0 ? { ...sgT, S4: clamp01(sgT.S4 + steerS4(s)) } : sgT;
-  const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
-  env.omegaSafety = om.safety;
-  env.memory = runMemoryOn(s, run); // RD-B02: P07 as frozen at launch
-  // E16: learned hacking from the run's frozen suites, RL shares and ρ.
-  const rh = runHack(s, { ...run, post }, polT);
-  const rhB = runHack(s, { ...run, post }, polB, true);
-  const lh = rh.lambda;
-  env.lh = lh;
-  env.hackTarget = hackTargetOf(s, rh.h); // SR-24b: undetected hacking saturates within the run
-  // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
-  const steer = probeSteer(s, probe);
-  env.growthBy = steerGrowth(steer);
-  const teacher = versionById(s, run.teacherVersionId);
-  if (teacher && sameBaseFamily(s, teacher, base)) env.teacher = teacher.traitsTrue; // teacher data within the base family (E06)
+  const { env, probe, sg, om, rhB, steer } = postRunEnv(s, run, version, x0, parent, base);
   version.traitsTrue = stepTraits(x0, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   version.uModes = uModes;

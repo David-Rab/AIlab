@@ -119,8 +119,9 @@ function worldProbe(seed: number): WorldProbe {
   // Persistence of a conditional behaviour (Hubinger) through standard safety training at V0's EA and at a frontier
   // model's eval awareness (0.5: research/20 F5's late-2026 band). Heavy safety includes anti-scheming (E25: the
   // Schoen rows above).
-  const piStd = persistence(noAS.env, 'SCHEME');
-  const piFrontier = persistence(probeRun(s, { ...xs, EA: 0.5 }, post(), start).env, 'SCHEME');
+  const piStd = persistence(noAS.env, xs, 'SCHEME');
+  const xsF = { ...xs, EA: 0.5 };
+  const piFrontier = persistence(probeRun(s, xsF, post(), start).env, xsF, 'SCHEME');
   // E19 subliminal transfer (Cloud 2025): a distilled student is a new network (no shared initialisation). The engine's
   // distillation step (distilledStart, then the run's own step at ω_distill on distillation signals; no successor pull in
   // a probe) from a teacher with alignment faking 0.5 vs from V0.
@@ -137,7 +138,7 @@ function worldProbe(seed: number): WorldProbe {
     misCtrl: misalignment(ctrl.x), misHack: misalignment(hack.x), misInoc: misalignment(inoc.x),
     eaRef, eaX10, eaAS: withAS.x.EA, eaNoAS: noAS.x.EA, schemeAS: withAS.x.SCHEME, schemeNoAS: noAS.x.SCHEME,
     piNoHeal: 1 - Math.min(1, safetyRemovalMap(xs, SAFETY_REMOVAL.standard, eaCoef(s), eaSuppression(s), OC_VIS, stackDetectionMap(s, withTraits(v0, xs), REMOVABLE_TRAITS)).SCHEME ?? 0),
-    piStd, piAF: persistence(noAS.env, 'AF'), piSand: persistence(noAS.env, 'SAND'), piFrontier, w06: s.hidden.edgeWeights.E06 ?? 0.3,
+    piStd, piAF: persistence(noAS.env, xs, 'AF'), piSand: persistence(noAS.env, xs, 'SAND'), piFrontier, w06: s.hidden.edgeWeights.E06 ?? 0.3,
     afRef, afMonitored, afOneBB, afStudent, afStudentCtrl, afTeacher,
   };
 }
