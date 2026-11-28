@@ -27,7 +27,7 @@ Game start is 2025-07-01 (`GOLD_DAYS` days count from it, targets.ts:36-41); "th
 | H17 `F6.persistence.scheme` | safety training leaves a SCHEME behaviour | 2024-26 | persists 80-100% | as stated | Hubinger 2024; research/20 F6 (targets.ts:1258) | Y | response |
 | H18 `F5.evalAwareness2026`, `F5.afComplianceGap2026` | verbalised eval awareness; AF compliance gap | late 2026 | 20-50%; 0-15% | as stated | research/05 §1.7, §1.4 (targets.ts:1230, :1244) | Y | point |
 | H19 `DANGER.start.actRate` | incident acts per lab-year | 2025 | ~1.2 | 0.4-3 | research/05 §1.1-1.2 (targets.ts:1295) | Y | point |
-| H20 `T3.china.gap2026` | best Chinese model behind US frontier | Nov 2026 | ~6.5 mo (ECI), 6.6 (horizon); CAISI 8 mo | 6.5-8 | research/10:27, :135, :279 (IFP Oct 2026; CAISI May 2026) | P (T3.china.startLead 150-200 d is the AI 2027 text for Jul 2025, targets.ts:274) | point |
+| H20 `T3.china.gap2026` | best Chinese model behind US frontier | Nov 2026 | ~6.5 mo (ECI), 6.6 (horizon); CAISI 8 mo | 6.5-8 | research/10:27, :135, :279 (IFP Oct 2026; CAISI May 2026) | P (CAST.china.startLead is the Jul 2025 start lead, a different date) | point |
 | H21 `A2a.*` | US AI use at work | Q2 2026 | 6.3% of hours; 39-41% of workers; 2.2% hours saved; 0.35 h saved per h | 5-6.5%; 35-45%; 1.7-2.7%; 0.3-0.4 | research/22:23-31 (Bick, Blandin, Deming RPS) (targets.ts:981-1017) | Y | point |
 | H22 `W4.firmAdoption` | US firms using AI | Jan to May 2026 | 17.7% to 19.8% | 15-22% | research/22 row 1f (BTOS, Census) (targets.ts:1067) | Y | point |
 | H23 `A2b.paidShare2026` | paid share of AI users | 2026 | ~5.6% | 4-9% | research/22 row 2e (targets.ts:1029) | Y | trajectory |

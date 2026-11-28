@@ -25,8 +25,8 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | METR.h50.doubling | 50% horizon doubles every 4.2 mo (3.2-5.2) | METR TH1.1; research/20:50 | 2023-2026 |
 | STACK.pretrainRate.ai2027 | pretraining stack 0.48 OOM/yr, +-30% | Ho et al.; research/20:33 | trend to 2024 |
 | GOLD.authors2026.h80 | 80% horizon ~186 min | AIFM present horizon, research/03:203 | 2026.27 (Aug 2026 run, horizon of an early Mythos Preview) |
-| T4.rival.gaps | rivals 3-9 months behind | R07 | Jul 2025 start |
-| T3.china.startLead, T3.china.meanLead | China 150-200 days behind | R11 #16 / AI 2027 "about six months" (ws4.ts:290); real Nov 2026 6.5 mo, research/10:279 | Jul 2025 start (meanLead: unsure, "until a theft" is forecast) |
+| T4.rival.gaps | rivals 0-11 months behind | CAST-2025 | Jul 2025 start |
+| CAST.china.startLead, CAST.china.trailMean | China 6.5-8 months behind at the start; mean trail 90-270 d | npc/CAST-2025.md; real Nov 2026 6.5 mo, research/10:279 | Jul 2025 start |
 | F1.production2026 | ~25M H100e produced | Epoch, research/15:445 | 2026 (Q2 2026 6.33M/q, research/15:27) |
 | F6.supplierMargin | supplier margin 70-75% | Nvidia 72-75%, research/15:450 | Q4 2025 to Q4 2027 (straddles; 2027 half is a forecast) |
 | F7.revenue2026 | $36-67B (AI 2027 $45B; Anthropic CY2026 $53-56B) | research/22:228-262 | 2026 (9M 2026 $33.2B measured; Q4 estimated; unsure) |
@@ -51,7 +51,7 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | T1/T1L/GOLD `fast` (13) | Daniel AC 2027.92 + AI 2027 p10 takeoff (research/11:220-233) |
 | T1/T1L/GOLD `slow` (5) | AIFP Dec 2025 "pure exponential ... AC in 2034" (research/11:235-250; CAL-world-sources.md:130-148) |
 | GOLD.sampled.SC | Eli Apr 2025 distributions, p10/p50/p90 2026.05/2028.37/2044 (research/11:168-196) |
-| T2.labour.SC | AI 2027 ~200k copies at ~30x at SC |
+| T2.labour.SCband | AI 2027 ~200k copies at ~30x at SC |
 | F2.production2027 | 45-60M H100e in 2027 (research/15:446, AI27 + Epoch trend) |
 | F9.fc2.byYear | multiple stays 20-37x in 2027 (2026 half is history; straddles) |
 | F11.revenue2027 | AI 2027 $140B in 2027 |

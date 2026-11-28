@@ -159,7 +159,7 @@ export function targets(): Target[] {
     R('F3.installedStock', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`, ratios);
     const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin); // band-lint: ok measured years
     const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;
-    { const v = `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`; R('F6.supplierMarginMean', v, meanM); R('F6.supplierMarginMin', v, Math.min(...m27)); };
+    { const v = `mean ${f1(meanM * 100)}%, min ${f1(Math.min(...m27) * 100)}%`; R('F6.supplierMargin', v, meanM); R('F6.supplierMarginMin', v, Math.min(...m27)); };
   }
 
   // ───────────── F4, F5: demand shocks (passive player, same seed) ─────────────
@@ -173,7 +173,7 @@ export function targets(): Target[] {
     const first = diff.findIndex((d) => d > 0.01) - tq; // band-lint: ok growth-difference threshold that defines "rises" (F4)
     const win = diff.slice(0, tq + 11); // main response window (later wiggles are wafer binding switches)
     const peak = win.indexOf(Math.max(...win)) - tq;
-    { const v = `first t+${first}, peak t+${peak} (+${f1(Math.max(...win) * 100)} pp/q)`; R('F4.shock.first', v, first); R('F4.shock.peak', v, peak); R('F4.shock.earlyResponse', v, early); };
+    { const v = `first t+${first}, peak t+${peak} (+${f1(Math.max(...win) * 100)} pp/q)`; R('F4.shock.first', v, first); R('F4.demandShock', v, peak); R('F4.shock.earlyResponse', v, early); };
   }
   {
     const rb = rentalBase(15, 0.7);
