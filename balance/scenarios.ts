@@ -480,7 +480,7 @@ function aifmTimeline(t: TimelineId): Checkpoint[] {
 const FAST = aifmTimeline('fast'), CENTRAL = aifmTimeline('central'), SLOW = aifmTimeline('slow');
 
 // ───────────── alignment levels (SC1 §6) ─────────────
-const LABEL_REF = 'targets.ts:453; starts.ts:20-24';
+const LABEL_REF = 'src/data/v2/starts.ts:33 (StartDef.difficulty comment)';
 const LABEL_NOTE = 'Existing start-difficulty label band for the strongest bot win rate, offered as a starting point; the designer sets the real per-level band (winBand).';
 const ALIGNMENT: Checkpoint[] = [
   al('beginner', 'winRate', 'Strongest-bot win rate at the Beginner level', 'none', `${SC1}:172`, { status: 'blank', notes: 'No existing label band; the designer sets it.' }),

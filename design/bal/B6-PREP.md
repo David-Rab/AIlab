@@ -38,7 +38,7 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | W4.aggregateU, W4.youthExposed, W4.firmAdoption | reality baseline: U ~0, exposed youth 19% below, 17-20% firms | BTOS 17.7 to 19.8% (research/22 row 1f); V2-SPEC §7.3 W4 | Nov 2026 / May 2026 |
 | A2a.hoursOfUse2026, hoursSaved2026, workers2026, savedPerHour | 6.3% hours, 2.2% saved, 40% workers, 0.35 h/h | Bick/Blandin/Deming RPS, research/22:28-31 | Q2 2026 |
 | A2b.paidShare2026 | paid share of AI users ~5-6% | research/22 row 2e | 2026 |
-| F2.sabotageAfterHacking, MO.anchor.sabotage | sabotage on 12% of runs after learned hacking | MacDiarmid 2025 | 2025 |
+| F2.sabotageAfterHacking, MO.anchor.sabotage (deleted 2026-11-28, H) | sabotage on 12% of runs after learned hacking | MacDiarmid 2025 | 2025 |
 | F5.evalAwareness2026, F5.afComplianceGap2026 | eval awareness 20-50%, AF gap 0-15% | research/05 §1.4, §1.7 | late 2026 |
 | DANGER.start.actRate, .common, .rareActs | 0.4-3 incident acts/lab-year; sabotage/scheming ~0 | research/05 §1.1-1.10 | 2025 |
 
@@ -55,15 +55,15 @@ Per-preset split of the 70 future targets: `ai2027` 21, `authors2026` 14, `fast`
 | F2.production2027 | 45-60M H100e in 2027 (research/15:446, AI27 + Epoch trend) |
 | F9.fc2.2027, F9.fc2.2026 | multiple stays 20-37x in 2027 (2026 half is history; straddles) |
 | F11.revenue2027 | AI 2027 $140B in 2027 |
-| W.equity2026 †, W.aggregateU2026 † | AI 2027 "stock market up 30% in 2026", "aggregate U < +0.3 pp" (research/16:353, 424); dated 2026 but a forecast |
+| W.equity2026 (deleted 2026-11-28, H) †, W.aggregateU2026 † | AI 2027 "stock market up 30% in 2026", "aggregate U < +0.3 pp" (research/16:353, 424); dated 2026 but a forecast |
 | W.hireRate10, W.aiFriend2027, W.remote25, W.unemployment12m, W.govAccept85 | AI 2027 scenario, Jul to Dec 2027 (research/16:461) |
-| W2.normalTechTFP | Acemoglu 0.5-1% TFP/decade under the Normal Technology econ preset (research/16:314, 451) |
+| W2.normalTechTFP (deleted 2026-11-28, H) | Acemoglu 0.5-1% TFP/decade under the Normal Technology econ preset (research/16:314, 451) |
 | S4.refBot.pMis | authors' credences 0.4-0.8 (scripts/v2/safety.ts:148-158) |
-| S5.refBot.belowL | design reading of AI 2027 text, Apr 2027 |
+| S5.refBot.belowL (deleted 2026-11-28, H) | design reading of AI 2027 text, Apr 2027 |
 
 † Also quoted from AI 2027 for 2026 but filed here, not under history: F7.capex2026, F7.compute2026, F7.power2026, F7.valuation2026 (research/15:451 "C7 [AI27]"), F8.fundingMix (derived from C7). They are 5 more † rows inside the 70.
 
-Response (16): T3.china.afterTheft, F4, F5.spot x2, F8.noRescue, F8.capex2x, F9.fc2 x2 orderings, F9.doubtShock, F2.inoculation x3, F5.antiScheming.cut, F6.persistence.scheme, S5.mixedVsRef.sightLimit, W.youthSoft2026 (direction; its source is AI 2027 and is checkable now). Several response sizes also come from measured 2025 papers (MacDiarmid, Schoen, Hubinger): they are history-sourced responses.
+Response (16): T3.china.afterTheft (deleted 2026-11-28, H), F4, F5.spot x2, F8.noRescue, F8.capex2x, F9.fc2 x2 orderings, F9.doubtShock, F2.inoculation x3, F5.antiScheming.cut, F6.persistence.scheme, S5.mixedVsRef.sightLimit, W.youthSoft2026 (direction; its source is AI 2027 and is checkable now). Several response sizes also come from measured 2025 papers (MacDiarmid, Schoen, Hubinger): they are history-sourced responses.
 
 ## 2. Candidate scenario axes
 

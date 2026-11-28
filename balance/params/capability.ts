@@ -86,7 +86,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'derived',
     evidence: 'tree.ts:110-112 "RefBot\'s projects, fitted (model v3 V2) ... (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 (it fails in the fit world) takes the fitted ones\' mean ratio (×0.6)"',
-    fit: { targets: ['T-tree.durations'], script: 'scripts/v2/calib.ts --fit-tree' },
+    fit: { targets: [], script: 'scripts/v2/calib.ts --fit-tree (deleted; the fit target T-tree.durations, V1 RefBot attempt durations, was deleted 2026-11-28 as a pin to an old version)' },
     notes: 'derived: the fitted entries mean ratio x0.6 (tree.ts:111-112); not fitted itself.',
   },
   {
@@ -765,7 +765,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'fitted',
     evidence: 'tree.ts:110-112 "RefBot\'s projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`)"',
-    fit: { targets: ['T-tree.durations'], script: 'scripts/v2/calib.ts --fit-tree' },
+    fit: { targets: [], script: 'scripts/v2/calib.ts --fit-tree (deleted; the fit target T-tree.durations, V1 RefBot attempt durations, was deleted 2026-11-28 as a pin to an old version)' },
     notes: 'Times IDEA_WORK_PER_E 1.2 after RD-R07 (tree.ts:113-114).',
   },
   {
@@ -776,7 +776,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'fitted',
     evidence: 'tree.ts:110-112 "RefBot\'s projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`)"',
-    fit: { targets: ['T-tree.durations'], script: 'scripts/v2/calib.ts --fit-tree' },
+    fit: { targets: [], script: 'scripts/v2/calib.ts --fit-tree (deleted; the fit target T-tree.durations, V1 RefBot attempt durations, was deleted 2026-11-28 as a pin to an old version)' },
     notes: 'Times IDEA_WORK_PER_E 1.2 after RD-R07 (tree.ts:113-114).',
   },
   {
@@ -787,7 +787,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'fitted',
     evidence: 'tree.ts:110-112 "RefBot\'s projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`)"',
-    fit: { targets: ['T-tree.durations'], script: 'scripts/v2/calib.ts --fit-tree' },
+    fit: { targets: [], script: 'scripts/v2/calib.ts --fit-tree (deleted; the fit target T-tree.durations, V1 RefBot attempt durations, was deleted 2026-11-28 as a pin to an old version)' },
     notes: 'Times IDEA_WORK_PER_E 1.2 after RD-R07 (tree.ts:113-114).',
   },
   {
@@ -798,7 +798,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'fitted',
     evidence: 'tree.ts:110-112 "RefBot\'s projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`)"',
-    fit: { targets: ['T-tree.durations'], script: 'scripts/v2/calib.ts --fit-tree' },
+    fit: { targets: [], script: 'scripts/v2/calib.ts --fit-tree (deleted; the fit target T-tree.durations, V1 RefBot attempt durations, was deleted 2026-11-28 as a pin to an old version)' },
     notes: 'Times IDEA_WORK_PER_E 1.2 after RD-R07 (tree.ts:113-114).',
   },
   {

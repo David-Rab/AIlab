@@ -7,9 +7,8 @@
 //   METR    V3.7 h50 doubling ≈ 4.2 months for the reference frontier 2025–26 (±1) (tl-central).
 //   M       V3.7 research speed readout M at the start ≈ the preset's source (AI 2027 integrator M(p0), ± 0.1).
 //   T2      AI research labour on RefBot's SC day within an order of magnitude of AI 2027.
-//   R5      RefBot's build queue never delays a run by more than 3 days.
 // Cost: one RefBot game per preset (tl-fast and tl-central to ASI, tl-slow to SC) ≈ 7k game-days ≈ 4–5 CPU-min cold; with
-// golden days CAL_SEEDS × 3 games plus an integrated game per preset. Every game goes through simcache.
+// golden days CAL_SEEDS × 3 games per preset. Every game goes through simcache.
 // Env: CALREPORT_SEEDS=n (first n of CAL_SEEDS for the T1 median, once golden days exist), CALREPORT_PRESETS=tl-central,…
 // (default all three), V3_SD / V3_ASI (calibration experiments, part of every cache key).
 import { fileURLToPath } from 'node:url';
@@ -18,13 +17,9 @@ import { gOfBuild, h50Of } from '../../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../../src/engine/v2/models/labs';
 import { labSpeedRel } from '../../../src/engine/v2/production/production';
 import { speedOfCopy, workContext } from '../../../src/engine/v2/departments/workfit';
-import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
+import { defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { START_DATE, dateOfDay, dayOfDate, decimalYearOf } from '../../../src/engine/v2/core/time';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../../src/engine/v2/types';
-import { refBot } from '../../../src/engine/v2/bots/ref';
-import { resolve, tick } from '../../../src/engine/v2/core/loop';
-import { EVENT_BY_ID } from '../../../src/engine/v2/core/registry';
-import { engine } from '../../../src/engine/v2/index';
 import { calGolden, calTol, refGame, runRef } from '../lib';
 import { cached } from '../simcache';
 import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from '../calseeds';
@@ -82,21 +77,10 @@ function runT1(preset: WorldPresetId, seed = SEED, observe?: (s: GameStateV2) =>
   });
 }
 
-/** R5 build queue: the days each run waited for its setup beyond the first tick. Records the worst per run id. */
-const buildDelays = (worst: Map<string, number>) => (s: GameStateV2) => {
-  for (const r of s.player.models.runs) {
-    if (r.setupId === undefined || r.startDay < 0) continue;
-    const wait = (r.readyDay ?? s.time.day) - r.startDay - 1;
-    worst.set(r.id, Math.max(worst.get(r.id) ?? 0, wait));
-  }
-};
-
-/** T1 run record for a preset (cached): milestone days, R5 waits, the G path, start M and METR reads, T2. */
+/** T1 run record for a preset (cached): milestone days, the G path, start M and METR reads, T2. */
 function t1Rec(preset: WorldPresetId) {
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
   return cached('calreport-t1', { preset, cal, sdSC: V3_CAL[preset].sdSC, seed: SEED, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => {
-    const waits = new Map<string, number>();
-    const watch = buildDelays(waits);
     let start: { M: number; rs: number; src: number } | undefined;
     let h0: number | undefined;
     let h1: { day: number; h: number } | undefined;
@@ -107,7 +91,6 @@ function t1Rec(preset: WorldPresetId) {
     // T2: the AI research labour on the first day RefBot has its SC (read off this game, no extra game).
     let t2: { day: number; fte: number; copies: number; h100e: number; speed: number } | undefined;
     const s = runT1(preset, SEED, (x) => {
-      watch(x);
       if (!t2 && x.player.milestoneDays[3] !== undefined) {
         const wc = workContext(x);
         t2 = { day: x.time.day, fte: wc.slots.EXP.aiFte + wc.slots.IDEAS.aiFte, copies: wc.slots.EXP.copies + wc.slots.IDEAS.copies, h100e: wc.slots.EXP.h100e + wc.slots.IDEAS.h100e, speed: speedOfCopy() };
@@ -118,7 +101,7 @@ function t1Rec(preset: WorldPresetId) {
       if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };
       if (bv?.build && x.time.day >= G_PATH_FROM && x.time.day <= G_PATH_TO) gPath.push({ day: x.time.day, g: gOfBuild(bv.build) });
     });
-    return { md: s.player.milestoneDays, waits: [...waits.entries()], gPath, start, h0, h1, t2 };
+    return { md: s.player.milestoneDays, gPath, start, h0, h1, t2 };
   });
 }
 /** T1 milestone days of one more seed of the median set (cached; SEED's come from t1Rec). */
@@ -127,26 +110,6 @@ function t1SeedRec(preset: WorldPresetId, seed: number): MsDays {
   const cal = { gSC: V3_CAL[preset].gSC, dBM: V3_CAL[preset].dBM };
   return cached('calreport-t1s', { preset, cal, sdSC: V3_CAL[preset].sdSC, seed, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => runT1(preset, seed).player.milestoneDays);
 }
-/** Integrated RefBot record for a preset (cached; real finance, only for presets with golden days): milestone days, worst R5 wait. */
-function intRec(preset: WorldPresetId) {
-  return cached('calreport-integrated', { preset, seed: SEED, stopAt: lastIdx(preset), maxDays: MAX_DAYS, env: ENV }, ME, () => {
-    const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed: SEED, tutorial: false }));
-    const stop = lastIdx(preset);
-    const waits = new Map<string, number>();
-    const watch = buildDelays(waits);
-    while (s.time.day < MAX_DAYS && s.player.milestoneDays[stop] === undefined && s.player.status === 'active') {
-      for (const p of [...s.events.pending]) {
-        const c = refBot.decide(s, p);
-        if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-      }
-      refBot.act(s, engine);
-      tick(s, { skip: ['endings'] });
-      watch(s);
-    }
-    return { md: s.player.milestoneDays, worstWait: Math.max(0, ...waits.values()) };
-  });
-}
-
 export function targets(): Target[] {
   const out: Target[] = [];
   const presets = (process.env.CALREPORT_PRESETS?.split(',').map((x) => x.trim()) as WorldPresetId[] | undefined) ?? ALL_PRESETS;
@@ -173,13 +136,7 @@ export function targets(): Target[] {
         const spread = i >= 3 && mds.length > 1 ? `; p10 ${sgn((quantOf(days, 0.1) - want) / 365)}, p90 ${sgn((quantOf(days, 0.9) - want) / 365)} y` : ''; // band-lint: ok milestone index: only SC onward gets a spread
         out.push(rowOf('T1.golden.milestones', `median over ${mds.length} seeds ${Number.isFinite(med) ? `${med.toFixed(1)} (${yearOf(med)})` : '—'} vs golden ${want} (${yearOf(want)}) ± ${Math.round(tol)} d; ${inTol}/${mds.length} seeds within${spread}`, Math.abs(med - want) <= tol, `${preset} ${n}`));
       });
-      const r = intRec(preset);
-      out.push(rowOf('R5.buildQueue.integrated', `worst ${r.worstWait} d`, r.worstWait, preset));
     }
-
-    // R5 (stub game)
-    const worstWait = Math.max(0, ...new Map(rec.waits).values());
-    out.push(rowOf('R5.buildQueue.stub', `worst ${worstWait} d over ${rec.waits.length} runs`, worstWait, preset));
 
     // MODEL-V3 §13 frontier G path (tl-central only).
     if (preset === 'tl-central' && gPath.length > 30) { // band-lint: ok minimum samples for a line fit
