@@ -16,7 +16,7 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 |---|---|---|---|---|
 | P1a | 1 | runner: tsc fix, rivals job, per-job CPU budgets + WARN, orphan guard, add the untiered tests, lib output format, package.json aliases | Sonnet high | todo |
 | P1b | 1 | scratch: remove tracked `scripts/v2/_*` dirs (keep _mk6, _w1b until re-pointed), re-point evidence strings, .gitignore | Sonnet medium | merged 4f7a55ca |
-| P1c | 1 | junk inside scripts: removal greps, currency/domainref → effective, rdt10, naming migration, calib T1 guard + INFO loops | Sonnet high | todo |
+| P1c | 1 | junk inside scripts: removal greps, currency/domainref → effective, rdt10, naming migration, calib T1 guard + INFO loops | Sonnet high | merged bed143e4 (T2 "AI labour at SC" check went with the T2 block: G6 to restore it from the existing T1 game) |
 | P2/3 groups | 2+3 | per script group: classify every failing check (stale pin → re-derive/delete; calibration target → mark + OPEN.md; bug → OPEN.md + KNOWN), then cut cost to budget | Sonnet high | after P1 |
 | — | end | one test:full + test:ui (ask the designer first), merge to master | lead | — |
 
@@ -26,9 +26,11 @@ Unanswered (kept as is): `botfingerprint.ts`, `ref-trace.ts`, `aifm_phase.py`, u
 |---|---|---|
 | G7 | uitest.mjs (19 failures; sleeps → waits; day repeats; build skip). Designer: up to 3 whole-uitest runs allowed | running |
 | G3 | serving, products, money | after P1 |
-| G4 | finance, worldfx | after P1 |
+| G4 | finance, worldfx | running (ta-g4) |
 | G2 | research, safetyresearch, safetyideas, evals, worktypes | after P1 |
 | G5 | safety (S4/S5), safetyrates, sabotage, footholds, control, danger | after P1 |
 | G1 | suites, signals, successor, data, effective, oversight | after P1 |
 | G6 | calib remainder, fixtures, lint-structure, levellint, labourinit, rdm01b, milestonepred | after P1 |
 | later | idle, hygiene (after speed merges), directorEndings, npcShocks (after bal merges) | — |
+
+Note: master merged into testaudit 3b233ae8 (bal NPC fixes, schema 127). It brought new untiered tests diffusion.ts, leadread.ts, srefcheck.ts: the P1a orphan guard must list them (add to G6).
