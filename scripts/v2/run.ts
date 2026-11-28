@@ -150,6 +150,8 @@ const TOOLS = [
   'profile', 'ref-trace', 'botfingerprint', 'lib', 'run', 'simcache', 'uitest',
   // Asserts, but against AIFM rollout data outside git (aifm-runs/out/_scratch/...): a balance-session tool, not a suite test.
   'srefcheck',
+  // The calibration report (TESTING.md §0): a balance tool, run at balance checkpoints, never a merge gate.
+  'calreport',
 ];
 
 // ---------- arguments ----------

@@ -5,13 +5,27 @@ Why this file exists: by 2026-11-28 `test:quick` took 13 min and 66 CPU-min, 83 
 (design/test-audit/TEST-AUDIT.md). Tests had become slow and untrustworthy, so nobody could read them. These rules
 are how we stay out of that. They apply to every new or changed test, and to whoever reviews it.
 
+## 0. Tests check that things work; calibration is not a test
+
+A test answers "does the code do what it should, is anything broken". It is fast and deterministic and runs all the
+time. Calibration answers "is the tuning right". It is slow and statistical, and it is the balance session's job, run
+at its checkpoints. **If a check can fail because tuning is off rather than because code is broken, it is
+calibration.** It lives in the calibration report (`scripts/v2/calreport.ts`, a balance tool, never a merge gate),
+with its source and band, one home per target. It does not live in a test.
+
+| Tier | Contents | When | Budget |
+|---|---|---|---|
+| quick | type-checks, lints, mechanism tests on constructed cases. **No played games.** | every task | ≤ 3 min wall, ≤ 10 CPU-min |
+| full | quick + the UI test + a few played games (cached) checked against **wide sanity bounds** ("nothing is absurd": no NaN, milestones in order between 2026 and 2040, probabilities strictly inside 0..1, money within ×10 of the sourced range) | merge | ≤ 10 min wall, ≤ 15 CPU-min |
+| perf | wall-time benchmarks | on demand, quiet machine | — |
+
+A sanity bound must be loose enough that tuning can't break it, and tight enough that a real bug does.
+
 ## 1. Cost follows importance
 
 - Every job in `scripts/v2/run.ts` declares a CPU budget. run.ts warns when a job goes over it. A job that grows over
   its budget is fixed or re-budgeted with a reason in the same change, never silently.
-- Tier budgets: **quick ≤ 3 min wall / 15 CPU-min in total**, ≤ 20 CPU-s per job by default. **full ≤ 10 min wall.**
-  A job may get a bigger budget only for central behaviour (calibration, safety outcome bands, finance end to end),
-  and the reason is written next to the budget.
+- Default ≤ 20 CPU-s per job. A bigger budget needs a reason written next to it.
 - Every test file starts with a header comment: what it guards, why that matters, what it costs (sim-days × seeds, or
   "no sim"), and its tier.
 
@@ -25,16 +39,16 @@ are how we stay out of that. They apply to every new or changed test, and to who
 - **Never sample a rare event.** Set the odds (or force the roll) for the test, and check one case each way.
   Monte-Carlo only where the distribution itself is what is tested, and then use the fewest seeds that hold the band.
   Write the arithmetic down (band width vs spread).
-- Long bot games are for emergent, central behaviour only: milestone timing, outcome bands, money over years. They go
-  through `simcache` keyed on the game (bot, seed, setup, horizon), not on the script name, so two suites that play
-  the same game share it.
+- Played bot games appear only in full's sanity checks and in the calibration report. They go through `simcache` keyed
+  on the game (bot, seed, setup, horizon), not on the script name, so two users of the same game share it.
+- To test a direction ("more safety → less misalignment"), compare paired arms on the same world and seed. The world
+  noise cancels, so one or two worlds over a short stretch from a fixture are enough.
 
 ## 3. A check must be able to fail, and must mean something
 
 - No vacuous passes. If a loop may see zero cases, require at least one. No bands so wide they can't fail. No `x == x`.
 - **Mechanism tests check shape:** direction, monotonicity, identities, conservation, preview = effect. They don't
-  pin a tuned number. A number belongs in a test only if it is a **sourced target**, and then it lives in the
-  calibration suite (one home), with its source and tolerance.
+  pin a tuned number. A sourced target belongs in the calibration report (§0), not in a test.
 - No pins to an old version ("reproduces V1's 0.36"). When the design changes, the test changes in the same commit.
 
 ## 4. One-off checks don't stay in the suite
@@ -64,8 +78,8 @@ are how we stay out of that. They apply to every new or changed test, and to who
 
 ## 7. Running tests: CPU etiquette
 
-- The machine is shared by parallel sessions. **Heavy runs are anything over ~3 CPU-min: test:full, test:deep,
-  test:cal, test:ui, a multi-seed suite in full mode, or run.ts with workers. Ask the designer before starting one.**
+- The machine is shared by parallel sessions. **Heavy runs are anything over ~3 CPU-min: test:full, test:ui, the
+  calibration report, or run.ts with several workers. Ask the designer before starting one.**
   Only one heavy run at a time on the machine.
 - Task agents run tsc, `test:quick --only <their jobs>` and their own script. Heavy runs happen only at checkpoints
   and merge waves (test-time policy).
