@@ -11,10 +11,11 @@ Inputs:
 
 ## 0. The idea in one paragraph
 
-A company is a set of **holders**. Each has shares and wants something. **Board seats follow voting power**: shares ×
-the share class's votes. A few **seat powers** come from the charter, for example a mission body's vetoes or its right
-to appoint seats. Nothing is pre-defined beyond that. **Control is emergent**: a holder controls the company only if its
-seats are a majority of the board. Many companies have no controller, and the board then runs by vote. If a controller
+A company is a set of **holders**. Each holds shares of a **class** and wants something. A class says how many votes
+its shares carry: ×1, ×10, none, or a fixed share of all votes. **Board seats follow votes**, and the CEO always has a
+seat. Nothing is pre-defined beyond that. **Control is emergent**: a holder controls the company only if it holds more
+than half of the votes (it could elect the whole board). Many companies have no controller, and the board then runs by
+vote. If a controller
 does emerge, its kind changes how the company works:
 - a corporate owner or the government funds you through a budget and sets yearly goals;
 - a mission body's seats carry its vetoes.
@@ -30,7 +31,10 @@ for the result. You lose control in three ways:
 
 1. **Three separate things:** holders (structure and ties), position (what you start with), and lab kind (a bundle of
    both, plus Custom).
-2. **Seats by holders' votes,** with a few seat powers. **The controller is emergent;** some companies have none.
+2. **Seats by holders' votes, set by share-class rules** (multipliers, none, or a fixed vote share). The CEO always has a
+   seat. **The controller is emergent;** some companies have none. The mission body's majority comes from its share
+   class, not from an appointment right.
+2b. **The corporate world is part of setup:** the companies (partners and parents) and who owns or backs which lab (§5.8).
 3. **Losses:** ousted, bankrupt, or another *lab* in control. A non-lab owner taking control (a cloud partner, the
    government while you lead) is a change, not an end.
 4. **The soft path (the Defense Production Act):** if you lead, you stay as you are. You get part of the other US labs'
@@ -50,7 +54,7 @@ for the result. You lose control in three ways:
    - Corvid, anchoring and "one lab per partner" are removed;
    - **sovereigns are dropped** (sites abroad logged in OPEN.md).
 
-## 2. Holders, share classes and seat powers
+## 2. Holders, share classes and powers
 
 Stored state:
 - the **cap table**: today's `ownership`, plus the government on the hard path;
@@ -58,45 +62,61 @@ Stored state:
 
 Everything else is derived.
 
-### 2.1 Holders and their votes
+### 2.1 Share classes: the only vote rules
 
-| Holder | Votes per share | Seat kind | What its seats weigh most (today's MOOD_WEIGHTS) | Gives |
+A class's votes take one of two forms. Both are real patterns:
+
+| Form | Votes | Behaviour | Real pattern |
+|---|---|---|---|
+| **Multiplier** | shares × k (k = 1, 10, ½, 0) | **Erodes** as the class's stake shrinks | Meta's founder: about 13% of shares, about 61% of votes; it shrinks as he sells |
+| **Fixed share** | a fixed share of all votes, whatever the stake | Doesn't erode; only a charter change moves it | Anthropic's Class F 50.1% after an IPO; the trust's Class T elects a majority with almost no equity [R15] |
+
+| Class | Who | Form | Votes [sourced where marked, else D] |
+|---|---|---|---|
+| Common | investors, the public, founders without dual-class | multiplier | ×1 |
+| Founder super-voting | founders after a dual-class IPO | multiplier | ×10 |
+| Non-voting (Class N) | a partner at or under its 15% cap | multiplier | ×0 [R15: Amazon 12%, Google 14.99%] |
+| **Mission** | the mission body | **fixed share** | ⅔ of all votes, so it elects 4 of the 6 elected seats [D] |
+| **Golden share** (soft path) | the US government | **fixed share** | 2 of 6 seats' worth of votes, with the security power (§2.3) [D] |
+| **State control** (hard path) | the US government | **fixed share** | ⅔ of all votes [D] |
+
+A fixed-share class takes its share first. The other classes split the rest by multiplier.
+
+So the mission body's majority is just its share rule. It has no special appointment power, and it can't be diluted
+away, which is what "no exit from mission control" means.
+
+### 2.2 Holders
+
+| Holder | Class | Seat kind | What its seats weigh most (today's MOOD_WEIGHTS) | Gives |
 |---|---|---|---|---|
-| **Founders** | 1; **×10 with dual-class** | founder (the CEO's seat always votes yes) | — | The CEO |
-| **Investors** | 1 | financial | promise results ×1.5, falling behind ×1.5 | Rounds |
-| **Partners** (Northwind, Azimuth, Silica) | **0** at or under their 15% cap (sourced Class N); 1 above it (only after a rescue or merger, §5.5) | strategic | per its interest (§5.1) | Equity, supply, distribution |
-| **Public** | 1 (or the lower vote under dual-class) | independent | setbacks ×1.5 | The public pool, bonds |
-| **Mission body** | its stake's votes, **plus the right to appoint seats** (§2.2) | mission | incidents ×2 | Credibility |
-| **Government** | no shares on the soft path (it appoints directors, §4.2); the owner on the hard path | gov (the kind exists in the code but is never created) | incidents ×1.5, security | Compute and staff (soft path); budget and compute (hard path) |
+| **Founders** | common, or super-voting | founder | — | The CEO |
+| **Investors** | common | financial | promise results ×1.5, falling behind ×1.5 | Rounds |
+| **Partners** (§5) | non-voting at or under the cap; common above it (only after a rescue or merger) | strategic | per its interest (§5.1) | Equity, supply, distribution |
+| **Public** | common | independent | setbacks ×1.5 | The public pool, bonds |
+| **Mission body** | mission | mission | incidents ×2 | Credibility |
+| **Government** | golden share (soft path); state control (hard path) | gov (the kind exists in the code but is never created) | incidents ×1.5, security | Compute and staff (soft); budget and compute (hard) |
 
-### 2.2 The board
+### 2.3 The board
 
-- **7 seats.** The CEO holds one.
-- **Appointed seats come first.** These are the charter's seat powers:
-  - **Mission body:** appoints 4. OpenAI's foundation appoints all of the PBC's directors; Anthropic's trust elects a
-    majority. Four of seven is the in-game version [D].
-  - **Government directors on the soft path:** 2, *on top of* the 7.
-  - **Critics' seat:** as today, on top, up to 9 in all.
-- **The rest go by voting power,** largest remainder first, among holders with votes. A holder too small for a seat gets
-  none.
+- **The CEO's seat** (always; votes yes), **plus 6 seats by votes**, largest remainder first. A holder too small for a
+  seat gets none.
+- **Critics' seat:** as today, on top, up to 9 in all.
 - Seats are recomputed whenever a round, deal, IPO, rescue, merger or change of control closes. Every preview shows the
   board afterwards.
+- One function, `boardOf(cap table, classes)`, replaces initialBoard's presets, syncFinancialSeats, startBoard's extra
+  investor, the listing seat and the rescue's addSeat.
 
-This one function, `boardOf(cap table, charter)`, replaces initialBoard's presets, syncFinancialSeats, startBoard's
-extra investor, the listing seat and the rescue's addSeat.
+**Powers** sit on a class's seats. Each covers a decision no ordinary vote covers:
 
-### 2.3 Seat powers (vetoes) and the override
-
-Seat powers come from the charter and belong to a seat kind:
-
-| Power | Held by | Over |
+| Power | Class | Over |
 |---|---|---|
-| **Mission veto** (can't be forced) | mission seats, voting as a body | any holder passing 50%; handing out a capability-threshold model; releasing a red-flagged model (the safety committee) |
-| **Security veto** (can't be forced) | gov seats, voting as a body | handing out a capability-threshold model; a foreign or competitor holder gaining votes |
-| **Override** | any holder with **more than half of the shareholder votes** (it could replace the board) | forcing a decision the board voted down, at −20 confidence |
+| **Safety committee** | mission | halts the release of a red-flagged model (today's committee) |
+| **Trust approval** (can't be forced) | mission | handing out a capability-threshold model (open weights, an IP licence) |
+| **Security approval** (can't be forced) | golden share, state control | the same, plus a foreign or competitor holder gaining votes |
+| **Override** | any holder with **more than half of all votes** | forcing a decision the board voted down, at −20 confidence |
 
-The override is today's "founder control", now emergent. Founders with dual-class or with most of the shares have it. A
-corporate owner above 50% has it too, but it holds the seats anyway.
+The override is today's "founder control", now emergent from votes. A sale of control needs no separate veto: a holder
+passing 50% is a board vote, and a mission or state class, holding ⅔, decides it.
 
 ### 2.4 Investor appeal
 
@@ -107,8 +127,8 @@ Today's flat table GOV_FACTOR becomes a product of charter features: profit cap 
 
 ### 3.1 Who controls
 
-The **controller** is the holder whose seats are more than half of the board's voting seats. If there's no such holder,
-there's no controller and the board runs by vote. That's normal: a widely held public company, or a private lab after
+The **controller** is the holder with more than half of all votes. It could elect the whole board, and its seats show
+that. If there's no such holder, there's no controller and the board runs by vote. That's normal: a widely held public company, or a private lab after
 several raises.
 
 The **label** shown on the Board card is read off the result:
@@ -164,7 +184,7 @@ Each change is a named action or event with a full preview, and the preview show
 | **IPO** | `fin.ipo` (as today) | none | Public holders and their seats; dual-class keeps founders' votes |
 | **Lift the profit cap** (was "recapitalise") | Action; about 4 quarters of Attorney General review, safety-staff morale −3 | none | The cap goes and the conditional tranche is paid; the mission body stays |
 | **Dilution** | Every round and deal | as today | Seats move by votes. The preview says when a holder gains or loses the majority or the override |
-| **A holder passes 50%** | Rescue, tranches, stock paid in a merger: **every** path is judged at the stake it will reach | Mission veto first, then the board | That holder's seats and powers; it may become the controller (§3.3) |
+| **A holder passes 50%** | Rescue, tranches, stock paid in a merger: **every** path is judged at the stake it will reach | The board (a mission or state class holds ⅔, so it decides) | That holder's seats and powers; it may become the controller (§3.3) |
 | **Soft path** (E22, §4.2) | You accept, as the frontier lab | none | Government directors join (2 seats), plus pooled compute and staff |
 | **Hard path** (§4.3) | The government takes the lab | none | Leading: government-controlled. Behind: another lab in control (loss) |
 
@@ -175,15 +195,16 @@ an owner.
 
 Today, accepting E22 pools 50% of each US rival lab's compute into you as free cloud capacity. New:
 - the same share of their **staff** joins your teams [D];
-- **2 government directors** join on top of the 7, with the security veto;
-- nothing else changes: same holders, same money.
+- the government takes a **golden share**: 2 seats' worth of votes and the security approval power (§2.1, §2.3). The
+  closest real case is the US stake in Intel (Aug 2025, about 10%);
+- nothing else changes: same controller (if any), same money.
 
 ### 4.3 The hard path
 
 The trigger is unchanged: low trust past the hold time at stage 3 or above, or the misalignment-leak scare.
 
-- **You lead:** the government becomes the controlling holder.
-  - It appoints the board majority. Other holders keep their shares and their remaining seats.
+- **You lead:** the government takes the **state control** class (⅔ of the votes) and becomes the controller.
+  - Other holders keep their shares and their remaining seats.
   - Confidence starts at 40, on probation: below the warning line, above the ouster line.
   - The government's budget and goals start at the next review.
 - **You're behind:** you're folded into the national project under the leading lab. That's a loss.
@@ -240,6 +261,35 @@ partner's offers:
 A sovereign was a cheque with no strings and, since the outside-world merge, no cost. The one real dynamic worth having,
 Gulf money paired with **sites abroad**, is logged in design/OPEN.md (Data centres).
 
+### 5.8 The corporate world in setup: which companies exist, who owns or backs whom
+
+**Companies** are one fixed cast. They are the counterparties of the whole game, like China:
+
+| Company | Like | Sells to labs (a partner) | Owns a lab (a parent) |
+|---|---|---|---|
+| Northwind | Microsoft | cloud | — (backs the leader: the 27% legacy stake) |
+| Azimuth | Google / Amazon | cloud, custom chips | the big-tech lab |
+| Silica | Nvidia | chips | — |
+| Lattice (name to choose) | Meta | — | the open-weights lab |
+
+**Who owns or backs whom is setup data**, one row per lab (the player's included). It lives in the Rivals section:
+- **Realistic:** the cast shows each lab's owner and backers ("Owned by Azimuth", "Backed by Northwind 27%").
+- **Create rivals:** each lab's funding picker becomes the owner and backer choice:
+  - **parent:** one of the companies;
+  - **private:** optional partner stakes up to the cap;
+  - **state:** China.
+- The player's lab kind takes one lab's place **with its holders**. The big-tech kind is Azimuth's lab, so the NPC
+  big-tech lab leaves.
+
+**What reads these ties: only two things** (rival labs stay simple):
+1. **A company that owns a lab** has an in-house lab. That lab is the one IP access feeds, the one that folds you in
+   (§3.3), and the one whose nearness lowers the company's interest in you (§5.1).
+2. **A partner that backs a rival** values you less while it does ("its money is on your competitor"). This is one
+   term in its interest.
+
+**Not editable:** which companies exist. They are your counterparties: removing one reshapes the deal market and the
+bot balance for little gain. If wanted later, it goes to OPEN.md.
+
 ### 5.7 One home
 
 - **A Partners card** in Finance has one row per partner: what it wants, what it gives, how much it values you, your
@@ -295,7 +345,7 @@ fills Custom, so nothing stale is left over (fixes the setup bug). You can't sta
 ## 7. On screen
 
 - **Board card header:** the label, the controller (or "no controller") and the seat powers, e.g. "Mission-controlled ·
-  the foundation holds 4 of 7 seats · mission veto · profit cap".
+  the foundation holds ⅔ of the votes (4 of 6 elected seats) · safety committee · trust approval · profit cap".
 - **"Who controls you"** is one row: seats and votes by holder, the majority line, and what happens if it's crossed.
   It's the only home for voting control; the ownership donut stays the home for economic shares. Every raise, deal or
   merger preview shows the row's after-state.
@@ -311,7 +361,7 @@ fills Custom, so nothing stale is left over (fixes the setup bug). You can't sta
    - the ouster under every board;
    - "another lab in control" (bought, or folded in by the leading lab), with 'acquired' and 'nationalized' removed;
    - every 50% path behind the votes.
-3. **Government:** the soft path (staff pooling, directors with the security veto) and the hard path (the government as
+3. **Government:** the soft path (staff pooling, the golden share with security approval) and the hard path (the government as
    the controlling holder, or folded in).
 4. **Positions + lab kinds + setup** (the Azimuth parent; the big-tech kind replaces its in-house NPC lab).
 5. **Partners** (§5).
