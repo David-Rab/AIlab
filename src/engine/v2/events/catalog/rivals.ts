@@ -3,22 +3,20 @@
 //
 // E32 "Merger offer" (FIN3c, FINANCE-V3 §9): a private rival in distress (finance/rivalFinance.ts rivalMoneyQ requests
 // it the quarter its cash runs out, or the quarter a bust pushes it into distress) is for sale at half its valuation, for cash or your stock. You get 70% of its staff (and
-// its compute, as before) and take on its contracts and debt (finance/acquire.ts); antitrust scrutiny follows; the board
+// its compute, as before) and take on its contracts and debt (finance/acquire.ts); the board
 // votes on the merger. Declined, if it is still failing next quarter the largest big-tech rival licenses its models and
 // hires its team (FIN5b), or it goes bankrupt when there is none.
 import { activeRivals } from '../../models/labs';
 import type { CostLine, EventDefV2, GameStateV2, RivalLab, SystemCtx } from '../../types';
-import { morale, scrutiny } from '../../actors/fx';
+import { morale } from '../../actors/fx';
 import { deactivateRival, postureOf } from '../../actors/rivals';
 import { exitBuyer } from '../../finance/rivalFinance';
-import { ws4 } from '../../actors/state';
 import { changeHeads } from '../../departments/teams';
 import { acquireBlock, acquireTerms, acquireVotes, forceLines, obligationLines, payForRival, paymentLines, sellsControl, shownVote, type PayWith } from '../../finance/acquire';
 import { L, activeLab, ch, ev, labName, requestOnly } from '../kit';
 
 /** Share of a bought lab's staff that joins (kept from E32). */
 export const MERGER_STAFF = 0.7;
-const SCRUTINY = 20;
 
 /** The lab on offer: the pending decision's, else (catalog lints) the first private rival in distress. */
 function target(s: GameStateV2, d?: Record<string, number | string>): RivalLab | undefined {
@@ -33,11 +31,11 @@ const staffOf = (r: RivalLab) => ({ cap: Math.round(r.core.staff.cap * MERGER_ST
 function buyPreview(pay: PayWith) {
   return (s: GameStateV2, d?: Record<string, number | string>) => {
     const r = target(s, d);
-    if (!r) return { costs: [L(pay === 'cash' ? 'cash' : 'dilution', 0, 'half its valuation'), L('scrutiny', SCRUTINY, 'antitrust')], gains: [L('staffTime', 0, `${Math.round(MERGER_STAFF * 100)}% of their staff`)], exposure: [L('cash', 0, 'its contracts and debt')] };
+    if (!r) return { costs: [L(pay === 'cash' ? 'cash' : 'dilution', 0, 'half its valuation'), ], gains: [L('staffTime', 0, `${Math.round(MERGER_STAFF * 100)}% of their staff`)], exposure: [L('cash', 0, 'its contracts and debt')] };
     const t = acquireTerms(s, r);
     const st = staffOf(r);
-    const costs: CostLine[] = [...paymentLines(s, t, pay), L('scrutiny', SCRUTINY, 'antitrust review'), ...forceLines(acquireVotes(s, t, pay))];
-    const gains: CostLine[] = [L('staffTime', st.cap + st.saf, `${st.cap} capabilities + ${st.saf} safety staff (${Math.round(MERGER_STAFF * 100)}% of theirs)`), L('talent', 3, 'a bigger lab draws talent')];
+    const costs: CostLine[] = [...paymentLines(s, t, pay), ...forceLines(acquireVotes(s, t, pay))];
+    const gains: CostLine[] = [L('staffTime', st.cap + st.saf, `${st.cap} capabilities + ${st.saf} safety staff (${Math.round(MERGER_STAFF * 100)}% of theirs)`)];
     return { costs, gains, exposure: [...obligationLines(s, t.obligations), L('morale', -3, 'integration and culture blend')] };
   };
 }
@@ -53,13 +51,10 @@ function buyApply(pay: PayWith) {
       ctx.log('finance', `The ${r.core.name} deal did not go through: ${no}.`, 2);
       return;
     }
-    if (sold) ws4(s).soldControl = true; // its holders now control the company (the 'acquired' ending)
-    ws4(s).absorbedCompute += r.core.computeOnline;
+    if (sold) s.endingProgress.soldControl = true; // its holders now control the company (the 'acquired' ending)
     const st = staffOf(r);
     changeHeads(s, 'cap', st.cap);
     changeHeads(s, 'saf', st.saf);
-    scrutiny(ctx, SCRUTINY, 'E32 antitrust');
-    ctx.bump('relations.talentPull', 3, 'E32 acquisition');
     // Culture: their posture blends into morale (safety labs lift safety morale, mavericks lower it).
     const p = postureOf(s, r.core.id);
     ctx.bump('morale.safety', (p.safetyInvestment - 0.4) * 10, 'E32 culture blend');

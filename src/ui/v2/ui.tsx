@@ -26,11 +26,10 @@ export type Params = Record<string, number | string | boolean>;
 export const ACT_NAMES = ['', 'Startup', 'Frontier race', 'Automation', 'Takeoff'] as const;
 /** Act at which a panel or panel section unlocks (§1.5); tutorial off = all. */
 export const UNLOCK_ACT: Record<string, 1 | 2 | 3 | 4> = {
-  overview: 1, research: 1, company: 1, lab: 1, map: 1, finance: 1, departments: 1, models: 1, blueprint: 1, products: 1, relations: 1, safety: 1, codex: 1,
+  overview: 1, research: 1, company: 1, lab: 1, map: 1, finance: 1, departments: 1, models: 1, blueprint: 1, products: 1, powers: 1, safety: 1, codex: 1,
   compute: 2, risk: 2, world: 2,
-  baseRuns: 2, deals: 2, rivalIntel: 2, researchBodies: 2, commitments: 2, agendas: 2, index: 2,
-  aiLabour: 3, chinaLadder: 3, theftMap: 3, statutes: 3, govLadder: 3,
-  oversight: 4, treaty: 4,
+  baseRuns: 2, deals: 2, rivalIntel: 2, commitments: 2,
+  aiLabour: 3, theftMap: 3,
 };
 export function unlocked(s: GameStateV2, key: string): boolean {
   if (!s.setup.tutorial || s.tutorial.unlocked.includes('*')) return true;
@@ -125,9 +124,9 @@ export function Rich({ text }: { text: string }) {
 
 // ───────────────────────── cost lines ─────────────────────────
 const CUR_LABEL: Record<CostLine['currency'], string> = {
-  cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'progress', leadDays: 'lead', trust: 'trust',
-  credibility: 'cred', scrutiny: 'scrutiny', talent: 'talent', morale: 'morale', boardConf: 'board', approval: 'approval',
-  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution', valuation: 'valuation',
+  cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'progress', leadDays: 'lead',
+  credibility: 'cred', approval: 'approval', trust: 'gov trust', morale: 'morale', boardConf: 'board',
+  security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', dilution: 'dilution', valuation: 'valuation',
 };
 /** A line's amount in its own unit (model v3 D4): 7.5, 0.146, 2. */
 /** A '%' line's amount, already in percent points: 5, 2.5, 0.31 (F6b). */

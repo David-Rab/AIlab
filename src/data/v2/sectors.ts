@@ -3,7 +3,7 @@
 // Tags: [R16] research/16 table values (themselves [D] weights checked against Eloundou et al. / Microsoft
 // applicability, BLS CES shares [V]); [V] verified primary numbers quoted in research/16 notes; [D] design; [fit]
 // fitted by scripts/v2/worldfx.ts against V2-SPEC §7.3.
-import type { DomainId, EconPresetId, RegionId, SectorId } from '../../engine/v2/types';
+import type { DomainId, RegionId, SectorId } from '../../engine/v2/types';
 
 export interface SectorDef {
   id: SectorId; name: string;
@@ -84,13 +84,9 @@ export const REGION_SCALE: Record<RegionId, { emp: number; wage: number; A0: num
 /** Labor-force scale (employment / (1 − U_base)) and base unemployment by region (%). US 4.3% [R16 §1A.2]. */
 export const U_BASE: Record<RegionId, number> = { US: 4.3, CN: 5.2, ROW: 5.5 };
 
-/** World-economy presets (research/16 §4.6), hidden per world. */
-export interface EconPreset { diffMult: number; frictionScale: number; sigma: number; robotFloorYears: number; nu: number }
-export const ECON_PRESETS: Record<EconPresetId, EconPreset> = {
-  normal: { diffMult: 0.4, frictionScale: 1.5, sigma: 0.35, robotFloorYears: 2, nu: 0.5 },
-  ai2027: { diffMult: 1.0, frictionScale: 1.0, sigma: 0.5, robotFloorYears: 1, nu: 0.3 },
-  gate: { diffMult: 1.5, frictionScale: 0.6, sigma: 0.7, robotFloorYears: 0.25, nu: 0.15 },
-};
+/** The one adoption setting (research/16 §4.6; the product-market parameters of the economy): diffusion speed, friction scale,
+ *  substitution elasticity, the robot floor (years to build a robot fleet), and the share of agent-bound spend. */
+export const ADOPTION = { diffMult: 1.0, frictionScale: 1.0, sigma: 0.5, robotFloorYears: 1, nu: 0.3 };
 
 /** Economy constants (research/16 §1A.2, §4). */
 export const ECON = {

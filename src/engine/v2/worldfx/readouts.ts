@@ -223,9 +223,6 @@ export function defenceIndex(s: GameStateV2, risk?: 'bio' | 'cyber'): number {
   return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
-/** Year-to-date change of the equity index. */
-export const dowYtd = (s: GameStateV2) => (s.world.fx.dowJan ? s.world.dow / s.world.fx.dowJan - 1 : 0);
-
 /** US unemployment change over the last 12 months (pp), from the monthly history. */
 export function unemploymentChange12m(s: GameStateV2): number {
   const h = s.world.fx.uHist;

@@ -11,6 +11,7 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
+import { approvalPush, PUBLIC } from '../world/public';
 import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, UMODE_ACT, V0_V2_LEVEL, type ActDef } from '../../../data/v2/danger';
 import { reviewCatch } from './lineProjects';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
@@ -18,7 +19,7 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
 import { domainsOf, gV0 } from '../models/capability';
-import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TimelineWorld, TraitId, TraitVector, UModeId } from '../types';
+import type { AgentUse, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TimelineWorld, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { controlProtocol, humanReviewFactor, measuredOom, oomOfLevel, underControl, versionOom } from './oversight';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
@@ -33,6 +34,8 @@ import { rollFleetCovert } from './covert';
 import { footholdsStep } from './footholdDetection';
 import { backdoorReach, lineageOf } from './footholds';
 import { controlStep } from './control';
+import { lawsInForce } from '../../../data/v2/laws';
+import { trustPush, USGOV } from '../world/usgov';
 
 /** Disposition of an undiscovered/discovered U-mode (it borrows the act of its mapped trait) [D]. */
 export const UMODE_X = 0.25;
@@ -280,29 +283,13 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
   return productCatch(s, d, trait);
 }
 
-export function outsidersWithAccess(s: GameStateV2): CounterpartyId[] {
-  return (['evalGov', 'evalIndep', 'academia', 'exec'] as CounterpartyId[]).filter((cp) => (s.relations.stocks[cp]?.access ?? 0) >= 2);
-}
-
-/** Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d; fewer with outsiders. */
+/** Days until a customer incident goes public (§3.5.10): 14–60 d; SB 53 ≤ 15 d, RAISE ≤ 3 d. */
 function publicTimer(s: GameStateV2, rng: RngLike): number {
   let t = Math.round(rng.range(14, 60));
-  if (s.gov.statutes.sb53) t = Math.min(t, 15);
-  if (s.gov.statutes.raise) t = Math.min(t, 3);
-  t = Math.round(t * (1 - 0.1 * outsidersWithAccess(s).length));
+  const law = lawsInForce(s);
+  if (law.sb53) t = Math.min(t, 15);
+  if (law.raise) t = Math.min(t, 3);
   return Math.max(2, t);
-}
-
-/** Trust/approval hit when an incident becomes public (§3.9.1: losses scale up with trust). */
-function publicPenalty(s: GameStateV2, ctx: SystemCtx, inc: Incident, mult: number, why: string) {
-  const sev = inc.severity;
-  ctx.bump('pub.approval', -sev * mult, 'incident', why);
-  ctx.bump('pub.concern', (sev * mult) / 2, 'incident', why);
-  ctx.bump('relations.scrutiny', 2 * sev * mult, 'incident', why);
-  for (const cp of ['exec', 'evalGov'] as CounterpartyId[]) {
-    const T = s.relations.stocks[cp]?.trust ?? 50;
-    ctx.bump(`trust:${cp}`, -0.5 * sev * mult * (1 + T / 100), 'incident', why);
-  }
 }
 
 function newIncidentId(s: GameStateV2): string {
@@ -355,22 +342,17 @@ function fireIncident(s: GameStateV2, ctx: SystemCtx, rng: RngLike, v: ModelVers
   pushIncident(s, inc);
   const label = row.apparent === 'unexplained' ? 'Unexplained behaviour' : row.apparent === 'misuse' ? `${row.domain === 'BIO' ? 'Bio' : 'Cyber'} misuse` : `${row.apparent} incident`;
   ctx.log('incident', `${label} (severity ${sev}) on ${v.name}, ${d.channel}${caught ? ': caught by its monitor before customers saw it' : ''}.`, sev, inc.id);
-  if (exposure === 'public') publicPenalty(s, ctx, inc, 1, inc.id);
   if (row.source === 'misuse' && sev === 5) {
     setFlag(s, 'sev5MisuseDay', ctx.day);
     setFlag(s, 'sev5MisuseKind', row.domain === 'BIO' ? 'bio' : 'cyber');
+    trustPush(s, ctx, USGOV.misuseSev5, 'Severe misuse of your model');
   }
 }
 
-/** Discovery odds of a covered-up incident (§3.9.3): 1 − Π(1 − p_k), p_k = 0.05 + 0.25·publishPressure. */
+/** Discovery odds of a covered-up incident (§3.9.3): insiders only, 0.1 (0.05 with a whistleblower channel, which
+ *  routes concerns inside). */
 export function coverUpDiscovery(s: GameStateV2): number {
-  let miss = 1;
-  for (const cp of outsidersWithAccess(s)) {
-    const pp = cp === 'evalGov' ? s.researchBodies.evalGov.publishPressure : cp === 'evalIndep' ? s.researchBodies.evalIndep.publishPressure : 0.3;
-    miss *= 1 - clamp01(0.05 + 0.25 * pp);
-  }
-  miss *= s.player.policies.whistleblowerChannel ? 0.95 : 0.9; // insiders
-  return 1 - miss;
+  return s.player.policies.whistleblowerChannel ? 0.05 : 0.1;
 }
 
 function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
@@ -386,13 +368,12 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
     if (inc.status === 'covered') {
       if (rng.chance(coverUpDiscovery(s))) {
         inc.status = 'leaked';
-        publicPenalty(s, ctx, inc, 3, `cover-up ${inc.id}`);
-        ctx.bump('relations.credibility', -15, 'cover-up', inc.id);
+        approvalPush(s, ctx, PUBLIC.coverupExposed + PUBLIC.leakedPerSeverity * inc.severity, 'Cover-up exposed: the incident leaks');
         ctx.log('alert', `Cover-up exposed: the incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} leaks.`, 4, inc.id);
       } else inc.status = 'resolved';
     } else {
       inc.status = 'leaked';
-      publicPenalty(s, ctx, inc, 1.5, `leak ${inc.id}`);
+      approvalPush(s, ctx, PUBLIC.leakedPerSeverity * inc.severity, 'An incident leaks');
       ctx.log('alert', `The incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} goes public.`, Math.min(5, inc.severity + 1) as 1 | 2 | 3 | 4 | 5, inc.id);
     }
   }

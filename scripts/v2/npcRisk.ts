@@ -9,7 +9,6 @@ import { gV0 } from '../../src/engine/v2/models/capability';
 import { refGAt } from '../../src/engine/v2/npc/lab';
 import { mWorld } from '../../src/engine/v2/npc/misalignment';
 import { H0_PER_YEAR, npcM, npcModelRow, npcRacePressure } from '../../src/engine/v2/npc/risk';
-import { ws4 } from '../../src/engine/v2/actors/state';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
 let fails = 0;
@@ -92,6 +91,6 @@ for (const r of labs(s)) {
 const rate0 = tot / n;
 console.log(`     mean model-incident rate per lab-year over the first 90 days: ${rate0.toFixed(4)} (h0 ${H0_PER_YEAR})`);
 check(rate0 > H0_PER_YEAR / 2 && rate0 < H0_PER_YEAR * 2, '(3) start incident rate per lab-year within a factor of 2 of h0', `${rate0.toFixed(4)} vs ${H0_PER_YEAR}`);
-console.log(`     disclosed NPC incidents over 900 days (the last 60 are kept): ${ws4(s).rivalIncidents.length}; known per lab: ${labs(s).map((r) => `${r.core.name} ${r.intel.knownIncidents.length}`).join(', ')}`);
+console.log(`     disclosed NPC incidents over 900 days (the last 60 are kept): ${s.rivalIncidents.length}; known per lab: ${labs(s).map((r) => `${r.core.name} ${r.intel.knownIncidents.length}`).join(', ')}`);
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

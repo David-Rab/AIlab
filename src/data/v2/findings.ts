@@ -10,7 +10,6 @@
 //   oHalf:<agenda>:<ΔOOM>         shift the half-strength point of every technique of an agenda (capability robustness;
 //                                 model v3 E6: v2's ×0.5 / ×0.6 on M½ = −1.11 / −0.82 OOM, log10(×)/κ)
 //   probeCollapse                 F08: any WB technique that was trained against loses 60-100% of s0
-//   trust:<counterparty>:<n>      trust change on publication of the finding (gov safety case etc.)
 //   flag:<name>                   s.flags['ws2.<name>'] = day (read by detection / incidents / traits)
 // `requires` preconditions: 'e>0.7', 'e>0.6&l1>=0', 'e>0.8' (true efficacy; engine-side only).
 import type { AgendaId, FindingType } from '../../engine/v2/types';
@@ -45,7 +44,7 @@ export const FINDINGS: FindingDef[] = [
   { id: 'F15', agenda: 'AG04', type: 'DEAD', title: 'Explanations cannot be found efficiently', effects: [], source: 'Matolcsi 2025 "Obstacles in ARC\'s agenda"' },
   { id: 'F16', agenda: 'AG05', type: 'TECH', title: 'Debate raises judge accuracy on hard QA', effects: ['unlock:T-DEBATE', 'flag:debate'], source: 'Khan 2024: 76-88% vs 48-60%' },
   { id: 'F17', agenda: 'AG05', type: 'NEG', title: 'Obfuscated arguments break debate', effects: ['s0:T-DEBATE:0.7'], source: 'Buhl, Pfau, Hilton & Irving 2025' },
-  { id: 'F18', agenda: 'AG05', type: 'TECH', title: 'Debate-based alignment safety case', effects: ['flag:safetyCase', 'trust:evalGov:4'], source: 'UK AISI 2025 sketch' },
+  { id: 'F18', agenda: 'AG05', type: 'TECH', title: 'Debate-based alignment safety case', effects: ['flag:safetyCase'], source: 'UK AISI 2025 sketch' },
   { id: 'F19', agenda: 'AG06', type: 'TECH', title: 'Auxiliary-confidence weak-to-strong', effects: ['unlock:T-W2S'], source: 'Burns 2023' },
   { id: 'F20', agenda: 'AG07', type: 'TECH', title: 'Resampling protocols (Ctrl-Z)', effects: ['unlock:T-RESAMPLE'], source: 'Bhatt 2025: attack success 58% → 7%' },
   { id: 'F21', agenda: 'AG07', type: 'NEG', title: 'Control protocols underperform at high capability', effects: ['oHalf:AG07:-1.11'], source: 'Redwood 2026 retry vs resample' },

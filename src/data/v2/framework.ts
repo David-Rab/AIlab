@@ -60,11 +60,10 @@ export function defaultFramework(evalDepth: EvalDepth | 'none' = 'full', externa
 export const FRAMEWORK_LEVEL_SLACK = 2;
 export const FRAMEWORK_BELIEF_SLACK = 0.2;
 
-/** What an explicit override costs, each stated in its preview and applied [D]: staff (safety-team morale, and one red
- *  flag: the whistleblower hazard, security.ts), government (scrutiny: evaluators and frontier-AI statutes ask about
- *  departures from a lab's own framework; California SB 53 (2025) requires large developers to publish and follow one) and reputation (credibility, only when the framework is
- *  published: the lab's framework commitment is live). */
-export const OVERRIDE_COST = { moraleSafety: 5, scrutiny: 3, credibility: 5 } as const;
+/** What an explicit override costs, stated in its preview and applied [D]: staff (safety-team morale, and one red
+ *  flag: the whistleblower hazard, security.ts). No government cost: the US government's trust moves only by its own
+ *  rules (world/usgov.ts). */
+export const OVERRIDE_COST = { moraleSafety: 5 } as const;
 
 export const SAFEGUARD_NEED_LABEL: Record<FrameworkRule['safeguards'][number], string> = {
   classifiers: 'classifier misuse safeguards', hardened: 'hardened misuse safeguards',

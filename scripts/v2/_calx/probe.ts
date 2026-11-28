@@ -14,7 +14,7 @@ import { SECTORS } from '../../../src/data/v2/sectors';
 
 const seed = Number(process.argv[2] ?? 2027);
 const reality = process.argv[3] === 'reality';
-const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: reality ? 'reality' : 'classic', tutorial: false, econ: 'ai2027' }));
+const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const END = dayOfDate('2025-07-01', reality ? '2026-11-02' : '2028-01-01');
 const w = s.hidden.timeline;
 const L = (g: number) => levelOfG(w, g).toFixed(2);

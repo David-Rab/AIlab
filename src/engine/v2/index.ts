@@ -136,7 +136,12 @@ export { chipFit, computeForecast, computeHistory, idleChips, siteBars, siteBuil
 export type { ChipFit, ForecastEvent, ForecastQ, SiteBars, SiteBuildingsView } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf, siteLiveMW } from './compute/power';
 export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, cancellablePricePerYear } from './compute/market';
-export { liveCommitments, keptShare } from './actors/commitments';
+export { liveCommitments, keptShare, blockingCommitments } from './actors/commitments';
+export { USGOV, STAGE_NAMES, usgovView, trustCauses, stageProgress, briefingEffect, type StageProgress, type BriefingEffect } from './world/usgov';
+export { concernParts, approvalParts, approvalCauses, PUBLIC } from './world/public';
+export { attention, attentionParts, frontier, publicMilestones, incidentList, usLeadOverChinaMonths, OBSERVE, type MilestoneBoard } from './world/observe';
+export { lawStatus, type LawStatus } from '../../data/v2/laws';
+export { CHINAGOV, TENSION_NAMES, TALKS_NAMES, chinaWarOdds, chinagovView, tensionProgress, talksProgress, type StepProgress, type StepPart } from './world/chinagov';
 export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';
 export { techBlocker, techBlockerAtLevels, techGateLevels } from './worldfx/techtree';
@@ -198,3 +203,5 @@ export { endingView, lagText } from './endings/view';
 export type { EndingView, EndStep, FutureHolder, EndTone, PowerDomain, ScoreView, RaceLab, WhyView, HiddenLab, HiddenFact, AgendaTruth, CompanyStatus, AsiOutcome, LabKind, LabStatusView, LabShare } from './endings/view';
 export type { ScoreKey, ScoreTerm } from './endings/scoring';
 export * from './compute/waits';
+
+export { PLAYER_ID, CHINA_ID } from './models/labs';

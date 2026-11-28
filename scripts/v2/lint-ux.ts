@@ -64,7 +64,7 @@ const REQUIRED = [
   'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlBudget', 'distill', 'spv', 'lta', 'wsl', 'L',
   'bottleneck', 'computeBound', 'catRisk', 'lead', 'idleChips', 'computeOnline', 'pool', 'split', 'burn', 'netBurn', 'liquidity', 'ledger',
   'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'safetyFramework',
-  'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'trust', 'credibility', 'scrutiny', 'access', 'commitment', 'watch',
+  'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'commitment', 'watch',
   // R10: the tycoon-restructure vocabulary (STRUCTURE, TECH-TREE, mockups-v3 *-IA.md glossary lists).
   'coreLoop', 'takeoffLoop', 'verbSet', 'limit', 'startType', 'parentBudget', 'revenueRun',
   'team', 'roleEng', 'roleRE', 'roleSci', 'specialty', 'specialtyBonus', 'keepHiring', 'talentPull', 'payroll', 'morale', 'buildCapacity',

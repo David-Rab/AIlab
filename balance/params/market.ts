@@ -151,17 +151,7 @@ const SECTORS: Param[] = [
   one(SE, 'U_BASE', ['US'], 4.3, '% unemployment', { ...WFX, kind: 'sourced', evidence: 'sectors.ts:84 "base unemployment by region (%). US 4.3% [R16 §1A.2]"', source: 'research/16 §1A.2' }),
   one(SE, 'U_BASE', ['CN'], 5.2, '% unemployment', { ...WFX, kind: 'untagged', evidence: 'no tag; sectors.ts:85' }),
   one(SE, 'U_BASE', ['ROW'], 5.5, '% unemployment', { ...WFX, kind: 'untagged', evidence: 'no tag; sectors.ts:85' }),
-  ...(['normal', 'ai2027', 'gate'] as const).flatMap((preset) => {
-    const v = { normal: [0.4, 1.5, 0.35, 2, 0.5], ai2027: [1.0, 1.0, 0.5, 1, 0.3], gate: [1.5, 0.6, 0.7, 0.25, 0.15] }[preset];
-    const meta = { ...W, kind: 'sourced', perPreset: true, source: 'research/16 §4.6', evidence: 'sectors.ts:87 "World-economy presets (research/16 §4.6), hidden per world."' } as const;
-    return [
-      one(SE, 'ECON_PRESETS', [preset, 'diffMult'], v[0], 'multiplier', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'frictionScale'], v[1], 'multiplier', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'sigma'], v[2], 'dimensionless', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'robotFloorYears'], v[3], 'years', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'nu'], v[4], 'dimensionless', meta),
-    ];
-  }),
+  ...(['diffMult', 'frictionScale', 'sigma', 'robotFloorYears', 'nu'] as const).map((f, i) => one(SE, 'ADOPTION', [f], [1.0, 1.0, 0.5, 1, 0.3][i], ['multiplier', 'multiplier', 'dimensionless', 'years', 'dimensionless'][i], { ...W, kind: 'sourced', source: 'research/16 §4.6', evidence: 'sectors.ts "The one adoption setting (research/16 §4.6)"' })),
   one(SE, 'ECON', ['W0'], 35, 'USD per hour', { ...W, kind: 'designer', evidence: 'sectors.ts:97 "Average US wage per hour W0 ($), V2-SPEC §3.11.3 [D]."' }),
   one(SE, 'ECON', ['hours'], 2000, 'hours per worker-year', { ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:99 "Hours per worker-year."' }),
   one(SE, 'ECON', ['gAug'], 0.3, 'fraction', { ...W, kind: 'sourced', evidence: 'sectors.ts:101 "g_aug: productivity gain on augmented work (field RCT range 0.14–0.4). [R16]"', source: 'research/16', range: { lo: 0.14, hi: 0.4, from: 'sectors.ts:101 "field RCT range 0.14–0.4"' } }),
@@ -256,19 +246,18 @@ const TEAMS: Param[] = [
   one(TM, 'REF_ROLE_SHARE', [], [0.3, 0.55, 0.15], 'fraction (eng, re, sci)', { ...R, kind: 'sourced', source: 'research/19 §1.1', evidence: 'teams.ts:9 "Reference split of capabilities staff (research/19 §1.1)."', notes: 'Array order = eng, re, sci.' }),
   one(TM, 'SAF_ROLE_SHARE', [], [90 / 140, 50 / 140], 'fraction (re, sci)', { ...R, kind: 'designer', evidence: 'teams.ts:12 "Reference split of safety staff: 90 research engineers + 50 scientists of 140 (research/19 §1.1) [Design]."', notes: 'Pointer to research/19 and [Design] together: see Q-market-1.', source: 'research/19 §1.1' }),
   one(TM, 'MOVE_SAFETY_MORALE', [], -5, 'morale points', { ...R, kind: 'designer', evidence: 'teams.ts:43 "Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]."', source: 'design/archive/STRUCTURE.md §4.1' }),
-  one(TM, 'START_TEAMS', ['classic'], [6, 21, 14, 1, 1], 'teams (eng, re.cap, sci.cap, re.saf, sci.saf)', { ...R, actor: 'player', kind: 'untagged', evidence: 'no tag; teams.ts:60-62 "Start teams (STRUCTURE §4.1 \'Frontier leader\': 4 · 11 + 1 · 8 + 2)."', notes: 'Baseline id, not a world preset. Array order = eng, re.cap, sci.cap, re.saf, sci.saf. L15: the sourced start (AIFM L_HUMAN 1,640 = 579 : 1,061 : 289, whole teams of 100 / 50 / 20).' }),
-  one(TM, 'START_TEAMS', ['reality'], [6, 21, 14, 1, 1], 'teams (eng, re.cap, sci.cap, re.saf, sci.saf)', { ...R, actor: 'player', kind: 'untagged', evidence: 'no tag; teams.ts:60-63 "Reality scales the 2,450 capabilities staff."', notes: 'Array order = eng, re.cap, sci.cap, re.saf, sci.saf. L15: the same start as classic.' }),
 ];
 
 const ST = 'src/data/v2/starts.ts';
 const C = { area: 'core', layer: 'world', actor: 'player' } as const;
 const startFam = (path: (string | number)[], unit: string | undefined, meta: Partial<Meta> & Pick<Meta, 'kind' | 'evidence'>) => one(ST, 'STARTS', ['*', ...path], undefined, unit, { ...C, ...meta });
-const START_NOTE = 'Four records (spinout, challenger, bigtech, leader); the leader row is display only, its live values sit in teams.ts/finance/sites.';
+const START_NOTE = 'Four records (spinout, challenger, bigtech, leader);  its cash, revenue and teams are read from it by finance/ledger.ts and departments/teams.ts (values from the old AI 2027 Classic baseline; to re-source against reality, handed to bal).';
 const STARTS_P: Param[] = [
   startFam(['difficulty'], 'label (Easy/Medium/Hard/Impossible)', { kind: 'untagged',
     evidence: 'no tag; starts.ts:20-23 "Setup label ..., set from bot games (PROGRESS R9; bots.ts --start, 40 seeds × 5 bots): best bot\'s win rate ≥ 30% Easy, 10–30% Medium, 1–10% Hard, < 1% Impossible. R9 data: leader 48% (mixed), challenger 5% (race), big tech 0/200, spinout 0/200."',
     notes: 'A string label; the win-rate thresholds (30/10/1 %) are only in this comment, not code. See Q-market-8.' }),
   startFam(['teams'], 'teams per key (eng, re.cap, sci.cap, re.saf, sci.saf)', { kind: 'untagged', evidence: 'no tag; starts.ts:30 "Teams by key (STRUCTURE §4.1 start table; fixed sizes 150 / 100 / 40)"; challenger eng 4 is "[D]" (starts.ts:91)', notes: START_NOTE }),
+  startFam(['securityLevel'], 'level', { kind: 'untagged', evidence: 'no tag; starts.ts StartDef.securityLevel "Weight-security level at the start."', notes: START_NOTE }),
   startFam(['cash'], 'USD B', { kind: 'untagged', evidence: 'no tag; starts.ts:48-49 "Cash on hand ($B)"', notes: START_NOTE }),
   startFam(['revenueRun'], 'USD B per year', { kind: 'untagged', evidence: 'no tag; starts.ts:48-50 "revenue run-rate ($B/yr)"', notes: START_NOTE }),
   startFam(['revenueHistory'], 'USD B per year (oldest first)', { kind: 'untagged', evidence: 'no tag; starts.ts:48-51 "the last four quarterly run-rates (oldest first)"', notes: START_NOTE }),
@@ -304,7 +293,6 @@ const DEALS: Param[] = [
   ...grp(DL, 'PARTNER_TERMS', ['chipVendor'], { gw: [2, 'GW'], quarters: [8, 'quarters'], discount: [0.05, 'fraction'] }, { ...F, kind: 'designer', evidence: 'deals.ts:56-58 "you buy 2 GW of its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]"' }),
   one(DL, 'PARTNER_TERMS', ['chipVendor', 'deadlineQ'], 12, 'quarters', { ...F, kind: 'untagged', evidence: 'no tag; deals.ts:58 "tranches by GW online within 12 quarters"' }),
   ...grp(DL, 'PARTNER_TERMS', ['sovereign'], { equityShareOfV: [0.025, 'fraction of valuation'], min: [5, 'USD B'], max: [25, 'USD B'] }, { ...F, kind: 'sourced', source: R15('(MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E)'), evidence: 'deals.ts:60-61 "a passive cheque of 2.5% of V ($5–25B) (MGX, QIA, GIC in Stargate / OpenAI / Anthropic G / xAI E) [R15]"' }),
-  ...grp(DL, 'PARTNER_TERMS', ['sovereign'], { scrutiny: [5, 'points'], congress: [-5, 'trust points'], securityDemand: [3, 'points'] }, { ...F, kind: 'designer', evidence: 'deals.ts:61-62 "political cost kept from v2: scrutiny +5, Congress trust −5, security demand +3 [D]"' }),
   ...grp(DL, 'PARTNER_TERMS', ['rescue'], { stake: [0.3, 'fraction'], minCash: [20, 'USD B'], maxShareOfV: [0.15, 'fraction of valuation'], seats: [2, 'board votes'], years: [6, 'years'] }, { ...F, kind: 'designer', evidence: 'deals.ts:64-67 "Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; ... topped up to 30%, ... two votes ... 6 years like a hyperscaler deal [D]"' }),
   ...grp(DL, 'PARTNER_TERMS', ['strings'], { maxPartners: [3, 'partners'], exclusiveBump: [0.25, 'fraction of equity'], ipBump: [0.2, 'fraction of equity'], ipCloseYr: [0.1, 'fraction of lead per year'] }, { ...F, kind: 'designer',
     evidence: 'deals.ts:69-74 "at most 3 partners at once ... [D]. Optional strings for more money [D]: exclusivity ... +25% ...; IP access ... +20% ... closes ~10% a year of your capability lead ... [R21 B4]"', notes: 'ipCloseYr: the [R21 B4] cite follows the FTC bridge quote, not the 10%; see Q-market-10.' }),
@@ -369,9 +357,7 @@ const PRODUCTION: Param[] = [
   one(PD, 'DISTILL_HARVEST_SHARE', [], 0.0015, 'fraction of anonymous usage', { ...RS, kind: 'stand-in', range: { lo: 3e-4, hi: 7e-3, from: 'diffusion.ts:66-69 "inside it (3e-4–7e-3)"' },
     evidence: 'diffusion.ts:65 "[D stand-in, CAL-P: no lab publishes the traffic its campaigns hid in. ... CAL2-X (decision 15): 0.01 sat above the top of that range; 0.0015, inside it"', notes: 'Chosen inside a bracket from two data points (research/CAL-products-sources.md D1).' }),
   one(PD, 'DISTILL_HARVEST_DAYS', [], 90, 'days', { ...RS, kind: 'stand-in', evidence: 'diffusion.ts:71-72 "[stand-in: a quarter, about a rival\'s post-training cadence]"' }),
-  one(PD, 'RECIPE_LEAK_SHARE', ['publish'], 0.05, 'fraction of recipe gap', { ...RS, kind: 'designer', evidence: 'diffusion.ts:127 "A4 publish [D]: a paper discloses about one of the ~20 techniques that make up a recipe lead."' }),
   one(PD, 'RECIPE_LEAK_SHARE', ['openWeights'], 0.3, 'fraction of recipe gap', { ...RS, kind: 'designer', evidence: 'diffusion.ts:129 "C6 / any open-weights release [D]: weights reveal architecture, size and tokenizer, not the data mix or training code"' }),
-  one(PD, 'RECIPE_LEAK_SHARE', ['track2'], 0.01, 'fraction of recipe gap', { ...RS, kind: 'designer', evidence: 'diffusion.ts:132 "E1 Track-2 dialogue [D]: a slip in a few conversations, a tenth of the AI 2027 SSL test bound"' }),
   one(PD, 'TACIT_FIRM_SHARE', [], 0.5, 'fraction of what movers carry', { ...RS, kind: 'sourced', source: 'research/RD-X04r §3C (S1)', evidence: 'diffusion.ts:136 "C4 poach / E16 let go [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning"' }),
   one(PD, 'THEFT_GAP_CLOSED', [], 2 / 3, 'fraction of model gap', { ...RS, kind: 'sourced', source: 'research/RD-X04r T5 (AI 2027: China 6 to 2 months behind on stealing Agent-2)', evidence: 'diffusion.ts:139-141 "Weight theft [P, research/RD-X04r T5]: ... the thief closes 4/6 of its model gap"' }),
   // Inline literals
@@ -382,7 +368,6 @@ const PRODUCTION: Param[] = [
   inline('mkt.ces.frontierDays', PC, '* PHI_FLOP_PER_H100E_DAY * 91', 91, 'days of base-run training', { ...RS, kind: 'designer', source: 'design/V2-SPEC.md §3.1.1 (F(t), refTotal)', evidence: 'ces.ts:80 "F(t) = ...·Φ·91 (§3.1.1)"' }),
   inline('mkt.ces.hRefFloor', PC, 'Math.max(200, H_REF_BASE + H_REF_PER_MONTH', 200, 'heads', { ...RS, kind: 'untagged', evidence: 'no tag; ces.ts:72 "Reference capabilities headcount H_ref(t) = 2050 + 49.2·months (research/13 §1.2; R11 #12)" (floor 200 not described)' }),
   inline('mkt.diffusion.accessSlope', PD, '1 - 0.25 * Math.log10(DISTILL_FULL_TOKENS / D)', 0.25, 'access per tenfold cut of harvest', { ...RS, kind: 'sourced', source: 'research/RD-X04r §3B, D2', evidence: 'diffusion.ts:80-82 "Access to a served teacher (research/RD-X04r §3B, D2): ... D2\'s 1 − 0.25·log10(D_full / D)"' }),
-  inline('mkt.diffusion.chinaAccessMeter', PD, 's.china.meters.distillationAccess / 60', 60, 'meter points for full access', { ...RS, actor: 'china', kind: 'untagged', evidence: 'no tag; diffusion.ts:83-86 "China reaches US APIs through its distillationAccess meter (/60, ≤ 1)"' }),
 ];
 
 // ---------- src/data/v2/labourMarket.ts (L11) ----------

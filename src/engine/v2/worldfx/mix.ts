@@ -44,13 +44,14 @@ import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CONSUMER_MKT, CUSTOMER_TAU, OPEN_PLAN_SHARE, consumerPlanPrice, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, PRICE_TAU, SEATS, SEED_MARKUP, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
+import { PUBLIC } from '../world/public';
 import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, RivalLab, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { agentCeilingOf, seatHoursPerMonth, workHoursOf, type AgentCeiling } from './use';
 import { bandMu, mergeChoices, surplusChoice, type Choice, type Tier } from './choice';
 import { buyerGroups } from '../../../data/v2/market';
-import { techRamp } from './policy';
+import { techRamp } from './util';
 import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
@@ -315,11 +316,10 @@ function access(p: Provider, r: RegionId): number {
   return 1;
 }
 
-function playerBrand(s: GameStateV2): number {
-  // ±0.1 with approval (§3.11.1). RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
-  // stock (CUSTOMER_TAU switching inertia), the same for every provider.
-  return 1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50));
-}
+/** The player's brand factor on demand: ±0.1 with approval (§3.11.1; world/public.ts, W4).
+ *  RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer stock (CUSTOMER_TAU
+ *  switching inertia), the same for every provider. */
+const playerBrand = (s: GameStateV2) => 1 + PUBLIC.brandSwing * Math.max(-1, Math.min(1, s.public.approval / 50));
 
 /** Compute the world mix (memoised per tick when a ctx is given). */
 export function worldMix(s: GameStateV2, ctx?: SystemCtx): WorldMix {

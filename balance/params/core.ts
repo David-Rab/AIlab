@@ -585,13 +585,13 @@ export const PARAMS_CORE = defineParams([
     id: 'bots.common.LEADER_CAP_STAFF',
     ref: { kind: 'inline', file: COM, anchor: 'const LEADER_CAP_STAFF = 1930;' },
     value: 1930, unit: 'heads', ...BOT, kind: 'untagged', notes: 'A7: literal copy of the leader start (L15: 6 x 100 + 21 x 50 + 14 x 20 = 1930; was 4 x 150 + 11 x 100 + 8 x 40 = 2020); original untagged.',
-    evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40)" = 2020',
+    evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/starts.ts leader teams: 4·150 + 11·100 + 8·40)" = 2020',
   },
   // ───────────────────────────── core/ ─────────────────────────────
   {
     id: 'core.causes.RANGES',
     ref: { kind: 'inline', file: 'src/engine/v2/core/causes.ts', anchor: 'const RANGES: [prefix: string, lo: number, hi: number][] = [' },
-    value: 'trust:*, relations.credibility, relations.scrutiny, pub.*, board.confidence, morale*, gov.*, china.*, world.unemployment.*, finance.credibility 0..100; relations.talentPull -50..50; pub.approval -100..100; valuation and revenueRun 0..inf',
+    value: 'pub.*, board.confidence, morale*, gov.*, china.*, world.unemployment.*, finance.credibility 0..100; pub.approval -100..100; valuation and revenueRun 0..inf',
     area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; causes.ts:30 "Clamp ranges by canonical key or path prefix; unlisted meters are unbounded."',
     notes: 'Meter clamp table; a table of ranges per meter key.',
@@ -673,9 +673,9 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.init.computeOnline',
-    ref: { kind: 'inline', file: 'src/engine/v2/core/init.ts', anchor: "(setup.baseline === 'reality' ? 1.0e6 : 1.2e6)" },
-    value: [1.0e6, 1.2e6], unit: 'H100e online at the leader start (reality, other baselines)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged', perPreset: true,
-    evidence: 'no tag; init.ts:226 (leader start compute)',
+    ref: { kind: 'export', module: 'src/data/v2/starts.ts', symbol: 'STARTS', path: ['#leader', 'owned'] },
+    value: 500e3, unit: 'H100e owned at the leader start (online compute = owned + rented)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
+    evidence: 'no tag; data/v2/starts.ts leader row (values from the old AI 2027 Classic baseline; to re-source, handed to bal)',
   },
 
   // ───────────────────────────── departments/ ─────────────────────────────
@@ -738,12 +738,6 @@ export const PARAMS_CORE = defineParams([
     evidence: 'build.ts:73 "One-off builds [D]: launching a product 4 team-weeks."',
   },
   {
-    id: 'core.SIDELINE_SHARE',
-    ref: { kind: 'export', module: 'src/engine/v2/departments/workfit.ts', symbol: 'SIDELINE_SHARE' },
-    value: 0.1, unit: 'fraction of every team\'s heads', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; workfit.ts:262-264 "E12 security clearances take SIDELINE_SHARE of every team\'s heads off the teams for their 60 days"',
-  },
-  {
     id: 'core.build.runSetupTW',
     ref: { kind: 'inline', file: 'src/engine/v2/departments/build.ts', anchor: "if (kind === 'base') return 0.4 * Math.sqrt(Math.max(0.01, scale));" },
     value: [0.4, 0.25, 0.1, 0.05], unit: 'team-weeks (base at 1e27 FLOP, continue, post-train, distill/amplify)', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
@@ -767,12 +761,6 @@ export const PARAMS_CORE = defineParams([
     ref: { kind: 'inline', file: 'src/engine/v2/departments/workfit.ts', anchor: 'asicMigrationUntil ?? -1) > day) mods *= 0.85;' },
     value: 0.85, unit: 'speed multiplier during a custom-ASIC migration', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
     evidence: 'workfit.ts:261 "a custom-ASIC migration −15% [D: toolchain and kernel porting churn ...]"',
-  },
-  {
-    id: 'core.workfit.treaty',
-    ref: { kind: 'inline', file: 'src/engine/v2/departments/workfit.ts', anchor: "s.gov.treaty === 'verified' ? 0.65 : 1" },
-    value: 0.65, unit: 'experiment-rate multiplier under a verified treaty', area: 'core', layer: 'world', kind: 'designer',
-    evidence: 'workfit.ts:262 "a verified treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with]"',
   },
   {
     id: 'core.workfit.rentalPath',
@@ -879,12 +867,6 @@ export const PARAMS_CORE = defineParams([
     notes: 'The verdict feeds bot win rates (the START difficulty labels).',
   },
   {
-    id: 'core.endings.warP',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: "includes('quarterly') && rng.chance(0.25)" },
-    value: 0.25, unit: 'probability per quarter at China rung 6', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged',
-    evidence: 'no tag; endings.ts:92 "5. War: China rung 6, P = 0.25 per quarter."',
-  },
-  {
     id: 'core.endings.catastropheP',
     ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'rng.chance(0.15 * exposure * (1 - defenceIndex(s, kind)))' },
     value: 0.15, unit: 'probability scale', area: 'worldfx', layer: 'world', kind: 'designer', source: 'V2-SPEC §5.1 #4', notes: 'A8c: spec states P = 0.15 x exposure x (1 - defense).',
@@ -904,7 +886,7 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.endings.escapeQuietDays',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'day - w.loose.day >= 90' },
+    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'day - sec.loose.day >= 90' },
     value: 90, unit: 'days', area: 'safety', layer: 'world', actor: 'model', kind: 'untagged',
     evidence: 'no tag; endings.ts:96-97 "after 90 d it goes quiet (location unknown)"',
   },
@@ -916,7 +898,7 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.endings.overtakenHoldDays',
-    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: '(w.overtakenDays[id] ?? 0) >= 180' },
+    ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: '(ep.overtakenDays[id] ?? 0) >= 180' },
     value: 180, unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; endings.ts:120',
   },
@@ -935,30 +917,24 @@ export const PARAMS_CORE = defineParams([
   },
   // ───────────────────────────── events/ ─────────────────────────────
   {
-    id: 'core.STORYTELLERS.maxCrises',
-    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'maxCrises'] },
-    unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
-    evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)" (header :7-8 "at most `maxCrises` crisis decisions pending")',
-    notes: 'A8c: spec table states 1 / 2 / 2 (Measured, Rising, Chaotic).',
+    id: 'core.DIRECTOR.maxCrises',
+    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'DIRECTOR', path: ['maxCrises'] },
+    value: 2, unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
+    evidence: 'no tag; director.ts "The one fixed pacing (§4.1)"',
+    notes: 'The pacing setting was removed (spec §14); this was the Rising row.',
   },
   {
-    id: 'core.STORYTELLERS.quietDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'quietDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
-    evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)"',
-    notes: 'A8c: spec table states 21 / 14 / 7 days.',
-  },
-  {
-    id: 'core.STORYTELLERS.mult',
-    ref: { kind: 'inline', file: 'src/engine/v2/events/director.ts', anchor: 'export const STORYTELLERS: Record<StorytellerId, Storyteller> = {' },
-    value: 'measured 0.8; rising 0.7 + 0.2 × (act − 1); chaotic 1.2 × noise (noise ~ N(1, 0.3) clamped 0.4-1.6, redrawn monthly)', unit: 'trigger probability multiplier', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1', notes: 'A8c: spec table states 0.8 / ramp 0.7 to 1.3 / 1.2 +-30%.',
-    evidence: 'no tag; director.ts:23-27 "Storyteller table (§4.1)"; header :9 "trigger probability multiplier by storyteller"',
+    id: 'core.DIRECTOR.quietDays',
+    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'DIRECTOR', path: ['quietDays'] },
+    value: 14, unit: 'days', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
+    evidence: 'no tag; director.ts "The one fixed pacing (§4.1)"',
+    notes: 'The pacing setting was removed (spec §14); this was the Rising row.',
   },
   {
     id: 'core.BASE_FIRE_P',
     ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'BASE_FIRE_P' },
     value: 0.35, unit: 'probability per day', area: 'core', layer: 'world', kind: 'designer',
-    evidence: 'director.ts:29 "Daily chance that a non-crisis event fires while its predicate holds, before the storyteller multiplier [D]."',
+    evidence: 'director.ts:29 "Daily chance that a non-crisis event fires while its predicate holds, [D]."',
   },
   {
     id: 'core.MAX_PENDING',
@@ -973,35 +949,11 @@ export const PARAMS_CORE = defineParams([
     evidence: 'no tag; rivals.ts:19-20 "Share of a bought lab\'s staff that joins (kept from E32)"; header :6 "You get 70% of its staff"',
   },
   {
-    id: 'core.rivals.SCRUTINY',
-    ref: { kind: 'inline', file: 'src/engine/v2/events/catalog/rivals.ts', anchor: 'const SCRUTINY = 20;' },
-    value: 20, unit: 'scrutiny points', area: 'actors', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:21 (E32 merger offer: antitrust scrutiny)',
-  },
-  {
     id: 'core.CHINA_EVENTS.deadlineDays',
     ref: { kind: 'export', module: 'src/engine/v2/events/catalog/china.ts', symbol: 'CHINA_EVENTS', path: ['*', 'deadlineDays'] },
     unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; china.ts:12, 42 "deadlineDays: 7 / 30" (the default choice applies at the deadline)',
     notes: 'Event records carry no per-field source; also defaultChoice (index) not registered.',
-  },
-  {
-    id: 'core.COMPANY_EVENTS.deadlineDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/company.ts', symbol: 'COMPANY_EVENTS', path: ['*', 'deadlineDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; company.ts:22, 57 "deadlineDays: 14 / 30"',
-  },
-  {
-    id: 'core.COMPANY_EVENTS.cooldown',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/company.ts', symbol: 'COMPANY_EVENTS', path: ['*', 'cooldown'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; company.ts:22, 57 "cooldown: 365 / 60"',
-  },
-  {
-    id: 'core.GOV_EVENTS.deadlineDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/catalog/gov.ts', symbol: 'GOV_EVENTS', path: ['*', 'deadlineDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; gov.ts:21, 49, 72, 105 "deadlineDays: 30 / 14 / 14 / 14"',
   },
   {
     id: 'core.RIVALS_EVENTS.deadlineDays',

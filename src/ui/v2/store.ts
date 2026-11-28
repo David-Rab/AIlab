@@ -6,6 +6,7 @@ import {
   serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
+import { lawsInForce } from '../../data/v2/laws';
 
 export type Screen = 'start' | 'setup' | 'game';
 export interface QSnap { q: number; L: number; U: number; cash: number; lead: number }
@@ -48,7 +49,7 @@ function sig(s: GameStateV2): Sig {
     runway: p.board.preset === 'parent' ? 0 : RUNWAY_RANK[p.finance.state] ?? 0, // a division never stops on runway (jank F2)
     findings: p.safety.findings.filter((f) => f.type === 'DISC' || f.type === 'NEG' || f.revealedFalseDay !== undefined).length,
     otherMs,
-    statutes: Object.values(s.gov.statutes).filter(Boolean).length,
+    statutes: Object.values(lawsInForce(s)).filter((x) => x === true).length,
     thefts: p.security.detectedThefts.length,
     playerMs: Object.keys(p.milestoneDays).length,
     q: quarterIndex(s.time.startDate, s.time.day),
@@ -403,7 +404,8 @@ class StoreV2 {
     const b = sig(s);
     const start = last ? s.log.lastIndexOf(last) + 1 : 0;
     const fresh = s.log.slice(start);
-    for (const e of fresh) if ((e.severity ?? 0) >= 4) this.notices.push(e);
+    // Only the game-ending notice blocks the game; every other alert goes to the alert queue (OUTSIDE-WORLD §8.3).
+    for (const e of fresh) if (e.ref === 'ending') this.notices.push(e);
     if (this.notices.length > 6) this.notices.splice(0, this.notices.length - 6);
     // Crisis decisions open the modal at once.
     if (b.pending > a.pending) {
@@ -426,7 +428,7 @@ class StoreV2 {
     if (this.prefs.pauseOnDecision && b.pending > a.pending) return 'New decision';
     if (this.prefs.pauseOnMilestone && b.playerMs > a.playerMs) return 'Milestone';
     if (this.prefs.pauseOnIncident && (b.incidents3 > a.incidents3 || fresh.some((e) => (e.severity ?? 0) >= 3 && e.kind !== 'milestone'))) return 'Alert';
-    if (this.notices.length && fresh.some((e) => (e.severity ?? 0) >= 4)) return 'Alert';
+    if (this.notices.length && fresh.some((e) => e.ref === 'ending')) return 'Alert';
     return undefined;
   }
 

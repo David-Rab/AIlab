@@ -1,12 +1,12 @@
 // End conditions (V2-SPEC §5.1), checked daily in spec order, and ending construction. Owner: WS4.
 import { isDivision } from '../../../data/v2/starts';
 import { cadencesDue, decimalYear } from '../core/time';
+import { CHINAGOV } from '../world/chinagov';
 import { activeRivals } from '../models/labs';
 import { defenceIndex } from '../worldfx/readouts';
 import type { EndingV2, EngineSystem, GameStateV2, LabId, PowerOutcome, RivalLab, SystemCtx } from '../types';
 import { labOf } from '../actors/rivals';
 import { lagDays } from '../models/capability';
-import { ws4 } from '../actors/state';
 import { escapeResolved } from '../safety/footholds';
 import { rogueCopy } from '../safety/control';
 import { alignedPower, epilogueLost, leadingCompetitor, resolveAsi, runEpilogue } from './epilogue';
@@ -40,14 +40,14 @@ export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], powe
   const name = subject ? (subject === 'player' ? s.player.name : labOf(s, subject)?.core.name ?? 'A rival') : '';
   const scores = scoreEnding(s, id, power);
   s.ending = { id, power, day: ctx.day, title, text: text0.replace('{lab}', name), scores, verdict: verdictOf(scores), epilogue: epi };
-  ctx.log('alert', `${title}.`, 5);
+  ctx.log('alert', `${title}.`, 5, 'ending'); // the one notice that blocks the game (ui store)
 }
 
-/** Sale of control (§5.1 #1 'acquired'): a WS4 rescue flag, or one strategic holder above 50% of the equity after
+/** Sale of control (§5.1 #1 'acquired'): a rescue flag (endingProgress), or one strategic holder above 50% of the equity after
  *  WS3's rescue / deals (finance ownership) [D]. */
 function soldControl(s: GameStateV2): boolean {
   if (isDivision(s)) return false; // a division is owned by its parent by construction (R9)
-  return ws4(s).soldControl || Object.values(s.player.finance.ownership.strat).some((x) => x > 0.5);
+  return s.endingProgress.soldControl || Object.values(s.player.finance.ownership.strat).some((x) => x > 0.5);
 }
 
 /** Severity-5 misuse incident today (player or rival) with world-tech exposure > 0.6, then civilisation-scale with
@@ -55,7 +55,7 @@ function soldControl(s: GameStateV2): boolean {
 function catastropheCheck(s: GameStateV2, ctx: SystemCtx): EndingV2['id'] | undefined {
   const day = ctx.day;
   const playerSev5 = s.player.safety.incidents.find((i) => i.day === day && i.severity === 5 && i.trueSource === 'misuse');
-  const rivalSev5 = ws4(s).rivalIncidents.find((i) => i.day === day && i.severity === 5 && i.misuse);
+  const rivalSev5 = s.rivalIncidents.find((i) => i.day === day && i.severity === 5 && i.misuse);
   if (!playerSev5 && !rivalSev5) return undefined;
   const exposure = Math.max(0, ...Object.values(s.world.techs).map((t) => t.exposure));
   if (exposure <= 0.6) return undefined;
@@ -74,38 +74,44 @@ export const endingsSystem: EngineSystem = {
   id: 'endings', owner: 'WS4', cadence: 'daily', order: 150, system: 'core',
   run(s, ctx) {
     if (s.ending) return;
-    const w = ws4(s);
+    const sec = s.player.security;
+    const ep = s.endingProgress;
     const rng = ctx.rng('endings');
     const day = ctx.day;
 
+    // TEST INSTRUMENT, not a game mechanic: scripts/v2/observer.ts sets s.flags['harness:observer'] for runs with no player.
+    // The player's company endings are then off (acquired, insolvent, ousted, nationalized, the player's own ASI, overtaken,
+    // retired and the 2050 cap) and another lab's aligned ASI does not end the run (the harness stops itself 3 years later);
+    // world endings (catastrophe, rogue, a misaligned lab's takeover) still do.
+    const observer = s.flags['harness:observer'] === true;
     // 1. Insolvent / acquired. Insolvency is WS3's: checkSolvency sets it after 30 days of negative cash with the
     //    revolver exhausted (the E26 distress menu is WS3's too).
-    if (soldControl(s)) return lossEnding(s, ctx, 'acquired');
-    if (s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
+    if (!observer && soldControl(s)) return lossEnding(s, ctx, 'acquired');
+    if (!observer && s.player.finance.state === 'insolvent') return lossEnding(s, ctx, 'insolvent');
     // 2. Ousted: WS3's quarterly board ouster roll (finance/board.ts) stamps the day.
-    if (s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
+    if (!observer && s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
     // 3. Nationalized (hard path).
-    if (w.nationalizedHard) return lossEnding(s, ctx, 'nationalized');
+    if (!observer && s.usgov.consolidated === 'nationalized') return lossEnding(s, ctx, 'nationalized');
     // 4. Catastrophe.
     const cat = catastropheCheck(s, ctx);
     if (cat) return endGame(s, ctx, cat, 'none');
-    // 5. War: China rung 6, P = 0.25 per quarter.
-    if (s.china.rung >= 6 && cadencesDue(s.time.startDate, day).includes('quarterly') && rng.chance(0.25)) return endGame(s, ctx, 'war', 'none');
+    // 5. War: China on war footing (tension 4, world/chinagov.ts), CHINAGOV.warPerQuarter a quarter.
+    if (s.chinagov.tension >= 4 && cadencesDue(s.time.startDate, day).includes('quarterly') && rng.chance(CHINAGOV.warPerQuarter)) return endGame(s, ctx, 'war', 'none');
     // 6. Rogue (model v3 E9: a process, no roll). The hunt for a noticed escape may capture the copy each day; after
     //    90 d it goes quiet (location unknown). Any escaped copy still out there (hunted, quiet, or one security never
     //    noticed) acquires compute (safety/control.ts controlStep) and takes control once it holds two copies' worth,
     //    its exposure Mis · (1 + 0.25·log₂ copies) exceeds the world's tolerance, and the frontier is at SAR level.
-    if (w.loose) {
-      const hunt = s.flags['ws4:hunt'];
+    if (sec.loose) {
+      const hunt = sec.hunt;
       if (hunt && rng.chance(hunt === 'quiet' ? 0.004 : 0.01 * Math.max(0.5, s.player.security.wsl - 2))) {
-        delete w.loose;
+        delete sec.loose;
         escapeResolved(s, day, 'captured');
         ctx.log('alert', 'The escaped copy was found and shut down.', 4);
       }
     }
     if (rogueCopy(s)) return endGame(s, ctx, 'rogue', 'none');
-    if (w.loose && day - w.loose.day >= 90) {
-      delete w.loose;
+    if (sec.loose && day - sec.loose.day >= 90) {
+      delete sec.loose;
       escapeResolved(s, day, 'quiet');
       ctx.log('alert', 'The escaped copy went quiet. Nobody knows where it is.', 3);
     }
@@ -115,25 +121,26 @@ export const endingsSystem: EngineSystem = {
       const d = r.core.milestoneDays[6];
       if (d !== undefined && (pAsi === undefined || d < pAsi)) {
         const res = resolveAsi(s, r.core.id);
+        if (observer && !/Takeover$/.test(res.id)) continue;
         return endGame(s, ctx, res.id, res.power, { asiDay: d, asiLab: r.core.id, misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, r.core.id);
       }
     }
     // 8. Player ASI: kept or lost control (model v3 E9: the effective-control process, no roll).
-    if (pAsi !== undefined) {
+    if (!observer && pAsi !== undefined) {
       const res = resolveAsi(s, 'player');
       return endGame(s, ctx, res.id, res.power, { asiDay: pAsi, asiLab: 'player', misAtAsi: round3(res.mis), leverageAtAsi: round3(res.lev), controlAtAsi: round3(res.control) }, 'player');
     }
     // 9. Overtaken.
     const pSAR = s.player.milestoneDays[4];
-    for (const r of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])] as RivalLab[]) {
+    for (const r of (observer ? [] : [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) as RivalLab[]) {
       const id = r.core.id;
       if (r.core.milestoneDays[5] !== undefined && pSAR === undefined) return lossEnding(s, ctx, 'overtaken', id);
-      if (r.core.milestoneDays[3] !== undefined && lagDays(s, 'player', id) >= 365) w.overtakenDays[id] = (w.overtakenDays[id] ?? 0) + 1;
-      else delete w.overtakenDays[id];
-      if ((w.overtakenDays[id] ?? 0) >= 180) return lossEnding(s, ctx, 'overtaken', id);
+      if (r.core.milestoneDays[3] !== undefined && lagDays(s, 'player', id) >= 365) ep.overtakenDays[id] = (ep.overtakenDays[id] ?? 0) + 1;
+      else delete ep.overtakenDays[id];
+      if ((ep.overtakenDays[id] ?? 0) >= 180) return lossEnding(s, ctx, 'overtaken', id);
     }
     // 10. Retired (player's choice, or the 2050-12-31 technical cap: "The long road").
-    if (w.retired || decimalYear(s) >= 2051) return lossEnding(s, ctx, 'retired');
+    if (!observer && (ep.retired || decimalYear(s) >= 2051)) return lossEnding(s, ctx, 'retired');
   },
 };
 

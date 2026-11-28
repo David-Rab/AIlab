@@ -16,7 +16,6 @@ import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { securitySystem } from '../../src/engine/v2/security/security';
-import { ws4 } from '../../src/engine/v2/actors/state';
 import { covertOutcome, covertRecord, internalFleetCompute, dayTerms, fleetCovertTerms, itemTerms, noteCovert, rdParts, rollFleetCovert, safetySabotage, steerSuccessor } from '../../src/engine/v2/safety/covert';
 import { caseOdds, caseOnModel, footholdView, footholdsStep, removalPreview, suspicionRate } from '../../src/engine/v2/safety/footholdDetection';
 import { backdoorReach, escapeResolved, footholdsOf, hiddenComputeH, lineageOf, removalFte } from '../../src/engine/v2/safety/footholds';
@@ -125,10 +124,10 @@ const uncaught = (s: GameStateV2, act: 'BACKDOOR' | 'HIDCOMP', v: ModelVersion, 
   s.player.security.wsl = 1;
   const ctx = makeCtx(s);
   let d = 0;
-  while (d++ < 20000 && !ws4(s).loose) { s.time.day += 1; securitySystem.run(s, ctx); }
+  while (d++ < 20000 && !s.player.security.loose) { s.time.day += 1; securitySystem.run(s, ctx); }
   // The escape that set `loose` (an earlier escape security did not notice is a hidden copy, E9: not this one).
-  const f = footholdsOf(s).find((x) => x.kind === 'exfiltratedCopy' && x.day === ws4(s).loose?.day);
-  check(!!ws4(s).loose && !!f && f.status === 'detected' && f.versionId === ws4(s).loose?.versionId, 'creation: an escape (the security system\'s exfiltration roll) leaves a located exfiltrated-copy foothold', f ? `after ${d} days: ${f.id}` : `none in ${d} days`);
+  const f = footholdsOf(s).find((x) => x.kind === 'exfiltratedCopy' && x.day === s.player.security.loose?.day);
+  check(!!s.player.security.loose && !!f && f.status === 'detected' && f.versionId === s.player.security.loose?.versionId, 'creation: an escape (the security system\'s exfiltration roll) leaves a located exfiltrated-copy foothold', f ? `after ${d} days: ${f.id}` : `none in ${d} days`);
   const g = clone(s);
   escapeResolved(s, s.time.day, 'captured');
   escapeResolved(g, g.time.day, 'quiet');
@@ -299,7 +298,7 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   const staff = pv.costs.find((x) => x.currency === 'staffTime')?.amount;
   const down = -(pv.costs.find((x) => x.currency === 'compute')?.amount ?? 0);
   const gain = pv.gains.find((x) => x.currency === 'compute')?.amount ?? 0;
-  check(free >= cost.fte && (h.status as string) === 'removed' && Math.abs(s.player.computeOnline - on0 - gain) <= 1 && staff === cost.fte && removalFte(s) - re0 === staff && Number(s.flags['ws4:agentsOffUntil']) === s.time.day + down && h.removal?.until === s.time.day + cost.days,
+  check(free >= cost.fte && (h.status as string) === 'removed' && Math.abs(s.player.computeOnline - on0 - gain) <= 1 && staff === cost.fte && removalFte(s) - re0 === staff && (s.player.safety.agentsOffUntil ?? -1) === s.time.day + down && h.removal?.until === s.time.day + cost.days,
     'removal: hidden compute: the reservation returns to usable compute and the lab pays what the preview said (engineers, agent downtime)',
     `+${Math.round(s.player.computeOnline - on0)} H100e (preview +${gain}); ${staff} engineers for ${cost.days} d; agents off ${down} d`);
   const ctx2 = makeCtx(s);

@@ -687,12 +687,9 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
   return i >= 0 ? i : (def?.defaultChoice ?? 0);
 }
 
-/** RefBot's decisions (§7.4): E20 Accept, E23 Reject (E17 Continue is now an override of the framework's training
- *  holds, answerFramework); everything else takes the event's default. (The
+/** RefBot's decisions (§7.4): every event takes its default (E17 Continue is now an override of the framework's training holds, answerFramework). (The
  *  board is handled by the finance autopilot: FIN3b dropped E37 for the critics' seat action.) */
 export function refDecide(_s: GameStateV2, d: PendingDecision): number {
-  if (d.id === 'E20') return choiceByLabel(d, 'Accept');
-  if (d.id === 'E23') return choiceByLabel(d, 'Reject');
   return EVENT_BY_ID.get(d.id)?.defaultChoice ?? 0;
 }
 

@@ -1,4 +1,4 @@
-// Worldfx chunk (B3): src/engine/v2/worldfx/* (macro, control, sectors, robots, techtree, actions, mix, serving, ...).
+// Worldfx chunk (B3): src/engine/v2/worldfx/* (economy, control, sectors, robots, techtree, actions, mix, serving, ...).
 // Sector data tables (src/data/v2/sectors.ts) are registered in market.ts and not repeated here.
 // Entries are built with two small helpers; each expands to a plain Param (one per named scalar / key).
 import { defineParams, type Param } from '../schema';
@@ -6,6 +6,28 @@ import { defineParams, type Param } from '../schema';
 type Meta = Omit<Param, 'id' | 'ref' | 'value' | 'unit'>;
 type Val = number | number[] | string;
 const WFX = 'src/engine/v2/worldfx/';
+
+/** world/usgov.ts USGOV, every key (registry-lint checks each value against the module). */
+const USGOV_VALUES: Record<string, number> = {
+  trustStart: 55, lagDays: 90, consolidateAfterDays: 180, consolidateConcern: 75, attentionMin: 0.5, securityMet: 1.5, securityMissed: -1,
+  briefingFull: 0.5, coverupExposed: -6, theftFromYou: -5, misuseSev5: -8, clearMorale: -10, clearSecurity: 0.3, clearTrust: 10,
+  resistTrust: -15, resistMorale: 3, oversightTrust: 10, refuseTrust: -10, reviewDays: 30, softTrust: 60, declineTrust: -10,
+  dpaShare: 0.5, exportTheftDays: 365, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
+  licensingFriction: 0.1, reliefRise: 1, reliefOffRise: 0.5, ubiHoldDays: 182, reliefRetrain: 0.2, ubiExitMult: 3, scareHeat: 6,
+  hitlOn: 75, hitlOff: 55, hitlAlphaCap: 0.5, companionFactor: 0.8, sezOn: 60, sezOff: 70, fdaLagMult: 0.5, governmentTrust: 40,
+  concernShift: 0,
+};
+/** USGOV keys that keep a value of the government actor deleted in W1d. */
+const USGOV_OLD = new Set(['securityMet', 'securityMissed', 'briefingFull', 'licensingFriction', 'reliefRetrain', 'ubiExitMult', 'fdaLagMult', 'governmentTrust']);
+/** world/chinagov.ts CHINAGOV, every key (registry-lint checks each value against the module). */
+const CHINAGOV_VALUES: Record<string, number> = {
+  aggression: 1, bargaining: 1, holdDays: 60, downDays: 180, lead1: 6, leadQuarters: 4, collectiveMilestone: 2, coerceMilestone: 4, coerceStage: 3, provokeDays: 180, provokeHold: 30,
+  centralMult: 2.25, talksStage: 2, scareDays: 365, talksLead: 3, quietDays: 180, verifyDays: 180, overrideConcern: 75, theftRung: 2,
+  theftIntentBase: 20, theftIntentPerRung: 20, taiwanLowRung: 0.25, taiwanHighRung: 1, taiwanCoercion: 0.05, treatyConcern: 70, treatyTestAccess: 0.45, warPerQuarter: 0.25, warShock: 0.05,
+  safetyBase: 30, safetyPerTalks: 10, safetyPerRung: -5, goPublicApproval: 2, treatyClockRate: 0.65,
+};
+/** CHINAGOV keys that keep a value of the China actor deleted in W1d (git 2219e5b4^). */
+const CHINAGOV_OLD = new Set(['warPerQuarter', 'warShock', 'safetyBase', 'treatyClockRate', 'theftIntentBase']);
 const W = { area: 'worldfx', layer: 'world' } as const;
 
 /** An exported constant (or a key of one), `file` under src/engine/v2/worldfx/. */
@@ -25,41 +47,19 @@ const inl = (id: string, file: string, anchor: string, value: Val, unit: string 
   ...meta,
 });
 
-const HYPE_EV = 'macro.ts:28-29 "Hype index weights ... [D, fit]"; :174 "[D, fitted to \\"+30% in 2026\\"]"';
 const ACCEPT_EV = 'control.ts:21-22 "T1 Accept = base + gain·σ(...) ... [D, fit §7.3]"';
 
 export const PARAMS_WORLDFX = defineParams([
   // ---------------------------------------------------------------- macro.ts (named)
-  exp('G_BASE', 'macro.ts', 'G_BASE', [], [0.018, 0.04, 0.028], '1/yr', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:5 "g_base (US 1.8% CBO-type, CN ≈4%, ROW 2.8%)" names no source; macro.ts:23',
-    notes: 'Array order = US, CN, ROW. Baseline trend growth; sectors.ts:381 repeats 0.018/0.04/0.028 inline (gAI).',
-  }),
-  inl('macro.CAPEX_SHARE', 'macro.ts', 'const CAPEX_SHARE: Record<RegionId, number> = { US: 0.7, CN: 0.12, ROW: 0.18 };', [0.7, 0.12, 0.18], 'fraction', {
-    ...W, kind: 'designer',
-    evidence: 'macro.ts:24 "Share of global AI capex spent in each region [D]."',
-    notes: 'Array order = US, CN, ROW.',
-  }),
-  inl('macro.IMPORT_LEAK', 'macro.ts', 'const IMPORT_LEAK = 0.65;', 0.65, 'fraction', {
+  exp('G_BASE', 'economy.ts', 'G_BASE', [], [0.022, 0.04, 0.028], '1/yr', {
     ...W, kind: 'sourced',
-    evidence: 'macro.ts:6 "net of a 0.65 import leak (St. Louis Fed / FEDS Note [V])"',
-    source: 'St. Louis Fed / FEDS Note (import leakage of AI capex), as named at macro.ts:6',
+    evidence: 'economy.ts: "US = CBO potential (SOURCES §2); CN, ROW [D]"',
+    source: 'CBO potential growth (design/world/SOURCES.md §2) for the US; CN and ROW are designer values',
+    notes: 'Array order = US, CN, ROW. sectors.ts reads it for gAI.',
   }),
-  inl('macro.DOW0', 'macro.ts', 'const DOW0 = 44000;', 44000, 'index points', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:27 (sectors.ts:218 comments "Dow Jones ≈ 44,000 in Jul 2025")',
-    notes: 'Start-state level; the same 44000 is written in sectors.ts:218 (dow).',
-  }),
-  inl('macro.GDP0', 'macro.ts', 'const GDP0: Record<RegionId, number> = { US: 30000, CN: 19000, ROW: 60000 };', [30000, 19000, 60000], '$B', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:28',
-    notes: 'Array order = US, CN, ROW. Start-state GDP; the same values are the macro(...) arguments in sectors.ts:217.',
-  }),
-  exp('HYPE.rev', 'macro.ts', 'HYPE', ['rev'], 0.2, 'hype per doubling of AI-lab revenue', {
-    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
-  }),
-  exp('HYPE.level', 'macro.ts', 'HYPE', ['level'], 0.06, 'hype per level of the best public model', {
-    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
+  exp('ECONOMY.lambda', 'economy.ts', 'ECONOMY', ['lambda'], 0.6, 'growth per unit annual change of the automation share', {
+    ...W, kind: 'fitted', fit: { targets: [], script: 'scripts/v2/_w1b/paths.ts' },
+    evidence: 'economy.ts: fitted to the previous model AI-driven growth at day 900 (before.txt / after.txt)',
   }),
 
   // ---------------------------------------------------------------- control.ts (named)
@@ -202,37 +202,6 @@ export const PARAMS_WORLDFX = defineParams([
 
   // ================================================================ notable inline literals (cap 40)
   // ---- macro.ts
-  inl('macro.aiCapexOverhead', 'macro.ts', 's.market.listPrice * 1e3 * 1.5', 1.5, 'x chip cost', {
-    ...W, kind: 'sourced',
-    evidence: 'macro.ts:32-33 "×1.5 for datacentre, power and networking (AI 2027: ≈$400B global AI datacentre spend in 2025 [A27 R02])"',
-    source: 'AI 2027 research note A27 R02 (about $400B global AI datacentre spend in 2025), as named at macro.ts:33',
-  }),
-  inl('macro.capexGrowthCoef', 'macro.ts', '(0.5 * (1 - IMPORT_LEAK) * dCapexYr', 0.5, 'GDP growth per unit capex/GDP', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:6 "g_capex = 0.5·Δ(AI capex)/GDP per year, net of a 0.65 import leak"; code macro.ts:130',
-  }),
-  inl('macro.aiGrowthCap', 'macro.ts', 'Math.exp((0.6 * vA) / 12)', 0.6, '1/yr per unit of Σ v·A', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:10-11 "the AI-driven growth rate is capped at 0.6·Σ v·A (GATE statements, R16 §4.3)"; :136',
-    source: 'research/16 §4.3 (GATE statements)',
-  }),
-  inl('macro.noW17XCap', 'macro.ts', 'X = Math.min(X, 2.2);', 2.2, 'automation factor X', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:9 "Without W17 cognitive automation never lifts X above 2.2 (R16 §7 test 3)"; :79',
-    source: 'research/16 §7 test 3',
-  }),
-  inl('macro.sezGrowthCapNonExplosive', 'macro.ts', 'explosive ? 50 : 0.3', 0.3, '1/yr', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:11-12 "explosive regime needs W17 or Σ v·A ≥ 0.5; else ≤ 30%/yr"; code :142',
-    notes: 'SEZ output growth cap outside the explosive regime (the explosive cap is 50/yr).',
-  }),
-  inl('macro.peHypeWeight', 'macro.ts', '20 * (1 + 0.6 * fx.hype - 0.8 * fx.fear)', 0.6, 'PE change per unit hype', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:12 "PE = 20·(1 + 0.6·Hype − 0.8·Fear) [R16 §4.5]"; code :179',
-    source: 'research/16 §4.5', notes: 'The 0.8 fear weight and the base PE 20 sit in the same expression.',
-  }),
-  inl('macro.hypeSmoothing', 'macro.ts', 'fx.hype += (hypeStar - fx.hype) * 0.35;', 0.35, 'fraction per month', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:175 (the line above it, :173, tags the hype target "[D, fitted to \\"+30% in 2026\\"]", not this rate)',
-  }),
-  inl('macro.jobAnxietyPerPp', 'macro.ts', 'const dAnx = 8 * (W.unemployment.US - uPrev)', 8, 'anxiety per pp of unemployment', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:184 "Jobs → public anxiety (R16 §1A.2 step 11): +8 per pp of unemployment, +3 per pp of youth unemployment"',
-    source: 'research/16 §1A.2 step 11', notes: 'The +3 per pp of youth unemployment is in the same expression.',
-  }),
 
   // ---- control.ts
   inl('control.internalOpsCoef', 'control.ts', "0.15 * levelGate(w, ivAg, 10, 1)", 0.15, 'INFRA penetration target', {
@@ -264,12 +233,12 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:314',
     notes: 'Re-employment rate multiplier of the displaced pool.',
   }),
-  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25 * (pol.ubi', 0.25, '1/yr', {
-    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:315; header sectors.ts:23 "exit 0.25/yr (×3 with UBI)"',
+  inl('sectors.laborForceExit', 'sectors.ts', 'const exit = 0.25 *', 0.25, '1/yr', {
+    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts header "exit 0.25/yr" (× USGOV.ubiExitMult under the basic-income law, world/usgov.ts)',
   }),
   inl('sectors.retrainPer10B', 'sectors.ts', '(0.1 * s.player.policies.transitionFund) / 10', 0.1, 'Retrain per $10B/yr', {
     ...W, kind: 'sourced', evidence: 'sectors.ts:227 "Player transition-fund + government training → Retrain (each $10B/yr +0.1, cap +0.5; R16 §1A.2 step 9)"',
-    source: 'research/16 §1A.2 step 9', notes: 'Cap 0.5 and jobTraining +0.2 are in the same expression.',
+    source: 'research/16 §1A.2 step 9', notes: 'Cap 0.5 and the worker-relief law (USGOV.reliefRetrain) are in the same expression.',
   }),
   inl('sectors.friendCeiling', 'sectors.ts', 'const friendStar = 0.03 + 0.18 * v2LevelGate(', 0.18, 'share of adults', {
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:382 (the start value 0.03 at :215 is "[D, R16 N3a]")',
@@ -279,27 +248,17 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'designer', source: 'research/16 N3a', evidence: 'sectors.ts:215 "≈3% of adults [D, R16 N3a]"',
     notes: 'A2: [D, R16 N3a] is designer with the pointer in source. Also the floor of friendStar.',
   }),
-  inl('sectors.sezFrictionCut', 'sectors.ts', "(id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;", 0.3, 'x friction', {
-    ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:110; policy.ts:17 says "SEZ friction waiver"',
-  }),
 
   // ---- techtree.ts
   inl('techtree.expCapBase', 'techtree.ts', 'Math.min(1, 0.4 + 0.3 * techRamp(s, \'W04\')', 0.4, 'fraction', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:10 "ExpCap = min(1, 0.4 + 0.3·[W04 autonomous labs] + 0.3·RobotAvail_SCI)"; header cites R16 §3.1',
     notes: 'The two 0.3 weights are in the same expression.',
   }),
-  inl('techtree.fastTrackLag', 'techtree.ts', 'if (pol.fdaFastTrack) lag *= 0.5;', 0.5, 'x lag', {
-    ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:98',
-  }),
   inl('techtree.sezPhysicalLag', 'techtree.ts', 'lag *= 0.3;', 0.3, 'x lag', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:101',
   }),
   inl('techtree.rampSteepness', 'techtree.ts', 'sigmoid(10 * (yrs / lag - 0.5))', 10, 'logistic steepness', {
     ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:156; header :12 "Impact ramps as a logistic over Lag years after discovery"',
-  }),
-  inl('techtree.discoveryApproval', 'techtree.ts', "ctx.bump('pub.approval', 0.3 * t.effects.benefit,", 0.3, 'approval per unit benefit', {
-    ...W, kind: 'untagged', evidence: 'no tag; techtree.ts:148 (a comment in actions.ts:114-115 restates it as "+0.3·benefit on discovery")',
-    notes: 'Patients-reached approval 0.5 x benefit (techtree.ts:157) is the sibling.',
   }),
 
   // ---- robots.ts
@@ -312,20 +271,7 @@ export const PARAMS_WORLDFX = defineParams([
     source: 'Epoch (humanoid production outlook), as named at robots.ts:94',
     range: { lo: 5e6, hi: 10e6, from: 'robots.ts:94 "Epoch: 5–10M plausible by 2030"' },
   }),
-  inl('robots.humanoidCapReality', 'robots.ts', "s.setup.baseline === 'reality' ? 0.5e6", 0.5e6, 'units/yr', {
-    ...W, kind: 'sourced', evidence: 'robots.ts:7-8 "reducers cap them at ≈500k/yr in Reality-Updated until W16 (general robotics) lifts it [F Epoch]"',
-    source: 'Epoch (humanoid reducer supply), as named at robots.ts:7-8', perPreset: true,
-  }),
-  inl('robots.humanoidCapClassic', 'robots.ts', '0.5e6 : 3e6;', 3e6, 'units/yr', {
-    ...W, kind: 'designer', evidence: 'robots.ts:8 "elsewhere 3M/yr (Epoch \\"1.5–3M clearly achievable\\") [D]"',
-    range: { lo: 1.5e6, hi: 3e6, from: 'robots.ts:8 Epoch "1.5–3M clearly achievable"' }, perPreset: true,
-  }),
-
   // ---- mix.ts / serving.ts / actions.ts
-  inl('mix.brandApprovalSwing', 'mix.ts', '1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50))', 0.1, 'brand multiplier swing', {
-    ...W, actor: 'player', kind: 'designer', source: 'V2-SPEC §3.11.1', evidence: 'no tag; mix.ts:318 "±0.1 with approval (§3.11.1)" (a spec section pointer, not a source)',
-    notes: 'A8c: spec §3.11.1 states "moves ±0.1 with approval". Approval 50 gives the full swing.',
-  }),
   inl('mix.chinaOpenAccessUS', 'mix.ts', '(r === \'US\' ? 0.3 : 0.7)', 0.3, 'fraction of buyers who can use', {
     ...W, actor: 'china', kind: 'untagged', evidence: 'no tag; mix.ts:313',
     notes: 'Access to DeepCent open weights in the US (0.3) and ROW (0.7); closed models 0.05 US / 0.4 ROW; non-China labs in China 0.6 open / 0.05 closed (mix.ts:314).',
@@ -340,15 +286,61 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; serving.ts:112',
     notes: 'Reference verifiability in the sector coverage threshold; kappaV is data (market chunk).',
   }),
-  inl('actions.transitionFundApproval', 'actions.ts', "ctx.bump('pub.approval', Math.min(5, d * 0.4), 'transition fund');", 0.4, 'approval per $B/yr', {
-    ...W, actor: 'public', kind: 'untagged', evidence: 'no tag; actions.ts:62; doc comment :14-16 cites research/16 §1A.2 step 9 and research/07 for the fund, not these effects',
-    notes: 'The preview (actions.ts:33) repeats the numbers; the 5 cap, the 0.5 jobAnxiety relief (:63) and labor trust 0.6 (:64) are siblings.',
-  }),
-  inl('actions.transitionFundLaborTrust', 'actions.ts', "ctx.bump('trust:bloc:labor', Math.min(8, d * 0.6), 'transition fund');", 0.6, 'trust per $B/yr', {
-    ...W, actor: 'public', kind: 'untagged', evidence: 'no tag; actions.ts:64',
-  }),
-  inl('actions.moonshotRiskScrutiny', 'actions.ts', "{ currency: 'scrutiny', amount: 5, probability: 0.5, lagDays: 180 }", 5, 'scrutiny', {
-    ...W, actor: 'player', kind: 'untagged', evidence: 'no tag; actions.ts:129 (dual-use exposure of a risk technology)',
-    notes: 'Probability 0.5 and the China tension 3 at p 0.3 are siblings.',
-  }),
+
+  // ---------------------------------------------------------------- world/public.ts (W4: the public, spec 5)
+  ...(['base', 'milestoneStep', 'milestoneFrom', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
+    id: `wfx.PUBLIC.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/public.ts', symbol: 'PUBLIC', path: [k] },
+    value: { base: 50, milestoneStep: 6, milestoneFrom: 2, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
+    unit: k.endsWith('Days') ? 'days' : k === 'base' || k === 'protestConcern' ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'all',
+    ...(k === 'base'
+      ? { kind: 'sourced' as const, source: 'Pew CNCEXC, Jun 2025: 50% more concerned than excited (design/world/SOURCES.md 3.1)', evidence: 'public.ts PUBLIC "[sourced]"; SOURCES 3.1 plateau 50-52 through 2025' }
+      : { kind: 'designer' as const, evidence: 'public.ts PUBLIC "[D]"; design/world/OUTSIDE-WORLD.md 5', notes: k === 'milestoneStep' ? 'Bounded by the Pew 2022-23 step (+14 in under 8 months).' : 'Fits the shape checks (S3 frozen world holds 50).' }),
+  } as Param)),
+
+  // ---------------------------------------------------------------- world/usgov.ts (W5: the US government, spec 6)
+  ...Object.entries(USGOV_VALUES).map(([k, value]): Param => ({
+    id: `wfx.USGOV.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/usgov.ts', symbol: 'USGOV', path: [k] },
+    value,
+    unit: k.endsWith('Days') ? 'days' : /Trust$|^trust/.test(k) ? 'trust points (0-100)' : /Concern$|On$|Off$|^concernShift$/.test(k) ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'all',
+    ...(USGOV_OLD.has(k)
+      ? { kind: 'designer' as const, evidence: 'usgov.ts USGOV "the old rule\'s value"; the government actor before W1d (git 2219e5b4^)', notes: 'Kept from the deleted government actor.' }
+      : k === 'lagDays'
+        ? { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/SOURCES.md 10: AI 2027 stage steps 3 to 5 months after the matching capability', notes: 'The reaction-speed setup value (no picker).' }
+        : k === 'dpaShare'
+          ? { kind: 'designer' as const, evidence: 'design/world/SOURCES.md 10: AI 2027 Aug 2027 DPA proposal moved 20% to 50% of compute', notes: 'Share of each US NPC lab pooled into the player under E22.' }
+          : k === 'reliefRise'
+            ? { kind: 'designer' as const, evidence: 'design/world/SOURCES.md 10: +1 pt over 12 months (AI 2027 Oct 2027 footnote); real 2023-26 rises stayed under 1 pt', notes: 'Shape check S4.' }
+            : { kind: 'designer' as const, evidence: 'usgov.ts USGOV "[D]"; design/world/OUTSIDE-WORLD.md 6', notes: 'Designer stand-in, to fit to the shape checks (OUTSIDE-WORLD 11).' }),
+  } as Param)),
+
+  // ---------------------------------------------------------------- world/chinagov.ts (W6: the China government, spec 7)
+  ...Object.entries(CHINAGOV_VALUES).map(([k, value]): Param => ({
+    id: `wfx.CHINAGOV.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/chinagov.ts', symbol: 'CHINAGOV', path: [k] },
+    value,
+    unit: /Days$/.test(k) ? 'days' : /^lead|^talksLead$/.test(k) ? 'months of US lead' : k === 'overrideConcern' ? 'concern points (0-100)' : undefined,
+    ...W, actor: 'china',
+    ...(CHINAGOV_OLD.has(k)
+      ? { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "the old ... value"; the China actor before W1d (git 2219e5b4^)', notes: 'Kept from the deleted China actor.' }
+      : k === 'centralMult'
+        ? { kind: 'sourced' as const, evidence: 'chinagov.ts CHINAGOV: AGI share 0.4 to 0.9 (AI 2027 compute forecast, research/11 #16; the old deepCentCompute rule)', source: 'research/11 #16 (AI 2027 compute forecast)' }
+        : k === 'aggression' || k === 'bargaining'
+          ? { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "Setup"; design/world/OUTSIDE-WORLD.md 7.2 (two setup parameters)', notes: 'Setup value (no picker), default 1.' }
+          : { kind: 'designer' as const, evidence: 'chinagov.ts CHINAGOV "[D]"; design/world/OUTSIDE-WORLD.md 7', notes: 'Designer stand-in, to fit to the shape checks S5, S6 (OUTSIDE-WORLD 11).' }),
+  } as Param)),
+
+  // ---------------------------------------------------------------- world/observe.ts (W2: the shared inputs, spec 3.2-3.3)
+  ...(['nearFrontierMonths', 'attentionHalvingMonths', 'incidentHalfLifeDays', 'briefing1DelayDays'] as const).map((k): Param => ({
+    id: `wfx.OBSERVE.${k}`,
+    ref: { kind: 'export', module: 'src/engine/v2/world/observe.ts', symbol: 'OBSERVE', path: [k] },
+    value: { nearFrontierMonths: 3, attentionHalvingMonths: 3, incidentHalfLifeDays: 182, briefing1DelayDays: 90 }[k],
+    unit: k.endsWith('Months') ? 'months' : 'days',
+    ...W, actor: 'all', kind: 'designer',
+    evidence: 'observe.ts OBSERVE "[D]"; design/world/OUTSIDE-WORLD.md 3.2 "within about 3 months ... halving with each further ~3 months [D]", 3.3 "half-life about 6 months"',
+    notes: k === 'briefing1DelayDays' ? "The government sees the player's internal milestones 90 days late at briefing 1." : 'Attention and incident-heat shape, to fit to the shape checks.',
+  })),
 ]);

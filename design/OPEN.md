@@ -13,7 +13,9 @@ When an item is done or dropped, delete its line here. New "for later" items go 
 | Item | Kind | Detail |
 |---|---|---|
 | TRAINING › Runs: restore the per-run training-share −/+ (designer 2026-11-27; 001865c2 made it read-only with a link) | Later (small UI task) | memory ai27-datacenter-redesign; archive/RD-AUDIT/UI-BUILD.md |
-| ws4 E1 "no AI 2027 canon" failed on ai2027-world Agent-N names; that world preset is gone — does the check still fail? | Check | archive/MARKET-CP.md |
+| Economy shape (outside-world session, parked by the designer 2026-11-28): with no player, AI does 32–44% of US work by the end but US unemployment ends at ~6% (youth 24–30%) and AI revenue is only 2.5–5% of GDP. Check re-employment (sectors.ts openJobs, displaced pool), the automation measure and the AI share of income | Later | design/world/WORLD-TASKS.md (obs-quiet, obs-built); design/world/SESSION-HEAD.md §14 |
+| Plans A–D gaps after the outside-world build: AI Futures plan B (US sabotage of China: an "offensive options" beat at stage 3+) and plan A's handoff (a lift condition for the treaty cap). Parked by the refocus | Later | design/world/PLANS.md §5 |
+| AI 2027 canon left in player-visible content: China lab "DeepCent", default company "OpenBrain", milestone `Agent-N` names and canon dates, the end screen's AI 2027 reference line and glossary term, the v1 glossary. Parked from the outside-world session (2026-11-27) | Later | design/world/OUTSIDE-WORLD.md §15; design/world/SESSION-HEAD.md §10 |
 | 2026-11-17 tycoon-era deferrals: R1 auto-pick from open projects, P2, P4, M3 best-model policy, M6, PR1 shortfall policy, O3, start-type presentation (ST1/ST2), follower catch-up. Most predate the v3 and R&D rebuilds; triage which still mean anything | Check | archive/JANK-AUDIT.md; archive/PROGRESS.md R9; memory ai27-tycoon-direction |
 
 ## Balance and calibration

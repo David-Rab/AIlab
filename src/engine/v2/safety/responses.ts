@@ -16,6 +16,8 @@ import { removeFoothold } from './footholdDetection';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import { reportingLaw } from '../../../data/v2/laws';
+import { approvalPush, PUBLIC } from '../world/public';
 /** An incident's model, by name, for log lines (VOCAB §4: names, never ids). */
 const incModel = (s: GameStateV2, inc: Incident) => versionById(s, inc.versionId)?.name ?? 'a model';
 
@@ -150,15 +152,6 @@ export function restrictTargets(s: GameStateV2, v: ModelVersion, inc?: Incident)
   return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && !isRestricted(d) && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
 }
 
-/** Disclosure's trust change per counterparty at today's credibility (below 30 it costs trust, §3.9.1), after the
- *  counterparty's trust level (gains shrink near 100, losses grow). */
-export const DISCLOSE_CPS = ['evalGov', 'exec', 'evalIndep'] as const;
-export function discloseTrust(s: GameStateV2, cp: (typeof DISCLOSE_CPS)[number]): number {
-  const T = s.relations.stocks[cp]?.trust ?? 50;
-  const base = (3 * (s.relations.credibility - 30)) / 40;
-  return base >= 0 ? base * (1 - T / 100) : base * (1 + T / 100);
-}
-export const discloseScrutiny = (inc?: Incident) => 3 + 2 * (inc?.severity ?? 2);
 
 export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string; /** patchSignal (SR-16): the RL family to fix. */ family?: RLFamily }
 
@@ -273,7 +266,7 @@ export const disclosurePolicy = (s: GameStateV2): DisclosurePolicy => s.player.s
 
 /** Must this incident be reported by law (statutoryDaily's rule: SB 53 / RAISE in force, not internal, severity ≥ 3)? */
 export function mustReport(s: GameStateV2, inc: Incident): boolean {
-  return (s.gov.statutes.sb53 || s.gov.statutes.raise) && inc.exposure !== 'internal' && inc.severity >= 3;
+  return reportingLaw(s) && inc.exposure !== 'internal' && inc.severity >= 3;
 }
 /** Will the lab disclose this incident: the per-incident override, else the policy (legal = only what must be reported). */
 export function willDisclose(s: GameStateV2, inc: Incident): boolean {
@@ -297,14 +290,12 @@ export function setIncidentDisclosure(s: GameStateV2, ctx: SystemCtx, inc: Incid
   return undefined;
 }
 
-/** Disclose an incident: scrutiny 3 + 2·severity, trust per evaluator / exec by credibility, the world learns the
- *  discovered failure mode it shows, its public timer ends. */
+/** Disclose an incident: the world learns the discovered failure mode it shows, its public timer ends. */
 export function discloseIncident(s: GameStateV2, ctx: SystemCtx, inc: Incident): void {
-  ctx.bump('relations.scrutiny', discloseScrutiny(inc), 'disclosure', inc.id);
-  for (const cp of DISCLOSE_CPS) ctx.bump(`trust:${cp}`, discloseTrust(s, cp), 'disclosure', inc.id);
   if (typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) revealToWorld(s, inc.trueSource as UModeId);
   inc.status = 'disclosed';
   delete inc.publicTimerDays;
+  approvalPush(s, ctx, PUBLIC.disclosedPerSeverity * inc.severity, 'An incident disclosed');
   ctx.log('company', `Incident on ${incModel(s, inc)} disclosed to government and evaluators.`, 2, inc.id);
 }
 

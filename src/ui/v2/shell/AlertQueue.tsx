@@ -13,7 +13,7 @@ import { runText } from '../fmt';
 import { C } from '../theme';
 
 export const KIND_PANEL: Record<string, string> = {
-  incident: 'safety', research: 'safety', finance: 'finance', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations',
+  incident: 'safety', research: 'safety', finance: 'finance', gov: 'powers', china: 'powers', rival: 'powers', public: 'powers',
   world: 'world', company: 'lab', milestone: 'models', alert: 'risk', news: 'world', model: 'safety', security: 'lab',
 };
 export const KIND_ICON: Record<string, typeof ICON.alert> = {

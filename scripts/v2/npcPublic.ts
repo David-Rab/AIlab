@@ -7,7 +7,6 @@ import { h50Of } from '../../src/engine/v2/models/capability';
 import { DAYS_PER_MONTH } from '../../src/engine/v2/npc/lab';
 import { PUBLIC_SIGMA, publicOf, refreshPublic, sigmaOf } from '../../src/engine/v2/npc/public';
 import { leadDays } from '../../src/engine/v2/actors/intel';
-import { gradeRival } from '../../src/engine/v2/actors';
 import type { GameStateV2, RivalLab } from '../../src/engine/v2/types';
 
 let fails = 0;
@@ -120,8 +119,6 @@ for (const lab of [us, cn]) {
   const e1 = leadDays(k, r.core.id).est;
   check(r.internal.G === gBefore && e1 === e0 - 30, "(d) the estimate swaps the lab's side for its reported lag", `${e0} -> ${e1} d`);
 }
-// (e) Safety Index grades compute from public facts.
-check([...s.rivals, s.china.lab].every((r) => Number.isFinite(gradeRival(s, r.core.id).overall)), '(e) gradeRival grades every lab from the public posture and disclosed incidents');
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

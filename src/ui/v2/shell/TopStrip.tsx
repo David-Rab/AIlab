@@ -6,7 +6,7 @@ import { chanceCertainty, dateOf, divisionView, engine, fmtDate, isUnknown, labS
 import type { GameStateV2 } from '../../../engine/v2';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { store } from '../store';
-import { ACT_NAMES, Limit, Term, Tip, TipCard, WhyCard } from '../ui';
+import { ACT_NAMES, ActBtn, Limit, Term, Tip, TipCard, WhyCard } from '../ui';
 import { GoBtn, Spark2 } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -196,11 +196,12 @@ export function TopStrip({ s }: { s: GameStateV2 }) {
 
 function GameMenu() {
   const [open, setOpen] = useState(false);
+  const [retire, setRetire] = useState(false);
   const st = store;
-  const close = () => setOpen(false);
+  const close = () => { setOpen(false); setRetire(false); };
   return (
     <div className="ff-wrap">
-      <button className="btn btn-sm btn-icon" data-test="menu" onClick={() => setOpen((o) => !o)}><ICON.menu size={15} /></button>
+      <button className="btn btn-sm btn-icon" data-test="menu" onClick={() => { setOpen((o) => !o); setRetire(false); }}><ICON.menu size={15} /></button>
       {open && (
         <div className="ff-menu right" data-test="menu-list">
           {SLOT_KEYS.map((k, i) => (
@@ -222,6 +223,9 @@ function GameMenu() {
             </label>
           ))}
           <div className="ff-sep" />
+          {!retire
+            ? <button className="ff-item" data-test="retire-open" onClick={() => setRetire(true)}>Retire…</button>
+            : <div className="ff-item" data-test="retire-confirm"><span className="small tone-warn">Retiring ends the game.</span><ActBtn id="RETIRE" label="Retire now" onDone={close} /><button className="btn btn-sm" data-test="retire-cancel" onClick={() => setRetire(false)}>Cancel</button></div>}
           <button className="ff-item" data-test="quit" onClick={() => { st.save(); st.go('start'); close(); }}>Save & quit</button>
         </div>
       )}

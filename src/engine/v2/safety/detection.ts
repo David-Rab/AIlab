@@ -5,8 +5,6 @@
 // player only ever sees beliefs (est ± sd), safety-eval rates and incidents.
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
-import { runAlignmentEvals } from './alignmentEvals';
-import { evalAwarenessFactor } from '../models/benchmarks';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { BeliefEvidence, GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
@@ -271,15 +269,6 @@ export function safetyEvalSuite(s: GameStateV2, rng: RngLike, day: number, v: Mo
       observeVersion(s, rng, day, v, trait, fam, d, 1, by === 'self' ? 'suite' : 'external');
     }
   }
-}
-
-/** External evaluator report (§3.5.6): evalIndep = BB with stronger elicitation; evalGov = misuse only (no traits). */
-export function observeExternal(s: GameStateV2, ctx: SystemCtx, versionId: string, by: 'evalGov' | 'evalIndep'): void {
-  const v = versionById(s, versionId);
-  if (!v || by === 'evalGov') return;
-  safetyEvalSuite(s, ctx.rng('safety'), ctx.day, v, by);
-  // SR-07: the evaluator's own scenario set (k of n per alignment eval, one full suite's worth).
-  runAlignmentEvals(s, ctx.rng('safety'), ctx.day, v, by, 1, evalAwarenessFactor(v));
 }
 
 /**

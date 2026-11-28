@@ -1,4 +1,4 @@
-// Player actions in the World sphere (transition fund, moonshots). Owner: WS5.
+// Player actions in the World sphere (transition fund, moonshots, no drop-in agents). Owner: WS5.
 // Every preview shows what apply() does (V2-SPEC §2.7 preview truth).
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, GameStateV2, SystemCtx } from '../types';
@@ -8,6 +8,8 @@ import { gSci, MOONSHOT_K, mSci, scienceRate, techBlocker } from './techtree';
 import { domainScaleGs } from '../models/capability';
 import { internalVersion } from '../models/labs';
 import { revenueReadout } from './revenue';
+import { L, pv } from '../actors/fx';
+import { simpleAction } from '../core/actionDef';
 
 type P = Record<string, number | string | boolean>;
 
@@ -29,18 +31,12 @@ const transitionFund: ActionDef = {
     if (d >= 0) {
       return {
         costs: [{ currency: 'cash', amount: -d }],
-        gains: [
-          { currency: 'approval', amount: Math.round(Math.min(5, d * 0.4) * 10) / 10, lagDays: 90 },
-          { currency: 'trust', amount: Math.round(Math.min(8, d * 0.6) * 10) / 10, target: 'bloc:labor' },
-        ],
+        gains: [],
         exposure: [],
       };
     }
     return {
-      costs: [
-        { currency: 'approval', amount: Math.round(Math.max(-5, d * 0.4) * 10) / 10 },
-        { currency: 'trust', amount: Math.round(Math.max(-12, d * 1.0) * 10) / 10, target: 'bloc:labor' },
-      ],
+      costs: [],
       gains: [{ currency: 'cash', amount: -d }],
       exposure: [],
     };
@@ -51,23 +47,11 @@ const transitionFund: ActionDef = {
   },
 };
 
-/** Set the transition fund ($B/yr, 0–100) with its one-off public effects. Used by wfx.transitionFund and events. */
+/** Set the transition fund ($B/yr, 0–100). Used by wfx.transitionFund and events. (It has no public effect yet: OUTSIDE-WORLD §8.1.) */
 export function setTransitionFund(s: GameStateV2, ctx: SystemCtx, perYear: number): void {
-  {
-    const cur = s.player.policies.transitionFund;
-    const amount = Math.max(0, Math.min(100, perYear));
-    const d = amount - cur;
-    s.player.policies.transitionFund = amount;
-    if (d > 0) {
-      ctx.bump('pub.approval', Math.min(5, d * 0.4), 'transition fund');
-      ctx.bump('pub.jobAnxiety', -Math.min(6, d * 0.5), 'transition fund');
-      ctx.bump('trust:bloc:labor', Math.min(8, d * 0.6), 'transition fund');
-    } else if (d < 0) {
-      ctx.bump('pub.approval', Math.max(-5, d * 0.4), 'transition fund cut');
-      ctx.bump('trust:bloc:labor', Math.max(-12, d), 'transition fund cut');
-    }
-    ctx.log('company', `Transition fund set to ${amount.toFixed(0)}B/yr.`);
-  }
+  const amount = Math.max(0, Math.min(100, perYear));
+  s.player.policies.transitionFund = amount;
+  ctx.log('company', `Transition fund set to ${amount.toFixed(0)}B/yr.`);
 }
 
 /** Default moonshot target: a researchable, non-risk technology with benefits. */
@@ -87,7 +71,7 @@ function defaultTech(s: GameStateV2): string | undefined {
 }
 
 /** Science moonshot: assign a share of compute to one world technology (research/16 §3.1). Taken from the serving
- *  pool first, so it is a revenue sink; benefits and approval on discovery; dual-use exposure for risk techs. */
+ *  pool first, so it is a revenue sink; benefits on discovery; dual-use exposure for risk techs. */
 const moonshot: ActionDef = {
   id: 'wfx.moonshot', verb: 'deal', system: 'world',
   sphere: 'world',
@@ -111,26 +95,23 @@ const moonshot: ActionDef = {
     const dH = s.player.computeOnline * dShare;
     const util = rd.capacity > 0 ? Math.min(1, rd.total / rd.capacity) : 0;
     const revLoss = Math.round(dH * perH * Math.max(0.3, util) * 100) / 100;
-    // CP3d: the moonshot moves when the technology is discovered, nothing else at once. Its approval (+0.3·benefit on
-    // discovery, +0.5·benefit when it reaches patients: techtree.ts advanceTechs) comes with or without the moonshot,
-    // so the preview states the days it moves discovery, not an approval or credibility gain of its own.
+    // CP3d: the moonshot moves when the technology is discovered, nothing else at once, so the preview states the days
+    // it moves discovery.
     const v = internalVersion(s);
     const perShare = v ? mSci(s.hidden.timeline, gSci(s.hidden.timeline, domainScaleGs(s.hidden.timeline, v))) * MOONSHOT_K : 0;
     const { S } = scienceRate(s);
     const left = t ? Math.max(0, 1 - (s.world.techs[techId]?.prog ?? 0)) * t.effort : 0;
     const daysTo = (sh: number) => (left * 365) / Math.max(1e-9, S + perShare * sh);
     const dDays = Math.round(daysTo(cur) - daysTo(share));
-    const benefit = t?.effects.benefit ?? 0;
     const timing: CostLine = {
       currency: 'progress', amount: dDays, unit: 'days',
-      target: `${t?.name ?? techId}: discovery ${Math.abs(dDays)} d ${dDays >= 0 ? 'sooner' : 'later'} at today's science rate${benefit ? ` (its approval, +${Math.round(benefit * 3) / 10} on discovery and +${Math.round(benefit * 5) / 10} when it reaches patients, comes either way)` : ''}`,
+      target: `${t?.name ?? techId}: discovery ${Math.abs(dDays)} d ${dDays >= 0 ? 'sooner' : 'later'} at today's science rate`,
     };
     if (dShare >= 0) {
-      const exposure: CostLine[] = t?.risk ? [{ currency: 'scrutiny', amount: 5, probability: 0.5, lagDays: 180 }, { currency: 'chinaTension', amount: 3, probability: 0.3 }] : [];
       return {
         costs: [{ currency: 'compute', amount: -Math.round(dH) }, { currency: 'revenue', amount: -revLoss }],
         gains: [timing],
-        exposure,
+        exposure: [],
       };
     }
     return {
@@ -159,4 +140,13 @@ const moonshot: ActionDef = {
   },
 };
 
-export const WORLD_ACTIONS: ActionDef[] = [transitionFund, moonshot];
+/** F3 No drop-in agents (product policy): every deployment keeps a human in each role it serves (α ≤ 0.5). */
+const noDropIn: ActionDef = simpleAction({
+  id: 'F3', verb: 'policy', system: 'world', title: 'No drop-in agents', once: true,
+  preview: (s) => pv([L('revenue', Math.max(0.05, s.player.finance.revenueRun * 0.05), 'α ≤ 0.5 in chosen sectors')]),
+  apply(s) {
+    for (const d of s.player.deployments) d.usagePolicy.noDropInReplacement = true;
+  },
+});
+
+export const WORLD_ACTIONS: ActionDef[] = [transitionFund, moonshot, noDropIn];

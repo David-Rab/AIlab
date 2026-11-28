@@ -310,7 +310,7 @@ export function shippedBy(t: ProductToolDef, a: LabArchetype, cutoff = TOOL_STAR
   const l = t.shipped[a];
   return !!l && l.counts !== false && l.date <= cutoff;
 }
-/** The tools each lab starts with (rivals and China at creation: actors/rivals.ts, actors/china.ts). */
+/** The tools each lab starts with (rivals and China at creation: actors/rivals.ts, npc/china.ts). */
 export const toolsAtStart = (a: LabArchetype, cutoff = TOOL_START_CUTOFF): ProductToolId[] =>
   PRODUCT_TOOLS.filter((t) => shippedBy(t, a, cutoff)).map((t) => t.id);
 

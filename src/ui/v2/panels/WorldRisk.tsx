@@ -4,34 +4,28 @@
 // (gauge) with the L0 item. Below: the flows of theft, distillation, talent, chips and open weights.
 import { engine, riskLevers } from '../../../engine/v2';
 import type { GameStateV2, RiskSource } from '../../../engine/v2';
-import { ActBtn, Term, Tip, TipCard } from '../ui';
-import { Card, GoBtn, Ref, type GoTarget } from '../kit';
+import { Term, Tip, TipCard } from '../ui';
+import { Card, Ref, type GoTarget } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import { riskColor } from '../safetyRule';
 import { RiskFlows } from './RiskMap';
+import { POWERS } from './worldLinks';
 import './risk.css';
 
 type WorldKind = Exclude<RiskSource['kind'], 'ownModel'>;
-type Lever = { label: string; act?: { id: string; params?: Record<string, string | number | boolean> }; go?: GoTarget };
-const LEVERS: Record<WorldKind, Lever[]> = {
-  rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
-  // Jank RL2: security controls have one home (Lab › Security); Risk links there.
-  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'lab', tab: 'security' } }],
-  misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
-  theft: [{ label: 'Security target, siloing, counter-intel', go: { panel: 'lab', tab: 'security' } }],
-  rogue: [{ label: 'Safeguard research', go: { panel: 'research', tab: 'projects' } }, { label: 'Monitors', go: { panel: 'lab', tab: 'work', anchor: 'agents' } }],
-  war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
+/** Where each engine what-if lever (RISK_LEVERS ids) has its home. Only the levers riskLevers returns are shown. */
+const LEVER_HOME: Record<string, GoTarget> = {
+  lead: { panel: 'overview' },
+  wsl: { panel: 'lab', tab: 'security' },
+  defence: { panel: 'world', tab: 'tech' },
+  flags: { panel: 'products' },
 };
+/** Sources whose story continues on Powers (China's tension ladder, the war rung). */
+const POWERS_KINDS: WorldKind[] = ['china', 'war'];
 const KIND_ICON: Record<WorldKind, typeof ICON.risk> = { rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
 const KIND_LABEL: Record<WorldKind, string> = { rival: 'rival lab', china: 'China', misuse: 'misuse', theft: 'theft', rogue: 'rogue AI', war: 'conflict' };
-/** Where each kind's main driver has its home (a reference, never the value). */
-const DRIVER_REF: Partial<Record<WorldKind, { id: string; label: string; to: GoTarget }>> = {
-  theft: { id: 'wsl', label: 'Weight security', to: { panel: 'lab', tab: 'security' } },
-  rival: { id: 'leadTrack', label: 'Lead track', to: { panel: 'overview' } },
-  misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },
-};
 const DRV_COLORS = ['#c9d4e2', '#8a9bb0', '#5b6b80', '#3d4b5e'];
 /** Why a source carries risk, in one line (the drivers give the split). */
 const KIND_WHY: Record<WorldKind, string> = {
@@ -61,7 +55,6 @@ function Sources({ s }: { s: GameStateV2 }) {
       </div>
       {rows.map((r) => {
         const Icon = KIND_ICON[r.kind];
-        const ref = DRIVER_REF[r.kind];
         return (
           <div className="rs2-row" key={r.id} data-risk={r.id}>
             <Tip content={() => (
@@ -73,7 +66,7 @@ function Sources({ s }: { s: GameStateV2 }) {
                 {(levers[r.id] ?? []).map((l) => <div className="tipcard-row" key={l.id} data-lever={`${r.id}.${l.id}`}><span>{l.label}</span><span className={`num ${l.delta < -1e-5 ? 'tone-pos' : l.delta > 1e-5 ? 'tone-neg' : ''}`}>{pts(l.delta)}</span></div>)}
               </TipCard>
             )}>
-              <span className="rs2-lbl"><Icon size={15} /><span className="ellip"><b>{r.label}</b><span className="dim small"> · {KIND_LABEL[r.kind]}</span></span></span>
+              <span className="rs2-lbl"><Icon size={15} /><span className="rs2-nm"><span className="ellip"><b>{r.label}</b><span className="dim small"> · {KIND_LABEL[r.kind]}</span></span><span className="rs2-why ellip" data-test={`risk-why.${r.id}`}>{[...r.drivers].sort((x, y) => y.share - x.share)[0]?.label}</span></span></span>
             </Tip>
             <Tip content={() => <TipCard title={r.label} value={F.pct(r.estimate, 1)} rows={r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) }))}>Share of this source's risk from each driver.</TipCard>}>
               <span className="rs2-track bar">
@@ -83,14 +76,16 @@ function Sources({ s }: { s: GameStateV2 }) {
               </span>
             </Tip>
             {/* Jank RK1: every risk figure opens its breakdown (drivers, range, what moves it). */}
-            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={[...r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) })), ...(leverRows(r.id).length ? [{ label: <b><Term id="riskLever">What one step moves</Term></b>, value: '' }, ...leverRows(r.id)] : [])]} footer={`Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}`}>{KIND_WHY[r.kind]}</TipCard>}>
+            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={[...r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) })), ...(leverRows(r.id).length ? [{ label: <b><Term id="riskLever">What one step moves</Term></b>, value: '' }, ...leverRows(r.id)] : [])]} >{KIND_WHY[r.kind]}</TipCard>}>
               <span className="num rs2-v" style={{ color: sevColor(r.estimate) }} data-test={`risk-v.${r.id}`}>{F.pct(r.estimate, 1)}</span>
             </Tip>
             <span className="rs2-lev">
-              {ref && <Ref id={ref.id} to={ref.to}>{ref.label}</Ref>}
-              {LEVERS[r.kind].map((l) => l.act
-                ? <ActBtn key={l.label} id={l.act.id} testId={`lever.${r.id}.${l.act.id}`} params={l.act.params} label={l.label} />
-                : <GoBtn key={l.label} to={l.go!} label={l.label} testId={`lever.${r.id}.go`} />)}
+              {(levers[r.id] ?? []).map((l) => (
+                <Tip key={l.id} content={() => <TipCard title={l.label} value={pts(l.delta)}>{`How: ${l.how}.`}</TipCard>}>
+                  <span><Ref id={`lever.${r.id}.${l.id}`} to={LEVER_HOME[l.id] ?? { panel: 'overview' }}>{l.label} <span className={`num ${l.delta < -1e-5 ? 'tone-pos' : l.delta > 1e-5 ? 'tone-neg' : ''}`}>{pts(l.delta)}</span></Ref></span>
+                </Tip>
+              ))}
+              {POWERS_KINDS.includes(r.kind) && <Ref id={`powers.${r.id}`} to={POWERS}>{r.kind === 'war' ? 'China tension' : 'China'}</Ref>}
             </span>
           </div>
         );

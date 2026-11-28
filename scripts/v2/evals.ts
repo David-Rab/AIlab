@@ -26,7 +26,7 @@ import { RE_UNIT_HEADS } from '../../src/data/v2/workTypes';
 
 const previewOf = (s: GameStateV2, id: string, p: Record<string, string | number | boolean>) => ACTION_BY_ID.get(id)!.preview(s, p);
 
-const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };

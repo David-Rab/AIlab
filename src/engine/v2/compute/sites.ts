@@ -3,39 +3,45 @@
 import { BUILD_TIME_EXP, CAMPUS, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SITE_MIN_MW, SITE_UPFRONT, SOURCES, type CampusBuildings, type SiteSource } from '../../../data/v2/deals';
 import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
 import { dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
-import type { BaselineId, Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
+import type { Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
 import { ensureWs3 } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { siteCapacityH, siteLiveMW } from './power';
 
 export { siteLiveMW };
 import { worldWaitQ } from './waits';
+import { PUBLIC } from '../world/public';
 
 /** Player sites at Jul 2025 (DC-TASKS [D-10]; no building above 1 GW): S1 rented hall and S2 grid site live (0.6 GW, 0.5M
  *  H100e), S3 Lone Pine gas campus of 4 × 300 MW (1.2 GW) building, all four live together in Apr 2026, S4 Red River
  *  1 GW grid: permits done, 17 q power wait, construction from Q4 27, live Q4 29. */
-export function initialSites(baseline: BaselineId, startDate: string): Site[] {
-  const k = baseline === 'reality' ? 0.85 : 1;
+export function initialSites(startDate: string): Site[] {
   const base = { crash: false, communityPackage: false, spvFunded: 0 };
   const d = (date: string) => dayOfDate(startDate, date);
-  const redRiverCapex = 14.2 * k;
+  const redRiverCapex = 14.2;
   const sites: Site[] = [
-    { ...base, id: 'S1', name: 'Abilene North', region: 'US', path: 'rent', mw: 300, stage: 'live', stageEndDay: 0, capex: 0, capexPaid: 0, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 0, powerQ: 1, startDay: -500, liveDay: d('2024-01-01') } },
-    { ...base, id: 'S2', name: 'Abilene South', region: 'US', path: 'grid', mw: 300, stage: 'live', stageEndDay: 0, capex: 0.3 * 14.2, capexPaid: 0.3 * 14.2, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -700, liveDay: d('2024-07-01') } },
-    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: d('2026-04-01'), capex: 12 * k, capexPaid: 6 * k, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 6, powerQ: 0, startDay: -450, powerDay: d('2026-04-01'), liveAt: d('2026-04-01'), buildings: 4, buildingMW: 300, liveDays: [d('2026-04-01'), d('2026-04-01'), d('2026-04-01'), d('2026-04-01')] } },
+    { ...base, id: 'S1', name: 'Abilene North', region: 'US', path: 'rent', mw: 300, stage: 'live', stageEndDay: 0, capex: 0, capexPaid: 0, installed: 250000, ws3: { rolled: true, delayedQ: 0, buildQ: 0, powerQ: 1, startDay: -500, liveDay: d('2024-01-01') } },
+    { ...base, id: 'S2', name: 'Abilene South', region: 'US', path: 'grid', mw: 300, stage: 'live', stageEndDay: 0, capex: 0.3 * 14.2, capexPaid: 0.3 * 14.2, installed: 250000, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -700, liveDay: d('2024-07-01') } },
+    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: d('2026-04-01'), capex: 12, capexPaid: 6, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 6, powerQ: 0, startDay: -450, powerDay: d('2026-04-01'), liveAt: d('2026-04-01'), buildings: 4, buildingMW: 300, liveDays: [d('2026-04-01'), d('2026-04-01'), d('2026-04-01'), d('2026-04-01')] } },
     { ...base, id: 'S4', name: 'Red River', region: 'US', path: 'grid', mw: 1000, stage: 'power', stageEndDay: d('2027-10-01'), capex: redRiverCapex, capexPaid: 0.05 * redRiverCapex, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 17, startDay: d('2025-04-01'), powerDay: d('2029-10-01'), liveAt: d('2029-10-01') } },
   ];
   return sites;
 }
 
-/** Local opposition strength 0–1 (AntiAI = pub.dcNimby / 100). */
-const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, s.pub.dcNimby / 100));
+/** Test override of local opposition: when a test sets `LOCAL_MOOD.dcNimby` to a number it wins over the rule below. */
+export const LOCAL_MOOD: { dcNimby: number | undefined } = { dcNimby: undefined };
+/** Local data-centre opposition 0..100 (spec §5; world/public.ts, W4): 45 at concern 50 (the calibrated F10 case, mood 0.9;
+ *  scripts/v2/finance.ts), up with concern, 10 lower under the community package policy. */
+export const localMood = (s: GameStateV2) =>
+  LOCAL_MOOD.dcNimby ?? 45 + PUBLIC.concernToNimby * (s.public.concern - 50) - (s.player.policies.communityBenefits ? PUBLIC.communityNimbyCut : 0);
+/** Local opposition strength 0–1 (AntiAI = localMood / 100). */
+const localOpposition = (s: GameStateV2) => Math.max(0, Math.min(1, localMood(s) / 100));
 
 /** Odds that the large reactive package (E27) unblocks a blocked site: 0.85 − 0.5 × local opposition, ≥ 0.3 [D]. */
 export const reactiveUnblockOdds = (s: GameStateV2) => Math.max(COMMUNITY.unblockMin, COMMUNITY.unblockBase - COMMUNITY.unblockPerAnti * localOpposition(s));
 
 /** What the opposition odds are made of (DATACENTERS §5; [D-6]): the source's base block / delay chance, the public
- *  mood factor (pub.dcNimby ÷ 50), the crash-construction factor (× 1.5) and the community package's block factor
+ *  mood factor (localMood ÷ 50), the crash-construction factor (× 1.5) and the community package's block factor
  *  (× 0.5), then `block` and `delay` after the caps (block ≤ 0.5, delay ≤ 0.9 − block). Rent has none (bases 0). A site
  *  re-permitting after the E27 reactive package is blocked again with 1 − its unblock odds, never delayed (base =
  *  that, all factors 1). */
@@ -44,7 +50,7 @@ export function oppositionParts(s: GameStateV2, site: Pick<Site, 'path' | 'crash
   if (site.path === 'rent') return { blockBase: 0, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: 0, delay: 0 };
   if (site.ws3?.reactive) { const p = 1 - reactiveUnblockOdds(s); return { blockBase: p, delayBase: 0, mood: 1, crashMult: 1, communityMult: 1, block: p, delay: 0 }; }
   const src = SOURCES[site.path];
-  const mood = Math.max(0, s.pub.dcNimby) / OPPOSITION.moodRef;
+  const mood = Math.max(0, localMood(s)) / OPPOSITION.moodRef;
   const crashMult = site.crash ? LEVERS.crash.oddsMult : 1;
   const communityMult = site.communityPackage ? LEVERS.community.blockMult : 1;
   const block = Math.min(OPPOSITION.blockMax, src.blockBase * mood * crashMult * communityMult);

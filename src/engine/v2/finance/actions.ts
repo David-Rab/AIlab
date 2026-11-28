@@ -5,7 +5,6 @@ import { CAPEX_LEASE, DEBT_SIZING, LEVERS, MARKET, NEOCLOUD, PARTNER_DEFS, PARTN
 import { dateOfDay, dayOfQuarter } from '../core/time';
 import { addCloud, addSpotRental, chipQuote, placeOrder, rentQuote, RENT_Q_MAX, spotRentalCap, TRANCHE_Q } from '../compute/orders';
 import { addCommunityPackage, campusMW, newSite, oppositionOdds, siteBuildingLiveInQ, siteCapex, siteSchedule, siteSizeError, type SiteOpts } from '../compute/sites';
-import { bloc } from '../actors/fx';
 import { signCommitment } from '../actors/commitments';
 import type { ActionDef, ChipOrder, CostLine, Debt, GameStateV2, MilestoneType, PartnerTerms, Pitch, Site, SystemCtx } from '../types';
 import { boardVote, commitmentsVote, CRITICS, criticsAvailable, criticsOusterShift, criticsSeat, criticsSide, withCriticsSeat, debtVote, founderControl, giveCriticsSeat, voteCost, voteGate } from './board';
@@ -303,7 +302,6 @@ export function dealPreview(s: GameStateV2, t: PartnerTerms): Preview {
     const below = s.player.board.preset === 'pbcTrust' && !ip.trust ? "; capability-threshold models stay out without the trust's yes" : '';
     costs.push({ currency: 'leadDays', amount: -Math.round(days), target: `IP access: ${name} (${t.partner}'s lab) licenses your models and closes ~${Math.round(PARTNER_TERMS.strings.ipCloseYr * 100)}% of your lead a year for ${t.years} y (${lead > 0 ? `≈${Math.round(days)} days a year of your estimated ${Math.round(lead)}-day lead` : `you are not ahead of ${name} now`}${below})` });
   }
-  if (t.politics) costs.push({ currency: 'scrutiny', amount: t.politics.scrutiny, target: 'foreign money' }, { currency: 'trust', amount: t.politics.congress, target: 'congress' }, { currency: 'freedom', amount: -1, target: `government security demand +${t.politics.securityDemand}` });
   if (t.rescue) costs.push({ currency: 'freedom', amount: -(t.strings.boardVotes ?? 0), target: `a board seat with ${t.strings.boardVotes} votes for ${t.partner}, and exclusivity` });
   if (!costs.length) costs.push({ currency: 'staffTime', amount: 1 });
   return { costs, gains, exposure };
@@ -447,7 +445,7 @@ const recap: ActionDef = {
   preview(s) {
     const t = s.player.finance.tranches.find((x) => x.condition === 'recapitalisation');
     return {
-      costs: [{ currency: 'scrutiny', amount: 5, target: 'Attorney General review' }, { currency: 'morale', amount: -3, target: 'safety staff' }],
+      costs: [{ currency: 'morale', amount: -3, target: 'safety staff' }],
       gains: [{ currency: 'cash', amount: t ? t.amount - 10 : 20, lagDays: 365, target: 'frees the conditional tranche' }],
       exposure: [{ currency: 'boardConf', amount: 5, lagDays: 365 }],
     };
@@ -455,7 +453,6 @@ const recap: ActionDef = {
   apply(s, ctx) {
     ensureWs3(s);
     s.player.finance.ws3.recap.startDay = s.time.day;
-    ctx.bump('relations.scrutiny', 5, 'recapitalisation', 'AG review');
     ctx.bump('morale.safety', -3, 'recapitalisation');
     ctx.log('finance', 'Recapitalisation begun: about four quarters of Attorney General review.');
   },
@@ -704,7 +701,6 @@ const community: ActionDef = {
     const gains: CostLine[] = [{ currency: 'compute', amount: saved, target: 'block risk halved (expected H100e kept)' }];
     if (!one && !s.player.policies.communityBenefits) {
       costs.push({ currency: 'freedom', amount: -1, target: 'pledge: every new site carries the package' });
-      gains.push({ currency: 'approval', amount: 10, target: 'bloc:ratepayers' });
     }
     return { costs, gains, exposure: [] };
   },
@@ -714,14 +710,11 @@ const community: ActionDef = {
       const x = packageable(s).find((y) => y.id === one);
       if (!x) return 'That site cannot take a package (past permitting or already has one)';
       addCommunityPackage(x);
-      ctx.bump('pub.approval', 1, 'community benefits package', x.name);
       return;
     }
     if (!s.player.policies.communityBenefits) {
       s.player.policies.communityBenefits = true;
-      signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {}, ['bloc:ratepayers', 'states'], { trust: 5, credibility: 8 });
-      bloc(s, ctx, 'ratepayers', 10, 0, 'community package policy');
-      ctx.bump('pub.dcNimby', -10, 'community package policy');
+      signCommitment(s, ctx, 'communityPledge', 'Pay our own power and grid costs', 'communityPledge', {});
     }
     for (const x of packageable(s)) addCommunityPackage(x);
   },

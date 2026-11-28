@@ -7,7 +7,7 @@
 // end-2027; the multi-seed and horizon-cut targets print SMOKE.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BASELINES, globalCompute } from '../../src/data/world';
+import { WORLD_START, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
@@ -25,7 +25,6 @@ import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/fi
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
 import { bustTarget, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
 import { ipAccessDays } from '../../src/engine/v2/npc/shocks';
-import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
 import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
@@ -45,7 +44,7 @@ import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts 
 import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import type { EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
+import type { GameStateV2 } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
 import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
 import { cached, pick, prefill } from './simcache';
@@ -152,7 +151,7 @@ const long = runBotC(1, REF_AUTOPILOT, SMOKE ? END_2027 : END_2028);
 const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
 check(prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
 const w = long.s.hidden.timeline;
-const ratios = long.q.map((r) => r.stock / globalCompute(w as never, BASELINES[0].start.globalCompute, r.day / 365));
+const ratios = long.q.map((r) => r.stock / globalCompute(w as never, WORLD_START.globalCompute, r.day / 365));
 smokeCheck(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2028', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
 const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin);
 const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;
@@ -306,13 +305,12 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   // Rushed gas (used turbines): power wait 4 q, so 2 q of permits and 7 q of construction (500 MW: 9.5 x 0.5^0.4, DATACENTERS 5b) set the go-live; no package.
   for (let i = 0; i < N; i++) ids.add(newSite(s, ctx, { path: 'gas', mw: 500, rush: true, community: false }).id);
   s.player.finance.cash = 1e6; // isolate the stage machine from money
-  // Neutral sentiment: hold WS4's data-centre opposition (pub.dcNimby) at 45 (public mood 45 ÷ 50 = 0.9, its 2025 start
-  // value) for the site rolls: gas block 10% × 0.9 = 9%, delay 30% × 0.9 = 27% (DATACENTERS §3; odds [design D-6]).
-  const NIMBY = 45;
-  const neutral: EngineSystem = { id: 'testNeutralNimby', owner: 'WS3', cadence: 'daily', order: 405, system: 'core', run: (x) => void (x.pub.dcNimby = NIMBY) };
+  // Neutral sentiment: the data-centre opposition is the W1d stand-in 45 (compute/sites.ts DC_NIMBY; public mood
+  // 45 ÷ 50 = 0.9, its 2025 start value) for the site rolls: gas block 10% × 0.9 = 9%, delay 30% × 0.9 = 27%
+  // (DATACENTERS §3; odds [design D-6]).
   // The opposition roll at the end of permits: WS4's director is off too, else E27 "Site blocked" (default: community
   // deal) re-permits every blocked site over the 5 years.
-  while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'], extraSystems: [neutral] });
+  while (s.time.day < 365 * 5) tick(s, { skip: ['marketQ', 'endings', 'director'] });
   const sites = s.player.sites.filter((x) => ids.has(x.id));
   const blocked = share(sites.map((x) => x.stage === 'blocked'));
   const delayed = share(sites.map((x) => x.ws3.delayedQ > 0));
@@ -453,7 +451,7 @@ for (const a of FINANCE_ACTIONS) {
     act(s, 'cmp.newSite', { path: 'gas', mw: 500 });
     check(s.player.policies.communityBenefits && !!s.player.sites[n]?.communityPackage, 'FIN1 community package as the company default: new sites carry it');
     const p = reactiveUnblockOdds(s);
-    check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at dcNimby ${f1(s.pub.dcNimby)}`);
+    check(p >= 0.3 && p <= 0.85 && oppositionOdds(s, { path: 'gas', crash: false, communityPackage: true, ws3: { reactive: true } }).block === 1 - p, 'FIN1 E27 reactive package: re-permit with unblock odds 0.85 − 0.5 × opposition', `odds ${F1pct(p)} at the stand-in dcNimby 45`);
   }
 }
 
@@ -693,8 +691,6 @@ for (const a of FINANCE_ACTIONS) {
     check(m.inc === 2 && m.behind === 0 && m.res === 0.5 && m.set === 1 && fi.inc === 0.5 && fi.behind === 1.5 && fi.res === 1.5 && fi.set === 1 && MOOD_WEIGHTS.setbacks.independent === 1.5, 'FIN3a mood weights by seat kind (financial / mission / independent: promises 1.5/0.5/1, setbacks 1/1/1.5, behind 1.5/0/0.5, incidents 0.5/2/1)');
     const g = newGame(defaultSetupV2({ seed: 3 }));
     while (g.time.day < 400) {
-      const gr = g.researchBodies.index.grades;
-      if (gr.player) gr.player.letter = 'A';
       tick(g, { skip: ['endings'] });
     }
     const srcs = new Set((g.causes.byKey['board.confidence'] ?? []).map((e) => e.source));
@@ -891,7 +887,6 @@ for (const a of FINANCE_ACTIONS) {
 {
   const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
   const E32 = EVENT_BY_ID.get('E32')!;
-  const E22 = EVENT_BY_ID.get('E22')!;
   const idx = (e: typeof E32, label: string) => e.choices.findIndex((c) => c.label === label);
   /** A fixture with a private rival out of money and its E32 offer pending; a rich, confident board unless told. */
   const offer = (opts: { cash?: number; bc?: number; preset?: Parameters<typeof initialBoard>[0]; rivalV?: number } = {}) => {
@@ -923,7 +918,6 @@ for (const a of FINANCE_ACTIONS) {
     const pv = E32.choices[i].preview(s, d);
     const f = s.player.finance;
     const cash0 = f.cash;
-    const scr0 = s.relations.scrutiny;
     const cap0 = s.player.staff.cap;
     const n0 = f.ledger.length;
     const heads = Math.round(r.core.staff.cap * 0.7) + Math.round(r.core.staff.saf * 0.7);
@@ -933,8 +927,8 @@ for (const a of FINANCE_ACTIONS) {
     const priceLine = pv.costs.find((c) => c.currency === 'cash')!;
     const obl = pv.exposure.filter((c) => c.currency === 'cash').map((c) => -c.amount);
     const staffLine = pv.gains.find((c) => c.currency === 'staffTime')!;
-    check(!err && Math.abs(cash0 - f.cash - t.price) < 1e-6 && f.ledger.length === n0 + 1 && !!e && e.perQuarter === t.obligations.perQ && e.cancellableNoticeQ === null && Math.abs(e.endDay - s.time.day - 730) <= 1 && !!debt && debt.drawn === 3 && r.core.status === 'merged' && s.relations.scrutiny > scr0 && s.player.staff.cap > cap0, 'FIN3c paying cash: the price leaves cash, its contracts become one firm ledger entry over 8 quarters, its debt drawn debt (no cash moves), its staff join, antitrust scrutiny rises, the lab is gone', `${err ?? ''} cash −$${f1(cash0 - f.cash)}B · entry $${f1(e?.perQuarter ?? 0)}B/q to day ${e?.endDay} · debt $${f1(debt?.drawn ?? 0)}B at ${debt ? debtRatePct(s, debt).toFixed(1) : '?'}%`);
-    check(Math.abs(priceLine.amount - Math.round(t.price * 10) / 10) < 1e-9 && Math.abs(obl[0] - Math.round(t.obligations.total * 10) / 10) < 1e-9 && Math.abs(obl[1] - 3) < 1e-9 && staffLine.amount === heads && pv.costs.some((c) => c.currency === 'scrutiny' && c.amount === 20), 'FIN3c the offer preview matches the effects: price, contracts and debt taken on, staff gained, antitrust scrutiny', `$${priceLine.amount}B · $${obl.join('B + $')}B · +${staffLine.amount} staff`);
+    check(!err && Math.abs(cash0 - f.cash - t.price) < 1e-6 && f.ledger.length === n0 + 1 && !!e && e.perQuarter === t.obligations.perQ && e.cancellableNoticeQ === null && Math.abs(e.endDay - s.time.day - 730) <= 1 && !!debt && debt.drawn === 3 && r.core.status === 'merged' && s.player.staff.cap > cap0, 'FIN3c paying cash: the price leaves cash, its contracts become one firm ledger entry over 8 quarters, its debt drawn debt (no cash moves), its staff join, the lab is gone', `${err ?? ''} cash −$${f1(cash0 - f.cash)}B · entry $${f1(e?.perQuarter ?? 0)}B/q to day ${e?.endDay} · debt $${f1(debt?.drawn ?? 0)}B at ${debt ? debtRatePct(s, debt).toFixed(1) : '?'}%`);
+    check(Math.abs(priceLine.amount - Math.round(t.price * 10) / 10) < 1e-9 && Math.abs(obl[0] - Math.round(t.obligations.total * 10) / 10) < 1e-9 && Math.abs(obl[1] - 3) < 1e-9 && staffLine.amount === heads, 'FIN3c the offer preview matches the effects: price, contracts and debt taken on, staff gained', `$${priceLine.amount}B · $${obl.join('B + $')}B · +${staffLine.amount} staff`);
   }
   // Pay in stock: new shares to its holders at your valuation; cash untouched.
   {
@@ -1010,24 +1004,6 @@ for (const a of FINANCE_ACTIONS) {
     o.player.finance.ownership = structuredClone(own);
     const ov = dealVotes(o, t);
     check(!!t && vs[0]?.body === 'trust' && vs[1]?.decision === 'saleOfControl' && vs[1]?.body !== 'trust' && ov[0]?.decision === 'saleOfControl' && ov[0]?.body !== 'trust', 'FIN3c a deal that hands a partner control needs the board\'s sale-of-control vote (after the trust\'s, under PBC + trust)', vs.map((v) => `${v.body ?? 'board'} ${v.decision}`).join(', '));
-  }
-  // E22: the absorbed labs' obligations follow the same rule; accepting is a merger vote; no price.
-  {
-    const s = fx();
-    s.player.board.confidence = 80;
-    s.player.finance.cash = 2000;
-    const priv = s.rivals.filter((x) => x.core.status === 'active' && x.finance.valuation > 0);
-    for (const r of priv) r.finance.cash = -1;
-    s.events.pending.push({ id: 'E22', instance: 'E22@t', day: s.time.day, deadline: s.time.day + 14, data: {}, crisis: true });
-    const i = idx(E22, 'Accept');
-    const v = E22.choices[i].vote!(s, {});
-    const pv = E22.choices[i].preview(s, {});
-    const want = priv.reduce((a, r) => a + rivalObligations(r).total, 0);
-    const cash0 = s.player.finance.cash;
-    const err = resolve(s, 'E22@t', i);
-    const entries = s.player.finance.ledger.filter((c) => c.kind === 'acquired');
-    const debt = s.player.finance.debts.filter((x) => x.kind === 'assumed').reduce((a, x) => a + x.drawn, 0);
-    check(!!v && v.decision === 'merger' && !err && entries.length === priv.filter((r) => r.finance.commitments > 0).length && Math.abs(entries.reduce((a, c) => a + c.perQuarter * ACQUIRE.termQ, 0) - want) < 1e-6 && Math.abs(debt - priv.length) < 1e-9 && s.player.finance.cash === cash0 && Math.abs(-pv.exposure.filter((c) => c.currency === 'cash')[0].amount - Math.round(want * 10) / 10) < 1e-9, 'FIN3c E22 DPA consolidation: each private lab\'s contracts and debt are yours (parent-funded labs bring none), no price; accepting needs the board\'s merger vote, shown first', `${entries.length} contract entries $${f1(want)}B · debt $${f1(debt)}B · vote ${v?.yes}/${v?.total}`);
   }
 }
 
@@ -1112,14 +1088,13 @@ for (const a of FINANCE_ACTIONS) {
     check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^gw:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW deployed (gw tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
   }
   {
-    // Sovereign: a passive cheque with the political cost and no in-country site.
+    // Sovereign: a passive cheque and no in-country site (its political cost went with the government actor, W1d).
     const s = fx();
     const sites0 = s.player.sites.length;
-    const scr0 = s.relations.scrutiny;
     const t = partnerTerms(s, 'Gulf Sovereign Fund');
     const err = signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
     const d = dealWith(s, 'Gulf Sovereign Fund');
-    check(!err && s.player.sites.length === sites0 && s.relations.scrutiny > scr0 && !!t.politics && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque with its political cost (scrutiny, Congress, security demand) and no in-country site', `$${f1(t.equityNow)}B · scrutiny ${f1(scr0)} → ${f1(s.relations.scrutiny)}`);
+    check(!err && s.player.sites.length === sites0 && !t.supply && !!d && JSON.stringify(d.strings) === '{}', 'FIN4a sovereign: a passive equity cheque and no in-country site', `$${f1(t.equityNow)}B`);
   }
   {
     // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.
@@ -1796,7 +1771,7 @@ for (const a of FINANCE_ACTIONS) {
     target.finance.poolQ = 1e6;
     const V0 = target.finance.valuation;
     rivalMoneyQ(s, ctx, target);
-    const offered = ws4Of(s).requests.some((q) => q.id === 'E32' && q.data.lab === target.core.id);
+    const offered = s.events.requests.some((q) => q.id === 'E32' && q.data.lab === target.core.id);
     const s2 = deserialize(serialize(s));
     s2.time.day += 91;
     const t2 = s2.rivals.find((x) => x.core.id === target.core.id)!;

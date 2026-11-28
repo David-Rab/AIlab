@@ -18,7 +18,7 @@ export const NPC_KIND_IDS: readonly NpcKindId[] = ['leader', 'safety', 'bigtech'
 
 export type NpcFunding = 'parent' | 'private' | 'state';
 /** closed: never releases weights. open: every public release is open weights. partial: some (older) models are opened.
- *  chinaRung: open while China's escalation rung is below `belowRung` (NPC-LABS §5), closed after. */
+ *  chinaRung: open while China's tension (world/chinagov.ts, 0-4) is below `belowRung` (NPC-LABS §5), closed after. */
 export type OpennessRule =
   | { mode: 'closed' }
   | { mode: 'open' }
@@ -42,7 +42,8 @@ export interface Personality {
   /** 7. Race response 0-1: how much safety emphasis gives way under race pressure. China's lab: state-directed, so 0
    *  here and the China actor decides (postures.ts: "state directive replaces raceRelaxation"). */
   raceResponse: number;
-  /** True for China's lab: the China actor owns its compute (its compute is the meter's) and its safety/race inputs. */
+  /** True for China's lab: the China government sets its safety/race inputs and multiplies its chip access (export
+   *  controls, the national collective: npc/china.ts); its compute follows the same plan and chip orders as every NPC lab. */
   chinaDirected?: true;
 }
 
@@ -56,8 +57,8 @@ export interface NpcStart {
   /** Half-width (months) of the public band when the lag itself is a [D] guess. */
   publicLagBandMonths?: number;
   internalModel: InternalModelRule;
-  /** H100e online at the start. 'china-meter': China's own compute meter (china actor), no number here. */
-  computeH100e: number | 'china-meter';
+  /** H100e online at the start. */
+  computeH100e: number;
   /** Revenue run-rate, $B. null: none reported (parent division, no product, or no row). */
   revenueRunB: number | null;
   /** Post-money valuation, $B. null: parent-funded, or none. */
@@ -170,11 +171,11 @@ export const KINDS: Record<NpcKindId, Personality> = {
     safetyEmphasis: 0.5, // [repo postures.ts upstart safetyInvestment]
     raceResponse: 0.5, // [repo postures.ts upstart raceRelaxation]; the spec says "low": today's data says mid (flagged)
   },
-  // Analogue DeepSeek. Compute, safety follow-up and race stance belong to the China actor.
+  // Analogue DeepSeek. Its safety follow-up and race stance belong to the China government; its chip access is multiplied by it.
   china: {
     funding: 'state', // spec §5; self-funded by High-Flyer at the start [P arXiv 2408.14158, CAST §3]
     releaseLagDays: 45, // [repo rivals.ts:56 deepcent 45] [D]
-    openness: { mode: 'chinaRung', belowRung: 3 }, // [spec §5: open while China's rung < 3]; MIT-licensed open weights at the start [repo research/10-china.md:270]
+    openness: { mode: 'chinaRung', belowRung: 2 }, // [spec §5: open while China's rung < 3 of the old 0-6 ladder; W6: its nearest tension rung, open below 2 (national collective)]; MIT-licensed open weights at the start [repo research/10-china.md:270]
     focus: {
       channels: { consumer: 0.4, api: 0.5, enterprise: 0.1 }, // [D] free app, API, open weights (CAST §6)
       sectors: { SOFT: 0.4, SCI: 0.3, OFFICE: 0.3 }, // [D]
@@ -279,7 +280,7 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       startDate: START,
       publicLagMonths: 6.5, // [P Epoch ECI first crossing: R1-0528 140.73, o1 141.16 on 17 Dec 2024; CAST §1]
       internalModel: { rule: 'advanceByReleaseLag' },
-      computeH100e: 'china-meter', // China actor's compute meter (actors/china.ts): no number here
+      computeH100e: 0.36e6, // [derived] China's accessible 1.5M H100e (Jul 2025, research/10 §1.1) × its AGI share 0.4 (AI 2027 compute forecast, research/11 #16) × the R&D share 0.6 (the old deepCentCompute rule)
       revenueRunB: null, // no Epoch row before 2026
       valuationB: null, // self-funded by High-Flyer
       equityRaisedB: null,

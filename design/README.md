@@ -14,6 +14,7 @@
 | Data centres | [DATACENTERS.md](DATACENTERS.md), calibration note [dc/CALIBRATION-NOTE.md](dc/CALIBRATION-NOTE.md) |
 | NPC labs | [npc/NPC-LABS.md](npc/NPC-LABS.md), sources [npc/CAST-2025.md](npc/CAST-2025.md), [npc/MISALIGNMENT.md](npc/MISALIGNMENT.md), [npc/TOOL-REQUIREMENTS.md](npc/TOOL-REQUIREMENTS.md) |
 | UI | [ux/IA.md](ux/IA.md), [ux/DESIGN-SYSTEM.md](ux/DESIGN-SYSTEM.md), [ux/GLOSSARY.md](ux/GLOSSARY.md) (generated), mockups in ux/mockups*, diagrams in diagrams/ |
+| Outside world (governments, public, economy) | [world/OUTSIDE-WORLD.md](world/OUTSIDE-WORLD.md), sources [world/SOURCES.md](world/SOURCES.md), plans [world/PLANS.md](world/PLANS.md), UI proposal [world/ui/](world/ui/) (map: [world/ui/IA-WORLD.md](world/ui/IA-WORLD.md)), balance handoff [world/HANDOFF-BAL.md](world/HANDOFF-BAL.md) |
 | Vision (medium and far) | [vision/README.md](vision/README.md), build target [vision/MEDIUM.md](vision/MEDIUM.md) |
 
 ## Workstreams in progress
@@ -21,6 +22,7 @@
 | Workstream | Start here |
 |---|---|
 | Balance and calibration | [bal/HANDOFF-CALIBRATION.md](bal/HANDOFF-CALIBRATION.md), latest recap [bal/RECAP-2026-11-27.md](bal/RECAP-2026-11-27.md), task log [BAL-TASKS.md](BAL-TASKS.md) |
+| Outside world (rebuild of governments, public, economy) | [world/WORLD-TASKS.md](world/WORLD-TASKS.md), spec [world/OUTSIDE-WORLD.md](world/OUTSIDE-WORLD.md) |
 
 ## History
 

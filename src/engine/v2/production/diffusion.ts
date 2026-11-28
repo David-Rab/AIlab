@@ -4,7 +4,7 @@
 // Both read recipeG at RECIPE_F (RD-B16) / model G, so the same functions serve every lab.
 import { DIFFUSION_TAU_DAYS, DISTILL_FIT, DISTILL_S } from '../../../data/v2/calibration';
 import { anonShare } from '../models/deployments';
-import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab, versionById } from '../models/labs';
+import { PLAYER_ID, labCore, otherLabs, rivalLab, versionById } from '../models/labs';
 import { playerRecipeG } from '../models/stacks';
 import type { Deployment, GameStateV2, LabId } from '../types';
 
@@ -78,15 +78,13 @@ export function harvestTokens(d: Pick<Deployment, 'channel' | 'kyc' | 'servedTok
 }
 /** Access to a served teacher (research/RD-X04r §3B, D2): open weights 1. A served product (RD-P09): D2's
  *  1 − 0.25·log10(D_full / D) on the harvested tokens D (harvestTokens; DISTILL_FULL_TOKENS), in [0, 1]: no usage, no
- *  access; each tenfold cut of the harvest (one KYC level) −0.25. China reaches US APIs through its distillationAccess
- *  meter (/60, ≤ 1). A rival's served teacher (`d` absent) has access 1 (rivals' usage is not tracked). */
-export function teacherAccess(s: GameStateV2, student: LabId, open: boolean, d?: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
+ *  access; each tenfold cut of the harvest (one KYC level) −0.25. China reaches US APIs like anyone (no access meter). A rival's served teacher (`d` absent) has access 1 (rivals' usage is not tracked). */
+export function teacherAccess(_s: GameStateV2, _student: LabId, open: boolean, d?: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
   if (open) return 1;
-  const china = student === CHINA_ID ? Math.min(1, s.china.meters.distillationAccess / 60) : 1;
-  if (!d) return china;
+  if (!d) return 1;
   const D = harvestTokens(d);
   if (!(D > 0)) return 0;
-  return Math.max(0, Math.min(1, 1 - 0.25 * Math.log10(DISTILL_FULL_TOKENS / D))) * china;
+  return Math.max(0, Math.min(1, 1 - 0.25 * Math.log10(DISTILL_FULL_TOKENS / D)));
 }
 
 /** Rule B: the G a lab's post-training at own G `ownG` (student of `params` active params) gains by distilling the best
@@ -123,16 +121,11 @@ export function distillLift(s: GameStateV2, lab: LabId, ownG: number, params: nu
 // stolen model's G. Every site and its preview reads these functions.
 /** Share of the recipe gap each recipe / secrets leak moves, per event type. */
 export const RECIPE_LEAK_SHARE = {
-  /** A4 publish [D]: a paper discloses about one of the ~20 techniques that make up a recipe lead. */
-  publish: 0.05,
   /** C6 / any open-weights release [D]: weights reveal architecture, size and tokenizer, not the data mix or training
    *  code, so a minority of the recipe gap. */
   openWeights: 0.3,
-  /** E1 Track-2 dialogue [D]: a slip in a few conversations, a tenth of the AI 2027 SSL test bound (≤ 1 KB of the
-   *  month's most important 10 KB, research/RD-X04r T3). */
-  track2: 0.01,
 } as const;
-/** C4 poach / E16 let go [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning, not the
+/** C4 poach [S1, research/RD-X04r §3C]: the share of what movers carry that is firm learning, not the
  *  hire's own reuse; the transfer is this × the movers' share of the source's research staff × the recipe gap. */
 export const TACIT_FIRM_SHARE = 0.5;
 /** Weight theft [P, research/RD-X04r T5]: in AI 2027 China goes from about 6 to 2 months behind on stealing Agent-2, so

@@ -1521,24 +1521,6 @@ export const PARAMS_SAFETY_DATA = defineParams([
     kind: 'designer',
     evidence: 'framework.ts:63 "What an explicit override costs, each stated in its preview and applied [D]: staff (safety-team morale, and one red flag ...)"',
   },
-  {
-    id: 'saf.OVERRIDE_COST.scrutiny',
-    ref: { kind: 'export', module: 'src/data/v2/framework.ts', symbol: 'OVERRIDE_COST', path: ['scrutiny'] },
-    value: 3,
-    unit: 'scrutiny points',
-    area: 'safety', layer: 'world', actor: 'player',
-    kind: 'designer',
-    evidence: 'framework.ts:63-65 "... government (scrutiny: evaluators and frontier-AI statutes ask about departures from a lab\'s own framework; California SB 53 (2025) ...) [D]"',
-  },
-  {
-    id: 'saf.OVERRIDE_COST.credibility',
-    ref: { kind: 'export', module: 'src/data/v2/framework.ts', symbol: 'OVERRIDE_COST', path: ['credibility'] },
-    value: 5,
-    unit: 'credibility points',
-    area: 'safety', layer: 'world', actor: 'player',
-    kind: 'designer',
-    evidence: 'framework.ts:63-66 "... and reputation (credibility, only when the framework is published ...) [D]"',
-  },
 
   // ───────────────────────── postures.ts ─────────────────────────
   // Hidden safety postures, one record per lab archetype; the file header says rlIntensity and prefIntensity are [D]

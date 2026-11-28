@@ -11,7 +11,7 @@ import type { Deployment, GameStateV2 } from '../../../src/engine/v2/types';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const fill = (g: GameStateV2) => {
   const rd = revenueReadout(g);
   for (const x of rd.deps) {

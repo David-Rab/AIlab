@@ -103,7 +103,6 @@ const setG = (r: RivalLab, g: number) => { r.internal = { ...r.internal, G: g };
   const ms = cap.slice(cap.indexOf('export function otherLabMilestones'), cap.indexOf('export const milestonesSystem') + 1500);
   check(!/LEVEL_KNOTS|measuredL|levelOf/.test(ms), 'milestones system: no level thresholds');
   check(!/initialMilestones|LEVEL_KNOTS/.test(src('core/init.ts')), 'init: day-0 milestones by the predicate');
-  check(!/LEVEL_KNOTS/.test(src('actors/gov.ts')), 'gov: no LEVEL_KNOTS milestone thresholds');
   check(/milestoneDays\[6\]/.test(src('endings/endings.ts')), 'endings read the recorded (predicate) milestones');
 }
 finish('milestonepred');

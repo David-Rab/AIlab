@@ -30,7 +30,7 @@ for (const c of REALISTIC_CAST) {
   ok(!!c.name && !!c.family, `${c.id} names`);
   ok(!/openbrain|deepcent/i.test(c.name + c.family), `${c.id} uses an AI 2027 name`);
   ok(c.start.startDate === '2025-07-01', `${c.id} start date`);
-  ok(c.kind === 'china' ? c.start.computeH100e === 'china-meter' : typeof c.start.computeH100e === 'number' && c.start.computeH100e > 0, `${c.id} compute`);
+  ok(c.start.computeH100e > 0, `${c.id} compute`);
   ok(c.start.publicLagMonths === null || c.start.publicLagMonths >= 0, `${c.id} public lag`);
   const want = [...toolsAtStart(ARCH[c.kind])].sort().join();
   ok([...c.start.tools].sort().join() === want, `${c.id} tools differ from tools.ts toolsAtStart: ${want}`);
