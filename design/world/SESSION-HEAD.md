@@ -129,3 +129,16 @@ The lead's summary, which the designer accepted ("good, we seem aligned"):
 
 > good, we seem aligned.
 > and as a general rule - we leave code cleaner than we found it.
+
+## 11. Shape decisions after the built-world grid
+
+The lead's questions:
+- (1) Verified treaties come too easily with no player: should verification also need US concern > 70 and the leading
+  labs accepting testing?
+- (2) The 2026 milestone-2 problem: hand it to `bal` as a shared-history issue?
+- (3) Taiwan disruptions: apply China's tension multiplier only from tension 3?
+
+> the questions:
+> 1. treaties - i accept suggestion
+> 2. ok
+> 3. maybe have a lower factor for lower tension and not none?
