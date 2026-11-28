@@ -4,6 +4,7 @@
 //   time ∝ 1/compute with no floor; a fixed physical run gives the same G whatever its start date (the v2 calendar
 //   bug); the start state (V0 at research/12's G ≈ 28.0, pm(V0) = the reference start for every start type).
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
+//   Cost: no sim (one newGame cloned, 3 start newGames, 3 world newGames); quick and full. Tier: quick.
 import { WORK_TYPES, skillRefDelta as refDelta } from '../../src/data/v2/workTypes';
 import { COGNITIVE, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -18,7 +19,7 @@ import {
 import { planRun } from '../../src/engine/v2/models/runs';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import type { DomainId, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
-import { check, finish, runTo } from './lib';
+import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 
@@ -81,6 +82,7 @@ check(near(continueGPre(27.3, 3e26, 1.38, 'moe') - continueGPre(27.3, 3e26, 0.38
 
 // ---------- start state ----------
 const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const fresh = () => structuredClone(s0); // one game, cloned per case
 const w0 = s0.hidden.timeline;
 const V0 = s0.player.models.versions[0];
 // A6b: B0 is overtrained like 2025 production models (400 tokens per parameter): research/12's Aug-2025 anchor 28.0 was
@@ -97,8 +99,8 @@ for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
 
 // ---------- durations ----------
 const base = (s: GameStateV2, params: number) => planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 });
-const sA = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
-const sB = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const sA = fresh();
+const sB = fresh();
 sB.player.computeOnline *= 2;
 const a = base(sA, 2e12);
 const b = base(sB, 2e12);
@@ -107,26 +109,26 @@ check(near(trainDays(a) / trainDays(b), 2, 0.05), 'wall time ∝ 1/compute (2× 
 const tiny = base(sA, 1e9);
 check(trainDays(tiny) <= 1, 'no minimum length: a tiny base trains in a day', `${tiny.etaDays} d incl. ${tiny.setupDays} d setup`);
 const post = planRun(sA, { kind: 'post', baseId: 'B0', post: { ...REFERENCE_POST, methods: [] }, poolShare: 0.5 });
-check(post.etaDays - post.setupDays < 30 && post.flopNeeded === RL_BUDGET.standard * sA.player.models.bases[0].flop, 'post-training: RL FLOP = ρ × base FLOP; no minimum days', `${post.flopNeeded.toExponential(2)} FLOP, ${post.etaDays} d`);
+const postB = planRun(sB, { kind: 'post', baseId: 'B0', post: { ...REFERENCE_POST, methods: [] }, poolShare: 0.5 });
+// Shape, not the old "< 30 d" pin: the RL FLOP is rho x the base FLOP, and wall time is FLOP / compute with no floor (2x the pool halves it).
+check(post.flopNeeded === RL_BUDGET.standard * sA.player.models.bases[0].flop && near((post.etaDays - post.setupDays) / Math.max(1, postB.etaDays - postB.setupDays), 2, 0.15),
+  'post-training: RL FLOP = rho x base FLOP; wall time ∝ 1/compute, no minimum days', `${post.flopNeeded.toExponential(2)} FLOP, ${post.etaDays} d vs ${postB.etaDays} d at 2x pool`);
 
 // ---------- the v2 calendar bug: same physical run, same G at any start date ----------
-const sC = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const sC = fresh();
 const g0 = base(sC, 2e12).limits!.gPre.total;
-const assets0 = JSON.stringify(sC.player.dataPortfolio);
-// V4.0: a new game runs its default research lines, so "fixed know-how" also holds the recipe stacks at day 0.
-const stacks0 = JSON.parse(JSON.stringify(sC.player.research.stacks)) as typeof sC.player.research.stacks;
-runTo(sC, 500, { skip: ['endings'] });
-sC.player.dataPortfolio = JSON.parse(assets0) as typeof sC.player.dataPortfolio;
-sC.player.research.stacks = stacks0;
+// The date is the only input moved: a fixed physical run reads the state (stacks, diffused know-how, data portfolio), never
+// the calendar. time.day = 500 is enough to catch an F(t) term (F1: diffusion lives in research.diffused, state, not date).
+sC.time.day = 500;
 const g500 = base(sC, 2e12).limits!.gPre.total;
-check(near(g0, g500, 1e-9), 'a fixed physical run at fixed know-how gives the same G on day 0 and day 500 (no F(t))', `${g0.toFixed(4)} vs ${g500.toFixed(4)}`);
+check(near(g0, g500, 1e-9), 'a fixed physical run at fixed know-how (stacks, diffused level, data) gives the same G on day 0 and day 500 (no F(t))', `${g0.toFixed(4)} vs ${g500.toFixed(4)}`);
 
 // ---------- one capability currency (RD-U01) and the domain reference points (RD-U05; merged from currency.ts, domainref.ts) ----------
 // Design offsets are domain ΔG in OOM; the displayed domain level is λ(G_d − shift_d) of the same G the work fit reads, shift_d the
 // domain's best-human reference point; no level→OOM factor and no display offset table is left.
 {
 // 2. A version's displayed domain level equals λ(G_d) (less the domain's best-human shift, RD-U05), G_d the fit's domain G.
-const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const s = fresh();
 const w = s.hidden.timeline;
 const V0 = s.player.models.versions[0];
 const lam = (v: Pick<ModelVersion, 'G' | 'build'>, d: (typeof DOMAIN_IDS)[number]) => clamp(levelOfG(w, domainG(s, v, d) - domainRefShift(w, d)), 0, 15);
