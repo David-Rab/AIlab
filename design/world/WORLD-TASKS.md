@@ -210,3 +210,12 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   to 0.45 (the leader kind passes; upstart and racer don't) · 2df67163
 - W14 (lead) · PLANS.md §5: plans A, US-buys-time, C, D and E are possible; AI Futures B (sabotage) and plan A's handoff
   are not (parked to OPEN.md)
+- W8a · Sonnet high · ~10 min · audit, IA map, 4 mockups (design/world/ui/). The designer approved the mockups and
+  decided: Powers replaces Relations; pledges stay on Powers; nav badge only; providers → link to Finance › Story; three
+  adoption numbers; talks are events only · 2bca7f45
+- Lead review: the Risk tab was left "unchanged" by W8a, but its War estimate is an ad-hoc formula and its lever texts
+  name deleted actions (track-2, export lobbying, agreements). This goes into W8b-1. The Tech mockup showed 14 of the
+  29 world techs; the build shows all 29.
+- W8b-1 · Sonnet high · readouts for the UI (concern/approval parts, trust causes, stage/tension/talks progress, law
+  status, briefing effect), honest Risk rows and levers, missing glossary terms · running.
+  Next: W8b-2 Powers panel and W8b-3 World tabs + Risk UI, in parallel.
