@@ -185,7 +185,7 @@ export type { StoryNow, LabStory, SectorValue, Driver, SupplierTerms } from './f
 export { RIVAL, RIVAL_CHARTER, rivalStructure, capMultiple, valueCap } from './finance/rivalFinance';
 export { raceResponseOf } from './npc/lab';
 // FIN3a: board votes on major decisions (seat by seat, no dice) and the board's mood sources.
-export { boardSeats, missionPowers, overrideAvailable, ownerFunded, startControl, structureLabel } from './finance/control';
+export { boardSeats, controllerOf, seatsOf, missionPowers, overrideAvailable, ownerFunded, startControl, structureLabel } from './finance/control';
 export { boardVote, MAJOR_DECISIONS, OBLIGATION_X_REVENUE, VOTE, BC_ANCHOR, BC_REVERT_Q } from './finance/board';
 export { MOOD_SOURCES, MOOD_LABEL, MOOD_WEIGHTS, MOOD_BASE, MOOD_SOURCE_OF, moodWeight, INCIDENT_BC, INCIDENT_BC_CAP_Q } from './finance/mood';
 export type { MoodSource } from './finance/mood';

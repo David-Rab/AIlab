@@ -5,9 +5,10 @@ import { boardSeats, controllerOf, holdingsOf, investorAppeal, missionPowers, ov
 import { LAB_KIND_BY_ID, POSITION_BY_ID, parentBudgetYear } from '../../src/data/v2/starts';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
-import type { Charter, GameStateV2, LabKindId, Ownership } from '../../src/engine/v2/types';
+import type { Charter, GameStateV2, LabKindId, NpcSetupLab, Ownership } from '../../src/engine/v2/types';
 import { COMPANY_IDS, PARTNER_DEFS } from '../../src/data/v2/deals';
 import { KINDS as NPC_KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';
+import { persOf } from '../../src/engine/v2/npc/lab';
 import { affiliatedLab } from '../../src/engine/v2/finance/deals';
 import { check, finish } from './lib';
 
@@ -121,4 +122,14 @@ check(affiliatedLab(games.leader, 'Azimuth')?.npc.kind === 'bigtech' && !affilia
 check(!PARTNER_DEFS.some((x) => x.id === 'Lattice') && affiliatedLab(games.leader, 'Lattice')?.npc.kind === 'openweights', 'C5b Lattice is not a partner (no terms), and owns the open-weights lab');
 const rs = games.racer.player.sites;
 check(rs.length > 0 && rs.every((x) => x.path === 'grid' && x.capexPaid === x.capex && x.capex > 0) && !games.racer.player.finance.ledger?.some((c) => c.kind === 'lease'), 'C5b racer: sites are owned grid campuses, capex paid, no rent', rs.map((x) => x.name + ' ' + x.mw + ' MW').join(', '));
+
+// C6: the setup screen's custom kinds and Create-rivals ties.
+const c6a = cu('founderMajority', { missionBody: true }, 'contender'), c6b = cu('investorHeavy', {}, 'talent'), c6c = cu('wholly', {}, 'capital');
+check(structureLabel(c6a) === 'Mission-controlled' && structureLabel(c6b) === 'Board-run' && structureLabel(c6c) === 'Division of Azimuth', 'C6 custom: contender + mission body + founder-majority Mission-controlled; talent + investor-heavy Board-run; capital + wholly Division of Azimuth', [c6a, c6b, c6c].map(structureLabel).join(' · '));
+const mkRivals = (cast: NpcSetupLab[]) => newGame({ ...defaultSetupV2({ seed: 1 }), cast });
+const c6r = mkRivals([{ kind: 'racer', lagMonths: 3, owner: 'Lattice', backers: {} }, { kind: 'bigtech', lagMonths: 3, backers: { 'Silica Systems': 0.1 } }, { kind: 'safety', lagMonths: 3 }]);
+const rOwned = c6r.rivals.find((r) => r.npc.kind === 'racer')!, rFree = c6r.rivals.find((r) => r.npc.kind === 'bigtech')!, rDefault = c6r.rivals.find((r) => r.npc.kind === 'safety')!;
+check(rOwned.npc.owner === 'Lattice' && persOf(rOwned.npc).funding === 'parent', 'C6 Create rivals: a lab with owner Lattice is parent-funded and owned by Lattice');
+check(!rFree.npc.owner && persOf(rFree.npc).funding === 'private' && near(rFree.npc.backers?.['Silica Systems'] ?? 0, 0.1), 'C6 Create rivals: owner None on a big-tech lab makes it privately funded; backer Silica 10% is written');
+check(rDefault.npc.backers?.Azimuth === 0.14 && persOf(rDefault.npc).funding === 'private', 'C6 Create rivals: a lab with no ties set keeps its own kind ties (safety backed by Azimuth 14%)');
 finish('corp');

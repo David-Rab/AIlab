@@ -243,7 +243,7 @@ export interface NpcSetupLab {
   kind: import('../../data/v2/npcLabs').NpcKindId;
   lagMonths: number;
   personality?: Partial<import('../../data/v2/npcLabs').Personality>;
-  /** Its owner company and backers (CORPORATE.md §5.8); absent: the kind's (the cast entry's). */
+  /** Its owner company and backers (CORPORATE.md §5.8); `backers` absent: the kind's ties (the cast entry's); present: the lab's own, and an absent `owner` then means none. An owner makes it parent-funded. */
   owner?: import('../../data/v2/deals').CompanyId;
   backers?: Partial<Record<import('../../data/v2/deals').CompanyId, number>>;
 }
