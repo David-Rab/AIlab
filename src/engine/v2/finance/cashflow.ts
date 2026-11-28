@@ -14,7 +14,7 @@ import type { Commitment$, EngineSystem, GameStateV2, SystemCtx } from '../types
 import { drawDebt, interestPerYear, lineUndrawn } from './debt';
 import { expireRepriced } from './equity';
 import { ensureWs3, revenueShareRate, yearStats } from './ext';
-import { bookCash, ledgerPaying } from './ledger';
+import { bookCash, ledgerPaying, notePaid } from './ledger';
 import { deploymentRevenue } from './observe';
 import { runwayOf } from './runway';
 
@@ -92,7 +92,11 @@ export const payrollSystem: EngineSystem = {
     ys.otherOpex += other + share;
     let total = payroll + other + share;
     const byKind: Partial<Record<Commitment$['kind'], number>> = {};
-    for (const c of f.ledger) if (ledgerPaying(c, s.time.day)) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
+    for (const c of f.ledger) {
+      if (!ledgerPaying(c, s.time.day)) continue;
+      byKind[c.kind] = (byKind[c.kind] ?? 0) + c.perQuarter / 3;
+      notePaid(s, c.payee, c.perQuarter / 3);
+    }
     for (const [k, amt] of Object.entries(byKind) as [Commitment$['kind'], number][]) {
       if (amt <= 0) continue;
       bookCash(s, ctx, -amt, 'commitments', KIND_LABEL[k]);

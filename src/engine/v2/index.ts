@@ -126,7 +126,7 @@ export type { Headroom, RatingTerms } from './finance/debt';
 export { payOptions, leaseRate, leaseAvailable, leaseGuarantor, contingentLiabilities, siteRVG, leaseBalance } from './finance/capex';
 export type { PayOption } from './finance/capex';
 export { conditionWords, dealPreview } from './finance/actions';
-export { affiliatedLab, dealWith, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
+export { affiliatedLab, dealWith, partnerBlocker, partnerCosts, partnerStakeAfter, partnerStakeAll, partnerOffers, partnersNow, partnerTerms, rescuePartner, SUPPLY_LABEL, supplyOptions, termsEquity } from './finance/deals';
 export type { PartnerChoice } from './finance/deals';
 export { leadEstimate } from './finance/observe';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';

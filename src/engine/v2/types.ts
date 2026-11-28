@@ -1621,6 +1621,9 @@ export interface FinancePromise extends Thesis {
  *  shares when the tranche lands, at that day's valuation, up to `stakeCap` of the company (a hyperscaler's 15%; the
  *  part past the cap lapses). Round tranches carry no partner (their shares were issued at the close). */
 export interface Tranche { amount: Money; dueDay: Day; condition?: string; deadline?: Day; source: string; partner?: string; stakeCap?: number;
+  /** A 'spent:<partner>:<$B>' condition counts payments to the partner above this tally of what had been paid to it at
+   *  signing (`FinanceWS3.paidTo`). */
+  spentBase?: Money;
   /** FIN4r (H3): a round's second tranche: the shares issued at the close for its unpaid money (fractions of the company
    *  then, by holder: 'fin' or a partner name) and the insiders' (founder + mission) share then, which later issues
    *  scale with everyone. A lapse cancels the shares of the money that did not come. */
@@ -1656,7 +1659,7 @@ export type PartnerKind = 'hyperscaler' | 'chipVendor';
 export type PartnerSupply = 'cloud' | 'asic' | 'chips';
 /** A deal's strings (FIN4a, FIN4b): only strings that do something. */
 export interface DealStrings {
-  /** Blocks deals with the partner's competitors (as before FIN4a: for good). Optional for more money (FIN4b); always
+  /** Blocks deals with the partner's competitors (while the deal runs). Optional for more money (FIN4b); always
    *  part of a rescue. */
   exclusivity?: boolean;
   /** IP access (FIN4b, spec §6.1): the partner's affiliated rival lab licenses your models while the deal runs (to
@@ -1671,8 +1674,10 @@ export interface DealStrings {
 /** What a partner supplies against the take-or-pay commitment, as signed (priced on the expected market path). */
 export interface DealSupply {
   kind: PartnerSupply;
-  /** Cloud: capacity (H100e) for the term; chips: H100e delivered each quarter. */
+  /** Cloud: capacity (H100e) in the first year (see `yearly`); chips: H100e delivered each quarter. */
   h100e: H100e;
+  /** A hyperscaler's cloud: one firm contract a year, each of this many H100e (growing as prices fall). */
+  yearly?: H100e[];
   quarters: number;
   /** Price in the first and last quarter: $K per H100e-year (cloud) or $K per H100e (chips). */
   first: number;
@@ -1909,8 +1914,8 @@ export interface PartnerTerms {
   strings: DealStrings;
   /** A hyperscaler's stake cap (15%): tranches land only up to it. */
   stakeCap?: number;
-  /** A rescue tops the partner up to this stake. */
-  stake?: number;
+  /** A rescue's price as a share of the valuation (distress): its shares = cash ÷ (priceMult × V + cash). */
+  priceMult?: number;
   /** Years the running terms last (supply, revenue share, priority, IP access). */
   years: number;
   /** FIN4b: the optional strings and what each adds (equity $B over the terms without it, under the stake cap), or why
@@ -1982,6 +1987,9 @@ export interface FinanceWS3 {
   criticsDay?: Day;
   /** Day of the last strategic rescue (one per year). */
   lastRescueDay?: Day;
+  /** Everything paid to each payee on the ledger so far ($B, cumulative; entries leave the ledger when they end): what a
+   *  partner's 'spent:' tranche conditions count from signing. */
+  paidTo?: Record<string, Money>;
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
   asicMigrationUntil?: Day;
   /** Last quarter's net operating cash flow (rating input) and the cash at its start. */

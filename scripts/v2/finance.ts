@@ -30,8 +30,8 @@ import { whatWeOwe } from '../../src/engine/v2/finance/owe';
 import * as EQ from '../../src/engine/v2/finance/equity';
 import { credRung, judgePromises, livePromises, makeThesis, metricNow, PITCH, PROMISE_RESULT, promiseDeadline, promiseWeight, trendOf, typicalRound } from '../../src/engine/v2/finance/promises';
 import { charterReleaseBlock, charterRights, controlVote, transferVote } from '../../src/engine/v2/finance/charter';
-import { affiliatedLab, dealVotes, dealWith, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
-import { capabilityThresholds, gwOwned, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
+import { affiliatedLab, dealVotes, dealWith, exclusiveBlocker, firstYearCommit, partnerBlocker, partnerCosts, partnerOffers, partnersNow, partnerStakeAfter, partnerTerms, rescuePartner, signPartner, termsEquity } from '../../src/engine/v2/finance/deals';
+import { capabilityThresholds, leadEstimate, licensedGap, licensedModel } from '../../src/engine/v2/finance/observe';
 import { addLedger, commitmentsRemaining, ledgerDue, monthFirsts, qOf, RENEGOTIATE, totalFlows } from '../../src/engine/v2/finance/ledger';
 import { budgetFactor, budgetRoom, DIVISION, divisionView, parentPaymentQ } from '../../src/engine/v2/finance/parent';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
@@ -1023,34 +1023,33 @@ for (const a of FINANCE_ACTIONS) {
   }
   {
     // Hyperscaler on cloud: equity in three tranches; capacity priced on the expected cloud path less the firm discount
-    // (10% at 6 years) and the partner's 10%; the take-or-pay schedule booked is the one shown; exclusivity and revenue
-    // share; no board seat; the tranches carry their conditions and the cap.
+    // (10% at 6 years) and the partner's 10%, booked a firm contract a year; the take-or-pay schedule booked is the one
+    // shown; revenue share; no board seat; the tranches carry their conditions (spent on the partner) and the cap.
     const s = fx();
     const ctx = makeCtx(s);
-    const t = partnerTerms(s, 'Azimuth', { supply: 'cloud', exclusive: true });
+    const t = partnerTerms(s, 'Azimuth', { supply: 'cloud' });
     const sp = t.supply!;
     const pathOk = sp.prices.every((p, k) => near(p, expectedCloudPrice(s, 1 + k) * (1 - 0.1) * (1 - PARTNER_TERMS.hyperscaler.discount)));
     const seats0 = s.player.board.seats.length;
     const cash0 = s.player.finance.cash;
-    // FIN4b: exclusivity is optional; this check signs it to keep testing the FIN4a string.
-    const err = signPartner(s, ctx, 'Azimuth', { supply: 'cloud', exclusive: true });
+    const err = signPartner(s, ctx, 'Azimuth', { supply: 'cloud' });
     const d = dealWith(s, 'Azimuth');
     const led = s.player.finance.ledger.filter((c) => c.payee === 'Azimuth');
     const ledTotal = led.reduce((a, c) => a + c.perQuarter, 0);
     const tr = s.player.finance.tranches.filter((x) => x.partner === 'Azimuth');
-    check(!err && pathOk && sp.partnerDiscount === PARTNER_TERMS.hyperscaler.discount && sp.firmDiscount === 0.1 && sp.prices[0] > sp.prices[sp.prices.length - 1] && near(ledTotal, sp.total) && led.length === sp.quarters && led.every((c) => c.cancellableNoticeQ === null) && near(s.player.finance.cash - cash0, t.equityNow, 1e-3) && tr.length === 2 && tr.every((x) => /^gw:/.test(x.condition ?? '') && x.stakeCap === 0.15 && x.deadline! > x.dueDay) && s.player.board.seats.length === seats0 && !!d?.strings.exclusivity && d.strings.revenueShare === 0.08,
-      'FIN4a hyperscaler cloud: priced on the expected path less the firm (10%) and partner (10%) discounts, the same take-or-pay schedule booked, equity now + two GW tranches under the 15% cap, exclusivity and revenue share, no board seat',
+    check(!err && pathOk && sp.partnerDiscount === PARTNER_TERMS.hyperscaler.discount && sp.firmDiscount === 0.1 && sp.prices[0] > sp.prices[sp.prices.length - 1] && near(ledTotal, sp.total) && led.length === sp.quarters && led.every((c) => c.cancellableNoticeQ === null) && near(s.player.finance.cash - cash0, t.equityNow, 1e-3) && tr.length === 2 && tr.every((x) => /^spent:Azimuth:/.test(x.condition ?? '') && x.stakeCap === 0.15 && x.deadline! > x.dueDay) && s.player.board.seats.length === seats0 && !d?.strings.exclusivity && d?.strings.revenueShare === 0.08 && s.player.cloud.filter((c) => c.provider === 'Azimuth').length === 6,
+      'FIN4a hyperscaler cloud: priced on the expected path less the firm (10%) and partner (10%) discounts, the same take-or-pay schedule booked as six yearly contracts, equity now + two spent-on-the-partner tranches under the 15% cap, revenue share, no board seat',
       `${f1(sp.h100e / 1e6)}M H100e · $${f1(sp.first)}K → $${f1(sp.last)}K/H100e-yr · take-or-pay $${f1(sp.total)}B · equity $${f1(t.equityNow)}B + 2 × $${f1(tr[0]?.amount ?? 0)}B`);
     // The preview shows what signing books: cash now, the first payment, the tranches with their conditions.
     const s2 = fx();
-    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.partner')!.preview(s2, { partner: 'Azimuth', supply: 'cloud', exclusive: true });
-    const t2 = partnerTerms(s2, 'Azimuth', { supply: 'cloud', exclusive: true });
-    check(pv.gains.some((g) => g.currency === 'cash' && near(g.amount, t2.equityNow) && g.target === 'now') && pv.gains.filter((g) => g.currency === 'cash' && /tranche: if/.test(String(g.target))).length === 2 && pv.costs.some((c) => c.currency === 'cash' && near(-c.amount, t2.supply!.perQ[0]) && /−10% partner/.test(String(c.target))) && pv.costs.some((c) => c.currency === 'revenue') && pv.exposure.some((c) => /exclusivity: no deals with Northwind/.test(String(c.target))), 'FIN4a the offer\'s preview shows every term and string before signing (cash now, tranches and their conditions, the first take-or-pay payment with both discounts, revenue share, exclusivity)');
-    // One deal per partner; its exclusivity blocks the competitor (kept as before FIN4a).
-    check(/Already your partner/.test(partnerBlocker(s, 'Azimuth') ?? '') && /exclusivity blocks deals with Northwind/.test(partnerBlocker(s, 'Northwind Cloud') ?? ''), 'FIN4a one deal per partner; a hyperscaler\'s exclusivity blocks its competitor', `${partnerBlocker(s, 'Azimuth')} · ${partnerBlocker(s, 'Northwind Cloud')}`);
+    const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.partner')!.preview(s2, { partner: 'Azimuth', supply: 'cloud' });
+    const t2 = partnerTerms(s2, 'Azimuth', { supply: 'cloud' });
+    check(pv.gains.some((g) => g.currency === 'cash' && near(g.amount, t2.equityNow) && g.target === 'now') && pv.gains.filter((g) => g.currency === 'cash' && /tranche: after you've spent/.test(String(g.target))).length === 2 && pv.costs.some((c) => c.currency === 'cash' && near(-c.amount, t2.supply!.perQ[0]) && /−10% partner/.test(String(c.target))) && pv.costs.some((c) => c.currency === 'revenue') && pv.costs.some((c) => c.currency === 'dilution' && /holds [\d.]+% after signing, up to [\d.]+% if every tranche lands/.test(String(c.target))), 'FIN4a the offer\'s preview shows every term and string before signing (cash now, tranches and their conditions, the first take-or-pay payment with both discounts, revenue share, the stake after signing)');
+    // One deal per partner (a running exclusivity blocking its competitor: scripts/v2/partners.ts).
+    check(/Already your partner/.test(partnerBlocker(s, 'Azimuth') ?? ''), 'FIN4a one deal per partner', `${partnerBlocker(s, 'Azimuth')}`);
     // A tranche buys shares at that day's valuation (it booked cash with no shares before FIN4a), and only up to the cap.
     const own0 = s.player.finance.ownership.strat['Azimuth'] ?? 0;
-    for (const x of tr) { x.dueDay = s.time.day; x.condition = 'gw:0'; }
+    for (const x of tr) { x.dueDay = s.time.day; delete x.condition; }
     const dealEq = (x: GameStateV2) => Object.values(x.player.finance.ws3.years).reduce((a, y) => a + y.dealEquity, 0);
     const de0 = dealEq(s);
     const q0 = qOf(s);
@@ -1072,7 +1071,7 @@ for (const a of FINANCE_ACTIONS) {
     check(!err && ok && sp.costMult === 0.45 && !!o && o.kind === 'lta' && JSON.stringify(o.prices) === JSON.stringify(sp.prices) && s.player.finance.ws3.reserved.length === n0 + 1 && (s.player.finance.ws3.asicMigrationUntil ?? 0) > s.time.day, 'FIN4a custom chips: 45% of the H100e list path less the firm discount, from a separate supply pool, research slows while migrating', `$${f1(sp.first)}K → $${f1(sp.last)}K per H100e · ${f1(sp.h100e / 1e3)}k a quarter`);
   }
   {
-    // Chip vendor: $10B per GW deployed (gw: tranches), buy its chips on the path less firm and vendor discounts,
+    // Chip vendor: $10B per GW of its chips bought (spent: tranches), buy its chips on the path less firm and vendor discounts,
     // +0.5 allocation weight on every chip order while it supplies.
     const s = fx();
     const w0 = orderWeight(s, false, 0.3);
@@ -1085,7 +1084,7 @@ for (const a of FINANCE_ACTIONS) {
     const tr = s.player.finance.tranches.filter((x) => x.partner === 'Silica Systems');
     const later = structuredClone(s);
     later.time.day = (d.supply?.endDay ?? 0) + 1;
-    check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^gw:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW deployed (gw tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
+    check(!err && ok && t.equityNow === 0 && tr.length === 2 && tr.every((x) => x.amount === PARTNER_TERMS.chipVendor.perGW && /^spent:Silica Systems:/.test(x.condition ?? '')) && near(w1 - w0, MARKET.rationW.strategic) && near(orderWeight(later, false, 0.3), w0, 1e-3), 'FIN4a chip vendor: $10B per GW of its chips bought (spent tranches), its chips on the path less firm and vendor discounts, +0.5 allocation weight only while it supplies', `tranches ${tr.map((x) => x.condition).join(', ')} · weight ${f1(w0)} → ${f1(w1)}`);
   }
   {
     // Firm commitments above 3× revenue need the board: the deal's first-year take-or-pay is what it judges.
@@ -1098,19 +1097,21 @@ for (const a of FINANCE_ACTIONS) {
     check(vs.some((v) => v.decision === 'commitments') && firstYearCommit(t) > 0 && !dealVotes(rich, partnerTerms(rich, 'Azimuth', { supply: 'cloud' })).length, 'FIN4a a partner\'s take-or-pay above 3× revenue goes to the board (none when revenue covers it)', `first year $${f1(firstYearCommit(t))}B`);
   }
   {
-    // Rescue (distress only): cash for a 30% stake, two board seats and exclusivity; nothing else (no IP rights flag).
+    // Rescue (distress only): cash for shares at half the valuation (cash ÷ (0.5 V + cash)), two board seats and exclusivity;
+    // nothing else (no IP rights flag); the rescuer is the hyperscaler with the largest stake.
     const s = fx();
     s.player.finance.state = 'distress';
     s.player.board.confidence = 90;
     check(/Distress: only a rescue/.test(partnerBlocker(s, 'Azimuth') ?? ''), 'FIN4a in distress only a rescue is on offer');
     const seats0 = s.player.board.seats.length;
-    // FIN5a: the stake is the top-up to 30%, or more when the rescuer's own cash already takes it past (a legacy holder
-    // near 30%, at the day-400 fixture's lower story mark): what the offer's stake-after says.
     const rp = rescuePartner(s)!;
-    const after = partnerStakeAfter(s, partnerTerms(s, rp, { rescue: true }));
+    const rt = partnerTerms(s, rp, { rescue: true });
+    const after = partnerStakeAfter(s, rt);
+    const stake0 = s.player.finance.ownership.strat[rp] ?? 0;
+    const sh = rt.equityNow / (0.5 * Math.max(10, s.player.finance.valuation) + rt.equityNow);
     const err = act(s, 'fin.rescue', {});
     const d = s.player.finance.deals.find((x) => x.rescue);
-    check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
+    check(!err && !!d && d.partner === 'Northwind Cloud' && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(after, stake0 * (1 - sh) + sh, 1e-9) && near(s.player.finance.ownership.strat[d.partner], after, 1e-6) && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: shares at half the valuation, a board seat with two votes and exclusivity (no inert IP flag), from the largest holder', `${err ?? ''} ${d?.partner} ${F1pct(stake0)} → ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
   }
   {
     // The reference bot's partner deal: a hyperscaler on cloud (Azimuth on the leader start), priced on the path.
@@ -1134,38 +1135,35 @@ for (const a of FINANCE_ACTIONS) {
     return s;
   };
   {
-    // At most 3 partners at once: a fourth is refused with the reason; a stake from before the start does not count; a
-    // rescue is never refused by the cap.
+    // At most 3 partners at once; a stake from before the start does not count; a rescue is never refused by the cap. (The cast
+    // has three partners, so the cap cannot bind: Northwind is opened by dropping its legacy stake.)
     const s = fx();
+    s.player.finance.ownership.strat['Northwind Cloud'] = 0;
+    s.player.finance.deals = s.player.finance.deals.filter((d) => !d.legacy);
     const ctx = makeCtx(s);
-    const errs = ['Azimuth', 'Silica Systems', 'Gulf Sovereign Fund'].map((p) => signPartner(s, ctx, p));
-    const why = partnerBlocker(s, 'Corvid Micro') ?? '';
-    const legacy = s.player.finance.deals.some((d) => d.legacy && d.partner === 'Northwind Cloud');
-    const err4 = act(s, 'fin.partner', { partner: 'Corvid Micro' });
+    const errs = ['Azimuth', 'Silica Systems', 'Northwind Cloud'].map((p) => signPartner(s, ctx, p));
     s.player.finance.state = 'distress';
     s.player.board.confidence = 90;
     const rescue = act(s, 'fin.rescue', {});
-    check(errs.every((e) => !e) && partnersNow(s).length === 4 && /3 partners, the most at once/.test(why) && legacy && !!err4 && !rescue && s.player.finance.deals.some((d) => d.rescue),
-      'FIN4b at most 3 partners at once (the legacy stake does not count); a fourth is refused with the reason; a rescue is not capped', `${why} · after the rescue: ${partnersNow(s).join(', ')}`);
+    check(errs.every((e) => !e) && partnersNow(s).length === ST.maxPartners && !rescue && s.player.finance.deals.some((d) => d.rescue), 'FIN4b three partners at once (the most); a rescue is not capped', `after the rescue: ${partnersNow(s).join(', ')}`);
   }
   {
-    // Exclusivity is optional and pays: off by default; on, +25% of the equity (hyperscaler, under the stake cap) and of
-    // the money per GW (vendor); the extra money buys no extra capacity; it blocks the competitor for good; a partner
-    // whose competitor is already your partner does not offer it.
+    // Exclusivity is optional and pays: off by default; on, +25% of the equity (hyperscaler, under the stake cap) and a
+    // commitment of 4 × it; it is offered only while its competitor could offer you something, blocks that competitor while
+    // the deal runs, and a chip vendor (no competitor) has none to offer.
     const s = fx();
+    check(/Northwind Cloud has nothing to offer you now/.test(exclusiveBlocker(s, 'Azimuth') ?? '') && !partnerTerms(s, 'Azimuth', { exclusive: true }).strings.exclusivity, 'FIN4b exclusivity is not offered while the competitor has nothing to offer (Northwind is above the cap)', exclusiveBlocker(s, 'Azimuth'));
+    s.player.finance.ownership.strat['Northwind Cloud'] = 0;
+    s.player.finance.deals = s.player.finance.deals.filter((d) => !d.legacy);
     const open = partnerTerms(s, 'Azimuth');
     const ex = partnerTerms(s, 'Azimuth', { exclusive: true });
-    const v0 = partnerTerms(s, 'Silica Systems');
-    const v1 = partnerTerms(s, 'Silica Systems', { exclusive: true });
-    const sumV = (t: ReturnType<typeof partnerTerms>) => t.tranches.reduce((a, x) => a + x.amount, 0);
-    check(!open.strings.exclusivity && !!ex.strings.exclusivity && near(termsEquity(ex), termsEquity(open) * (1 + ST.exclusiveBump)) && near(ex.options.exclusive.bump, termsEquity(ex) - termsEquity(open)) && near(ex.supply!.h100e, open.supply!.h100e) && near(sumV(v1), sumV(v0) * (1 + ST.exclusiveBump)) && near(v0.options.exclusive.bump, sumV(v1) - sumV(v0)) && !!partnerTerms(s, 'Gulf Sovereign Fund').options.exclusive.blocked,
-      'FIN4b exclusivity is optional: +25% of the money (hyperscaler equity, vendor money per GW), shown as the option\'s bump, no extra capacity; a sovereign has none to offer', `Azimuth $${f1(termsEquity(open))}B → $${f1(termsEquity(ex))}B · Silica $${f1(sumV(v0))}B → $${f1(sumV(v1))}B`);
+    check(!open.strings.exclusivity && !!ex.strings.exclusivity && near(termsEquity(ex), termsEquity(open) * (1 + ST.exclusiveBump)) && near(ex.options.exclusive.bump, termsEquity(ex) - termsEquity(open)) && near(ex.supply!.total, PARTNER_TERMS.hyperscaler.commitMult * termsEquity(ex), 1e-6) && !!partnerTerms(s, 'Silica Systems').options.exclusive.blocked,
+      'FIN4b exclusivity is optional: +25% of the equity, shown as the option\'s bump, the commitment stays 4 × the equity; a chip vendor has no competitor to exclude', `Azimuth $${f1(termsEquity(open))}B → $${f1(termsEquity(ex))}B`);
     const ctx = makeCtx(s);
     signPartner(s, ctx, 'Silica Systems');
-    const corvid = partnerTerms(s, 'Corvid Micro', { exclusive: true });
     signPartner(s, ctx, 'Azimuth', { exclusive: true });
-    check(/You already partner with Silica Systems/.test(corvid.options.exclusive.blocked ?? '') && !corvid.strings.exclusivity && /Azimuth's exclusivity blocks deals with Northwind/.test(partnerBlocker(s, 'Northwind Cloud') ?? '') && !partnerBlocker(s, 'Corvid Micro') && partnerCosts(s).find((c) => c.partner === 'Azimuth')?.blocks.join(',') === 'Northwind Cloud',
-      'FIN4b several shallow partners stay possible (Silica open, Corvid still offers terms but not exclusivity); an exclusive partner blocks its competitor, shown in its costs', `${corvid.options.exclusive.blocked}`);
+    check(/Azimuth's exclusivity blocks deals with Northwind/.test(partnerBlocker(s, 'Northwind Cloud') ?? '') && partnerCosts(s).find((c) => c.partner === 'Azimuth')?.blocks.join(',') === 'Northwind Cloud',
+      'FIN4b an exclusive partner blocks its competitor while the deal runs, shown in its costs', `${partnerBlocker(s, 'Northwind Cloud')}`);
   }
   {
     // IP access: only from a hyperscaler with an in-house lab (a big-tech rival); +20% of the equity; the preview says
@@ -1174,19 +1172,24 @@ for (const a of FINANCE_ACTIONS) {
     check(!!partnerTerms(plain, 'Azimuth', { ipAccess: true }).options.ipAccess.blocked && !partnerTerms(plain, 'Azimuth', { ipAccess: true }).strings.ipAccess && !!partnerTerms(plain, 'Silica Systems').options.ipAccess.blocked, 'FIN4b no IP access without an affiliated lab (no big-tech rival), nor from a chip vendor');
     const s = withLabs(fx());
     const lab = affiliatedLab(s, 'Azimuth')!;
+    check(partnerTerms(s, 'Azimuth', { ipAccess: true }).options.ipAccess.blocked === 'You have no lead to license', 'FIN4b no IP access without a lead over its lab');
+    const s0 = structuredClone(s);
+    lab.npc.d -= 100 - leadEstimate(s, lab.core.id); // a 100-day lead: ~3.3 months of the 6 that earn the full 20%
+    const lead = leadEstimate(s, lab.core.id);
     const t0 = partnerTerms(s, 'Azimuth');
     const t = partnerTerms(s, 'Azimuth', { ipAccess: true });
     const pv = FINANCE_ACTIONS.find((a) => a.id === 'fin.partner')!.preview(s, { partner: 'Azimuth', ipAccess: true });
     const line = pv.costs.find((c) => c.currency === 'leadDays');
-    check(lab.core.id === s.rivals[2].core.id && affiliatedLab(s, 'Northwind Cloud')?.core.id === s.rivals[1].core.id && t.strings.ipAccess?.lab === lab.core.id && near(termsEquity(t), termsEquity(t0) * (1 + ST.ipBump)) && near(t.options.ipAccess.bump, termsEquity(t) - termsEquity(t0)) && !!line && new RegExp(`${lab.core.name} \\(Azimuth's lab\\) licenses your models and closes ~10% of your lead a year`).test(String(line.target)),
-      'FIN4b IP access (a hyperscaler with an in-house lab): +20% of the equity; the preview says the lab closes ~10% of your lead a year, in days at your estimated lead', String(line?.target));
-    const a = structuredClone(s);
-    const b = structuredClone(s);
-    signPartner(a, makeCtx(a), 'Azimuth', { ipAccess: true });
-    signPartner(b, makeCtx(b), 'Azimuth');
-    const labOf = (x: GameStateV2) => x.rivals.find((r) => r.core.id === lab.core.id)!;
+    check(lab.core.id === s.rivals[1].core.id && !affiliatedLab(s, 'Northwind Cloud') && t.strings.ipAccess?.lab === lab.core.id && near(termsEquity(t), termsEquity(t0) * (1 + ST.ipBump * Math.min(1, lead / 30.4 / ST.ipFullLeadMonths))) && near(t.options.ipAccess.bump, termsEquity(t) - termsEquity(t0)) && !!line && new RegExp(`${lab.core.name} \\(Azimuth's lab\\) licenses your models and closes ~10% of your lead a year`).test(String(line.target)),
+      'FIN4b IP access (a hyperscaler with an in-house lab): up to +20% of the equity, by your lead over it; the preview says the lab closes ~10% of your lead a year, in days at your estimated lead', String(line?.target));
+    const a = structuredClone(s0);
+    const b = structuredClone(s0);
+    a.player.finance.deals.push({ id: 'DLip', partner: 'Azimuth', kind: 'hyperscaler', day: a.time.day, equityNow: 0, equityLater: 0, strings: { ipAccess: { lab: s.rivals[2].core.id } }, until: a.time.day + 2000 });
+    const labOf = (x: GameStateV2) => x.rivals.find((r) => r.core.id === s.rivals[2].core.id)!;
+    labOf(a).npc.d += 500; // behind the licensed model, so there is a gap to close (the fixture's rivals are ahead of it)
+    labOf(b).npc.d += 500;
     const want = ipAccessDays(a, labOf(a)); // N6: the days its lag falls a day (a share of the way to the licensed model)
-    check(want > 0 && ipAccessDays(b, labOf(b)) === 0 && partnerCosts(a)[0].ip?.lab === lab.core.id,
+    check(want > 0 && ipAccessDays(b, labOf(b)) === 0 && partnerCosts(a)[0].ip?.lab === s.rivals[2].core.id,
       'FIN4b a signed IP access moves the affiliated lab lag a share of the way to the licensed model each day (npc/shocks.ts ipAccessDays); none without it', `${want.toExponential(2)} d a day`);
   }
   {
@@ -1194,6 +1197,8 @@ for (const a of FINANCE_ACTIONS) {
     // (not forceable): a no stops the deal with IP access; without IP access it signs. A rescue's IP access is not
     // voted: its licence stops below the thresholds.
     const s = withLabs(fx());
+    const lab2 = affiliatedLab(s, 'Azimuth')!;
+    lab2.npc.d -= 100 - leadEstimate(s, lab2.core.id);
     s.player.board = initialBoard('pbcTrust');
     const best = licensedModel(s)!;
     // FINM: the model-v3 day-400 fixture's best version crossed no threshold (RefBot's RL focus there sets no danger
@@ -1207,7 +1212,7 @@ for (const a of FINANCE_ACTIONS) {
     const nothing = s.player.finance.cash === cash0 && !dealWith(s, 'Azimuth');
     const ok2 = !act(s, 'fin.partner', { partner: 'Azimuth' });
     s.player.finance.state = 'distress';
-    const rt = partnerTerms(s, 'Northwind Cloud', { rescue: true });
+    const rt = partnerTerms(s, 'Azimuth', { rescue: true });
     check(capabilityThresholds(best).length > 0 && !!v && v.body === 'trust' && !v.passes && !v.canForce && vs[0] === v && !!err && nothing && ok2 && !!rt.strings.ipAccess && !rt.strings.ipAccess.trust && !dealVotes(s, rt).some((x) => x.decision === 'transferModel') && licensedGap(s, rt.strings.ipAccess.lab, true) <= licensedGap(s, rt.strings.ipAccess.lab),
       'FIN4b PBC + trust: IP access to a capability-threshold model goes to the trust\'s transfer vote (first, not forceable); its no stops the deal, which signs without IP access; a rescue\'s licence stops below the thresholds', `${best.name}: ${capabilityThresholds(best).join(', ')} · trust ${v?.yes}/${v?.total} · ${err}`);
   }
@@ -1218,20 +1223,18 @@ for (const a of FINANCE_ACTIONS) {
     s.player.finance.rating = 'closed';
     const none = leaseRate(s);
     const why = leaseAvailable(s);
-    signPartner(s, makeCtx(s), 'Gulf Sovereign Fund');
-    const sov = leaseRate(s);
     signPartner(s, makeCtx(s), 'Azimuth');
     const r = leaseRate(s);
     const lease = payOptions(s, 10, 'site').find((o) => o.id === 'lease')!;
-    check(none === undefined && /partner's guarantee/.test(String(why)) && sov === undefined && near(r ?? 0, (CAPEX_LEASE.rate.B ?? 0) + CAPEX_LEASE.guaranteePremium) && !lease.blocked && lease.guarantor === 'Azimuth' && /guaranteed by Azimuth/.test(lease.note) && leaseGuarantor(s) === 'Azimuth',
-      'FIN4b below rating B a running hyperscaler or chip-vendor partner guarantees leases at the B rate + 3 points, named on the lease option (a sovereign cheque or a legacy stake does not)', `${F1pct(r ?? 0)} · ${lease.note}`);
+    check(none === undefined && /partner's guarantee/.test(String(why)) && near(r ?? 0, (CAPEX_LEASE.rate.B ?? 0) + CAPEX_LEASE.guaranteePremium) && !lease.blocked && lease.guarantor === 'Azimuth' && /guaranteed by Azimuth/.test(lease.note) && leaseGuarantor(s) === 'Azimuth',
+      'FIN4b below rating B a running hyperscaler or chip-vendor partner guarantees leases at the B rate + 3 points, named on the lease option (a legacy stake does not)', `${F1pct(r ?? 0)} · ${lease.note}`);
   }
   {
     // The reference bot: one hyperscaler deal, exclusive (one deep partner), no IP access.
     const deals = ref.map((r) => r.s.player.finance.deals.find((d) => d.kind === 'hyperscaler' && !d.legacy && !d.rescue)).filter((d): d is NonNullable<typeof d> => !!d);
     const n = ref.map((r) => partnersNow(r.s).length);
-    check(deals.length >= 0.8 * ref.length && deals.every((d) => d.strings.exclusivity && !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
-      'FIN4b RefBot takes one hyperscaler deal with exclusivity and without IP access; never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
+    check(deals.length >= 0.8 * ref.length && deals.every((d) => !d.strings.ipAccess) && n.every((x) => x <= ST.maxPartners),
+      'FIN4b RefBot takes one hyperscaler deal without IP access (exclusivity only when a competitor could offer something); never more than 3 partners', `${deals.length}/${ref.length} · equity median $${f1(median(deals.map((d) => d.equityNow + d.equityLater)))}B · partners ${JSON.stringify(n)}`);
   }
 }
 
@@ -1417,14 +1420,18 @@ for (const a of FINANCE_ACTIONS) {
     check(!errD && dv.gains[0].amount >= LARGE_ROUND.min && d.player.finance.tranches.length === n0 && near(d.player.finance.cash - c0, dv.gains[0].amount), 'FIN4r H3 the distress down round pays in full at the close (no tranche)', `$${f1(d.player.finance.cash - c0)}B`);
   }
   {
-    // M1: 'gw:' tranche conditions count compute in your own sites, not the partner's (or any) rented cloud.
+    // M1 (C7a): a partner's 'spent:' tranche condition counts what is paid to the partner after signing, not what was paid before.
     const s = fx();
-    const own = gwOwned(s);
-    addCloud(s, makeCtx(s), 3e6, 8, 'Azimuth', { startQ: 0 });
-    s.player.computeOnline += 3e6;
-    const total = (s.player.computeOnline * s.power.kWPerH100e) / 1e6;
+    s.player.finance.ws3.paidTo = { Azimuth: 50 };
     const t = partnerTerms(s, 'Azimuth');
-    check(!trancheConditionMet(s, `gw:${(own + 0.5).toFixed(1)}`) && trancheConditionMet(s, `gw:${(own - 0.05).toFixed(2)}`) && total > own + 0.5 && t.tranches[0].condition === `gw:${(own + 0.5).toFixed(1)}`, 'FIN4r M1 gw: tranche conditions count GW online in your own sites (rented cloud does not meet them)', `owned ${own.toFixed(2)} GW, with cloud ${total.toFixed(2)} GW · condition ${t.tranches[0].condition}`);
+    signPartner(s, makeCtx(s), 'Azimuth');
+    const tr = s.player.finance.tranches.find((x) => x.partner === 'Azimuth')!;
+    const amt = Number(tr.condition!.split(':')[2]);
+    const m0 = trancheConditionMet(s, tr.condition!, tr);
+    s.player.finance.ws3.paidTo!.Azimuth = 50 + amt - 0.1;
+    const m1 = trancheConditionMet(s, tr.condition!, tr);
+    s.player.finance.ws3.paidTo!.Azimuth = 50 + amt;
+    check(!m0 && !m1 && trancheConditionMet(s, tr.condition!, tr) && tr.spentBase === 50 && t.tranches[0].condition === tr.condition, 'FIN4r M1 a spent: tranche counts payments to the partner since signing (what was paid before does not count)', `needs $${f1(amt)}B after signing`);
   }
   {
     // M2: Buy chips paid by chip loan meets the debt vote, by lease the commitments vote (only above 3× revenue).

@@ -2,15 +2,15 @@
 // Owner: WS3.
 import { divisionQ } from './parent';
 import { decimalYear } from '../core/time';
-import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx } from '../types';
+import type { CapitalMarkets, EngineSystem, GameStateV2, Money, SystemCtx, Tranche } from '../types';
 import type { StoryNow } from './story';
 import { covenantsBreached, ratingOf, ratingScore, rollMaturities } from './debt';
-import { gwOwned, publicFrontier } from './observe';
+import { publicFrontier } from './observe';
 import { cancelTrancheShares, closePendingRound, partnerEquityIn } from './equity';
 import { bustTarget, markRivals, RIVAL } from './rivalFinance';
 import { DRIVERS, markShare, poolAnnualOf, privateRivals, recordLabRevenue, sectorRunRate, STORY, storyNow } from './story';
 import { defaultCapitalWS3, ensureWs3, yearStats } from './ext';
-import { commitmentsPerYear, bookCash } from './ledger';
+import { commitmentsPerYear, bookCash, paidTo } from './ledger';
 import { judgePromises, recordThesisHist } from './promises';
 import { boardMood, MOOD_BASE } from './mood';
 
@@ -106,7 +106,7 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   const f = s.player.finance;
   const keep = [];
   for (const t of f.tranches) {
-    const met = !t.condition || trancheConditionMet(s, t.condition);
+    const met = !t.condition || trancheConditionMet(s, t.condition, t);
     if (t.dueDay <= s.time.day && met) {
       // A partner's tranche buys shares at today's valuation (FIN4a); a round's tranche was priced at the close.
       if (t.partner) partnerEquityIn(s, ctx, t.partner, t.amount, t.source, t.stakeCap);
@@ -134,16 +134,19 @@ function settleTranches(s: GameStateV2, ctx: SystemCtx) {
   f.tranches = keep;
 }
 
-/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'gw:<GW online>', 'ipo'. FIN4r (M1): 'gw:' counts the
- *  compute online in your own sites (`gwOwned`), not rented cloud or spot capacity (a hyperscaler's own cloud must
- *  not meet its condition). */
-export function trancheConditionMet(s: GameStateV2, cond: string): boolean {
+/** What has been paid to `partner` on the ledger since its tally stood at `base` ($B). */
+export const spentSince = (s: GameStateV2, partner: string, base: Money): Money => paidTo(s, partner) - base;
+
+/** Tranche conditions: 'recapitalisation', 'revenue:<R>', 'ipo', and a partner's 'spent:<partner>:<$B>': that much has
+ *  been paid to the partner on the ledger since the deal was signed (`tranche.spentBase` is what it had been paid by
+ *  then; without a tranche, since the start). */
+export function trancheConditionMet(s: GameStateV2, cond: string, tranche?: Pick<Tranche, 'spentBase'>): boolean {
   const f = s.player.finance;
   if (cond === 'recapitalisation') return f.ws3.recap.doneDay !== undefined;
   if (cond === 'ipo') return f.ownership.public > 0;
-  const [k, v] = cond.split(':');
+  const [k, v, w] = cond.split(':');
   if (k === 'revenue') return f.revenueRun >= Number(v);
-  if (k === 'gw') return gwOwned(s) >= Number(v);
+  if (k === 'spent') return spentSince(s, v, tranche?.spentBase ?? 0) >= Number(w) - 1e-9;
   return false;
 }
 

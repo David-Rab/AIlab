@@ -36,31 +36,36 @@ export const partnerDef = (id: string) => PARTNER_DEFS.find((p) => p.id === id);
 /** Partner deal sizing (FIN4a). Every price follows the expected market path (FIN1, spec §5) less the firm discount and
  *  the partner's own discount for the commitment, both shown on the offer. */
 export const PARTNER_TERMS = {
-  // Equity E = $5–15B per tranche at today's V, 3 tranches (one now, two on GW conditions) [R15 §1.7]; non-voting and
-  // capped at 15% of the company per hyperscaler, tranches included (CMA/FTC: Google ≤ 14% of Anthropic, R15 12–15%)
-  // [R21 B2]. Commitment: cloud capacity worth 4 × E over 6 years at today's price (C = 4–12 × E over 5–10 y [R15]),
-  // paid on the expected path; the partner takes 10% off for the commitment [D]. Revenue share 8% while it runs
-  // (all three cloud partnerships carry one [R21 B4]; size [D]). Exclusivity and IP access are optional (FIN4b, below).
-  hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08 },
-  // Custom chips (TPU, Trainium): 1 GW over 8 quarters at 45% of the H100e list path (perf/$ 2–5× an H100: TPU v6e 5.9,
-  // Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served outside rationing); migration −15% research for
-  // ~2.5 quarters [R15 Design].
-  asic: { costMult: 0.45, quarters: 8, gw: 1.0, migrationDays: 230, researchMult: 0.85 },
-  // Chip vendor: $10B of equity per GW you deploy (Nvidia–OpenAI; AMD warrants vest by GW) [R15 §1.7]; you buy 2 GW of
-  // its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]; tranches by GW online
-  // within 12 quarters.
-  chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, deadlineQ: 12 },
-  // Rescue (distress only, spec §6.2): cash ≈ 2 quarters of burn, at least $20B, at most 15% of V; the partner is
-  // topped up to 30%, with a board seat of two votes and exclusivity [D]; FIN4b: and IP access when the partner has an
-  // affiliated lab, for 6 years like a hyperscaler deal [D].
-  rescue: { stake: 0.3, minCash: 20, maxShareOfV: 0.15, seats: 2, years: 6 },
+  // Equity E per tranche = 3% of V (at most $15B), 3 tranches (one now, two as the commitment is spent) [R15 §1.7];
+  // non-voting and capped at 15% of the company per hyperscaler, tranches included (CMA/FTC: Google ≤ 14% of Anthropic,
+  // R15 12–15%) [R21 B2]. Commitment, in dollars: C = 4 × the total equity (all 3 tranches) over 6 years (C = 4–12 × E
+  // over 5–10 y [R15]; Amazon–Anthropic ≈ 4×): one firm cloud contract a year of C/6, each sized at that year's expected
+  // price, so the capacity it buys grows as prices fall; the partner takes 10% off for the commitment and the firm
+  // discount is that of the 6-year term [D]. Tranche 2 lands when ⅓ of C has been paid to the partner since signing,
+  // tranche 3 at ⅔; each lapses `slackQ` quarters after the payment that would meet it falls due [D]. Revenue share 8%
+  // while it runs (all three cloud partnerships carry one [R21 B4]; size [D]; C7c replaces it). Exclusivity and IP
+  // access are optional (below).
+  hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, revenueShare: 0.08, spentAt: [1 / 3, 2 / 3], slackQ: 2 },
+  // Custom chips (TPU, Trainium): the same dollar commitment C buys ASIC chips at 45% of the H100e list path over 8
+  // quarters (perf/$ 2–5× an H100: TPU v6e 5.9, Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served
+  // outside rationing); migration −15% research for ~2.5 quarters [R15 Design]. Equity is the same as for cloud.
+  asic: { costMult: 0.45, quarters: 8, migrationDays: 230, researchMult: 0.85 },
+  // Chip vendor: $10B of equity per GW of its chips you buy (Nvidia–OpenAI; AMD warrants vest by GW) [R15 §1.7]; you buy
+  // 2 GW of its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]: that dollar value is
+  // the commitment, one tranche lands per GW-worth of it paid, each lapsing `slackQ` quarters after its payment falls due.
+  chipVendor: { perGW: 10, gw: 2, quarters: 8, discount: 0.05, slackQ: 2 },
+  // Rescue (distress only, spec §6.2): cash = twice the quarter's burn, at least $20B, at most 15% of V, priced like a
+  // distressed round at half the valuation (shares = cash ÷ (0.5 V + cash)); the partner gets a board seat of two votes
+  // and exclusivity [D]; FIN4b: and IP access when the partner has an affiliated lab, for 6 years like a hyperscaler deal [D].
+  rescue: { priceMult: 0.5, minCash: 20, maxShareOfV: 0.15, seats: 2, years: 6 },
   // FIN4b (spec §6.1): at most 3 partners at once (a deal signed in the game counts from signing; stakes from before the
-  // start do not) [D]. Optional strings for more money [D]: exclusivity (no deals with the partner's competitors) +25%
-  // of the equity (hyperscaler) or of the money per GW (chip vendor); IP access (hyperscalers with an affiliated lab)
-  // +20% of the equity: the affiliated lab licenses your models and closes ~10% a year of your capability lead while
-  // the deal runs (the FTC quotes Microsoft's OpenAI rights as a bridge until its own model is competitive) [R21 B4].
-  // Both bumps sit under the 15% stake cap.
-  strings: { maxPartners: 3, exclusiveBump: 0.25, ipBump: 0.2, ipCloseYr: 0.1 },
+  // start do not) [D]. Optional strings for more money [D]: exclusivity (no deals with the partner's competitors while
+  // the deal runs) +25% of the equity (hyperscaler) or of the money per GW (chip vendor), offered only while a competitor
+  // could offer you something; IP access (hyperscalers with an affiliated lab) +20% of the equity at a lead of
+  // `ipFullLeadMonths` or more, scaled down with a smaller lead: the affiliated lab licenses your models and closes ~10%
+  // a year of your capability lead while the deal runs (the FTC quotes Microsoft's OpenAI rights as a bridge until its
+  // own model is competitive) [R21 B4]. Both bumps sit under the 15% stake cap.
+  strings: { maxPartners: 3, exclusiveBump: 0.25, ipBump: 0.2, ipCloseYr: 0.1, ipFullLeadMonths: 6 },
 } as const;
 
 /** Debt instruments (R15 §1.7; FIN1 spec §3). `spreadBp` is the default; credit lines, chip loans and bonds are priced

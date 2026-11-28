@@ -6,8 +6,8 @@ import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { Day, FinancePromise, GameStateV2, Money, Thesis } from '../types';
 import { contingentLiabilities } from './capex';
 import { chipCollateral, trailingOpCash } from './debt';
-import { trancheConditionMet } from './investors';
-import { copyrightExposure, gwOwned } from './observe';
+import { spentSince, trancheConditionMet } from './investors';
+import { copyrightExposure } from './observe';
 import { livePromises, promiseDeadline, promiseStatus, type PromiseStatus } from './promises';
 
 export interface OweTranche {
@@ -61,17 +61,18 @@ export const COVENANT_NEAR = { creditLine: 1.5, chipLoan: 1.4 } as const;
 function trancheOf(s: GameStateV2, t: GameStateV2['player']['finance']['tranches'][number]): OweTranche {
   const f = s.player.finance;
   const cond = t.condition ?? '';
-  const met = !cond || trancheConditionMet(s, cond);
+  const met = !cond || trancheConditionMet(s, cond, t);
   let label = 'no condition: lands when due';
   let progress = 1;
   const [k, v] = cond.split(':');
   if (k === 'revenue') {
     label = `revenue run-rate $${Number(v).toFixed(0)}B/yr (now $${f.revenueRun.toFixed(0)}B)`;
     progress = f.revenueRun / Math.max(0.1, Number(v));
-  } else if (k === 'gw') {
-    const gw = gwOwned(s); // FIN4r (M1): your own sites only
-    label = `${Number(v).toFixed(1)} GW online in your own sites (now ${gw.toFixed(1)} GW)`;
-    progress = gw / Math.max(0.01, Number(v));
+  } else if (k === 'spent') {
+    const got = Math.max(0, spentSince(s, v, t.spentBase ?? 0));
+    const want = Number(cond.split(':')[2]);
+    label = `$${want.toFixed(0)}B paid to ${v} since signing (now $${got.toFixed(1)}B)`;
+    progress = got / Math.max(0.01, want);
   } else if (cond === 'recapitalisation') {
     const r = f.ws3.recap;
     label = r.doneDay !== undefined ? 'recapitalisation complete' : r.startDay !== undefined ? 'recapitalisation under review' : r.refused ? 'recapitalisation refused' : 'recapitalisation not started';

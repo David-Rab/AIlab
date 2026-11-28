@@ -98,9 +98,9 @@ const kWAt = (s: GameStateV2, qAhead: number) => s.power.kWPerH100e * Math.pow(0
 function cloudAt(s: GameStateV2, day: number) {
   return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day ? c.h100e : 0), 0);
 }
-/** Cloud from contracts longer than ~13 months (bridge rentals excluded) live at a future day. */
+/** Cloud from contracts longer than ~13 months (bridge rentals excluded; a partner's yearly contracts are one commitment) live at a future day. */
 function baseCloudAt(s: GameStateV2, day: number) {
-  return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && c.endDay - c.startDay > 400 ? c.h100e : 0), 0);
+  return s.player.cloud.reduce((a, c) => a + (c.startDay <= day && c.endDay > day && (c.endDay - c.startDay > 400 || PARTNERS.includes(c.provider)) ? c.h100e : 0), 0);
 }
 /** Facility MW expected live by a future day, per building (siteLiveMW): live sites, sites under construction whose
  *  buildings go live by then, and, with `includePlanned`, sites still in permits or waiting for power whose planned
@@ -213,7 +213,7 @@ export function financeAutopilot(s: GameStateV2, o0: AutopilotOpts = REF_AUTOPIL
 
   // One strategic hyperscaler deal (from Q4 2025): the hyperscaler that offers the most equity, on cloud capacity
   // (FIN4a: the legacy Northwind stake is above the 15% cap, so on the leader start that is Azimuth). A rescue counts.
-  // FIN4b: it takes exclusivity (one deep partner: +25% of the money, and it never wants the competitor) but not IP
+  // FIN4b: it takes exclusivity when it is on offer (one deep partner: +25% of the money, and it never wants the competitor) but not IP
   // access (its in-house lab would close on the lead the bot races for).
   if (o.strategic && s.time.day >= 92 && !f.deals.some((d) => d.kind === 'hyperscaler' && !d.legacy && d.day >= 0)) {
     const deep = Object.fromEntries(PARTNERS.map((id) => [id, { supply: 'cloud' as const, exclusive: true }]));

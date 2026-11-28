@@ -59,10 +59,11 @@ export const stakeRoom = (V: Money, stake: number, cap: number) => Math.max(0, (
 
 /** A strategic partner buys `amount` of new shares at today's valuation (FIN4a: partner deals and their tranches):
  *  cash in, shares to the partner, valuation up by the money. `stakeCap` (a hyperscaler's 15%) limits what it may buy;
- *  the part past the cap does not land. Returns the money booked. */
-export function partnerEquityIn(s: GameStateV2, ctx: SystemCtx, partner: string, amount: Money, label: string, stakeCap?: number): Money {
+ *  the part past the cap does not land. `priceMult`: the shares are priced at that share of the valuation (a rescue, in
+ *  distress, pays half). Returns the money booked. */
+export function partnerEquityIn(s: GameStateV2, ctx: SystemCtx, partner: string, amount: Money, label: string, stakeCap?: number, priceMult = 1): Money {
   const f = s.player.finance;
-  const V = Math.max(10, f.valuation);
+  const V = Math.max(10, f.valuation) * priceMult;
   const amt = Math.max(0, stakeCap !== undefined ? Math.min(amount, stakeRoom(V, f.ownership.strat[partner] ?? 0, stakeCap)) : amount);
   if (stakeCap !== undefined && amt < amount - 0.05) ctx.log('finance', `${label}: ${partner}'s stake is capped at ${Math.round(stakeCap * 100)}%; $${(amount - amt).toFixed(1)}B of it lapses.`, 2);
   if (amt <= 0) return 0;
