@@ -1694,7 +1694,8 @@ export interface DealSupply {
   kind: PartnerSupply;
   /** Cloud: capacity (H100e) in the first year (see `yearly`); chips: H100e delivered each quarter. */
   h100e: H100e;
-  /** A hyperscaler's cloud: one firm contract a year, each of this many H100e (growing as prices fall). */
+  /** A hyperscaler's cloud: one firm contract a year, each of this many H100e (growing as prices fall); custom chips: one
+   *  order a year, each of this many H100e a quarter. */
   yearly?: H100e[];
   quarters: number;
   /** Price in the first and last quarter: $K per H100e-year (cloud) or $K per H100e (chips). */
@@ -1727,6 +1728,8 @@ export interface StrategicDeal {
   /** Day the deal's running terms end (supply, revenue share, rationing priority). */
   until: Day;
   rescue?: boolean;
+  /** The partner has been asked about a renewal of this deal, which reached `until` (once per ended deal, C7b). */
+  renewalAsked?: boolean;
   /** A stake from before the start (the legacy Northwind stake, the challenger's strategic investor): a holder whose
    *  only running term is its revenue share, if any (C7c). */
   legacy?: boolean;
@@ -2005,6 +2008,11 @@ export interface FinanceWS3 {
   /** Everything paid to each payee on the ledger so far ($B, cumulative; entries leave the ledger when they end): what a
    *  partner's 'spent:' tranche conditions count from signing. */
   paidTo?: Record<string, Money>;
+  /** `paidTo` at the start of each of the last 5 quarters (oldest first): the trailing 4 quarters' payments to a partner
+   *  are the tally now less the oldest snapshot (partner interest's spend share, C7b). */
+  paidSnap?: { q: number; paid: Record<string, Money> }[];
+  /** Day of the last follow-on taken from each partner (at most one a year, C7b). */
+  followOnDay?: Record<string, Day>;
   /** Day until which a custom-ASIC migration slows research (WS1 reads this, §3.7.4 −15% research efficiency). */
   asicMigrationUntil?: Day;
   /** Last quarter's net operating cash flow (rating input) and the cash at its start. */

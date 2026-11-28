@@ -4,7 +4,7 @@
 // live in the top strip (L0) and are never repeated here.
 import { useState, type ReactNode } from 'react';
 import {
-  actionView, conditionWords, dealCutProjections, distributionProjection, type CutProjection, partnerStakeAfter, partnerStakeAll, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
+  actionView, conditionWords, dependence, followOnBlocker, interestWords, partnerInterest, dealCutProjections, distributionProjection, type CutProjection, partnerStakeAfter, partnerStakeAll, dateOf, dayOfQuarter, dealWith, debtHeadroom, leadEstimate, partnerCosts, partnerOffers, partnersNow, termsEquity, type PartnerChoice, debtRatePct, fmtDate, fmtMonth, incidentBoardHit, interestPerYear, ledgerDue, leaseRate, liveLedger, newDebtRatePct, ratingTerms,
   payrollOf, qOf, runwayOf, totalDebt, RUNWAY_CAP,
   describeTarget, fmtMetric, whatWeOwe, isListed, LARGE_ROUND, roundSplit, makeThesis, MILESTONES, PITCH, PITCHES, pitchAvailable, PROMISE_RESULT, promiseDeadline, raiseQuote, raiseTerms, trendOf,
   BC_ANCHOR, BC_CLEAR, BC_REVERT_Q, BC_WARN, canonicalKey, charterHolds, charterRights, CRITICS, criticsSide, OUSTER, INCIDENT_BC, INCIDENT_BC_CAP_Q, MOOD_BASE, MOOD_LABEL, MOOD_SOURCE_OF, MOOD_SOURCES, MOOD_WEIGHTS, moodWeight,
@@ -768,15 +768,32 @@ function partnerStatus(s: GameStateV2, partner: string, blocked?: string): { tex
   return { text: 'offer', tone: '', tip: 'Terms below, priced today. Sign to book them.' };
 }
 
+/** What the partner thinks of you (C7b, CORPORATE.md §5.1, §5.4): its interest in words (the parts in the tooltip) and how
+ *  much of your compute it supplies (dependence: it tightens a renewal's discount). */
+function PartnerStanding({ s, partner }: { s: GameStateV2; partner: string }) {
+  const i = partnerInterest(s, partner);
+  const dep = dependence(s, partner);
+  return (
+    <div className="fin-row small" data-test="partner-interest">
+      <Tip content={() => <TipCard title="How much it values you" value={i.value.toFixed(2)} rows={i.parts.map((x) => ({ label: x.label, value: `${x.v > 0 && x !== i.parts[0] ? '+' : ''}${x.v.toFixed(2)}` }))}>{'Around 1 is a typical client (0.5 to 1.5). It sizes the equity of its offers, picks who rescues you, and at 1.2 or more it offers follow-ons.'}</TipCard>}>
+        <span>{interestWords(s, partner)}</span>
+      </Tip>
+      {dep > 0 && <Pill kind="neu" title={`${partner} supplies ${F.pct(dep)} of your compute now. The more you lean on it, the less of its discount you keep when the deal is renewed.`}>{F.pct(dep)} of your compute</Pill>}
+    </div>
+  );
+}
+
 /** A signed deal: what still runs. Its tranche conditions live in What we owe, its payments in Contracts (one home). */
 function SignedDeal({ s, d }: { s: GameStateV2; d: StrategicDeal }) {
   const live = s.player.finance.tranches.filter((t) => t.partner === d.partner);
   return (
     <div className="pt-terms" data-test="partner-signed">
+      <PartnerStanding s={s} partner={d.partner} />
       <div className="fin-row small"><Tip content={() => <TipCard title="Equity in" rows={[{ label: 'At signing', value: F.money(d.equityNow) }, { label: 'In tranches', value: F.money(d.equityLater) }, { label: 'Stake now', value: F.pct(s.player.finance.ownership.strat[d.partner] ?? 0) }]}>{d.legacy ? 'A holder from before the start.' : 'Tranches land on their conditions at that day\'s valuation.'}</TipCard>}><span>Equity <b className="num">{F.money(d.equityNow)}</b> now · <b className="num">{F.money(d.equityLater)}</b> in tranches</span></Tip>
         {live.length > 0 && <GoBtn to={{ panel: 'finance', tab: 'owe' }} label={`${live.length} tranche${live.length > 1 ? 's' : ''} pending`} testId="fin.go.partnerTranches" />}</div>
       {d.supply && <div className="fin-row small"><Tip content={() => <TipCard title={SUPPLY_SHORT[d.supply!.kind]} rows={[{ label: 'Take-or-pay', value: F.money(d.supply!.total) }, { label: 'Ends', value: fmtDate(dateOf(s, d.supply!.endDay ?? d.until)) }]}>Payments are in the Contracts tab.</TipCard>}><span>{SUPPLY_SHORT[d.supply.kind]} · <b className="num">{F.money(d.supply.total)}</b> take-or-pay to {fmtDate(dateOf(s, d.supply.endDay ?? d.until))}</span></Tip><GoBtn to={{ panel: 'finance', tab: 'contracts' }} label="Contracts" testId="fin.go.partnerContracts" /></div>}
       <div className="pills"><Strings s={s} partner={d.partner} strings={d.strings} years={Math.max(0, Math.round((d.until - s.time.day) / 365))} deal={d} ipName={partnerCosts(s).find((c) => c.partner === d.partner)?.ip?.labName} /></div>
+      {!followOnBlocker(s, d.partner) && <div className="btn-row"><ActBtn id="fin.followOn" params={{ partner: d.partner }} label={`Take ${d.partner}'s follow-on`} icon={ICON.relations} anchor="partnerFollowOn" reason /></div>}
     </div>
   );
 }
@@ -841,6 +858,7 @@ function PartnerOffer({ s, o, choice, setChoice }: { s: GameStateV2; o: ReturnTy
   return (
     <div className="pt-terms" data-test="partner-terms">
       {o.supply.length > 1 && <div className="fin-row"><span className="dim small">Supply</span><Seg value={choice.supply ?? o.supply[0]} options={o.supply.map((x) => ({ v: x, label: SUPPLY_SHORT[x] }))} onChange={(v) => setChoice({ ...choice, supply: v })} testId="partner-supply" /></div>}
+      <PartnerStanding s={s} partner={o.partner} />
       <OfferStrings s={s} t={t} choice={choice} setChoice={setChoice} />
       {eq > 0 && (
         <div className="fin-row small" data-test="partner-equity">

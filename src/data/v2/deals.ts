@@ -64,10 +64,11 @@ export const PARTNER_TERMS = {
   // Anthropic]; one partner of two or three ≈ 20% of the channel's revenue, so +25% [D from P]. Fee 30% [D: no sourced
   // marketplace take]. Exclusivity and IP access are optional (below).
   hyperscaler: { equityShareOfV: 0.03, trancheMax: 15, tranches: 3, stakeCap: 0.15, commitMult: 4, years: 6, discount: 0.1, distribution: { reach: 0.25, fee: 0.3 }, spentAt: [1 / 3, 2 / 3], slackQ: 2 },
-  // Custom chips (TPU, Trainium): the same dollar commitment C buys ASIC chips at 45% of the H100e list path over 8
-  // quarters (perf/$ 2–5× an H100: TPU v6e 5.9, Trainium2 4.4, Epoch Q4 2025 [R15]); a separate supply pool (served
+  // Custom chips (TPU, Trainium): the same dollar commitment C buys ASIC chips at 45% of the H100e list path (perf/$ 2–5×
+  // an H100: TPU v6e 5.9, Trainium2 4.4, Epoch Q4 2025 [R15]), over the deal's 6 years like cloud: one order a year of C/6,
+  // each sized at that year's expected price, so the quantity grows as prices fall (C7b); a separate supply pool (served
   // outside rationing); migration −15% research for ~2.5 quarters [R15 Design]. Equity is the same as for cloud.
-  asic: { costMult: 0.45, quarters: 8, migrationDays: 230, researchMult: 0.85 },
+  asic: { costMult: 0.45, migrationDays: 230, researchMult: 0.85 },
   // Chip vendor: $10B of equity per GW of its chips you buy (Nvidia–OpenAI; AMD warrants vest by GW) [R15 §1.7]; you buy
   // 2 GW of its chips over 8 quarters at the path less the firm discount and 5% vendor discount [D]: that dollar value is
   // the commitment, one tranche lands per GW-worth of it paid, each lapsing `slackQ` quarters after its payment falls due.

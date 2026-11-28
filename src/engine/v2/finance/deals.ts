@@ -14,7 +14,7 @@
 // Owner: WS3.
 import { firmDiscount, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
-import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, RivalLab, StrategicDeal, SystemCtx } from '../types';
+import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
 import { boardVote, commitmentsVote, voteGate } from './board';
 import { missionPowers } from './control';
@@ -26,6 +26,10 @@ import { paidTo, qOf } from './ledger';
 import { divisionBlock } from './parent';
 import { runwayOf } from './runway';
 import { dealCutProjections, type CutProjection } from './distribution';
+import { affiliatedLab, dependence, isRunningDeal, partnerInterest, PARTNER_INTEREST, runningDeal, snapshotPaid } from './partnerInterest';
+import { request } from '../events/request';
+
+export { affiliatedLab };
 
 export const SUPPLY_LABEL: Record<PartnerSupply, string> = { cloud: 'cloud capacity', asic: 'custom chips', chips: 'its chips' };
 
@@ -46,21 +50,17 @@ const V0 = (s: GameStateV2) => Math.max(10, s.player.finance.valuation);
  *  of the company (non-voting, capped [R21 B2]). */
 export const hyperscalerRoom = (s: GameStateV2, partner: string) => stakeRoom(V0(s), stakeOf(s, partner), PARTNER_TERMS.hyperscaler.stakeCap);
 
-/** A partner's deal signed in the game (not a stake from before the start), if any: one deal per partner (FIN4a). */
-export const dealWith = (s: GameStateV2, partner: string) => s.player.finance.deals.find((d) => d.partner === partner && !d.legacy);
+/** A partner's running deal signed in the game (not a stake from before the start, not one past its `until`), if any:
+ *  one running deal per partner (FIN4a, C7b). A partner whose deal ended can sign again. */
+export const dealWith = runningDeal;
 
 const ST = PARTNER_TERMS.strings;
 
-/** Your partners (FIN4b): every partner you signed a deal with in the game, rescue included, in signing order. Deals run
- *  6 years or more (longer than the game) and a cheque makes a holder, so a partner counts from signing. Stakes from
- *  before the start do not count. At most PARTNER_TERMS.strings.maxPartners (3). */
-export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => !d.legacy).map((d) => d.partner))];
+/** Your partners (FIN4b, C7b): every partner with a deal signed in the game that is still running (rescue included), in
+ *  signing order. A deal past its `until` no longer counts; stakes from before the start never do. At most
+ *  PARTNER_TERMS.strings.maxPartners (3). */
+export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => isRunningDeal(s, d)).map((d) => d.partner))];
 
-/** A partner's affiliated lab now (CORPORATE.md §5.8): the active NPC lab whose cast owner is that company, or none (a
- *  chip vendor owns no lab; when the player's kind replaced the partner's lab, the lab is the player's: none). */
-export function affiliatedLab(s: GameStateV2, partner: string): RivalLab | undefined {
-  return s.rivals.find((r) => r.core.status === 'active' && r.npc.owner === partner);
-}
 const labName = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab;
 
 /** Why exclusivity is not on offer from `partner` now, or undefined: it excludes a competitor, so there must be one that
@@ -134,25 +134,44 @@ function cloudSupply(s: GameStateV2, C: number, years: number, partnerDiscount: 
   return { kind: 'cloud', h100e: yearly[0], yearly, quarters: termQ, first: prices[0], last: prices[termQ - 1], firmDiscount: firmDiscount(termQ), partnerDiscount, total: perQ.reduce((a, b) => a + b, 0), perQ, prices, startQ: qOf(s) + 1 };
 }
 
-/** Chips every quarter on the expected list path less the firm discount, × `priceMult` (`chipQuote`, as Buy chips). */
-function chipSupply(s: GameStateV2, kind: 'asic' | 'chips', perQ: number, quarters: number, opts: { partnerDiscount?: number; costMult?: number }): NonNullable<PartnerTerms['supply']> {
-  const mult = (opts.costMult ?? 1) * (1 - (opts.partnerDiscount ?? 0));
-  const q = chipQuote(s, quarters, perQ, { priceMult: mult });
+/** A chip vendor's chips every quarter on the expected list path less the firm discount and its own (`chipQuote`, as Buy chips). */
+function chipSupply(s: GameStateV2, perQ: number, quarters: number, partnerDiscount: number): NonNullable<PartnerTerms['supply']> {
+  const q = chipQuote(s, quarters, perQ, { priceMult: 1 - partnerDiscount });
   const prices = q.prices ?? [q.price];
   return {
-    kind, h100e: perQ, quarters: q.quarters, first: prices[0], last: prices[prices.length - 1], firmDiscount: q.discount, partnerDiscount: opts.partnerDiscount ?? 0,
-    ...(opts.costMult !== undefined ? { costMult: opts.costMult } : {}), total: q.total, perQ: prices.map((p, k) => (perQ * p) / 1e6 - (k === 0 ? q.now : 0)), prices, startQ: q.dueQ,
+    kind: 'chips', h100e: perQ, quarters: q.quarters, first: prices[0], last: prices[prices.length - 1], firmDiscount: q.discount, partnerDiscount,
+    total: q.total, perQ: prices.map((p, k) => (perQ * p) / 1e6 - (k === 0 ? q.now : 0)), prices, startQ: q.dueQ,
     ...(q.now > 0 ? { prepaid: q.now } : {}),
   };
 }
 
-/** Custom chips for the commitment `C` ($B): the same dollars as the cloud option, at `costMult` of the H100e list path
- *  over `asic.quarters`, so the quantity each quarter is what C buys. */
+/** Custom chips for the commitment `C` ($B): the same dollars as the cloud option, over the deal's years like cloud (C7b):
+ *  one order a year of C / years, each a tranche every quarter for four quarters at that year's expected price (`costMult`
+ *  of the H100e list path, the firm discount of the whole term), so the quantity each year is what its dollars buy and
+ *  grows as prices fall. `h100e` is the first year's, per quarter; `yearly` the quantity per quarter of each year. */
 function asicSupply(s: GameStateV2, C: number): NonNullable<PartnerTerms['supply']> {
   const a = PARTNER_TERMS.asic;
-  const unit = chipQuote(s, a.quarters, 1, { priceMult: a.costMult });
-  const perQ = (C * 1e6) / (unit.prices ?? [unit.price]).reduce((x, y) => x + y, 0);
-  return chipSupply(s, 'asic', perQ, a.quarters, { costMult: a.costMult });
+  const years = PARTNER_TERMS.hyperscaler.years;
+  const yearly: number[] = [];
+  const perQ: number[] = [];
+  const prices: number[] = [];
+  let prepaid = 0;
+  let dueQ = 0;
+  for (let y = 0; y < years; y++) {
+    const opts = { priceMult: a.costMult, startQ: 4 * y, discountQ: 4 * years };
+    const unit = chipQuote(s, 4, 1, opts);
+    const h = (C / years) * 1e6 / (unit.prices ?? [unit.price]).reduce((x, z) => x + z, 0);
+    const q = chipQuote(s, 4, h, opts);
+    const ps = q.prices ?? [q.price];
+    yearly.push(h);
+    prices.push(...ps);
+    perQ.push(...ps.map((p, k) => (h * p) / 1e6 - (k === 0 ? q.now : 0)));
+    if (y === 0) { prepaid = q.now; dueQ = q.dueQ; }
+  }
+  return {
+    kind: 'asic', h100e: yearly[0], yearly, quarters: 4 * years, first: prices[0], last: prices[prices.length - 1], firmDiscount: firmDiscount(4 * years), partnerDiscount: 0,
+    costMult: a.costMult, total: perQ.reduce((x, z) => x + z, 0) + prepaid, perQ, prices, startQ: dueQ, ...(prepaid > 0 ? { prepaid } : {}),
+  };
 }
 
 /** Quarters from now to the end of the quarter in which the supply's payments (the prepaid part at signing, then each
@@ -173,7 +192,7 @@ const spentCond = (partner: string, amount: number) => `spent:${partner}:${(Math
 export const supplyOptions = (partner: string): PartnerSupply[] => partnerDef(partner)?.supply ?? [];
 
 /** What a partner offer is chosen with (FIN4b): the supply, and the optional strings (both off by default). */
-export interface PartnerChoice { supply?: PartnerSupply; exclusive?: boolean; ipAccess?: boolean }
+export interface PartnerChoice { supply?: PartnerSupply; exclusive?: boolean; ipAccess?: boolean; /** A renewal: your dependence on the partner (0–1), which takes that share off its discount (C7b). */ dependence?: number; /** A follow-on (C7b): one more tranche's equity for 4× it in the same supply, no tranches, no strings. */ followOn?: boolean }
 
 /** The terms `partner` offers now (spec §6.1; sizes in data/v2/deals.ts PARTNER_TERMS), with the optional strings chosen
  *  in `opts` (FIN4b): exclusivity adds 25% to the money, IP access up to 20% (by your lead over its lab), both under the
@@ -207,6 +226,10 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
       options: { exclusive: { on: true, bump: 0 }, ipAccess: { on: !!lab, bump: 0, ...ipLab, ...(lab ? {} : { blocked: ipBlock ?? 'No lab to license to' }) } },
     };
   }
+  // C7b: a plain offer's money follows the partner's interest in you (CORPORATE.md §5.1); a renewal's partner discount is
+  // tougher by your dependence on it (§5.4).
+  const interest = partnerInterest(s, partner).value;
+  const discountOf = (base: number) => base * (1 - Math.min(1, Math.max(0, opts.dependence ?? 0)));
   const strings = (extra: PartnerTerms['strings'] = {}): PartnerTerms['strings'] => ({ ...(ex ? { exclusivity: true } : {}), ...extra, ...(ip && lab ? { ipAccess: { lab: lab.core.id, ...(ipVote(s, partner)?.passes ? { trust: true } : {}) } } : {}) });
   if (p.kind === 'hyperscaler') {
     const t = PARTNER_TERMS.hyperscaler;
@@ -215,12 +238,17 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
     const ipScale = lab ? ipLeadScale(s, lab.core.id) : 0;
     // All the equity (now + two tranches) at a multiple of the plain offer, under the 15% cap; each string's bump is the
     // difference it makes with the other string as chosen. IP access's money scales with your lead over its lab.
-    const total = (e: boolean, i: boolean) => Math.max(0, Math.min(per * t.tranches * (1 + (e ? ST.exclusiveBump : 0) + (i ? ST.ipBump * ipScale : 0)), room));
+    const total = (e: boolean, i: boolean) => Math.max(0, Math.min(per * interest * t.tranches * (1 + (e ? ST.exclusiveBump : 0) + (i ? ST.ipBump * ipScale : 0)), room));
     const E = total(ex, ip) / t.tranches;
     // The commitment, in dollars: 4 × all the equity, whichever supply it buys.
     const C = t.commitMult * total(ex, ip);
     const want = opts.supply && p.supply.includes(opts.supply) ? opts.supply : p.supply[0];
-    const supply = want === 'asic' ? asicSupply(s, C) : cloudSupply(s, C, t.years, t.discount);
+    if (opts.followOn) {
+      const E1 = Math.max(0, Math.min(per * interest, room));
+      const C1 = t.commitMult * E1;
+      return { ...base, equityNow: E1, supply: want === 'asic' ? asicSupply(s, C1) : cloudSupply(s, C1, t.years, discountOf(t.discount)), stakeCap: t.stakeCap, years: t.years };
+    }
+    const supply = want === 'asic' ? asicSupply(s, C) : cloudSupply(s, C, t.years, discountOf(t.discount));
     return {
       ...base, equityNow: E,
       tranches: t.spentAt.map((f, i) => ({ amount: E, condition: spentCond(partner, C * f), dueDay: at(2 + 2 * i), deadline: at(paidByQ(s, supply, C * f) + t.slackQ) })),
@@ -233,14 +261,20 @@ export function partnerTerms(s: GameStateV2, partner: string, opts: PartnerChoic
   }
   if (p.kind === 'chipVendor') {
     const t = PARTNER_TERMS.chipVendor;
-    const supply = chipSupply(s, 'chips', (t.gw * 1e6) / s.power.kWPerH100e / t.quarters, t.quarters, { partnerDiscount: t.discount });
-    const perGW = t.perGW * (ex ? 1 + ST.exclusiveBump : 1);
+    if (opts.followOn) {
+      const E1 = t.perGW * interest;
+      const unit = chipSupply(s, 1, t.quarters, discountOf(t.discount));
+      const perQ1 = (PARTNER_TERMS.hyperscaler.commitMult * E1 * 1e6) / unit.prices.reduce((a, b) => a + b, 0);
+      return { ...base, equityNow: E1, supply: chipSupply(s, perQ1, t.quarters, discountOf(t.discount)), years: t.quarters / 4 };
+    }
+    const supply = chipSupply(s, (t.gw * 1e6) / s.power.kWPerH100e / t.quarters, t.quarters, discountOf(t.discount));
+    const perGW = t.perGW * interest * (ex ? 1 + ST.exclusiveBump : 1);
     // One tranche per GW-worth of its chips paid: the commitment (the dollar value of its GW at the path) in equal parts.
     const tranches = Array.from({ length: t.gw }, (_, i) => {
       const paid = (supply.total * (i + 1)) / t.gw;
       return { amount: perGW, condition: spentCond(partner, paid), dueDay: at(1), deadline: at(paidByQ(s, supply, paid) + t.slackQ) };
     });
-    return { ...base, tranches, supply, strings: strings(), years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * ST.exclusiveBump } } };
+    return { ...base, tranches, supply, strings: strings(), years: (supply.startQ - q + supply.quarters) / 4, options: { ...base.options, exclusive: { ...off(exBlock), on: ex, bump: exBlock ? 0 : t.gw * t.perGW * interest * ST.exclusiveBump } } };
   }
   return base;
 }
@@ -284,14 +318,46 @@ export function dealVotes(s: GameStateV2, t: PartnerTerms): BoardVote[] {
 export const dealVote = (vs: BoardVote[]) => vs.find((v) => !v.passes) ?? vs[0];
 
 /** Who would rescue the company now: among the hyperscalers that no other partner's running exclusivity blocks, the one
- *  that already holds the largest stake (the most to lose; ties go to the order of PARTNER_DEFS). */
+ *  that values you most (partner interest, C7b); ties go to the larger stake, then to the order of PARTNER_DEFS. */
 export function rescuePartner(s: GameStateV2): string | undefined {
   let best: string | undefined;
+  let bestI = 0;
   for (const x of PARTNER_DEFS) {
     if (x.kind !== 'hyperscaler' || vetoesOf(s, x.id).length) continue;
-    if (best === undefined || stakeOf(s, x.id) > stakeOf(s, best)) best = x.id;
+    const i = partnerInterest(s, x.id).value;
+    if (best === undefined || i > bestI + 1e-9 || (Math.abs(i - bestI) <= 1e-9 && stakeOf(s, x.id) > stakeOf(s, best))) { best = x.id; bestI = i; }
   }
   return best;
+}
+
+/** Book a partner's supply: a hyperscaler's cloud as one firm contract a year, custom chips as one chip order a year
+ *  (each with the discount of the whole term, the capacity growing as prices fall), a vendor's chips as one tranche order.
+ *  Returns the day its supply ends. */
+function bookSupply(s: GameStateV2, ctx: SystemCtx, partner: string, supply: PartnerTerms['supply']): Day {
+  const f = s.player.finance;
+  const q = qOf(s);
+  let supplyEnd = s.time.day;
+  if (supply?.kind === 'cloud') {
+    // One firm contract a year (the capacity grows as prices fall), each priced with the discount of the whole term.
+    for (const [y, h] of (supply.yearly ?? [supply.h100e]).entries()) {
+      const c = addCloud(s, ctx, h, 4, partner, { partnerDiscount: supply.partnerDiscount, startQ: 1 + 4 * y, termQ: supply.quarters });
+      supplyEnd = Math.max(supplyEnd, c.endDay);
+    }
+  } else if (supply?.kind === 'asic') {
+    // One chip order a year (the quantity grows as prices fall), each its own supply pool (TPU/Trainium: served outside
+    // rationing, FIN4r L9); the migration slows research ~2.5 quarters [R15].
+    const a = PARTNER_TERMS.asic;
+    for (const [y, h] of (supply.yearly ?? [supply.h100e]).entries()) {
+      const o = placeOrder(s, ctx, 4, h, { priceMult: a.costMult, startQ: 4 * y, discountQ: supply.quarters, payee: partner });
+      supplyEnd = Math.max(supplyEnd, dayOfQuarter(s.time.startDate, o.ltaEndQ ?? q + 2 + 4 * y + 4));
+      f.ws3.reserved.push({ perQ: h, fromQ: o.dueQ, toQ: o.ltaEndQ ?? o.dueQ + 4, order: o.id });
+    }
+    f.ws3.asicMigrationUntil = s.time.day + a.migrationDays;
+  } else if (supply) {
+    const o = placeOrder(s, ctx, supply.quarters, supply.h100e, { priceMult: 1 - supply.partnerDiscount, payee: partner });
+    supplyEnd = dayOfQuarter(s.time.startDate, o.ltaEndQ ?? q + 2 + supply.quarters);
+  }
+  return supplyEnd;
 }
 
 /** Sign `partner`'s deal on today's terms (shown before signing by `partnerTerms`): equity now, tranches with their
@@ -310,7 +376,6 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
     const no = voteGate(ctx, v, !!opts.force);
     if (no) return no;
   }
-  const q = qOf(s);
   const label = t.rescue ? 'strategic rescue' : `${t.kind === 'hyperscaler' ? 'hyperscaler' : 'chip-vendor'} equity`;
   partnerEquityIn(s, ctx, partner, t.equityNow, label, undefined, t.priceMult);
   if (t.rescue) {
@@ -321,22 +386,7 @@ export function signPartner(s: GameStateV2, ctx: SystemCtx, partner: string, opt
     amount: x.amount, dueDay: x.dueDay, condition: x.condition, deadline: x.deadline,
     source: t.kind === 'chipVendor' ? `${partner} equity per GW` : `${partner} tranche ${i + 2}`, partner, spentBase: paid0, ...(t.stakeCap !== undefined ? { stakeCap: t.stakeCap } : {}),
   }));
-  let supplyEnd = s.time.day;
-  if (t.supply?.kind === 'cloud') {
-    // One firm contract a year (the capacity grows as prices fall), each priced with the discount of the whole term.
-    for (const [y, h] of (t.supply.yearly ?? [t.supply.h100e]).entries()) {
-      const c = addCloud(s, ctx, h, 4, partner, { partnerDiscount: t.supply.partnerDiscount, startQ: 1 + 4 * y, termQ: t.supply.quarters });
-      supplyEnd = Math.max(supplyEnd, c.endDay);
-    }
-  } else if (t.supply) {
-    const o = placeOrder(s, ctx, t.supply.quarters, t.supply.h100e, { priceMult: (t.supply.costMult ?? 1) * (1 - t.supply.partnerDiscount), payee: partner });
-    supplyEnd = dayOfQuarter(s.time.startDate, o.ltaEndQ ?? q + 2 + t.supply.quarters);
-    if (t.supply.kind === 'asic') {
-      // Separate supply pool (TPU/Trainium): served outside rationing; migration slows research ~2.5 quarters [R15].
-      f.ws3.reserved.push({ perQ: t.supply.h100e, fromQ: t.supply.startQ, toQ: t.supply.startQ + t.supply.quarters, order: o.id }); // its own pool (FIN4r L9)
-      f.ws3.asicMigrationUntil = s.time.day + PARTNER_TERMS.asic.migrationDays;
-    }
-  }
+  const supplyEnd = bookSupply(s, ctx, partner, t.supply);
   const until = Math.max(supplyEnd, s.time.day + Math.round(t.years * 365));
   const deal: StrategicDeal = {
     id: `DL${s.time.day}-${f.deals.length}`, partner, kind: t.kind, day: s.time.day, equityNow: t.equityNow, equityLater: t.tranches.reduce((a, x) => a + x.amount, 0),
@@ -378,4 +428,63 @@ export function partnerCosts(s: GameStateV2): { partner: string; distribution?: 
     });
   }
   return out;
+}
+
+// ───────────────────────────── Partners act (C7b, CORPORATE.md §5.4) ─────────────────────────────
+
+/** Monthly: record the quarter's payments tally, and when a deal reaches its `until` ask once whether to renew it. The
+ *  renewal is a request to the event director (E33): a fresh deal of the same kind and supply at today's interest and
+ *  your dependence on the partner. A partner that could not deal now (its stake at the cap, a blocking exclusivity) just
+ *  lets the deal end. A rescue has no supply to renew; a legacy stake has no end to renew. */
+export function partnerMonthly(s: GameStateV2): void {
+  snapshotPaid(s);
+  for (const d of s.player.finance.deals) {
+    if (d.legacy || d.rescue || d.renewalAsked || d.until > s.time.day) continue;
+    d.renewalAsked = true;
+    if (!d.supply || partnerBlocker(s, d.partner, d.supply.kind)) continue;
+    request(s, 'E33', { partner: d.partner, supply: d.supply.kind, dep: Math.round(dependence(s, d.partner, 31) * 1000) / 1000 });
+  }
+}
+
+/** The renewal on offer (E33): a fresh deal with the same supply, its partner discount × (1 − dependence). */
+export const renewalChoice = (supply: PartnerSupply, dep: number): PartnerChoice => ({ supply, dependence: dep });
+
+/** Why `partner` offers no follow-on now, or undefined: it needs a running deal with a supply to extend, interest of
+ *  PARTNER_INTEREST.followOn or more, no follow-on taken from it within a year, and room under its stake cap. */
+export function followOnBlocker(s: GameStateV2, partner: string): string | undefined {
+  const d = dealWith(s, partner);
+  if (!d?.supply) return d ? `${partner}'s deal has no supply to extend` : `No running deal with ${partner}`;
+  const div = divisionBlock(s);
+  if (div) return div;
+  if (s.player.finance.state === 'insolvent' || s.player.finance.state === 'distress') return 'Not while the company is in distress';
+  const i = partnerInterest(s, partner).value;
+  if (i < PARTNER_INTEREST.followOn) return `${partner} does not value you enough for more yet (${i.toFixed(2)} of ${PARTNER_INTEREST.followOn})`;
+  const last = s.player.finance.ws3.followOnDay?.[partner];
+  if (last !== undefined && s.time.day - last < PARTNER_INTEREST.followOnGapDays) return `${partner} made you an offer ${Math.round((s.time.day - last) / 30.4)} months ago; one a year`;
+  if (partnerDef(partner)?.kind === 'hyperscaler' && hyperscalerRoom(s, partner) <= 0) return `${partner} is at its stake cap`;
+  return undefined;
+}
+
+/** The follow-on terms on offer now: one more tranche of equity (× interest) for 4× it in the same supply. */
+export const followOnTerms = (s: GameStateV2, partner: string): PartnerTerms => partnerTerms(s, partner, { followOn: true, supply: dealWith(s, partner)?.supply?.kind });
+
+/** Take the follow-on: the equity comes in now, the supply is booked, the deal's end moves out to the new supply's. */
+export function signFollowOn(s: GameStateV2, ctx: SystemCtx, partner: string, opts: { force?: boolean } = {}): string | undefined {
+  ensureWs3(s);
+  const why = followOnBlocker(s, partner);
+  if (why) return why;
+  const d = dealWith(s, partner)!;
+  const t = followOnTerms(s, partner);
+  for (const v of dealVotes(s, t)) {
+    const no = voteGate(ctx, v, !!opts.force);
+    if (no) return no;
+  }
+  partnerEquityIn(s, ctx, partner, t.equityNow, 'follow-on equity');
+  const supplyEnd = bookSupply(s, ctx, partner, t.supply);
+  d.equityNow += t.equityNow;
+  d.until = Math.max(d.until, supplyEnd);
+  if (d.supply && t.supply) { d.supply.total += t.supply.total; d.supply.endDay = Math.max(d.supply.endDay ?? 0, supplyEnd); }
+  (s.player.finance.ws3.followOnDay ??= {})[partner] = s.time.day;
+  ctx.log('finance', `Follow-on with ${partner}: $${t.equityNow.toFixed(1)}B more equity for $${(t.supply?.total ?? 0).toFixed(1)}B more of ${SUPPLY_LABEL[t.supply?.kind ?? 'cloud']}.`);
+  return undefined;
 }

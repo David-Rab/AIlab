@@ -16,6 +16,7 @@ import { expireRepriced } from './equity';
 import { ensureWs3, revenueShareRate, yearStats } from './ext';
 import { distributionCut } from './distribution';
 import { bookCash, ledgerPaying, notePaid } from './ledger';
+import { partnerMonthly } from './deals';
 import { deploymentRevenue } from './observe';
 import { runwayOf } from './runway';
 
@@ -115,6 +116,7 @@ export const payrollSystem: EngineSystem = {
     p.cloud = p.cloud.filter((c) => c.endDay > s.time.day);
     f.ws3.rentals = f.ws3.rentals.filter((r) => r.endDay > s.time.day);
     f.runwayQ = Math.round(runwayOf(s).q * 10) / 10;
+    partnerMonthly(s); // the quarter's payments tally; a deal that ended asks about a renewal (C7b)
     checkSolvency(s, ctx);
   },
 };
