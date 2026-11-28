@@ -7,7 +7,7 @@
 // set of typical second arguments (a version, a product, a lab, a team, a sector, a region, ...). Throws are caught: a
 // selector given the wrong kind of argument may throw, and that is not what the checks look for.
 //
-//   readSweep(s)          → { calls, fails }: every call made; `fails` = the calls that threw a write to a frozen object
+//   readSweep(s, light?)  → { calls, fails }: every call made (light: five typical second arguments instead of all 16, ~half the CPU); `fails` = the calls that threw a write to a frozen object
 //                           (only meaningful on a deep-frozen state: deepFreeze)
 //   deepFreeze(x)         freezes x and everything under it (a write then throws in strict-mode code: ES modules)
 import * as E from '../../src/engine/v2/index';
@@ -36,23 +36,24 @@ export function sweptFunctions(): [string, Fn][] {
 }
 
 /** Typical second arguments for two-argument selectors, from the state. */
-function secondArgs(s: GameStateV2): unknown[] {
+function secondArgs(s: GameStateV2, light: boolean): unknown[] {
   const v = E.internalVersion(s);
   const dep = s.player.deployments.find((d) => d.channel !== 'internal') ?? s.player.deployments[0];
   const team = s.player.teams[0];
   const rival = s.rivals[0];
   const xs: unknown[] = [v, v?.id, dep, dep?.id, 'player', rival?.core.id, team, team?.id, 'SOFT', 'US', 'AG01', 'capFrontier', 'SWE', 'ai2027', 0.5, true];
-  return xs.filter((x) => x !== undefined);
+  const all = xs.filter((x) => x !== undefined);
+  return light ? [v, dep, 'player', rival?.core.id, 0.5].filter((x) => x !== undefined) : all;
 }
 
 const FROZEN_WRITE = /read[- ]only|not extensible|Cannot (add|assign|delete|define)|object is not extensible|frozen/i;
 
 export interface SweepResult { calls: number; fails: string[] }
 /** Call every swept selector on `s` (see the header). */
-export function readSweep(s: GameStateV2): SweepResult {
+export function readSweep(s: GameStateV2, light = false): SweepResult {
   const fails: string[] = [];
   let calls = 0;
-  const args2 = secondArgs(s);
+  const args2 = secondArgs(s, light);
   const call = (name: string, f: Fn, args: unknown[]) => {
     calls++;
     try {
